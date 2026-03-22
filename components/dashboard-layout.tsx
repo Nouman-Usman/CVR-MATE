@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut, getCachedSession } from "@/lib/auth-client";
@@ -32,8 +32,13 @@ export default function DashboardLayout({
   const cachedSession = getCachedSession();
   const activeSession = session || (isPending ? cachedSession : null);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Middleware handles redirects — just show loading if no data yet
-  if (!activeSession) {
+  if (!mounted || !activeSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f7f9fb]">
         <span className="material-symbols-outlined animate-spin text-4xl text-blue-600">
