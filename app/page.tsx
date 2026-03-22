@@ -1,33 +1,21 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 
 import { useLanguage } from "@/lib/i18n/language-context";
-
-const benefitIcons = [
-  "timeline",
-  "refresh",
-  "schedule",
-  "hub",
-  "precision_manufacturing",
-  "rocket_launch",
-];
-
-const trustIcons = ["verified_user", "account_tree", "rocket"];
 
 export default function Home() {
   const { locale, t, toggleLocale } = useLanguage();
 
   return (
     <>
-      {/* TopNavBar */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
-        <div className="flex justify-between items-center px-8 py-4 max-w-screen-2xl mx-auto">
-          <div className="text-2xl font-black tracking-tighter text-slate-900 uppercase font-[family-name:var(--font-manrope)]">
+      {/* 1. NAVBAR */}
+      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl shadow-sm">
+        <div className="flex justify-between items-center max-w-7xl mx-auto px-6 h-20">
+          <div className="text-2xl font-black tracking-tighter text-slate-900 font-[family-name:var(--font-manrope)]">
             CVR-MATE
           </div>
-          <div className="hidden md:flex gap-8 items-center">
+          <div className="hidden md:flex items-center gap-8">
             <a
-              className="font-bold tracking-tight text-sm text-blue-600 border-b-2 border-blue-500 pb-1"
+              className="font-bold tracking-tight text-sm text-blue-600 border-b-2 border-blue-600 pb-1 font-[family-name:var(--font-manrope)]"
               href="#"
             >
               {t.nav.home}
@@ -40,73 +28,65 @@ export default function Home() {
             ].map((link) => (
               <a
                 key={link.label}
-                className="font-bold tracking-tight text-sm text-slate-500 hover:text-slate-900 transition-colors px-3 py-2 hover:bg-slate-100 rounded-lg"
+                className="font-bold tracking-tight text-sm text-slate-600 hover:text-blue-600 transition-colors font-[family-name:var(--font-manrope)]"
                 href={link.href}
               >
                 {link.label}
               </a>
             ))}
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <button
               onClick={toggleLocale}
-              className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer px-3 py-1.5 rounded-lg hover:bg-slate-100"
+              className="text-slate-600 hover:bg-slate-50 p-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-sm">
-                language
-              </span>
-              <span className="text-xs font-bold uppercase tracking-widest">
+              <span className="material-symbols-outlined text-xl">language</span>
+              <span className="text-xs font-bold uppercase tracking-widest font-[family-name:var(--font-manrope)]">
                 {locale === "da" ? "EN" : "DA"}
               </span>
             </button>
-            <a
-              className="text-slate-500 hover:text-slate-900 text-sm font-bold"
-              href="#"
-            >
+            <button className="font-bold text-sm text-slate-600 px-4 font-[family-name:var(--font-manrope)]">
               {t.nav.login}
-            </a>
-            <button className="btn-primary px-6 py-2.5 rounded-xl text-sm font-bold shadow-[0_4px_20px_rgba(37,99,235,0.25)]">
+            </button>
+            <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:scale-[1.02] transition-all duration-200">
               {t.nav.getStarted}
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-44 pb-32 overflow-hidden bg-gradient-to-b from-blue-50/50 to-white">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[140%] h-[800px] bg-[radial-gradient(circle_at_center,rgba(37,99,235,0.06)_0%,transparent_70%)] pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-8 relative z-10 grid lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <span className="inline-block px-4 py-1.5 rounded-full bg-blue-50 text-blue-600 font-bold text-xs tracking-widest uppercase mb-6 border border-blue-100">
-              {t.hero.badge}
-            </span>
-            <h1 className="text-6xl md:text-7xl font-black font-[family-name:var(--font-manrope)] tracking-tighter mb-6 leading-[0.95] text-slate-900">
-              {t.hero.headline}{" "}
-              <span className="text-gradient">{t.hero.headlineHighlight}</span>{" "}
-              {t.hero.headlineEnd}
+      {/* 2. HERO */}
+      <section className="relative pt-32 pb-20 overflow-hidden hero-pattern">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="space-y-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100/50 rounded-full border border-blue-100">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                {t.hero.badge}
+              </span>
+            </div>
+            <h1 className="font-[family-name:var(--font-manrope)] text-5xl lg:text-7xl font-extrabold text-slate-900 leading-[1.1] tracking-tight">
+              {t.hero.headline}
             </h1>
-            <p className="text-xl text-slate-500 mb-10 max-w-xl leading-relaxed">
+            <p className="text-xl text-slate-500 max-w-xl leading-relaxed">
               {t.hero.description}
             </p>
-            <div className="flex flex-wrap gap-4 mb-12">
-              <button className="btn-primary px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-3">
+            <div className="flex flex-wrap gap-4">
+              <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-8 py-4 rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-blue-500/20 transition-all">
                 {t.hero.bookDemo}
-                <span className="material-symbols-outlined">
-                  arrow_forward
-                </span>
               </button>
-              <button className="px-8 py-4 rounded-xl text-slate-700 font-bold text-lg hover:bg-slate-100 transition-all border border-slate-200">
+              <button className="bg-white border border-slate-200 text-slate-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-50 transition-all">
                 {t.hero.explorePlatform}
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pt-6">
               {t.hero.pills.map((item) => (
                 <div
                   key={item}
-                  className="flex items-center gap-3 text-sm text-slate-600 font-medium"
+                  className="flex items-center gap-2 text-sm text-slate-500"
                 >
                   <span
-                    className="material-symbols-outlined text-blue-500"
+                    className="material-symbols-outlined text-blue-600"
                     style={{ fontVariationSettings: "'FILL' 1" }}
                   >
                     check_circle
@@ -116,65 +96,160 @@ export default function Home() {
               ))}
             </div>
           </div>
+
+          {/* CSS-built Dashboard Mockup */}
           <div className="relative">
-            <div className="bg-white rounded-2xl p-4 nebula-shadow transform lg:rotate-2 lg:translate-x-12 scale-110 border border-slate-100">
-              <img
-                alt="B2B Dashboard"
-                className="rounded-xl"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCsn76VyIg6ExeYcxz54Bp3DZu9CCKz6nb1yJGF_uXjA8duwqas40t6xJSPHw7v-13Z0dPLY_RRY0XpGDuL2E77R4Bri1B5RrsgprT_WPWXpnSXXXAUiEY7njF_jOiXbe7phTCa9sqxFmhOspGDqCgKg-yat17I_zoOkXyflGyASsbvxNeUTZKLAGmw4zJC3h8NM9SOryeiBwN8mVAetnFyJra5iIaVhCRqEICiBiOYcyV60cEfBnbv6M9T4GSl2Ibu49FS0fp_uA"
-              />
-              <div className="absolute -top-10 -left-10 bg-white p-6 rounded-2xl nebula-shadow max-w-[200px] border border-blue-100">
-                <div className="text-blue-600 text-2xl font-bold mb-1">
-                  +420%
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 relative z-10">
+              {/* Window chrome */}
+              <div className="flex items-center justify-between mb-6 px-2">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-amber-400" />
+                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
                 </div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">
-                  {t.hero.stat}
+                <div className="h-6 w-32 bg-slate-100 rounded-full" />
+              </div>
+              <div className="space-y-4">
+                {/* Stat cards */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="h-24 bg-slate-50 rounded-lg p-3 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                      {t.hero.dashNewLeads}
+                    </span>
+                    <span className="text-xl font-black text-blue-600">
+                      1.284
+                    </span>
+                    <div className="h-1 bg-blue-100 rounded-full w-full overflow-hidden">
+                      <div className="h-full bg-blue-600 w-2/3" />
+                    </div>
+                  </div>
+                  <div className="h-24 bg-slate-50 rounded-lg p-3 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                      {t.hero.dashGrowth}
+                    </span>
+                    <span className="text-xl font-black text-cyan-600">
+                      +24%
+                    </span>
+                    <div className="flex items-end gap-1 h-4">
+                      <div className="w-1 bg-cyan-500 rounded-t h-2" />
+                      <div className="w-1 bg-cyan-500 rounded-t h-3" />
+                      <div className="w-1 bg-cyan-500 rounded-t h-4" />
+                      <div className="w-1 bg-cyan-500 rounded-t h-3" />
+                    </div>
+                  </div>
+                  <div className="h-24 bg-slate-50 rounded-lg p-3 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                      {t.hero.dashExport}
+                    </span>
+                    <span className="material-symbols-outlined text-slate-400">
+                      sync
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {t.hero.dashAutoSync}
+                    </span>
+                  </div>
+                </div>
+                {/* Company list */}
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-sm font-bold text-slate-900">
+                      {t.hero.dashTopCompanies}
+                    </span>
+                    <span className="text-[10px] text-blue-600 font-bold">
+                      {t.hero.dashSeeAll}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-slate-200" />
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">
+                            Novo Nordisk A/S
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Medicinal • 20.000+ ansatte
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-green-100 text-[10px] font-bold text-green-700">
+                        HIGH SCORE
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-slate-200" />
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">
+                            Maersk Line
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Transport • 10.000+ ansatte
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+                        RELEVANT
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
+            </div>
+            {/* Floating stat card */}
+            <div className="absolute -bottom-6 -right-6 bg-white/70 backdrop-blur-xl border border-white p-6 rounded-2xl shadow-xl z-20 max-w-[200px]">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white">
+                  <span className="material-symbols-outlined">
+                    trending_up
+                  </span>
+                </div>
+                <p className="text-3xl font-black text-slate-900">+420%</p>
+              </div>
+              <p className="text-xs font-bold text-slate-500 leading-tight">
+                {t.hero.stat}
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-24 section-alt">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-black font-[family-name:var(--font-manrope)] mb-4 text-slate-900">
-              {t.features.title}{" "}
-              <span className="text-gradient">
-                {t.features.titleHighlight}
-              </span>
+      {/* 3. FEATURES */}
+      <section className="py-24 bg-[#f7f9fb]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+            <h2 className="font-[family-name:var(--font-manrope)] text-4xl font-extrabold text-slate-900">
+              {t.features.title}
             </h2>
-            <p className="text-slate-500 text-lg">{t.features.subtitle}</p>
+            <p className="text-lg text-slate-500">{t.features.subtitle}</p>
           </div>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-white p-12 rounded-3xl hover:scale-[1.02] transition-transform duration-500 border border-slate-100 shadow-sm">
-              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-8 border border-blue-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white p-10 rounded-2xl border border-slate-100 hover:shadow-xl transition-all group">
+              <div className="w-14 h-14 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-600 mb-6 group-hover:scale-110 transition-transform">
                 <span
-                  className="material-symbols-outlined text-blue-600 text-4xl"
+                  className="material-symbols-outlined text-3xl"
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   database
                 </span>
               </div>
-              <h3 className="text-2xl font-bold mb-4 font-[family-name:var(--font-manrope)] text-slate-900">
+              <h3 className="text-2xl font-bold mb-4 text-slate-900">
                 {t.features.card1Title}
               </h3>
               <p className="text-slate-500 leading-relaxed">
                 {t.features.card1Desc}
               </p>
             </div>
-            <div className="bg-white p-12 rounded-3xl hover:scale-[1.02] transition-transform duration-500 border border-slate-100 shadow-sm">
-              <div className="w-16 h-16 bg-cyan-50 rounded-2xl flex items-center justify-center mb-8 border border-cyan-100">
+            <div className="bg-white p-10 rounded-2xl border border-slate-100 hover:shadow-xl transition-all group">
+              <div className="w-14 h-14 rounded-xl bg-cyan-600/10 flex items-center justify-center text-cyan-600 mb-6 group-hover:scale-110 transition-transform">
                 <span
-                  className="material-symbols-outlined text-cyan-600 text-4xl"
+                  className="material-symbols-outlined text-3xl"
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   radar
                 </span>
               </div>
-              <h3 className="text-2xl font-bold mb-4 font-[family-name:var(--font-manrope)] text-slate-900">
+              <h3 className="text-2xl font-bold mb-4 text-slate-900">
                 {t.features.card2Title}
               </h3>
               <p className="text-slate-500 leading-relaxed">
@@ -185,81 +260,82 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Product Comparison */}
-      <section className="py-32 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-8 relative z-10">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-black font-[family-name:var(--font-manrope)] mb-4 text-slate-900">
-              {t.products.title}{" "}
-              <span className="text-gradient">CVR-MATE</span>
+      {/* 4. TWO PRODUCTS */}
+      <section className="py-24 bg-slate-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="font-[family-name:var(--font-manrope)] text-4xl font-extrabold text-slate-900">
+              {t.products.title}
             </h2>
           </div>
-          <div className="grid lg:grid-cols-2 gap-12">
-            {/* GO Card */}
-            <div className="p-1 bg-gradient-to-br from-slate-100 to-transparent rounded-[2.5rem]">
-              <div className="bg-white p-12 rounded-[2.3rem] h-full flex flex-col border border-slate-100">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* GO */}
+            <div className="bg-white rounded-3xl p-12 border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
                 <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h3 className="text-3xl font-black font-[family-name:var(--font-manrope)] tracking-tighter mb-2 text-slate-900">
-                      CVR-MATE{" "}
-                      <span className="text-blue-600">{t.products.go.name}</span>
+                    <h3 className="text-3xl font-black mb-2 text-slate-900">
+                      {t.products.go.name}
                     </h3>
-                    <p className="text-slate-500">{t.products.go.subtitle}</p>
+                    <span className="px-3 py-1 bg-slate-100 text-[10px] font-bold rounded-full text-slate-600 uppercase tracking-widest border border-slate-200">
+                      {t.products.go.badge}
+                    </span>
                   </div>
-                  <span className="px-4 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold tracking-widest uppercase border border-blue-100">
-                    {t.products.go.badge}
+                  <span className="material-symbols-outlined text-4xl text-blue-600">
+                    rocket_launch
                   </span>
                 </div>
-                <ul className="space-y-6 mb-12 flex-grow">
-                  {t.products.go.features.map((item) => (
-                    <li key={item} className="flex gap-4 items-start">
-                      <span className="material-symbols-outlined text-blue-500 mt-0.5">
+                <ul className="space-y-4 mb-10">
+                  {t.products.go.features.map((f) => (
+                    <li
+                      key={f}
+                      className="flex items-center gap-3 text-slate-500"
+                    >
+                      <span className="material-symbols-outlined text-blue-600 text-sm">
                         check
                       </span>
-                      <span className="text-slate-700">{item}</span>
+                      {f}
                     </li>
                   ))}
                 </ul>
-                <button className="w-full py-5 rounded-2xl border-2 border-blue-200 text-blue-600 font-bold hover:bg-blue-600 hover:text-white transition-all text-lg">
-                  {t.products.go.cta}
-                </button>
               </div>
+              <button className="w-full py-4 border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors">
+                {t.products.go.cta}
+              </button>
             </div>
-            {/* FLOW Card */}
-            <div className="p-1 bg-gradient-to-br from-blue-200/60 to-cyan-200/60 rounded-[2.5rem] shadow-[0_0_60px_rgba(37,99,235,0.08)]">
-              <div className="bg-white p-12 rounded-[2.3rem] h-full flex flex-col relative overflow-hidden border border-blue-50">
-                <div className="absolute top-0 right-0 p-8 opacity-10 translate-x-1/4 -translate-y-1/4">
-                  <span className="material-symbols-outlined text-[180px] text-cyan-500">
-                    waves
-                  </span>
-                </div>
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h3 className="text-3xl font-black font-[family-name:var(--font-manrope)] tracking-tighter mb-2 text-slate-900">
-                      CVR-MATE{" "}
-                      <span className="text-cyan-600">
+            {/* FLOW */}
+            <div className="relative rounded-3xl p-[2px] bg-gradient-to-br from-blue-600 to-cyan-500 shadow-2xl overflow-hidden">
+              <div className="bg-white rounded-[calc(1.5rem-2px)] p-12 h-full flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-cyan-500/5 rounded-full blur-3xl" />
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-8">
+                    <div>
+                      <h3 className="text-3xl font-black mb-2 text-slate-900">
                         {t.products.flow.name}
+                      </h3>
+                      <span className="px-3 py-1 bg-cyan-500 text-[10px] font-bold rounded-full text-white uppercase tracking-widest">
+                        {t.products.flow.badge}
                       </span>
-                    </h3>
-                    <p className="text-slate-500">
-                      {t.products.flow.subtitle}
-                    </p>
+                    </div>
+                    <span className="material-symbols-outlined text-4xl text-cyan-600">
+                      waves
+                    </span>
                   </div>
-                  <span className="px-4 py-1 rounded-full bg-cyan-500 text-white text-xs font-bold tracking-widest uppercase">
-                    {t.products.flow.badge}
-                  </span>
+                  <ul className="space-y-4 mb-10">
+                    {t.products.flow.features.map((f) => (
+                      <li
+                        key={f}
+                        className="flex items-center gap-3 text-slate-500"
+                      >
+                        <span className="material-symbols-outlined text-cyan-600 text-sm">
+                          check
+                        </span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="space-y-6 mb-12 flex-grow">
-                  {t.products.flow.features.map((item) => (
-                    <li key={item} className="flex gap-4 items-start">
-                      <span className="material-symbols-outlined text-cyan-500 mt-0.5">
-                        bolt
-                      </span>
-                      <span className="text-slate-700">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button className="w-full py-5 rounded-2xl btn-primary font-bold text-lg shadow-xl">
+                <button className="relative z-10 w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:scale-[1.02] transition-transform">
                   {t.products.flow.cta}
                 </button>
               </div>
@@ -268,128 +344,139 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Benefits Grid */}
-      <section className="py-24 section-alt">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="mb-16 max-w-2xl">
-            <h2 className="text-4xl font-black font-[family-name:var(--font-manrope)] mb-6 text-slate-900">
+      {/* 5. BENEFITS */}
+      <section className="py-24 bg-[#f7f9fb]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="mb-16">
+            <h2 className="font-[family-name:var(--font-manrope)] text-4xl font-extrabold text-slate-900">
               {t.benefits.title}
             </h2>
-            <p className="text-xl text-slate-500">{t.benefits.subtitle}</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 mb-20">
-            {t.benefits.items.map((item, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+            {t.benefits.items.map((item) => (
               <div
                 key={item.title}
-                className="p-8 rounded-2xl hover:bg-white transition-colors border border-transparent hover:border-slate-200 hover:shadow-sm"
+                className="p-8 bg-slate-50 rounded-2xl border border-slate-100"
               >
-                <span
-                  className={`material-symbols-outlined ${i % 2 === 0 ? "text-blue-500" : "text-cyan-500"} text-4xl mb-6 block`}
-                >
-                  {benefitIcons[i]}
+                <span className="material-symbols-outlined text-blue-600 mb-4 block text-3xl">
+                  {item.icon}
                 </span>
-                <h4 className="text-xl font-bold mb-3 text-slate-900">
+                <h4 className="font-bold text-xl mb-2 text-slate-900">
                   {item.title}
                 </h4>
-                <p className="text-slate-500 text-sm leading-relaxed">
-                  {item.desc}
+                <p className="text-sm text-slate-500">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          {/* Quote */}
+          <div className="relative bg-blue-600 rounded-3xl p-12 overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10">
+              <span className="material-symbols-outlined text-[12rem] text-white">
+                format_quote
+              </span>
+            </div>
+            <div className="relative z-10 max-w-2xl">
+              <p className="text-2xl md:text-3xl font-bold text-white leading-relaxed mb-8">
+                &ldquo;{t.benefits.quote}&rdquo;
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-lg">
+                  MJ
+                </div>
+                <div>
+                  <p className="font-bold text-white">{t.benefits.quoteName}</p>
+                  <p className="text-blue-200 text-sm">
+                    {t.benefits.quoteRole}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 6. HOW IT WORKS */}
+      <section id="how-it-works" className="py-24 bg-slate-900 text-white overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="mb-20">
+            <h2 className="font-[family-name:var(--font-manrope)] text-4xl font-extrabold mb-4">
+              {t.howItWorks.title}
+            </h2>
+            <p className="text-slate-400">{t.howItWorks.subtitle}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
+            <div className="hidden md:block absolute top-10 left-0 w-full h-1 bg-gradient-to-r from-blue-600/30 to-cyan-500/30" />
+            {t.howItWorks.steps.map((step, i) => (
+              <div key={step.num} className="space-y-6">
+                <div
+                  className={`w-20 h-20 rounded-full flex items-center justify-center relative ${
+                    i === 3
+                      ? "bg-gradient-to-br from-blue-600 to-cyan-500"
+                      : "bg-slate-800 border-4 border-slate-900"
+                  } ${
+                    i === 0
+                      ? "shadow-[0_0_30px_rgba(37,99,235,0.2)]"
+                      : i === 1
+                        ? "shadow-[0_0_30px_rgba(57,184,253,0.2)]"
+                        : ""
+                  }`}
+                >
+                  <span
+                    className={`text-2xl font-black ${
+                      i === 0
+                        ? "text-blue-500"
+                        : i === 1
+                          ? "text-cyan-400"
+                          : "text-white"
+                    }`}
+                  >
+                    {step.num}
+                  </span>
+                </div>
+                <h5 className="text-xl font-bold">{step.title}</h5>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  {step.desc}
                 </p>
               </div>
             ))}
           </div>
-          <div className="bg-white p-10 rounded-3xl border border-blue-100 relative overflow-hidden shadow-sm">
-            <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
-              <div className="text-5xl font-black font-[family-name:var(--font-manrope)] text-blue-300">
-                &ldquo;
-              </div>
-              <p className="text-2xl font-bold text-center md:text-left leading-relaxed text-slate-700">
-                {t.benefits.quote}{" "}
-                <span className="text-gradient">
-                  {t.benefits.quoteHighlight}
-                </span>{" "}
-                {t.benefits.quoteEnd}
-              </p>
-            </div>
-            <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-blue-100/40 blur-[100px] rounded-full" />
-          </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-32 section-dark">
-        <div className="max-w-7xl mx-auto px-8">
-          <h2 className="text-4xl font-black font-[family-name:var(--font-manrope)] text-center mb-24 text-white">
-            {t.howItWorks.title}{" "}
-            <span className="text-gradient">{t.howItWorks.titleHighlight}</span>
-          </h2>
-          <div className="grid md:grid-cols-4 gap-4">
-            {t.howItWorks.steps.map((step, i) => (
-              <div key={step.num} className="relative group">
-                {i > 0 && (
-                  <div className="hidden md:block absolute top-10 -left-1/2 w-full h-[2px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                )}
-                <div className="mb-8 flex justify-center">
-                  <div
-                    className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-black font-[family-name:var(--font-manrope)] text-white border ${i % 2 === 0 ? "border-blue-400/40 shadow-[0_0_30px_rgba(37,99,235,0.2)]" : "border-cyan-400/40 shadow-[0_0_30px_rgba(14,165,233,0.2)]"} bg-white/5 backdrop-blur-sm group-hover:scale-110 transition-transform`}
-                  >
-                    {step.num}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <h4 className="text-xl font-bold mb-3 uppercase tracking-tighter text-white">
-                    {step.title}
-                  </h4>
-                  <p className="text-slate-400 text-sm">{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Comparison Table */}
-      <section className="py-24">
-        <div className="max-w-5xl mx-auto px-8">
-          <h2 className="text-4xl font-black font-[family-name:var(--font-manrope)] text-center mb-16 text-slate-900">
+      {/* 7. COMPARISON TABLE */}
+      <section className="py-24 bg-[#f7f9fb]">
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="font-[family-name:var(--font-manrope)] text-3xl font-extrabold text-slate-900 text-center mb-12">
             {t.comparison.title}
           </h2>
-          <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
+          <div className="bg-white rounded-2xl overflow-hidden border border-slate-200">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="p-6 text-sm font-bold uppercase tracking-widest text-slate-400">
+                  <th className="p-6 font-bold text-sm text-slate-700">
                     {t.comparison.feature}
                   </th>
-                  <th className="p-6 text-sm font-bold uppercase tracking-widest text-slate-400">
+                  <th className="p-6 font-bold text-sm text-center text-slate-700">
                     {t.comparison.traditional}
                   </th>
-                  <th className="p-6 text-sm font-bold uppercase tracking-widest text-blue-600">
-                    CVR-MATE
+                  <th className="p-6 font-bold text-sm text-center text-blue-600 bg-blue-50/50">
+                    {t.comparison.cvrmate}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {t.comparison.rows.map((row) => (
                   <tr key={row.feature}>
-                    <td className="p-6 font-semibold text-slate-700">
+                    <td className="p-6 text-sm font-medium text-slate-700">
                       {row.feature}
                     </td>
-                    <td className="p-6">
-                      {row.traditional === "close" ? (
-                        <span className="material-symbols-outlined text-red-400">
-                          close
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">
-                          {row.traditional}
-                        </span>
-                      )}
+                    <td className="p-6 text-center text-slate-400">
+                      <span className="material-symbols-outlined text-red-400">
+                        close
+                      </span>
                     </td>
-                    <td className="p-6">
-                      <span
-                        className="material-symbols-outlined text-emerald-500"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
+                    <td className="p-6 text-center text-emerald-500 bg-blue-50/50">
+                      <span className="material-symbols-outlined">
                         check_circle
                       </span>
                     </td>
@@ -401,56 +488,76 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-32 section-alt">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-black font-[family-name:var(--font-manrope)] tracking-tighter mb-4 text-slate-900">
+      {/* 8. PRICING */}
+      <section id="pricing" className="py-24 bg-slate-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="font-[family-name:var(--font-manrope)] text-4xl font-extrabold text-slate-900">
               {t.pricing.title}
             </h2>
             <p className="text-slate-500">{t.pricing.subtitle}</p>
           </div>
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            <div className="bg-white p-12 rounded-[2.5rem] flex flex-col items-center text-center border border-slate-200 shadow-sm">
-              <h3 className="text-2xl font-bold font-[family-name:var(--font-manrope)] mb-6 text-slate-900">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* GO */}
+            <div className="bg-white p-10 rounded-3xl border border-slate-200 shadow-sm">
+              <h3 className="text-xl font-bold mb-2 text-slate-900">
                 {t.pricing.go.name}
               </h3>
-              <div className="mb-10">
-                <span className="text-5xl font-black tracking-tighter text-slate-900">
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-4xl font-black text-slate-900">
                   {t.pricing.go.price}
                 </span>
-                <span className="text-slate-400 font-bold ml-2">
+                <span className="text-slate-500 font-bold">
                   {t.pricing.go.period}
                 </span>
               </div>
-              <button className="w-full py-4 rounded-xl font-bold hover:bg-slate-50 transition-colors border border-slate-200 text-slate-700">
+              <ul className="space-y-4 mb-10 text-sm text-slate-500">
+                {t.pricing.go.features.map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm">
+                      check
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-4 border border-slate-200 font-bold rounded-xl hover:bg-slate-50 transition-all text-slate-700">
                 {t.pricing.go.cta}
               </button>
             </div>
-            <div className="bg-white p-12 rounded-[2.5rem] flex flex-col items-center text-center border-2 border-blue-200 relative shadow-md">
-              <div className="absolute -top-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 py-1 rounded-full text-xs font-black uppercase tracking-widest">
+            {/* FLOW */}
+            <div className="bg-white p-10 rounded-3xl border-2 border-blue-600 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold px-4 py-1 uppercase tracking-widest rounded-bl-xl">
                 {t.pricing.flow.recommended}
               </div>
-              <h3 className="text-2xl font-bold font-[family-name:var(--font-manrope)] mb-6 text-slate-900">
+              <h3 className="text-xl font-bold mb-2 text-slate-900">
                 {t.pricing.flow.name}
               </h3>
-              <div className="mb-4">
-                <div className="text-sm text-slate-400 font-bold mb-1">
-                  {t.pricing.flow.setup}
-                </div>
-                <div className="flex items-end justify-center">
-                  <span className="text-slate-400 font-bold mr-2">
-                    {t.pricing.flow.from}
-                  </span>
-                  <span className="text-5xl font-black tracking-tighter text-slate-900">
-                    {t.pricing.flow.price}
-                  </span>
-                </div>
-                <span className="text-slate-400 font-bold">
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-4xl font-black text-slate-900">
+                  {t.pricing.flow.price}
+                </span>
+                <span className="text-slate-500 font-bold">
                   {t.pricing.flow.period}
                 </span>
               </div>
-              <button className="w-full py-4 btn-primary rounded-xl font-bold shadow-lg mt-6">
+              <p className="text-xs text-blue-600 font-bold mb-6">
+                {t.pricing.flow.setup}
+              </p>
+              <ul className="space-y-4 mb-10 text-sm text-slate-500">
+                {t.pricing.flow.features.map((f) => (
+                  <li
+                    key={f}
+                    className={`flex gap-2 ${f === t.pricing.flow.featureHighlight ? "font-bold text-slate-900" : ""}`}
+                  >
+                    <span className="material-symbols-outlined text-blue-600 text-sm">
+                      check
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
                 {t.pricing.flow.cta}
               </button>
             </div>
@@ -458,130 +565,116 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trust/Data Foundation */}
-      <section className="py-24 border-t border-slate-100">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="grid md:grid-cols-3 gap-12 text-center">
-            {t.trust.items.map((item, i) => (
-              <div key={item.title}>
-                <span
-                  className={`material-symbols-outlined text-4xl ${i % 2 === 0 ? "text-blue-500" : "text-cyan-500"} mb-4 block`}
-                >
-                  {trustIcons[i]}
-                </span>
-                <h4 className="font-bold mb-2 text-slate-900">{item.title}</h4>
-                <p className="text-sm text-slate-500">{item.desc}</p>
-              </div>
-            ))}
-          </div>
+      {/* 9. TRUST */}
+      <section className="py-16 bg-[#f7f9fb] border-y border-slate-100">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
+          {t.trust.items.map((item) => (
+            <div key={item.title} className="flex flex-col items-center">
+              <span className="material-symbols-outlined text-4xl text-slate-300 mb-4">
+                {item.icon}
+              </span>
+              <p className="font-bold text-slate-900">{item.title}</p>
+              <p className="text-xs text-slate-500 mt-1">{item.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="py-32 relative overflow-hidden bg-gradient-to-b from-blue-50/50 to-white">
-        <div className="max-w-4xl mx-auto px-8 text-center relative z-10">
-          <h2 className="text-6xl font-black font-[family-name:var(--font-manrope)] mb-8 tracking-tighter text-slate-900">
+      {/* 10. FINAL CTA */}
+      <section className="py-32 bg-white relative overflow-hidden">
+        <div className="absolute inset-0 hero-pattern opacity-50" />
+        <div className="max-w-5xl mx-auto px-6 text-center relative z-10">
+          <h2 className="font-[family-name:var(--font-manrope)] text-5xl font-extrabold text-slate-900 mb-8">
             {t.cta.title}
           </h2>
-          <button className="btn-primary px-12 py-6 rounded-2xl font-black text-2xl shadow-2xl hover:scale-105 transition-transform">
-            {t.cta.button}
-          </button>
-          <p className="mt-8 text-slate-500 font-medium">{t.cta.subtitle}</p>
+          <p className="text-xl text-slate-500 mb-12 max-w-2xl mx-auto">
+            {t.cta.subtitle}
+          </p>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-10 py-5 rounded-2xl font-black text-xl hover:scale-105 transition-transform shadow-xl shadow-blue-500/20">
+              {t.cta.button1}
+            </button>
+            <button className="bg-white border-2 border-slate-200 text-slate-900 px-10 py-5 rounded-2xl font-black text-xl hover:bg-slate-50 transition-colors">
+              {t.cta.button2}
+            </button>
+          </div>
+          <p className="mt-8 text-sm text-slate-400">{t.cta.note}</p>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 w-full pt-20 pb-10 border-t border-slate-800 text-slate-400 text-sm">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-12 px-8 max-w-7xl mx-auto">
-          <div className="col-span-2">
-            <span className="text-xl font-black text-white mb-4 block">
+      {/* 11. FOOTER */}
+      <footer className="bg-slate-900 pt-16 pb-8 text-slate-400 text-sm">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 max-w-7xl mx-auto px-6">
+          <div className="space-y-4">
+            <div className="text-xl font-black text-white font-[family-name:var(--font-manrope)]">
               CVR-MATE
-            </span>
-            <p className="max-w-xs leading-relaxed mb-8">
+            </div>
+            <p className="text-slate-500 leading-relaxed">
               {t.footer.tagline}
             </p>
-            <div className="flex gap-4">
-              <span className="material-symbols-outlined hover:text-white cursor-pointer transition-colors">
-                alternate_email
-              </span>
-              <span className="material-symbols-outlined hover:text-white cursor-pointer transition-colors">
-                public
-              </span>
-              <span className="material-symbols-outlined hover:text-white cursor-pointer transition-colors">
-                share
-              </span>
-            </div>
           </div>
-          <div>
-            <h5 className="text-white font-semibold mb-6 uppercase tracking-widest text-xs">
+          <div className="space-y-4">
+            <h6 className="text-white font-bold uppercase tracking-widest text-xs">
               {t.footer.platform}
-            </h5>
-            <ul className="space-y-4">
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  CVR-MATE
-                </a>
-              </li>
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#how-it-works">
-                  {t.nav.howItWorks}
-                </a>
-              </li>
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  {t.nav.integrations}
-                </a>
-              </li>
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  AI-MATE
-                </a>
-              </li>
+            </h6>
+            <ul className="space-y-2">
+              {t.footer.platformLinks.map((link) => (
+                <li key={link}>
+                  <a
+                    className="hover:text-blue-400 transition-colors opacity-80"
+                    href="#"
+                  >
+                    {link}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
-          <div>
-            <h5 className="text-white font-semibold mb-6 uppercase tracking-widest text-xs">
+          <div className="space-y-4">
+            <h6 className="text-white font-bold uppercase tracking-widest text-xs">
               {t.footer.resources}
-            </h5>
-            <ul className="space-y-4">
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  {t.footer.contact}
-                </a>
-              </li>
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  {t.footer.bookDemo}
-                </a>
-              </li>
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="mailto:kontakt@ai-mate.dk">
-                  kontakt@ai-mate.dk
-                </a>
-              </li>
+            </h6>
+            <ul className="space-y-2">
+              {t.footer.resourceLinks.map((link) => (
+                <li key={link}>
+                  <a
+                    className="hover:text-blue-400 transition-colors opacity-80"
+                    href="#"
+                  >
+                    {link}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
-          <div>
-            <h5 className="text-white font-semibold mb-6 uppercase tracking-widest text-xs">
-              {t.footer.legal}
-            </h5>
-            <ul className="space-y-4">
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  {t.footer.privacy}
-                </a>
+          <div className="space-y-4">
+            <h6 className="text-white font-bold uppercase tracking-widest text-xs">
+              {t.footer.contact}
+            </h6>
+            <ul className="space-y-2">
+              <li className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-xs">mail</span>
+                kontakt@ai-mate.dk
               </li>
-              <li>
-                <a className="text-slate-500 hover:text-blue-300 transition-colors block" href="#">
-                  {t.footer.terms}
-                </a>
+              <li className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-xs">
+                  location_on
+                </span>
+                København, Danmark
               </li>
             </ul>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-8 mt-20 pt-10 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p>&copy; 2026 CVR-MATE. {t.footer.rights}</p>
-          <p className="text-slate-600">{t.footer.developedBy}</p>
+        <div className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p>{t.footer.rights}</p>
+          <div className="flex gap-8">
+            <a className="hover:text-white transition-colors" href="#">
+              {t.footer.privacy}
+            </a>
+            <a className="hover:text-white transition-colors" href="#">
+              {t.footer.terms}
+            </a>
+          </div>
         </div>
       </footer>
     </>
