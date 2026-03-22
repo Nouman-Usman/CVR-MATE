@@ -52,13 +52,20 @@ export interface CvrCompanyResult {
     }[];
   };
   employment?: {
+    months?: {
+      amount: number | null;
+      interval_low: number | null;
+      interval_high: number | null;
+      year: number;
+      month: number;
+    }[];
     years?: {
       amount: number | null;
       interval_low: number | null;
       interval_high: number | null;
       year: number;
     }[];
-  }[];
+  };
 }
 
 export interface SearchFilters {
@@ -115,7 +122,7 @@ export async function getRecentCompanies(
 
 // Helper to extract a flat company object from CvrCompanyResult
 export function flattenCompany(c: CvrCompanyResult) {
-  const latestEmployment = c.employment?.[0]?.years?.[0];
+  const latestEmployment = c.employment?.years?.[0];
   return {
     cvr: String(c.vat),
     name: c.life?.name || c.slug || String(c.vat),

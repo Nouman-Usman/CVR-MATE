@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 
@@ -24,10 +25,10 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
     industry?: { primary?: { text?: string; code?: number } };
     companystatus?: { text?: string };
     companyform?: { description?: string };
-    employment?: { months?: { amount?: number | null }[] }[];
+    employment?: { months?: { amount?: number | null }[] };
   };
 
-  const latestEmployment = comp.employment?.[0]?.months?.[0]?.amount;
+  const latestEmployment = comp.employment?.months?.[0]?.amount;
 
   return {
     cvr: String(comp.vat ?? ""),
@@ -113,6 +114,15 @@ const companyFormCodeMap: Record<string, string> = {
   enkeltmandsvirksomhed: "10",
 };
 
+// Map regions to representative zipcode ranges for CVR API filtering
+const regionZipcodeMap: Record<string, string> = {
+  hovedstaden: "1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300,2400,2450,2500,2600,2605,2610,2620,2625,2630,2635,2640,2650,2660,2665,2670,2680,2690,2700,2720,2730,2740,2750,2760,2765,2770,2791,2800,2820,2830,2840,2850,2860,2870,2880,2900,2920,2930,2942,2950,2960,2970,2980,2990,3000,3050,3060,3070,3080,3100,3120,3140,3150,3200,3210,3230,3250,3300,3310,3320,3330,3360,3370,3390,3400,3450,3460,3480,3490,3500,3520,3540",
+  midtjylland: "7400,7430,7441,7442,7451,7470,7480,7490,7500,7540,7550,7560,7570,7600,7620,7650,7660,7670,7680,7700,7730,7741,7742,7752,7755,7760,7770,7790,8000,8200,8210,8220,8230,8240,8250,8260,8270,8300,8305,8310,8320,8330,8340,8350,8355,8360,8370,8380,8381,8382,8400,8410,8420,8444,8450,8462,8464,8471,8472,8500,8520,8530,8541,8543,8544,8550,8560,8570,8581,8585,8586,8592,8600,8620,8632,8641,8643,8653,8654,8660,8670,8680,8700,8721,8722,8723,8732,8740,8751,8752,8762,8763,8765,8766,8781,8783,8800,8830,8831,8832,8840,8850,8860,8870,8881,8882,8883,8900,8920,8930,8940,8950,8960,8961,8963,8970,8981,8983,8990",
+  syddanmark: "5000,5200,5210,5220,5230,5240,5250,5260,5270,5290,5300,5320,5330,5350,5370,5380,5390,5400,5450,5462,5463,5464,5466,5471,5474,5485,5491,5492,5500,5540,5550,5560,5580,5591,5592,5600,5610,5620,5631,5642,5672,5683,5690,5700,5750,5762,5771,5772,5792,5800,5853,5854,5856,5863,5871,5874,5881,5882,5883,5884,5892,5900,5932,5935,5943,5953,5960,5970,5985,6000,6040,6051,6052,6064,6070,6091,6092,6093,6094,6100,6200,6230,6240,6261,6270,6280,6300,6310,6320,6330,6340,6360,6372,6392,6400,6430,6470,6500,6510,6520,6534,6535,6541,6560,6580,6600,6621,6622,6623,6630,6640,6650,6660,6670,6682,6683,6690,6700,6705,6710,6715,6720,6731,6740,6752,6753,6760,6771,6780,6792,6800,6818,6823,6830,6840,6851,6852,6853,6854,6855,6857,6862,6870,6880",
+  nordjylland: "7700,7730,7741,7742,7752,7755,7760,7770,7790,7800,7830,7840,7850,7860,7870,7884,7900,7950,7960,7970,7980,7990,7992,7993,7996,7998,8960,8961,8963,8970,8981,8983,8990,9000,9200,9210,9220,9230,9240,9260,9270,9280,9293,9300,9310,9320,9330,9340,9352,9362,9370,9380,9381,9382,9400,9430,9440,9460,9480,9490,9492,9493,9500,9510,9520,9530,9541,9550,9560,9574,9575,9600,9610,9620,9631,9632,9640,9670,9681,9690,9700,9740,9750,9760,9800,9830,9850,9870,9881,9900,9940,9970,9981,9982,9990",
+  sjaelland: "4000,4030,4040,4050,4060,4070,4100,4130,4140,4160,4171,4173,4174,4180,4190,4200,4220,4230,4241,4242,4243,4250,4261,4262,4270,4281,4291,4293,4295,4296,4300,4320,4330,4340,4350,4360,4370,4390,4400,4420,4440,4450,4460,4470,4480,4490,4500,4520,4532,4534,4540,4550,4560,4571,4572,4573,4581,4583,4591,4592,4593,4600,4621,4622,4623,4632,4640,4652,4653,4654,4660,4671,4672,4673,4681,4682,4683,4684,4690,4700,4720,4733,4735,4736,4750,4760,4771,4772,4773,4780,4791,4792,4793,4800,4840,4850,4862,4863,4871,4872,4873,4880,4891,4892,4894,4895,4900,4912,4913,4920,4930,4941,4942,4943,4944,4951,4952,4953,4960,4970,4983,4990",
+};
+
 function foundedToDate(period: string): string | null {
   if (period === "all") return null;
   const now = new Date();
@@ -130,8 +140,18 @@ function sizeToEmploymentRange(s: string): { low?: string; high?: string } {
   return { low: lo, high: hi };
 }
 
-export default function SearchPage() {
+export default function SearchPageWrapper() {
+  return (
+    <Suspense>
+      <SearchPage />
+    </Suspense>
+  );
+}
+
+function SearchPage() {
   const { t, locale } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const s = t.search;
 
   const [query, setQuery] = useState("");
@@ -155,6 +175,44 @@ export default function SearchPage() {
   const [error, setError] = useState("");
   const [results, setResults] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveSearchName, setSaveSearchName] = useState("");
+  const [savingSearch, setSavingSearch] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+
+  // Hydrate filters from URL params (e.g. when running a saved search)
+  useEffect(() => {
+    const p = searchParams;
+    let hasParams = false;
+
+    const name = p.get("name");
+    if (name) { setQuery(name); hasParams = true; }
+    const it = p.get("industry_text");
+    if (it) { setIndustryText(it); hasParams = true; }
+    const ic = p.get("industry_code");
+    if (ic) { setIndustryCode(ic); hasParams = true; }
+    const cf = p.get("companyForm");
+    if (cf) { setCompanyForm(cf); hasParams = true; }
+    const sz = p.get("size");
+    if (sz) { setSize(sz); hasParams = true; }
+    const zc = p.get("zipcode");
+    if (zc) { setZipcode(zc); hasParams = true; }
+    const rg = p.get("region");
+    if (rg) { setRegion(rg); hasParams = true; }
+    const fp = p.get("foundedPeriod");
+    if (fp) { setFoundedPeriod(fp); hasParams = true; }
+    const em = p.get("employeesMin");
+    if (em) { setEmployeesMin(Number(em)); hasParams = true; }
+
+    if (hasParams) {
+      // Auto-search will be triggered by initialLoad effect
+      setInitialLoad(true);
+    } else {
+      setInitialLoad(false);
+    }
+  // Only run on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearch = useCallback(async () => {
     setError("");
@@ -163,14 +221,22 @@ export default function SearchPage() {
     const params = new URLSearchParams();
 
     if (query) params.set("name", query);
-    if (industryText) params.set("industry_text", industryText);
-    if (industryCode !== "all") params.set("industry_code", industryCode);
+    if (industryCode !== "all") {
+      // Use the Danish industry label for CVR API text matching (dropdown takes priority)
+      const selectedIndustry = s.industries.find((i: { code: string; label: string }) => i.code === industryCode);
+      if (selectedIndustry) params.set("industry_text", selectedIndustry.label);
+    } else if (industryText) {
+      params.set("industry_text", industryText);
+    }
     if (companyForm !== "all") {
       const code = companyFormCodeMap[companyForm];
       if (code) params.set("companyform_code", code);
     }
     if (zipcode) params.set("zipcode", zipcode);
-    if (region !== "all") params.set("municipality", region);
+    if (!zipcode && region !== "all") {
+      const zipcodes = regionZipcodeMap[region];
+      if (zipcodes) params.set("zipcode_list", zipcodes);
+    }
 
     const lifeStart = foundedToDate(foundedPeriod);
     if (lifeStart) params.set("life_start", lifeStart);
@@ -209,6 +275,17 @@ export default function SearchPage() {
     }
   }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, employeesMax, s]);
 
+  // Auto-search when loaded from URL params (saved search)
+  useEffect(() => {
+    if (initialLoad && searchParams.toString()) {
+      setInitialLoad(false);
+      // Small delay to let state settle from URL param hydration
+      const timer = setTimeout(() => handleSearch(), 100);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLoad]);
+
   const clearFilters = () => {
     setQuery("");
     setIndustryText("");
@@ -243,6 +320,43 @@ export default function SearchPage() {
     if (selected.size === results.length) setSelected(new Set());
     else setSelected(new Set(results.map((r) => r.cvr)));
   };
+
+  const getCurrentFilters = useCallback((): Record<string, string> => {
+    const filters: Record<string, string> = {};
+    if (query) filters.name = query;
+    if (industryText) filters.industry_text = industryText;
+    if (industryCode !== "all") filters.industry_code = industryCode;
+    if (companyForm !== "all") filters.companyForm = companyForm;
+    if (size !== "all") filters.size = size;
+    if (zipcode) filters.zipcode = zipcode;
+    if (region !== "all") filters.region = region;
+    if (foundedPeriod !== "all") filters.foundedPeriod = foundedPeriod;
+    if (employeesMin > 0) filters.employeesMin = String(employeesMin);
+    return filters;
+  }, [query, industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, employeesMin]);
+
+  const handleSaveSearch = useCallback(async () => {
+    if (!saveSearchName.trim()) return;
+    setSavingSearch(true);
+    try {
+      const res = await fetch("/api/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: saveSearchName.trim(),
+          filters: getCurrentFilters(),
+        }),
+      });
+      if (res.ok) {
+        setShowSaveModal(false);
+        setSaveSearchName("");
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setSavingSearch(false);
+    }
+  }, [saveSearchName, getCurrentFilters]);
 
   const foundedOptions = [
     { code: "all", label: locale === "da" ? "Vælg periode" : "Select period" },
@@ -523,7 +637,10 @@ export default function SearchPage() {
               {s.results}
             </p>
             {hasSearched && results.length > 0 && (
-              <button className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
                 <span className="material-symbols-outlined text-lg">bookmark</span>
                 {s.saveSearch}
               </button>
@@ -548,6 +665,7 @@ export default function SearchPage() {
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.employees}</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.status}</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">{s.table.founded}</th>
+                  <th className="w-12 px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -555,8 +673,12 @@ export default function SearchPage() {
                   const color = companyColors[idx % companyColors.length];
                   const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
                   return (
-                    <tr key={c.cvr} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 sm:px-6 py-3.5">
+                    <tr
+                      key={c.cvr}
+                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/company/${c.cvr}`)}
+                    >
+                      <td className="px-4 sm:px-6 py-3.5" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selected.has(c.cvr)}
@@ -570,7 +692,7 @@ export default function SearchPage() {
                             <span className={`text-xs font-bold ${color.text}`}>{initials}</span>
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 truncate">{c.name}</p>
+                            <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">{c.name}</p>
                             <p className="text-[10px] text-slate-400 md:hidden">{c.city} · {c.employees}</p>
                           </div>
                         </div>
@@ -584,6 +706,11 @@ export default function SearchPage() {
                       </td>
                       <td className="px-4 py-3.5 text-sm text-slate-400 tabular-nums hidden lg:table-cell">
                         {new Date(c.founded).toLocaleDateString(locale === "da" ? "da-DK" : "en-US")}
+                      </td>
+                      <td className="px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <span className="material-symbols-outlined text-slate-300 hover:text-blue-600 text-lg transition-colors cursor-pointer">
+                          open_in_new
+                        </span>
                       </td>
                     </tr>
                   );
@@ -608,6 +735,68 @@ export default function SearchPage() {
           <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">apartment</span>
           <p className="text-slate-400 font-medium">{s.noResults}</p>
         </div>
+      )}
+      {/* Save search modal */}
+      {showSaveModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/30 z-50"
+            onClick={() => setShowSaveModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-slate-900 mb-1">
+                {t.savedSearches.namePrompt}
+              </h3>
+              <p className="text-sm text-slate-400 mb-4">
+                {t.savedSearches.subtitle}
+              </p>
+              <input
+                className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none mb-4"
+                placeholder={t.savedSearches.namePlaceholder}
+                value={saveSearchName}
+                onChange={(e) => setSaveSearchName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveSearch()}
+                autoFocus
+              />
+
+              {/* Show current filters as pills */}
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {Object.entries(getCurrentFilters()).map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-600 border border-slate-100"
+                  >
+                    <span className="text-slate-400">{key}:</span>
+                    {value}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowSaveModal(false);
+                    setSaveSearchName("");
+                  }}
+                  className="px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+                >
+                  {t.savedSearches.cancelButton}
+                </button>
+                <button
+                  onClick={handleSaveSearch}
+                  disabled={!saveSearchName.trim() || savingSearch}
+                  className="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {savingSearch ? "..." : t.savedSearches.saveButton}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </DashboardLayout>
   );

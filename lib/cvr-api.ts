@@ -86,8 +86,9 @@ export interface CvrCompany {
   };
   employment?: {
     months?: { amount: number | null; interval_low: number | null; interval_high: number | null; year: number; month: number }[];
+    quarters?: { amount: number | null; interval_low: number | null; interval_high: number | null; year: number; quarter: number }[];
     years?: { amount: number | null; interval_low: number | null; interval_high: number | null; year: number }[];
-  }[];
+  };
   info?: {
     capital_amount: number | null;
     capital_currency: string | null;
@@ -133,10 +134,13 @@ export async function searchCompanies(params: SearchCompanyParams): Promise<CvrC
   const cleanParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "" && value !== "all") {
-      cleanParams[key] = value;
+      // CVR API uses dot notation (e.g. life.name, industry.primary.code)
+      const dotKey = key.replace(/_/g, ".");
+      cleanParams[dotKey] = value;
     }
   }
-  return cvrFetch<CvrCompany[]>("/v2/dk/search/company", cleanParams);
+  const data = await cvrFetch<{ results: CvrCompany[] }>("/v2/dk/search/company", cleanParams);
+  return data.results ?? [];
 }
 
 export async function suggestCompanies(name: string): Promise<CvrCompany[]> {

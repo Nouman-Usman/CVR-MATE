@@ -6,8 +6,10 @@ const PROTECTED_ROUTES = [
   "/recent-companies",
   "/triggers",
   "/saved",
+  "/saved-searches",
   "/exports",
   "/settings",
+  "/company",
 ];
 
 const AUTH_ROUTES = ["/login", "/signup"];
@@ -51,8 +53,10 @@ export const config = {
     "/recent-companies/:path*",
     "/triggers/:path*",
     "/saved/:path*",
+    "/saved-searches/:path*",
     "/exports/:path*",
     "/settings/:path*",
+    "/company/:path*",
     "/login",
     "/signup",
   ],
