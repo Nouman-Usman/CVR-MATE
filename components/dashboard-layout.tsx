@@ -13,6 +13,7 @@ const navItems = [
   { key: "recentCompanies" as const, icon: "apartment", href: "/recent-companies" },
   { key: "triggers" as const, icon: "bolt", href: "/triggers" },
   { key: "saved" as const, icon: "bookmark", href: "/saved" },
+  { key: "todos" as const, icon: "task_alt", href: "/todos" },
   { key: "exports" as const, icon: "download", href: "/exports" },
   { key: "settings" as const, icon: "settings", href: "/settings" },
 ];

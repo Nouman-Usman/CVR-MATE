@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 
@@ -13,24 +13,34 @@ interface Company {
   status: string;
   founded: string;
   employees: string;
-  region: string;
   form: string;
 }
 
-const mockResults: Company[] = [
-  { cvr: "41234567", name: "TechVentures ApS", city: "København", industry: "IT-programmering", industryCode: "62", status: "AKTIV", founded: "2025-11-01", employees: "23", region: "hovedstaden", form: "aps" },
-  { cvr: "41345678", name: "Nordic Retail Group A/S", city: "Aarhus", industry: "Detailhandel", industryCode: "47", status: "AKTIV", founded: "2024-06-15", employees: "145", region: "midtjylland", form: "a/s" },
-  { cvr: "41456789", name: "GreenEnergy Solutions IVS", city: "Odense", industry: "Engroshandel", industryCode: "46", status: "AKTIV", founded: "2025-03-20", employees: "8", region: "syddanmark", form: "ivs" },
-  { cvr: "41567890", name: "Byg & Anlæg Danmark ApS", city: "Aalborg", industry: "Byggeri", industryCode: "41", status: "AKTIV", founded: "2023-09-10", employees: "67", region: "nordjylland", form: "aps" },
-  { cvr: "41678901", name: "HealthFirst Klinik I/S", city: "Roskilde", industry: "Sundhedsvæsen", industryCode: "86", status: "AKTIV", founded: "2025-01-05", employees: "12", region: "sjaelland", form: "i/s" },
-  { cvr: "41789012", name: "DataInsight Nordic ApS", city: "København", industry: "IT-programmering", industryCode: "62", status: "AKTIV", founded: "2025-08-22", employees: "35", region: "hovedstaden", form: "aps" },
-  { cvr: "41890123", name: "Smag & Behag Restaurant", city: "Vejle", industry: "Restauranter", industryCode: "56", status: "AKTIV", founded: "2024-12-01", employees: "18", region: "syddanmark", form: "enkeltmandsvirksomhed" },
-  { cvr: "41901234", name: "Nordic Consult Group A/S", city: "Herning", industry: "Virksomhedsrådgivning", industryCode: "70", status: "AKTIV", founded: "2022-05-14", employees: "92", region: "midtjylland", form: "a/s" },
-  { cvr: "42012345", name: "EjendomsPartner DK ApS", city: "Helsingør", industry: "Ejendomshandel", industryCode: "68", status: "AKTIV", founded: "2024-03-08", employees: "5", region: "hovedstaden", form: "aps" },
-  { cvr: "42123456", name: "Specialist Byg Syd ApS", city: "Kolding", industry: "Specialiseret byggeri", industryCode: "43", status: "AKTIV", founded: "2025-06-30", employees: "41", region: "syddanmark", form: "aps" },
-  { cvr: "42234567", name: "MediCare Danmark A/S", city: "København", industry: "Sundhedsvæsen", industryCode: "86", status: "AKTIV", founded: "2023-11-18", employees: "210", region: "hovedstaden", form: "a/s" },
-  { cvr: "42345678", name: "FoodTech Solutions ApS", city: "Aarhus", industry: "Engroshandel", industryCode: "46", status: "AKTIV", founded: "2025-02-14", employees: "16", region: "midtjylland", form: "aps" },
-];
+function mapCvrCompany(c: Record<string, unknown>): Company {
+  const comp = c as {
+    vat?: number;
+    life?: { name?: string; start?: string };
+    address?: { cityname?: string; zipcode?: number };
+    industry?: { primary?: { text?: string; code?: number } };
+    companystatus?: { text?: string };
+    companyform?: { description?: string };
+    employment?: { months?: { amount?: number | null }[] }[];
+  };
+
+  const latestEmployment = comp.employment?.[0]?.months?.[0]?.amount;
+
+  return {
+    cvr: String(comp.vat ?? ""),
+    name: comp.life?.name ?? "",
+    city: comp.address?.cityname ?? "",
+    industry: comp.industry?.primary?.text ?? "",
+    industryCode: String(comp.industry?.primary?.code ?? ""),
+    status: comp.companystatus?.text ?? "",
+    founded: comp.life?.start ?? "",
+    employees: latestEmployment != null ? String(latestEmployment) : "–",
+    form: comp.companyform?.description ?? "",
+  };
+}
 
 const companyColors = [
   { bg: "bg-blue-100", text: "text-blue-600" },
@@ -95,6 +105,31 @@ function RangeSlider({
   );
 }
 
+const companyFormCodeMap: Record<string, string> = {
+  aps: "80",
+  "a/s": "60",
+  ivs: "140",
+  "i/s": "30",
+  enkeltmandsvirksomhed: "10",
+};
+
+function foundedToDate(period: string): string | null {
+  if (period === "all") return null;
+  const now = new Date();
+  const map: Record<string, number> = { last30: 30, last90: 90, last365: 365, last3y: 1095 };
+  const days = map[period];
+  if (!days) return null;
+  const d = new Date(now.getTime() - days * 86400000);
+  return d.toISOString().split("T")[0];
+}
+
+function sizeToEmploymentRange(s: string): { low?: string; high?: string } {
+  if (s === "all") return {};
+  if (s === "100+") return { low: "100" };
+  const [lo, hi] = s.split("-");
+  return { low: lo, high: hi };
+}
+
 export default function SearchPage() {
   const { t, locale } = useLanguage();
   const s = t.search;
@@ -116,34 +151,63 @@ export default function SearchPage() {
 
   const [showFilters, setShowFilters] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [results, setResults] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const results = useMemo(() => {
-    if (!hasSearched) return [];
-    return mockResults.filter((c) => {
-      if (query) {
-        const q = query.toLowerCase();
-        if (!c.name.toLowerCase().includes(q) && !c.cvr.includes(q)) return false;
-      }
-      if (industryCode !== "all" && c.industryCode !== industryCode) return false;
-      if (region !== "all" && c.region !== region) return false;
-      if (companyForm !== "all" && c.form !== companyForm) return false;
-      if (size !== "all") {
-        const emp = parseInt(c.employees);
-        if (isNaN(emp)) return false;
-        const [lo, hi] = size === "100+" ? [100, Infinity] : size.split("-").map(Number);
-        if (emp < lo || emp > hi) return false;
-      }
-      const emp = parseInt(c.employees);
-      if (!isNaN(emp) && (emp < employeesMin || emp > employeesMax)) return false;
-      return true;
-    });
-  }, [hasSearched, query, industryCode, region, companyForm, size, employeesMin, employeesMax]);
-
-  const handleSearch = useCallback(() => {
-    setHasSearched(true);
+  const handleSearch = useCallback(async () => {
+    setError("");
     setSelected(new Set());
-  }, []);
+
+    const params = new URLSearchParams();
+
+    if (query) params.set("name", query);
+    if (industryText) params.set("industry_text", industryText);
+    if (industryCode !== "all") params.set("industry_code", industryCode);
+    if (companyForm !== "all") {
+      const code = companyFormCodeMap[companyForm];
+      if (code) params.set("companyform_code", code);
+    }
+    if (zipcode) params.set("zipcode", zipcode);
+    if (region !== "all") params.set("municipality", region);
+
+    const lifeStart = foundedToDate(foundedPeriod);
+    if (lifeStart) params.set("life_start", lifeStart);
+
+    const empRange = sizeToEmploymentRange(size);
+    if (empRange.low) params.set("employment_interval_low", empRange.low);
+
+    if (employeesMin > 0) params.set("employment_interval_low", String(employeesMin));
+
+    // Check if there's at least one real filter
+    if (params.toString() === "") {
+      setError(s.noFilter);
+      return;
+    }
+
+    setIsLoading(true);
+    setHasSearched(true);
+
+    try {
+      const res = await fetch(`/api/cvr/search?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || s.searchError);
+        setResults([]);
+        return;
+      }
+
+      const mapped = (data.results || []).map(mapCvrCompany);
+      setResults(mapped);
+    } catch {
+      setError(s.searchError);
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, employeesMax, s]);
 
   const clearFilters = () => {
     setQuery("");
@@ -162,6 +226,8 @@ export default function SearchPage() {
     setEmployeesMax(5000);
     setHasSearched(false);
     setSelected(new Set());
+    setResults([]);
+    setError("");
   };
 
   const toggleSelect = (cvr: string) => {
@@ -214,9 +280,14 @@ export default function SearchPage() {
           </div>
           <button
             onClick={handleSearch}
-            className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-all shrink-0"
+            disabled={isLoading}
+            className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <span className="material-symbols-outlined text-lg">search</span>
+            {isLoading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined text-lg">search</span>
+            )}
             {s.searchButton}
           </button>
         </div>
@@ -414,6 +485,14 @@ export default function SearchPage() {
         )}
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2">
+          <span className="material-symbols-outlined text-red-500 text-lg">error</span>
+          <p className="text-sm font-medium text-red-700">{error}</p>
+        </div>
+      )}
+
       {/* Selected actions bar */}
       {selected.size > 0 && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
@@ -427,8 +506,16 @@ export default function SearchPage() {
         </div>
       )}
 
+      {/* Loading */}
+      {isLoading && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
+          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-slate-400 font-medium">{s.searchButton}...</p>
+        </div>
+      )}
+
       {/* Results */}
-      {hasSearched && results.length > 0 && (
+      {!isLoading && hasSearched && results.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <p className="text-sm text-slate-500">
@@ -516,7 +603,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {hasSearched && results.length === 0 && (
+      {!isLoading && hasSearched && results.length === 0 && !error && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
           <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">apartment</span>
           <p className="text-slate-400 font-medium">{s.noResults}</p>
