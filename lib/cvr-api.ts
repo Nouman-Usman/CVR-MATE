@@ -105,42 +105,54 @@ export async function getCompanyByVat(vat: number): Promise<CvrCompany> {
   return cvrFetch<CvrCompany>(`/v2/dk/company/${vat}`);
 }
 
+// All parameter names match the CVR API v2 query params exactly (underscore-separated).
+// See: GET /v2/{country}/search/company
 export interface SearchCompanyParams {
   life_name?: string;
   life_start?: string;
   life_end?: string;
+  life_adprotected?: string;
+  address_street?: string;
+  address_streetcode?: string;
   address_zipcode?: string;
   address_zipcode_list?: string;
   address_city?: string;
   address_municipality?: string;
   companyform_code?: string;
   companyform_description?: string;
+  companyform_holding?: string;
   companystatus_code?: string;
-  industry_primary_text?: string;
-  industry_primary_code?: string;
-  industry_secondary_text?: string;
-  industry_secondary_code?: string;
-  employment_amount?: string;
-  employment_interval_low?: string;
   contact_phone?: string;
   contact_email?: string;
   contact_www?: string;
   status_bankrupt?: string;
+  industry_primary_text?: string;
+  industry_primary_code?: string;
+  industry_secondary_text?: string;
+  industry_secondary_code?: string;
   capital_capital?: string;
+  capital_currency?: string;
   capital_ipo?: string;
+  employment_amount?: string;
+  employment_interval_low?: string;
+  info_ean_id?: string;
+  info_lei_id?: string;
 }
 
 export async function searchCompanies(params: SearchCompanyParams): Promise<CvrCompany[]> {
   const cleanParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "" && value !== "all") {
-      // CVR API uses dot notation (e.g. life.name, industry.primary.code)
-      const dotKey = key.replace(/_/g, ".");
-      cleanParams[dotKey] = value;
+      // CVR API query params use underscores directly (e.g. life_name, industry_primary_code)
+      cleanParams[key] = value;
     }
   }
-  const data = await cvrFetch<{ results: CvrCompany[] }>("/v2/dk/search/company", cleanParams);
-  return data.results ?? [];
+  const data = await cvrFetch<CvrCompany[]>("/v2/dk/search/company", cleanParams);
+  // The API returns an array of companies directly
+  if (Array.isArray(data)) return data;
+  // Some responses may wrap in { results: [...] }
+  const wrapped = data as unknown as { results?: CvrCompany[] };
+  return wrapped.results ?? [];
 }
 
 export async function suggestCompanies(name: string): Promise<CvrCompany[]> {

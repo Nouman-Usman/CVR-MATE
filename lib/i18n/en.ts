@@ -373,6 +373,8 @@ const en: Dictionary = {
     },
     selected: "selected",
     export: "Export",
+    loadMore: "Load more",
+    loadingMore: "Loading...",
     industries: [
       { code: "all", label: "All industries" },
       { code: "46", label: "Wholesale trade" },

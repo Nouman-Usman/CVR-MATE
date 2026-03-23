@@ -106,12 +106,13 @@ function RangeSlider({
   );
 }
 
-const companyFormCodeMap: Record<string, string> = {
-  aps: "80",
-  "a/s": "60",
-  ivs: "140",
-  "i/s": "30",
-  enkeltmandsvirksomhed: "10",
+// Maps UI select values → CVR API companyform_description short codes
+const companyFormDescMap: Record<string, string> = {
+  aps: "APS",
+  "a/s": "A/S",
+  ivs: "IVS",
+  "i/s": "I/S",
+  enkeltmandsvirksomhed: "ENK",
 };
 
 // Map regions to representative zipcode ranges for CVR API filtering
@@ -174,11 +175,30 @@ function SearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<Company[]>([]);
+  const [rawResults, setRawResults] = useState<Record<string, unknown>[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveSearchName, setSaveSearchName] = useState("");
   const [savingSearch, setSavingSearch] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+  const [savedCvrs, setSavedCvrs] = useState<Set<string>>(new Set());
+  const [savingCvr, setSavingCvr] = useState<string | null>(null);
+
+  // Load saved companies so heart icons are accurate
+  useEffect(() => {
+    fetch("/api/cvr/saved")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.results) {
+          setSavedCvrs(new Set(data.results.map((s: { cvr: string }) => s.cvr)));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Hydrate filters from URL params (e.g. when running a saved search)
   useEffect(() => {
@@ -214,23 +234,19 @@ function SearchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSearch = useCallback(async () => {
-    setError("");
-    setSelected(new Set());
-
+  const buildSearchParams = useCallback(() => {
     const params = new URLSearchParams();
 
     if (query) params.set("name", query);
     if (industryCode !== "all") {
-      // Use the Danish industry label for CVR API text matching (dropdown takes priority)
-      const selectedIndustry = s.industries.find((i: { code: string; label: string }) => i.code === industryCode);
-      if (selectedIndustry) params.set("industry_text", selectedIndustry.label);
+      // Send the numeric industry code for exact matching via industry.primary.code
+      params.set("industry_code", industryCode);
     } else if (industryText) {
       params.set("industry_text", industryText);
     }
     if (companyForm !== "all") {
-      const code = companyFormCodeMap[companyForm];
-      if (code) params.set("companyform_code", code);
+      const desc = companyFormDescMap[companyForm];
+      if (desc) params.set("companyform_description", desc);
     }
     if (zipcode) params.set("zipcode", zipcode);
     if (!zipcode && region !== "all") {
@@ -246,6 +262,15 @@ function SearchPage() {
 
     if (employeesMin > 0) params.set("employment_interval_low", String(employeesMin));
 
+    return params;
+  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin]);
+
+  const handleSearch = useCallback(async () => {
+    setError("");
+    setSelected(new Set());
+
+    const params = buildSearchParams();
+
     // Check if there's at least one real filter
     if (params.toString() === "") {
       setError(s.noFilter);
@@ -254,8 +279,12 @@ function SearchPage() {
 
     setIsLoading(true);
     setHasSearched(true);
+    setPage(1);
+    setHasMore(false);
 
     try {
+      params.set("page", "1");
+      params.set("limit", "50");
       const res = await fetch(`/api/cvr/search?${params.toString()}`);
       const data = await res.json();
 
@@ -265,15 +294,79 @@ function SearchPage() {
         return;
       }
 
-      const mapped = (data.results || []).map(mapCvrCompany);
+      const rawArr = data.results || [];
+      const mapped = rawArr.map(mapCvrCompany);
       setResults(mapped);
+      setRawResults(rawArr);
+      setTotalResults(data.total ?? rawArr.length);
+      setHasMore(data.hasMore ?? false);
     } catch {
       setError(s.searchError);
       setResults([]);
+      setRawResults([]);
+      setTotalResults(0);
     } finally {
       setIsLoading(false);
     }
-  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, employeesMax, s]);
+  }, [buildSearchParams, s]);
+
+  const handleLoadMore = useCallback(async () => {
+    const nextPage = page + 1;
+    const params = buildSearchParams();
+    params.set("page", String(nextPage));
+    params.set("limit", "50");
+
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/cvr/search?${params.toString()}`);
+      const data = await res.json();
+
+      if (res.ok) {
+        const rawArr = data.results || [];
+        const mapped = rawArr.map(mapCvrCompany);
+        setResults((prev) => [...prev, ...mapped]);
+        setRawResults((prev) => [...prev, ...rawArr]);
+        setPage(nextPage);
+        setTotalResults(data.total ?? totalResults);
+        setHasMore(data.hasMore ?? false);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [page, buildSearchParams, totalResults]);
+
+  const handleSaveCompany = useCallback(async (c: Company, rawResult: Record<string, unknown>) => {
+    setSavingCvr(c.cvr);
+    try {
+      if (savedCvrs.has(c.cvr)) {
+        // Unsave
+        const res = await fetch(`/api/cvr/saved?cvr=${c.cvr}`, { method: "DELETE" });
+        if (res.ok) {
+          setSavedCvrs((prev) => {
+            const next = new Set(prev);
+            next.delete(c.cvr);
+            return next;
+          });
+        }
+      } else {
+        // Save
+        const res = await fetch("/api/cvr/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vat: c.cvr, name: c.name, rawData: rawResult }),
+        });
+        if (res.ok) {
+          setSavedCvrs((prev) => new Set(prev).add(c.cvr));
+        }
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSavingCvr(null);
+    }
+  }, [savedCvrs]);
 
   // Auto-search when loaded from URL params (saved search)
   useEffect(() => {
@@ -304,7 +397,11 @@ function SearchPage() {
     setHasSearched(false);
     setSelected(new Set());
     setResults([]);
+    setRawResults([]);
     setError("");
+    setPage(1);
+    setHasMore(false);
+    setTotalResults(0);
   };
 
   const toggleSelect = (cvr: string) => {
@@ -633,7 +730,10 @@ function SearchPage() {
         <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <p className="text-sm text-slate-500">
-              <span className="font-bold text-slate-900">{results.length}</span>{" "}
+              <span className="font-bold text-slate-900">{results.length}</span>
+              {totalResults > results.length && (
+                <span className="text-slate-400"> / {totalResults}</span>
+              )}{" "}
               {s.results}
             </p>
             {hasSearched && results.length > 0 && (
@@ -665,13 +765,16 @@ function SearchPage() {
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.employees}</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.status}</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">{s.table.founded}</th>
-                  <th className="w-12 px-3 py-3" />
+                  <th className="w-10 px-2 py-3" />
+                  <th className="w-10 px-2 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {results.map((c, idx) => {
                   const color = companyColors[idx % companyColors.length];
                   const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+                  const isSaved = savedCvrs.has(c.cvr);
+                  const isSaving = savingCvr === c.cvr;
                   return (
                     <tr
                       key={c.cvr}
@@ -707,7 +810,26 @@ function SearchPage() {
                       <td className="px-4 py-3.5 text-sm text-slate-400 tabular-nums hidden lg:table-cell">
                         {new Date(c.founded).toLocaleDateString(locale === "da" ? "da-DK" : "en-US")}
                       </td>
-                      <td className="px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleSaveCompany(c, rawResults[idx] || {})}
+                          disabled={isSaving}
+                          className="group p-1 rounded-full hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
+                          title={isSaved ? t.companyDetail.unsave : t.companyDetail.save}
+                        >
+                          <span
+                            className={`material-symbols-outlined text-lg transition-colors ${
+                              isSaved
+                                ? "text-red-500"
+                                : "text-slate-300 group-hover:text-red-400"
+                            }`}
+                            style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                          >
+                            favorite
+                          </span>
+                        </button>
+                      </td>
+                      <td className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
                         <span className="material-symbols-outlined text-slate-300 hover:text-blue-600 text-lg transition-colors cursor-pointer">
                           open_in_new
                         </span>
@@ -718,6 +840,24 @@ function SearchPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Load more button */}
+          {hasMore && (
+            <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex justify-center">
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2 px-6 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {loadingMore ? (
+                  <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-lg">expand_more</span>
+                )}
+                {loadingMore ? s.loadingMore : s.loadMore}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

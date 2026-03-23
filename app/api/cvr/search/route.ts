@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
     const params = req.nextUrl.searchParams;
     const searchParams: SearchCompanyParams = {};
 
-    // Map query params to CVR API params
+    // Map frontend query param names → CVR API param names
     const mapping: Record<string, keyof SearchCompanyParams> = {
       name: "life_name",
       life_start: "life_start",
@@ -57,9 +57,20 @@ export async function GET(req: NextRequest) {
 
     const results = await searchCompanies(searchParams);
 
+    // Client-side pagination: the CVR API returns all matches at once
+    const page = parseInt(params.get("page") || "1", 10);
+    const pageSize = parseInt(params.get("limit") || "50", 10);
+    const allResults = Array.isArray(results) ? results : [];
+    const start = (page - 1) * pageSize;
+    const paged = allResults.slice(start, start + pageSize);
+
     return NextResponse.json({
-      results: Array.isArray(results) ? results : [],
-      count: Array.isArray(results) ? results.length : 0,
+      results: paged,
+      count: paged.length,
+      total: allResults.length,
+      page,
+      limit: pageSize,
+      hasMore: start + pageSize < allResults.length,
     });
   } catch (error) {
     console.error("CVR search error:", error);

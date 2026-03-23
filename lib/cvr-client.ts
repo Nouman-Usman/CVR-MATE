@@ -73,6 +73,7 @@ export interface SearchFilters {
   industry_text?: string;
   industry_code?: string;
   companyform_code?: string;
+  companyform_description?: string;
   zipcode?: string;
   zipcode_list?: string;
   city?: string;

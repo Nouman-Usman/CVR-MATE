@@ -371,6 +371,8 @@ const da = {
     },
     selected: "valgt",
     export: "Eksporter",
+    loadMore: "Indlæs flere",
+    loadingMore: "Indlæser...",
     industries: [
       { code: "all", label: "Alle brancher" },
       { code: "46", label: "Engroshandel" },
