@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSession } from "@/lib/auth-client";
+import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo } from "@/lib/hooks/use-todos";
 
 interface Company {
   id: string;
@@ -40,8 +41,13 @@ export default function TodosPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
 
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [loading, setLoading] = useState(true);
+  // TanStack Query for todos data
+  const { data: todosData, isLoading: loading } = useTodos();
+  const createTodoMutation = useCreateTodo();
+  const updateTodoMutation = useUpdateTodo();
+  const deleteTodoMutation = useDeleteTodo();
+  const todos = (todosData?.todos ?? []) as Todo[];
+
   const [filter, setFilter] = useState<Filter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("created");
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -53,7 +59,6 @@ export default function TodosPage() {
   const [formPriority, setFormPriority] = useState("medium");
   const [formCompanyCvr, setFormCompanyCvr] = useState("");
   const [formDueDate, setFormDueDate] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,23 +66,6 @@ export default function TodosPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editPriority, setEditPriority] = useState("medium");
   const [editDueDate, setEditDueDate] = useState("");
-
-  const fetchTodos = useCallback(async () => {
-    try {
-      const res = await fetch("/api/todos");
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setTodos(data.todos);
-    } catch {
-      showToast(d.fetchError);
-    } finally {
-      setLoading(false);
-    }
-  }, [d.fetchError]);
-
-  useEffect(() => {
-    if (session) fetchTodos();
-  }, [session, fetchTodos]);
 
   // Sorting
   const sortTodos = (list: Todo[]) => {

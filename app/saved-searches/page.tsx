@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { useSavedSearches, useDeleteSearch } from "@/lib/hooks/use-saved-searches";
 
 interface SavedSearchItem {
   id: string;
@@ -31,42 +31,14 @@ export default function SavedSearchesPage() {
   const router = useRouter();
   const ss = t.savedSearches;
 
-  const [searches, setSearches] = useState<SavedSearchItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [removing, setRemoving] = useState<string | null>(null);
+  const { data, isLoading: loading } = useSavedSearches();
+  const deleteMutation = useDeleteSearch();
+  const searches = (data?.results ?? []) as SavedSearchItem[];
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/saved-searches");
-        if (res.ok) {
-          const data = await res.json();
-          setSearches(data.results || []);
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  const handleRemove = useCallback(async (id: string) => {
-    setRemoving(id);
-    try {
-      const res = await fetch(`/api/saved-searches?id=${id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setSearches((prev) => prev.filter((s) => s.id !== id));
-      }
-    } catch {
-      // Silently fail
-    } finally {
-      setRemoving(null);
-    }
-  }, []);
+  const handleRemove = (id: string) => {
+    deleteMutation.mutate(id);
+  };
+  const removing = deleteMutation.isPending ? (deleteMutation.variables ?? null) : null;
 
   const handleRunSearch = (filters: Record<string, string>) => {
     const params = new URLSearchParams(filters);

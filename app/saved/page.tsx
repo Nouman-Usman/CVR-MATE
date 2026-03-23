@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { useSavedCompanies, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 
 interface SavedCompany {
   id: string;
@@ -35,42 +35,14 @@ export default function SavedPage() {
   const router = useRouter();
   const sv = t.saved;
 
-  const [companies, setCompanies] = useState<SavedCompany[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [removing, setRemoving] = useState<string | null>(null);
+  const { data, isLoading: loading } = useSavedCompanies();
+  const unsaveMutation = useUnsaveCompany();
+  const companies = (data?.results ?? []) as SavedCompany[];
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/cvr/saved");
-        if (res.ok) {
-          const data = await res.json();
-          setCompanies(data.results || []);
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  const handleRemove = useCallback(async (cvr: string) => {
-    setRemoving(cvr);
-    try {
-      const res = await fetch(`/api/cvr/saved?cvr=${cvr}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setCompanies((prev) => prev.filter((c) => c.cvr !== cvr));
-      }
-    } catch {
-      // Silently fail
-    } finally {
-      setRemoving(null);
-    }
-  }, []);
+  const handleRemove = (cvr: string) => {
+    unsaveMutation.mutate(cvr);
+  };
+  const removing = unsaveMutation.isPending ? (unsaveMutation.variables ?? null) : null;
 
   return (
     <DashboardLayout>

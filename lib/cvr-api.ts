@@ -1,5 +1,8 @@
 import "server-only";
 
+import { cacheGet, cacheSet } from "@/lib/redis";
+import { cacheKey, CACHE_TTL } from "@/lib/cache";
+
 const CVR_BASE_URL = "https://rest.cvrapi.dk";
 
 function getAuthHeader(): string {
@@ -102,7 +105,13 @@ export interface CvrCompany {
 }
 
 export async function getCompanyByVat(vat: number): Promise<CvrCompany> {
-  return cvrFetch<CvrCompany>(`/v2/dk/company/${vat}`);
+  const key = cacheKey.company(vat);
+  const cached = await cacheGet<CvrCompany>(key);
+  if (cached) return cached;
+
+  const data = await cvrFetch<CvrCompany>(`/v2/dk/company/${vat}`);
+  await cacheSet(key, data, CACHE_TTL.company);
+  return data;
 }
 
 // All parameter names match the CVR API v2 query params exactly (underscore-separated).
@@ -143,19 +152,36 @@ export async function searchCompanies(params: SearchCompanyParams): Promise<CvrC
   const cleanParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "" && value !== "all") {
-      // CVR API query params use underscores directly (e.g. life_name, industry_primary_code)
       cleanParams[key] = value;
     }
   }
+
+  const key = cacheKey.search(cleanParams);
+  const cached = await cacheGet<CvrCompany[]>(key);
+  if (cached) return cached;
+
   const data = await cvrFetch<CvrCompany[]>("/v2/dk/search/company", cleanParams);
   // The API returns an array of companies directly
-  if (Array.isArray(data)) return data;
-  // Some responses may wrap in { results: [...] }
-  const wrapped = data as unknown as { results?: CvrCompany[] };
-  return wrapped.results ?? [];
+  let results: CvrCompany[];
+  if (Array.isArray(data)) {
+    results = data;
+  } else {
+    const wrapped = data as unknown as { results?: CvrCompany[] };
+    results = wrapped.results ?? [];
+  }
+
+  await cacheSet(key, results, CACHE_TTL.search);
+  return results;
 }
 
 export async function suggestCompanies(name: string): Promise<CvrCompany[]> {
   if (!name || name.length < 2) return [];
-  return cvrFetch<CvrCompany[]>(`/v2/dk/suggestions/company/${encodeURIComponent(name)}`);
+
+  const key = cacheKey.suggest(name);
+  const cached = await cacheGet<CvrCompany[]>(key);
+  if (cached) return cached;
+
+  const data = await cvrFetch<CvrCompany[]>(`/v2/dk/suggestions/company/${encodeURIComponent(name)}`);
+  await cacheSet(key, data, CACHE_TTL.suggest);
+  return data;
 }

@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect, Suspense } from "react";
+import { useState, useCallback, useEffect, useMemo, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { useSearchStore } from "@/lib/stores/search-store";
+import { useSearchCompanies } from "@/lib/hooks/use-search";
+import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
+import { useSaveSearch } from "@/lib/hooks/use-saved-searches";
 
 interface Company {
   cvr: string;
@@ -106,7 +110,19 @@ function RangeSlider({
   );
 }
 
-// Maps UI select values → CVR API companyform_description short codes
+// Maps 2-digit industry group codes → Danish search terms for CVR API industry_primary_text.
+const industryCodeToText: Record<string, string> = {
+  "46": "Engroshandel",
+  "47": "Detailhandel",
+  "62": "Computerprogrammering",
+  "41": "Opførelse af bygninger",
+  "56": "Restauranter",
+  "86": "Sundhedsvæsen",
+  "70": "Virksomhedsrådgivning",
+  "43": "Specialiseret bygge",
+  "68": "fast ejendom",
+};
+
 const companyFormDescMap: Record<string, string> = {
   aps: "APS",
   "a/s": "A/S",
@@ -115,7 +131,6 @@ const companyFormDescMap: Record<string, string> = {
   enkeltmandsvirksomhed: "ENK",
 };
 
-// Map regions to representative zipcode ranges for CVR API filtering
 const regionZipcodeMap: Record<string, string> = {
   hovedstaden: "1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300,2400,2450,2500,2600,2605,2610,2620,2625,2630,2635,2640,2650,2660,2665,2670,2680,2690,2700,2720,2730,2740,2750,2760,2765,2770,2791,2800,2820,2830,2840,2850,2860,2870,2880,2900,2920,2930,2942,2950,2960,2970,2980,2990,3000,3050,3060,3070,3080,3100,3120,3140,3150,3200,3210,3230,3250,3300,3310,3320,3330,3360,3370,3390,3400,3450,3460,3480,3490,3500,3520,3540",
   midtjylland: "7400,7430,7441,7442,7451,7470,7480,7490,7500,7540,7550,7560,7570,7600,7620,7650,7660,7670,7680,7700,7730,7741,7742,7752,7755,7760,7770,7790,8000,8200,8210,8220,8230,8240,8250,8260,8270,8300,8305,8310,8320,8330,8340,8350,8355,8360,8370,8380,8381,8382,8400,8410,8420,8444,8450,8462,8464,8471,8472,8500,8520,8530,8541,8543,8544,8550,8560,8570,8581,8585,8586,8592,8600,8620,8632,8641,8643,8653,8654,8660,8670,8680,8700,8721,8722,8723,8732,8740,8751,8752,8762,8763,8765,8766,8781,8783,8800,8830,8831,8832,8840,8850,8860,8870,8881,8882,8883,8900,8920,8930,8940,8950,8960,8961,8963,8970,8981,8983,8990",
@@ -126,19 +141,18 @@ const regionZipcodeMap: Record<string, string> = {
 
 function foundedToDate(period: string): string | null {
   if (period === "all") return null;
-  const now = new Date();
   const map: Record<string, number> = { last30: 30, last90: 90, last365: 365, last3y: 1095 };
   const days = map[period];
   if (!days) return null;
-  const d = new Date(now.getTime() - days * 86400000);
+  const d = new Date(Date.now() - days * 86400000);
   return d.toISOString().split("T")[0];
 }
 
-function sizeToEmploymentRange(s: string): { low?: string; high?: string } {
+function sizeToEmploymentRange(s: string): { low?: string } {
   if (s === "all") return {};
   if (s === "100+") return { low: "100" };
-  const [lo, hi] = s.split("-");
-  return { low: lo, high: hi };
+  const [lo] = s.split("-");
+  return { low: lo };
 }
 
 export default function SearchPageWrapper() {
@@ -152,95 +166,28 @@ export default function SearchPageWrapper() {
 function SearchPage() {
   const { t, locale } = useLanguage();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const urlParams = useSearchParams();
   const s = t.search;
 
-  const [query, setQuery] = useState("");
-  const [industryText, setIndustryText] = useState("");
-  const [industryCode, setIndustryCode] = useState("all");
-  const [companyForm, setCompanyForm] = useState("all");
-  const [size, setSize] = useState("all");
-  const [zipcode, setZipcode] = useState("");
-  const [region, setRegion] = useState("all");
-  const [foundedPeriod, setFoundedPeriod] = useState("all");
-  const [revenueMin, setRevenueMin] = useState(0);
-  const [revenueMax, setRevenueMax] = useState(1000);
-  const [profitMin, setProfitMin] = useState(0);
-  const [profitMax, setProfitMax] = useState(1000);
-  const [employeesMin, setEmployeesMin] = useState(0);
-  const [employeesMax, setEmployeesMax] = useState(5000);
+  // ─── Zustand store (persisted across navigation) ───
+  const store = useSearchStore();
+  const {
+    query, industryText, industryCode, companyForm, size,
+    zipcode, region, foundedPeriod, revenueMin, revenueMax,
+    profitMin, profitMax, employeesMin, employeesMax,
+    showFilters, page, scrollY, selected, hasSearched,
+    setFilter, setPage, setScrollY, setHasSearched, setShowFilters,
+    toggleSelect, selectAll, clearSelected, resetAll,
+  } = store;
 
-  const [showFilters, setShowFilters] = useState(true);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [results, setResults] = useState<Company[]>([]);
-  const [rawResults, setRawResults] = useState<Record<string, unknown>[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [saveSearchName, setSaveSearchName] = useState("");
-  const [savingSearch, setSavingSearch] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [totalResults, setTotalResults] = useState(0);
-  const [savedCvrs, setSavedCvrs] = useState<Set<string>>(new Set());
-  const [savingCvr, setSavingCvr] = useState<string | null>(null);
-
-  // Load saved companies so heart icons are accurate
-  useEffect(() => {
-    fetch("/api/cvr/saved")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.results) {
-          setSavedCvrs(new Set(data.results.map((s: { cvr: string }) => s.cvr)));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Hydrate filters from URL params (e.g. when running a saved search)
-  useEffect(() => {
-    const p = searchParams;
-    let hasParams = false;
-
-    const name = p.get("name");
-    if (name) { setQuery(name); hasParams = true; }
-    const it = p.get("industry_text");
-    if (it) { setIndustryText(it); hasParams = true; }
-    const ic = p.get("industry_code");
-    if (ic) { setIndustryCode(ic); hasParams = true; }
-    const cf = p.get("companyForm");
-    if (cf) { setCompanyForm(cf); hasParams = true; }
-    const sz = p.get("size");
-    if (sz) { setSize(sz); hasParams = true; }
-    const zc = p.get("zipcode");
-    if (zc) { setZipcode(zc); hasParams = true; }
-    const rg = p.get("region");
-    if (rg) { setRegion(rg); hasParams = true; }
-    const fp = p.get("foundedPeriod");
-    if (fp) { setFoundedPeriod(fp); hasParams = true; }
-    const em = p.get("employeesMin");
-    if (em) { setEmployeesMin(Number(em)); hasParams = true; }
-
-    if (hasParams) {
-      // Auto-search will be triggered by initialLoad effect
-      setInitialLoad(true);
-    } else {
-      setInitialLoad(false);
-    }
-  // Only run on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const buildSearchParams = useCallback(() => {
+  // ─── Build search params from current filters ───
+  const searchAPIParams = useMemo(() => {
+    if (!hasSearched) return null;
     const params = new URLSearchParams();
-
     if (query) params.set("name", query);
     if (industryCode !== "all") {
-      // Send the numeric industry code for exact matching via industry.primary.code
-      params.set("industry_code", industryCode);
+      const term = industryCodeToText[industryCode];
+      if (term) params.set("industry_text", term);
     } else if (industryText) {
       params.set("industry_text", industryText);
     }
@@ -250,173 +197,122 @@ function SearchPage() {
     }
     if (zipcode) params.set("zipcode", zipcode);
     if (!zipcode && region !== "all") {
-      const zipcodes = regionZipcodeMap[region];
-      if (zipcodes) params.set("zipcode_list", zipcodes);
+      const zips = regionZipcodeMap[region];
+      if (zips) params.set("zipcode_list", zips);
     }
-
     const lifeStart = foundedToDate(foundedPeriod);
     if (lifeStart) params.set("life_start", lifeStart);
-
     const empRange = sizeToEmploymentRange(size);
     if (empRange.low) params.set("employment_interval_low", empRange.low);
-
     if (employeesMin > 0) params.set("employment_interval_low", String(employeesMin));
+    return params.toString() ? params : null;
+  }, [hasSearched, query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin]);
 
-    return params;
-  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin]);
+  // ─── TanStack Query for search results (cached, survives navigation) ───
+  const {
+    data: searchData,
+    isLoading,
+    error: searchError,
+    isFetching,
+  } = useSearchCompanies(searchAPIParams, page, hasSearched);
 
-  const handleSearch = useCallback(async () => {
-    setError("");
-    setSelected(new Set());
+  const rawResults = searchData?.results ?? [];
+  const results = useMemo(() => rawResults.map(mapCvrCompany), [rawResults]);
+  const totalResults = searchData?.total ?? 0;
+  const hasMore = searchData?.hasMore ?? false;
 
-    const params = buildSearchParams();
+  // ─── Saved companies (TanStack Query — shared with /saved page) ───
+  const savedCvrs = useSavedCvrSet();
+  const saveCompanyMutation = useSaveCompany();
+  const unsaveCompanyMutation = useUnsaveCompany();
 
-    // Check if there's at least one real filter
-    if (params.toString() === "") {
-      setError(s.noFilter);
-      return;
-    }
+  // ─── Save search mutation ───
+  const saveSearchMutation = useSaveSearch();
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveSearchName, setSaveSearchName] = useState("");
+  const [localError, setLocalError] = useState("");
 
-    setIsLoading(true);
-    setHasSearched(true);
-    setPage(1);
-    setHasMore(false);
-
-    try {
-      params.set("page", "1");
-      params.set("limit", "50");
-      const res = await fetch(`/api/cvr/search?${params.toString()}`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || s.searchError);
-        setResults([]);
-        return;
-      }
-
-      const rawArr = data.results || [];
-      const mapped = rawArr.map(mapCvrCompany);
-      setResults(mapped);
-      setRawResults(rawArr);
-      setTotalResults(data.total ?? rawArr.length);
-      setHasMore(data.hasMore ?? false);
-    } catch {
-      setError(s.searchError);
-      setResults([]);
-      setRawResults([]);
-      setTotalResults(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [buildSearchParams, s]);
-
-  const handleLoadMore = useCallback(async () => {
-    const nextPage = page + 1;
-    const params = buildSearchParams();
-    params.set("page", String(nextPage));
-    params.set("limit", "50");
-
-    setLoadingMore(true);
-    try {
-      const res = await fetch(`/api/cvr/search?${params.toString()}`);
-      const data = await res.json();
-
-      if (res.ok) {
-        const rawArr = data.results || [];
-        const mapped = rawArr.map(mapCvrCompany);
-        setResults((prev) => [...prev, ...mapped]);
-        setRawResults((prev) => [...prev, ...rawArr]);
-        setPage(nextPage);
-        setTotalResults(data.total ?? totalResults);
-        setHasMore(data.hasMore ?? false);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [page, buildSearchParams, totalResults]);
-
-  const handleSaveCompany = useCallback(async (c: Company, rawResult: Record<string, unknown>) => {
-    setSavingCvr(c.cvr);
-    try {
-      if (savedCvrs.has(c.cvr)) {
-        // Unsave
-        const res = await fetch(`/api/cvr/saved?cvr=${c.cvr}`, { method: "DELETE" });
-        if (res.ok) {
-          setSavedCvrs((prev) => {
-            const next = new Set(prev);
-            next.delete(c.cvr);
-            return next;
-          });
-        }
-      } else {
-        // Save
-        const res = await fetch("/api/cvr/saved", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vat: c.cvr, name: c.name, rawData: rawResult }),
-        });
-        if (res.ok) {
-          setSavedCvrs((prev) => new Set(prev).add(c.cvr));
-        }
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setSavingCvr(null);
-    }
-  }, [savedCvrs]);
-
-  // Auto-search when loaded from URL params (saved search)
+  // ─── Hydrate from URL params (e.g. saved search link) ───
+  const hydratedRef = useRef(false);
   useEffect(() => {
-    if (initialLoad && searchParams.toString()) {
-      setInitialLoad(false);
-      // Small delay to let state settle from URL param hydration
-      const timer = setTimeout(() => handleSearch(), 100);
-      return () => clearTimeout(timer);
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const p = urlParams;
+    let hasParams = false;
+    const name = p.get("name");
+    if (name) { setFilter("query", name); hasParams = true; }
+    const it = p.get("industry_text");
+    if (it) { setFilter("industryText", it); hasParams = true; }
+    const ic = p.get("industry_code");
+    if (ic) { setFilter("industryCode", ic); hasParams = true; }
+    const cf = p.get("companyForm");
+    if (cf) { setFilter("companyForm", cf); hasParams = true; }
+    const sz = p.get("size");
+    if (sz) { setFilter("size", sz); hasParams = true; }
+    const zc = p.get("zipcode");
+    if (zc) { setFilter("zipcode", zc); hasParams = true; }
+    const rg = p.get("region");
+    if (rg) { setFilter("region", rg); hasParams = true; }
+    const fp = p.get("foundedPeriod");
+    if (fp) { setFilter("foundedPeriod", fp); hasParams = true; }
+    const em = p.get("employeesMin");
+    if (em) { setFilter("employeesMin", Number(em)); hasParams = true; }
+    if (hasParams) {
+      setHasSearched(true);
+      setPage(1);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialLoad]);
+  }, []);
 
-  const clearFilters = () => {
-    setQuery("");
-    setIndustryText("");
-    setIndustryCode("all");
-    setCompanyForm("all");
-    setSize("all");
-    setZipcode("");
-    setRegion("all");
-    setFoundedPeriod("all");
-    setRevenueMin(0);
-    setRevenueMax(1000);
-    setProfitMin(0);
-    setProfitMax(1000);
-    setEmployeesMin(0);
-    setEmployeesMax(5000);
-    setHasSearched(false);
-    setSelected(new Set());
-    setResults([]);
-    setRawResults([]);
-    setError("");
+  // ─── Scroll restoration ───
+  useEffect(() => {
+    if (hasSearched && results.length > 0 && scrollY > 0 && !isLoading) {
+      window.scrollTo(0, scrollY);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results.length]);
+
+  useEffect(() => {
+    return () => {
+      setScrollY(window.scrollY);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── Handlers ───
+  const handleSearch = useCallback(() => {
+    setLocalError("");
+    clearSelected();
+    const hasFilter = query || industryText || industryCode !== "all" || companyForm !== "all" || zipcode || region !== "all" || foundedPeriod !== "all" || size !== "all" || employeesMin > 0;
+    if (!hasFilter) {
+      setLocalError(s.noFilter);
+      return;
+    }
     setPage(1);
-    setHasMore(false);
-    setTotalResults(0);
-  };
+    setHasSearched(true);
+  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, s, setPage, setHasSearched, clearSelected]);
 
-  const toggleSelect = (cvr: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(cvr)) next.delete(cvr);
-      else next.add(cvr);
-      return next;
-    });
-  };
+  const handleLoadMore = useCallback(() => {
+    setPage(page + 1);
+  }, [page, setPage]);
 
-  const toggleAll = () => {
-    if (selected.size === results.length) setSelected(new Set());
-    else setSelected(new Set(results.map((r) => r.cvr)));
-  };
+  const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
+    if (savedCvrs.has(c.cvr)) {
+      unsaveCompanyMutation.mutate(c.cvr);
+    } else {
+      saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult });
+    }
+  }, [savedCvrs, saveCompanyMutation, unsaveCompanyMutation]);
+
+  const clearFilters = useCallback(() => {
+    resetAll();
+    setLocalError("");
+  }, [resetAll]);
+
+  const toggleAll = useCallback(() => {
+    if (selected.length === results.length) clearSelected();
+    else selectAll(results.map((r) => r.cvr));
+  }, [selected.length, results, clearSelected, selectAll]);
 
   const getCurrentFilters = useCallback((): Record<string, string> => {
     const filters: Record<string, string> = {};
@@ -434,26 +330,16 @@ function SearchPage() {
 
   const handleSaveSearch = useCallback(async () => {
     if (!saveSearchName.trim()) return;
-    setSavingSearch(true);
-    try {
-      const res = await fetch("/api/saved-searches", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: saveSearchName.trim(),
-          filters: getCurrentFilters(),
-        }),
-      });
-      if (res.ok) {
-        setShowSaveModal(false);
-        setSaveSearchName("");
+    saveSearchMutation.mutate(
+      { name: saveSearchName.trim(), filters: getCurrentFilters() },
+      {
+        onSuccess: () => {
+          setShowSaveModal(false);
+          setSaveSearchName("");
+        },
       }
-    } catch {
-      // Silently fail
-    } finally {
-      setSavingSearch(false);
-    }
-  }, [saveSearchName, getCurrentFilters]);
+    );
+  }, [saveSearchName, getCurrentFilters, saveSearchMutation]);
 
   const foundedOptions = [
     { code: "all", label: locale === "da" ? "Vælg periode" : "Select period" },
@@ -462,6 +348,10 @@ function SearchPage() {
     { code: "last365", label: locale === "da" ? "Sidste år" : "Last year" },
     { code: "last3y", label: locale === "da" ? "Sidste 3 år" : "Last 3 years" },
   ];
+
+  const error = localError || (searchError ? s.searchError : "");
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const savingCvr = saveCompanyMutation.isPending ? (saveCompanyMutation.variables?.vat ?? null) : (unsaveCompanyMutation.isPending ? unsaveCompanyMutation.variables ?? null : null);
 
   return (
     <DashboardLayout>
@@ -485,16 +375,16 @@ function SearchPage() {
               className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
               placeholder={s.searchPlaceholder}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => setFilter("query", e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
           <button
             onClick={handleSearch}
-            disabled={isLoading}
+            disabled={isLoading || isFetching}
             className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
+            {(isLoading || isFetching) ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <span className="material-symbols-outlined text-lg">search</span>
@@ -517,127 +407,92 @@ function SearchPage() {
         {/* Filters panel */}
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-slate-100">
-            {/* Row 1: Industry text, Industry code, Company form */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.industry}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.industry}</label>
                 <input
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
                   placeholder={s.filters.industryPlaceholder}
                   value={industryText}
-                  onChange={(e) => setIndustryText(e.target.value)}
+                  onChange={(e) => setFilter("industryText", e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.industryCode}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.industryCode}</label>
                 <select
                   value={industryCode}
-                  onChange={(e) => setIndustryCode(e.target.value)}
+                  onChange={(e) => setFilter("industryCode", e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
                 >
                   <option value="all">{s.filters.industryCodePlaceholder}</option>
-                  {s.industries
-                    .filter((i) => i.code !== "all")
-                    .map((ind) => (
-                      <option key={ind.code} value={ind.code}>
-                        {ind.label}
-                      </option>
-                    ))}
+                  {s.industries.filter((i) => i.code !== "all").map((ind) => (
+                    <option key={ind.code} value={ind.code}>{ind.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.companyForm}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.companyForm}</label>
                 <select
                   value={companyForm}
-                  onChange={(e) => setCompanyForm(e.target.value)}
+                  onChange={(e) => setFilter("companyForm", e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
                 >
                   <option value="all">{s.filters.companyFormPlaceholder}</option>
-                  {s.companyForms
-                    .filter((f) => f.code !== "all")
-                    .map((f) => (
-                      <option key={f.code} value={f.code}>
-                        {f.label}
-                      </option>
-                    ))}
+                  {s.companyForms.filter((f) => f.code !== "all").map((f) => (
+                    <option key={f.code} value={f.code}>{f.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            {/* Row 2: Company size, Zipcode, Region */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.size}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.size}</label>
                 <select
                   value={size}
-                  onChange={(e) => setSize(e.target.value)}
+                  onChange={(e) => setFilter("size", e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
                 >
                   <option value="all">{s.filters.sizePlaceholder}</option>
-                  {s.sizes
-                    .filter((sz) => sz.code !== "all")
-                    .map((sz) => (
-                      <option key={sz.code} value={sz.code}>
-                        {sz.label}
-                      </option>
-                    ))}
+                  {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
+                    <option key={sz.code} value={sz.code}>{sz.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.zipcode}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.zipcode}</label>
                 <input
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
                   placeholder={s.filters.zipcodePlaceholder}
                   value={zipcode}
-                  onChange={(e) => setZipcode(e.target.value)}
+                  onChange={(e) => setFilter("zipcode", e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.region}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.region}</label>
                 <select
                   value={region}
-                  onChange={(e) => setRegion(e.target.value)}
+                  onChange={(e) => setFilter("region", e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
                 >
                   <option value="all">{s.filters.regionPlaceholder}</option>
-                  {s.regions
-                    .filter((r) => r.code !== "all")
-                    .map((reg) => (
-                      <option key={reg.code} value={reg.code}>
-                        {reg.label}
-                      </option>
-                    ))}
+                  {s.regions.filter((r) => r.code !== "all").map((reg) => (
+                    <option key={reg.code} value={reg.code}>{reg.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            {/* Row 3: Founded date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">
-                  {s.filters.foundedDate}
-                </label>
+                <label className="text-sm font-medium text-slate-600">{s.filters.foundedDate}</label>
                 <select
                   value={foundedPeriod}
-                  onChange={(e) => setFoundedPeriod(e.target.value)}
+                  onChange={(e) => setFilter("foundedPeriod", e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
                 >
                   {foundedOptions.map((o) => (
-                    <option key={o.code} value={o.code}>
-                      {o.label}
-                    </option>
+                    <option key={o.code} value={o.code}>{o.label}</option>
                   ))}
                 </select>
               </div>
@@ -645,49 +500,16 @@ function SearchPage() {
 
             {/* Segmentation */}
             <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900 mb-4">
-                {s.filters.segmentation}
-              </h3>
+              <h3 className="text-sm font-bold text-slate-900 mb-4">{s.filters.segmentation}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <RangeSlider
-                  label={s.filters.revenue}
-                  min={0}
-                  max={1000}
-                  minVal={revenueMin}
-                  maxVal={revenueMax}
-                  onMinChange={setRevenueMin}
-                  onMaxChange={setRevenueMax}
-                  formatMax="1 bn+"
-                />
-                <RangeSlider
-                  label={s.filters.grossProfit}
-                  min={0}
-                  max={1000}
-                  minVal={profitMin}
-                  maxVal={profitMax}
-                  onMinChange={setProfitMin}
-                  onMaxChange={setProfitMax}
-                  formatMax="1 bn+"
-                />
-                <RangeSlider
-                  label={s.filters.employees}
-                  min={0}
-                  max={5000}
-                  minVal={employeesMin}
-                  maxVal={employeesMax}
-                  onMinChange={setEmployeesMin}
-                  onMaxChange={setEmployeesMax}
-                  formatMax="5,000+"
-                />
+                <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" />
+                <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" />
+                <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" />
               </div>
             </div>
 
-            {/* Clear */}
             <div className="flex justify-end mt-4">
-              <button
-                onClick={clearFilters}
-                className="text-xs font-medium text-slate-400 hover:text-slate-600 flex items-center gap-1 cursor-pointer"
-              >
+              <button onClick={clearFilters} className="text-xs font-medium text-slate-400 hover:text-slate-600 flex items-center gap-1 cursor-pointer">
                 <span className="material-symbols-outlined text-sm">close</span>
                 {s.filters.clearFilters}
               </button>
@@ -696,7 +518,7 @@ function SearchPage() {
         )}
       </div>
 
-      {/* Error message */}
+      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2">
           <span className="material-symbols-outlined text-red-500 text-lg">error</span>
@@ -704,12 +526,10 @@ function SearchPage() {
         </div>
       )}
 
-      {/* Selected actions bar */}
-      {selected.size > 0 && (
+      {/* Selected actions */}
+      {selected.length > 0 && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
-          <p className="text-sm font-medium text-blue-700">
-            {selected.size} {s.selected}
-          </p>
+          <p className="text-sm font-medium text-blue-700">{selected.length} {s.selected}</p>
           <button className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-full hover:bg-blue-700 transition-colors">
             <span className="material-symbols-outlined text-lg">download</span>
             {s.export}
@@ -736,27 +556,20 @@ function SearchPage() {
               )}{" "}
               {s.results}
             </p>
-            {hasSearched && results.length > 0 && (
-              <button
-                onClick={() => setShowSaveModal(true)}
-                className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg">bookmark</span>
-                {s.saveSearch}
-              </button>
-            )}
+            <button
+              onClick={() => setShowSaveModal(true)}
+              className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">bookmark</span>
+              {s.saveSearch}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="px-4 sm:px-6 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={selected.size === results.length && results.length > 0}
-                      onChange={toggleAll}
-                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20"
-                    />
+                    <input type="checkbox" checked={selectedSet.size === results.length && results.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
                   </th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">{s.table.company}</th>
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">{s.table.cvr}</th>
@@ -776,18 +589,9 @@ function SearchPage() {
                   const isSaved = savedCvrs.has(c.cvr);
                   const isSaving = savingCvr === c.cvr;
                   return (
-                    <tr
-                      key={c.cvr}
-                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/company/${c.cvr}`)}
-                    >
+                    <tr key={c.cvr} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => router.push(`/company/${c.cvr}`)}>
                       <td className="px-4 sm:px-6 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(c.cvr)}
-                          onChange={() => toggleSelect(c.cvr)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20"
-                        />
+                        <input type="checkbox" checked={selectedSet.has(c.cvr)} onChange={() => toggleSelect(c.cvr)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
@@ -818,11 +622,7 @@ function SearchPage() {
                           title={isSaved ? t.companyDetail.unsave : t.companyDetail.save}
                         >
                           <span
-                            className={`material-symbols-outlined text-lg transition-colors ${
-                              isSaved
-                                ? "text-red-500"
-                                : "text-slate-300 group-hover:text-red-400"
-                            }`}
+                            className={`material-symbols-outlined text-lg transition-colors ${isSaved ? "text-red-500" : "text-slate-300 group-hover:text-red-400"}`}
                             style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
                           >
                             favorite
@@ -830,9 +630,7 @@ function SearchPage() {
                         </button>
                       </td>
                       <td className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <span className="material-symbols-outlined text-slate-300 hover:text-blue-600 text-lg transition-colors cursor-pointer">
-                          open_in_new
-                        </span>
+                        <span className="material-symbols-outlined text-slate-300 hover:text-blue-600 text-lg transition-colors cursor-pointer">open_in_new</span>
                       </td>
                     </tr>
                   );
@@ -841,20 +639,19 @@ function SearchPage() {
             </table>
           </div>
 
-          {/* Load more button */}
           {hasMore && (
             <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex justify-center">
               <button
                 onClick={handleLoadMore}
-                disabled={loadingMore}
+                disabled={isFetching}
                 className="flex items-center gap-2 px-6 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
               >
-                {loadingMore ? (
+                {isFetching ? (
                   <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <span className="material-symbols-outlined text-lg">expand_more</span>
                 )}
-                {loadingMore ? s.loadingMore : s.loadMore}
+                {isFetching ? s.loadingMore : s.loadMore}
               </button>
             </div>
           )}
@@ -876,24 +673,15 @@ function SearchPage() {
           <p className="text-slate-400 font-medium">{s.noResults}</p>
         </div>
       )}
+
       {/* Save search modal */}
       {showSaveModal && (
         <>
-          <div
-            className="fixed inset-0 bg-black/30 z-50"
-            onClick={() => setShowSaveModal(false)}
-          />
+          <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowSaveModal(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-lg font-bold text-slate-900 mb-1">
-                {t.savedSearches.namePrompt}
-              </h3>
-              <p className="text-sm text-slate-400 mb-4">
-                {t.savedSearches.subtitle}
-              </p>
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">{t.savedSearches.namePrompt}</h3>
+              <p className="text-sm text-slate-400 mb-4">{t.savedSearches.subtitle}</p>
               <input
                 className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none mb-4"
                 placeholder={t.savedSearches.namePlaceholder}
@@ -902,36 +690,23 @@ function SearchPage() {
                 onKeyDown={(e) => e.key === "Enter" && handleSaveSearch()}
                 autoFocus
               />
-
-              {/* Show current filters as pills */}
               <div className="flex flex-wrap gap-1.5 mb-5">
                 {Object.entries(getCurrentFilters()).map(([key, value]) => (
-                  <span
-                    key={key}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-600 border border-slate-100"
-                  >
-                    <span className="text-slate-400">{key}:</span>
-                    {value}
+                  <span key={key} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-600 border border-slate-100">
+                    <span className="text-slate-400">{key}:</span>{value}
                   </span>
                 ))}
               </div>
-
               <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => {
-                    setShowSaveModal(false);
-                    setSaveSearchName("");
-                  }}
-                  className="px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
-                >
+                <button onClick={() => { setShowSaveModal(false); setSaveSearchName(""); }} className="px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer">
                   {t.savedSearches.cancelButton}
                 </button>
                 <button
                   onClick={handleSaveSearch}
-                  disabled={!saveSearchName.trim() || savingSearch}
+                  disabled={!saveSearchName.trim() || saveSearchMutation.isPending}
                   className="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {savingSearch ? "..." : t.savedSearches.saveButton}
+                  {saveSearchMutation.isPending ? "..." : t.savedSearches.saveButton}
                 </button>
               </div>
             </div>
