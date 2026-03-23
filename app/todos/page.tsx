@@ -107,61 +107,36 @@ export default function TodosPage() {
     setShowForm(false);
   };
 
-  const createTodo = async () => {
+  const submitting = createTodoMutation.isPending || updateTodoMutation.isPending;
+
+  const createTodo = () => {
     if (!formTitle.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: formTitle.trim(),
-          description: formDescription.trim() || null,
-          priority: formPriority,
-          dueDate: formDueDate || null,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setTodos((prev) => [data.todo, ...prev]);
-      resetForm();
-      showToast(d.created);
-    } catch {
-      showToast(d.createError);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const toggleComplete = async (todo: Todo) => {
-    const prev = todos;
-    setTodos((list) =>
-      list.map((t) => (t.id === todo.id ? { ...t, isCompleted: !t.isCompleted } : t))
+    createTodoMutation.mutate(
+      {
+        title: formTitle.trim(),
+        description: formDescription.trim() || null,
+        priority: formPriority,
+        dueDate: formDueDate || null,
+      },
+      {
+        onSuccess: () => { resetForm(); showToast(d.created); },
+        onError: () => showToast(d.createError),
+      }
     );
-    try {
-      const res = await fetch(`/api/todos/${todo.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isCompleted: !todo.isCompleted }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      setTodos(prev);
-      showToast(d.updateError);
-    }
   };
 
-  const deleteTodo = async (id: string) => {
-    const prev = todos;
-    setTodos((list) => list.filter((t) => t.id !== id));
-    try {
-      const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      showToast(d.deleted);
-    } catch {
-      setTodos(prev);
-      showToast(d.deleteError);
-    }
+  const toggleComplete = (todo: Todo) => {
+    updateTodoMutation.mutate(
+      { id: todo.id, isCompleted: !todo.isCompleted },
+      { onError: () => showToast(d.updateError) }
+    );
+  };
+
+  const deleteTodo = (id: string) => {
+    deleteTodoMutation.mutate(id, {
+      onSuccess: () => showToast(d.deleted),
+      onError: () => showToast(d.deleteError),
+    });
   };
 
   const startEdit = (todo: Todo) => {
@@ -176,50 +151,34 @@ export default function TodosPage() {
     setEditingId(null);
   };
 
-  const saveEdit = async (id: string) => {
+  const saveEdit = (id: string) => {
     if (!editTitle.trim()) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch(`/api/todos/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: editTitle.trim(),
-          description: editDescription.trim() || null,
-          priority: editPriority,
-          dueDate: editDueDate || null,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setTodos((list) => list.map((t) => (t.id === id ? data.todo : t)));
-      setEditingId(null);
-      showToast(d.updated);
-    } catch {
-      showToast(d.updateError);
-    } finally {
-      setSubmitting(false);
-    }
+    updateTodoMutation.mutate(
+      {
+        id,
+        title: editTitle.trim(),
+        description: editDescription.trim() || null,
+        priority: editPriority,
+        dueDate: editDueDate || null,
+      },
+      {
+        onSuccess: () => { setEditingId(null); showToast(d.updated); },
+        onError: () => showToast(d.updateError),
+      }
+    );
   };
 
   const markAllComplete = async () => {
     const activeTodos = todos.filter((t) => !t.isCompleted);
     if (activeTodos.length === 0) return;
-    const prev = todos;
-    setTodos((list) => list.map((t) => ({ ...t, isCompleted: true })));
     try {
       await Promise.all(
         activeTodos.map((t) =>
-          fetch(`/api/todos/${t.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ isCompleted: true }),
-          })
+          updateTodoMutation.mutateAsync({ id: t.id, isCompleted: true })
         )
       );
       showToast(`${activeTodos.length} ${d.bulkCompleted}`);
     } catch {
-      setTodos(prev);
       showToast(d.updateError);
     }
   };
@@ -227,15 +186,12 @@ export default function TodosPage() {
   const deleteCompleted = async () => {
     const completedTodos = todos.filter((t) => t.isCompleted);
     if (completedTodos.length === 0) return;
-    const prev = todos;
-    setTodos((list) => list.filter((t) => !t.isCompleted));
     try {
       await Promise.all(
-        completedTodos.map((t) => fetch(`/api/todos/${t.id}`, { method: "DELETE" }))
+        completedTodos.map((t) => deleteTodoMutation.mutateAsync(t.id))
       );
       showToast(`${completedTodos.length} ${d.bulkDeleted}`);
     } catch {
-      setTodos(prev);
       showToast(d.deleteError);
     }
   };

@@ -180,9 +180,10 @@ function SearchPage() {
     toggleSelect, selectAll, clearSelected, resetAll,
   } = store;
 
-  // ─── Build search params from current filters ───
-  const searchAPIParams = useMemo(() => {
-    if (!hasSearched) return null;
+  // ─── Committed search params (only updated on Search click, not on filter change) ───
+  const [committedParams, setCommittedParams] = useState<URLSearchParams | null>(null);
+
+  const buildSearchParams = useCallback(() => {
     const params = new URLSearchParams();
     if (query) params.set("name", query);
     if (industryCode !== "all") {
@@ -206,7 +207,7 @@ function SearchPage() {
     if (empRange.low) params.set("employment_interval_low", empRange.low);
     if (employeesMin > 0) params.set("employment_interval_low", String(employeesMin));
     return params.toString() ? params : null;
-  }, [hasSearched, query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin]);
+  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin]);
 
   // ─── TanStack Query for search results (cached, survives navigation) ───
   const {
@@ -214,7 +215,7 @@ function SearchPage() {
     isLoading,
     error: searchError,
     isFetching,
-  } = useSearchCompanies(searchAPIParams, page, hasSearched);
+  } = useSearchCompanies(committedParams, page, hasSearched);
 
   const rawResults = searchData?.results ?? [];
   const results = useMemo(() => rawResults.map(mapCvrCompany), [rawResults]);
@@ -260,6 +261,10 @@ function SearchPage() {
     if (hasParams) {
       setHasSearched(true);
       setPage(1);
+      // Defer commit so filter state settles first
+      setTimeout(() => {
+        setCommittedParams(buildSearchParams());
+      }, 0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -283,14 +288,15 @@ function SearchPage() {
   const handleSearch = useCallback(() => {
     setLocalError("");
     clearSelected();
-    const hasFilter = query || industryText || industryCode !== "all" || companyForm !== "all" || zipcode || region !== "all" || foundedPeriod !== "all" || size !== "all" || employeesMin > 0;
-    if (!hasFilter) {
+    const params = buildSearchParams();
+    if (!params) {
       setLocalError(s.noFilter);
       return;
     }
     setPage(1);
     setHasSearched(true);
-  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, s, setPage, setHasSearched, clearSelected]);
+    setCommittedParams(params);
+  }, [buildSearchParams, s, setPage, setHasSearched, clearSelected]);
 
   const handleLoadMore = useCallback(() => {
     setPage(page + 1);
@@ -306,6 +312,7 @@ function SearchPage() {
 
   const clearFilters = useCallback(() => {
     resetAll();
+    setCommittedParams(null);
     setLocalError("");
   }, [resetAll]);
 

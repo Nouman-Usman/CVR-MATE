@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { useCompany } from "@/lib/hooks/use-company";
+import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 
 interface CompanyData {
   vat: number;
@@ -171,79 +173,35 @@ export default function CompanyDetailPage() {
   const cd = t.companyDetail;
   const vat = params.vat as string;
 
-  const [company, setCompany] = useState<CompanyData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [isSaved, setIsSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // TanStack Query for company data (cached 1hr)
+  const validVat = vat && /^\d{8}$/.test(vat) ? vat : undefined;
+  const { data: companyData, isLoading: loading, error: fetchError } = useCompany(validVat);
+  const company = (companyData?.company as CompanyData) ?? null;
+  const error = !validVat ? cd.notFound : fetchError ? cd.error : "";
+
+  // Saved state via shared TanStack Query cache
+  const savedCvrs = useSavedCvrSet();
+  const saveMutation = useSaveCompany();
+  const unsaveMutation = useUnsaveCompany();
+  const isSaved = savedCvrs.has(vat);
+  const saving = saveMutation.isPending || unsaveMutation.isPending;
+
   const [activeTab, setActiveTab] = useState<
     "overview" | "financials" | "contact" | "people"
   >("overview");
 
-  // Fetch company data
-  useEffect(() => {
-    if (!vat || !/^\d{8}$/.test(vat)) {
-      setError(cd.notFound);
-      setLoading(false);
-      return;
-    }
-
-    async function load() {
-      try {
-        const [companyRes, savedRes] = await Promise.all([
-          fetch(`/api/cvr/company?vat=${vat}`),
-          fetch(`/api/cvr/saved`),
-        ]);
-
-        const companyData = await companyRes.json();
-        if (!companyRes.ok) {
-          setError(companyData.error || cd.error);
-          return;
-        }
-        setCompany(companyData.company);
-
-        if (savedRes.ok) {
-          const savedData = await savedRes.json();
-          const savedCvrs = (savedData.results || []).map(
-            (s: { cvr: string }) => s.cvr
-          );
-          setIsSaved(savedCvrs.includes(vat));
-        }
-      } catch {
-        setError(cd.error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, [vat, cd.notFound, cd.error]);
-
-  const handleSaveToggle = useCallback(async () => {
+  const handleSaveToggle = () => {
     if (!company) return;
-    setSaving(true);
-    try {
-      if (isSaved) {
-        await fetch(`/api/cvr/saved?cvr=${vat}`, { method: "DELETE" });
-        setIsSaved(false);
-      } else {
-        await fetch("/api/cvr/saved", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            vat: company.vat,
-            name: company.life.name,
-            rawData: company,
-          }),
-        });
-        setIsSaved(true);
-      }
-    } catch {
-      // Silently fail — user can retry
-    } finally {
-      setSaving(false);
+    if (isSaved) {
+      unsaveMutation.mutate(vat);
+    } else {
+      saveMutation.mutate({
+        vat: String(company.vat),
+        name: company.life.name,
+        rawData: company as unknown as Record<string, unknown>,
+      });
     }
-  }, [company, isSaved, vat]);
+  };
 
   const tabs = [
     { key: "overview" as const, label: cd.overview, icon: "info" },
