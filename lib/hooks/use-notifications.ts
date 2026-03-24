@@ -28,6 +28,10 @@ export function useNotifications() {
       return res.json();
     },
     staleTime: 30_000,
+    retry: (count, error) => {
+      if (error?.message?.includes("401")) return false;
+      return count < 2;
+    },
   });
 }
 
@@ -227,6 +231,8 @@ export function useNotificationStream() {
 
     es.onerror = () => {
       es.close();
+      // Stop retrying after 5 failures (likely auth issue)
+      if (retryRef.current >= 5) return;
       // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
       const delay = Math.min(1000 * 2 ** retryRef.current, 30_000);
       retryRef.current++;

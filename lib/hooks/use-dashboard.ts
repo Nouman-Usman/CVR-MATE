@@ -33,5 +33,10 @@ export function useDashboard() {
     },
     staleTime: 60_000,
     gcTime: 5 * 60_000,
+    retry: (count, error) => {
+      // Don't retry auth errors
+      if (error?.message?.includes("401")) return false;
+      return count < 2;
+    },
   });
 }

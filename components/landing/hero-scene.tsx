@@ -1,54 +1,45 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useState, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, MeshTransmissionMaterial, MeshDistortMaterial, Environment } from "@react-three/drei";
+import { Float, MeshDistortMaterial } from "@react-three/drei";
 import * as THREE from "three";
 
-/* ─── Floating Glass Orb ────────────────────────────────────────── */
+/* ─── Gradient Orb (lightweight — no transmission material) ───── */
 
-function GlassOrb({ position, scale, speed = 1, distort = 0.3, color = "#2563eb" }: {
+function GradientOrb({ position, scale, speed = 1, color = "#2563eb" }: {
   position: [number, number, number];
   scale: number;
   speed?: number;
-  distort?: number;
   color?: string;
 }) {
   const ref = useRef<THREE.Mesh>(null);
 
-  useFrame((state) => {
+  useFrame(({ clock }) => {
     if (!ref.current) return;
-    ref.current.rotation.x = Math.sin(state.clock.elapsedTime * speed * 0.3) * 0.2;
+    ref.current.rotation.x = Math.sin(clock.elapsedTime * speed * 0.3) * 0.2;
     ref.current.rotation.y += 0.003 * speed;
   });
 
   return (
     <Float speed={speed * 1.5} rotationIntensity={0.4} floatIntensity={1.2} floatingRange={[-0.1, 0.1]}>
       <mesh ref={ref} position={position} scale={scale}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <MeshTransmissionMaterial
-          backside
-          samples={6}
-          thickness={0.4}
-          chromaticAberration={0.15}
-          anisotropy={0.2}
-          distortion={distort}
-          distortionScale={0.3}
-          temporalDistortion={0.1}
-          iridescence={1}
-          iridescenceIOR={1.5}
-          iridescenceThicknessRange={[100, 400]}
+        <sphereGeometry args={[1, 32, 32]} />
+        <MeshDistortMaterial
           color={color}
-          roughness={0.1}
-          transmission={0.95}
-          ior={1.25}
+          roughness={0.15}
+          metalness={0.9}
+          distort={0.2}
+          speed={1.5}
+          transparent
+          opacity={0.7}
         />
       </mesh>
     </Float>
   );
 }
 
-/* ─── Gradient Torus ────────────────────────────────────────────── */
+/* ─── Torus Ring ────────────────────────────────────────────────── */
 
 function GradientRing({ position, scale }: {
   position: [number, number, number];
@@ -56,22 +47,22 @@ function GradientRing({ position, scale }: {
 }) {
   const ref = useRef<THREE.Mesh>(null);
 
-  useFrame((state) => {
+  useFrame(({ clock }) => {
     if (!ref.current) return;
-    ref.current.rotation.x = state.clock.elapsedTime * 0.15;
-    ref.current.rotation.z = state.clock.elapsedTime * 0.1;
+    ref.current.rotation.x = clock.elapsedTime * 0.15;
+    ref.current.rotation.z = clock.elapsedTime * 0.1;
   });
 
   return (
     <Float speed={1} rotationIntensity={0.3} floatIntensity={0.8}>
       <mesh ref={ref} position={position} scale={scale}>
-        <torusGeometry args={[1, 0.3, 32, 100]} />
+        <torusGeometry args={[1, 0.25, 24, 64]} />
         <MeshDistortMaterial
           color="#06b6d4"
           roughness={0.2}
           metalness={0.8}
-          distort={0.15}
-          speed={2}
+          distort={0.1}
+          speed={1.5}
         />
       </mesh>
     </Float>
@@ -80,44 +71,34 @@ function GradientRing({ position, scale }: {
 
 /* ─── Particle Field ────────────────────────────────────────────── */
 
-function Particles({ count = 300 }: { count?: number }) {
+function Particles({ count = 200 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null);
 
-  const [positions, sizes] = useMemo(() => {
+  const positions = useMemo(() => {
     const pos = new Float32Array(count * 3);
-    const sz = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 12;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 10 - 2;
-      sz[i] = Math.random() * 0.03 + 0.005;
+      pos[i * 3] = (Math.random() - 0.5) * 18;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * 10;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 8 - 2;
     }
-    return [pos, sz];
+    return pos;
   }, [count]);
 
-  useFrame((state) => {
+  useFrame(({ clock }) => {
     if (!ref.current) return;
-    ref.current.rotation.y = state.clock.elapsedTime * 0.015;
-    ref.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.05) * 0.05;
+    ref.current.rotation.y = clock.elapsedTime * 0.012;
   });
 
   return (
     <points ref={ref}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-size"
-          args={[sizes, 1]}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.04}
+        size={0.035}
         color="#4a8eff"
         transparent
-        opacity={0.6}
+        opacity={0.5}
         sizeAttenuation
         depthWrite={false}
       />
@@ -125,44 +106,58 @@ function Particles({ count = 300 }: { count?: number }) {
   );
 }
 
-/* ─── Scene Composition ─────────────────────────────────────────── */
+/* ─── Scene ─────────────────────────────────────────────────────── */
 
 function Scene() {
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 5, 5]} intensity={0.5} color="#b4c5ff" />
-      <pointLight position={[-3, 2, 2]} intensity={0.8} color="#2563eb" />
-      <pointLight position={[3, -2, 0]} intensity={0.5} color="#06b6d4" />
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 5, 5]} intensity={0.4} color="#b4c5ff" />
+      <pointLight position={[-3, 2, 2]} intensity={0.6} color="#2563eb" />
+      <pointLight position={[3, -2, 0]} intensity={0.4} color="#06b6d4" />
 
-      {/* Main glass orbs */}
-      <GlassOrb position={[-3.2, 1.2, -1]} scale={1.1} speed={0.8} color="#2563eb" distort={0.25} />
-      <GlassOrb position={[3.5, -0.5, -2]} scale={0.8} speed={1.2} color="#06b6d4" distort={0.3} />
-      <GlassOrb position={[0.5, 2.2, -1.5]} scale={0.5} speed={1.5} color="#8b5cf6" distort={0.2} />
-      <GlassOrb position={[-1.5, -1.8, -0.5]} scale={0.4} speed={1} color="#4a8eff" distort={0.35} />
-      <GlassOrb position={[2, 1.5, -3]} scale={0.6} speed={0.6} color="#2563eb" distort={0.15} />
+      <GradientOrb position={[-3, 1.2, -1]} scale={1} speed={0.8} color="#2563eb" />
+      <GradientOrb position={[3.2, -0.5, -2]} scale={0.75} speed={1.2} color="#06b6d4" />
+      <GradientOrb position={[0.5, 2, -1.5]} scale={0.45} speed={1.5} color="#8b5cf6" />
+      <GradientOrb position={[-1.5, -1.6, -0.5]} scale={0.35} speed={1} color="#4a8eff" />
 
-      {/* Gradient ring */}
-      <GradientRing position={[1.8, -1, -2.5]} scale={0.7} />
+      <GradientRing position={[1.8, -1, -2.5]} scale={0.6} />
 
-      {/* Particle field */}
-      <Particles count={400} />
-
-      <Environment preset="night" />
+      <Particles count={200} />
     </>
   );
 }
 
-/* ─── Exported Canvas ───────────────────────────────────────────── */
+/* ─── Exported Canvas with WebGL fallback ───────────────────────── */
 
 export default function HeroScene() {
+  const [webglOk, setWebglOk] = useState(true);
+
+  useEffect(() => {
+    try {
+      const c = document.createElement("canvas");
+      const gl = c.getContext("webgl2") || c.getContext("webgl");
+      if (!gl) setWebglOk(false);
+    } catch {
+      setWebglOk(false);
+    }
+  }, []);
+
+  if (!webglOk) return null;
+
   return (
     <div className="absolute inset-0 z-0">
       <Canvas
         camera={{ position: [0, 0, 6], fov: 45 }}
         dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true }}
+        gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
         style={{ background: "transparent" }}
+        onCreated={({ gl }) => {
+          gl.getContext().canvas.addEventListener("webglcontextlost", (e) => {
+            e.preventDefault();
+            setWebglOk(false);
+          });
+        }}
       >
         <Scene />
       </Canvas>
