@@ -6,10 +6,21 @@ import { db } from "@/db";
 // BETTER_AUTH_URL must be the canonical production URL with https://
 const resolvedBaseURL =
   process.env.BETTER_AUTH_URL?.replace(/\/$/, "") ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000");
 
 export const auth = betterAuth({
   baseURL: resolvedBaseURL,
+  advanced: {
+    crossSubDomainCookies: {
+      enabled: true,
+    },
+  },
   trustedOrigins: [
     "https://cvr-mate.vercel.app",
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",

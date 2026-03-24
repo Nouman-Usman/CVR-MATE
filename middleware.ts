@@ -15,11 +15,12 @@ const PROTECTED_ROUTES = [
 
 const AUTH_ROUTES = ["/login", "/signup"];
 
-// better-auth uses this cookie name by default
+// better-auth uses these cookie names by default
 const SESSION_COOKIE = "better-auth.session_token";
+const SECURE_SESSION_COOKIE = "__Secure-better-auth.session_token";
 
 function hasSessionCookie(req: NextRequest): boolean {
-  return req.cookies.has(SESSION_COOKIE);
+  return req.cookies.has(SESSION_COOKIE) || req.cookies.has(SECURE_SESSION_COOKIE);
 }
 
 export function middleware(req: NextRequest) {
