@@ -262,7 +262,9 @@ function SearchPage() {
     },
     onSuccess: (data) => {
       const f = data.filters;
-      if (f.query) setFilter("query", f.query);
+      // Update the main input bar: use AI-extracted query, or clear it
+      // since the natural language has been parsed into structured filters
+      setFilter("query", f.query || "");
       if (f.industryText) setFilter("industryText", f.industryText);
       if (f.industryCode && f.industryCode !== "all") setFilter("industryCode", f.industryCode);
       if (f.companyForm && f.companyForm !== "all") setFilter("companyForm", f.companyForm);
