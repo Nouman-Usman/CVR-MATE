@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -56,6 +57,148 @@ function getInitials(name: string) {
 
 /* ─── Company Picker ────────────────────────────────────────────────── */
 
+function CompanyPickerDropdown({
+  anchorRect,
+  search,
+  onSearch,
+  onSelect,
+  onManualCvr,
+  onClose,
+  d,
+}: {
+  anchorRect: DOMRect;
+  search: string;
+  onSearch: (v: string) => void;
+  onSelect: (companyId: string, cvr: string, name: string) => void;
+  onManualCvr: (cvr: string) => void;
+  onClose: () => void;
+  d: Record<string, string>;
+}) {
+  const { data: savedData } = useSavedCompanies();
+  const saved = savedData?.results ?? [];
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [manualCvr, setManualCvr] = useState("");
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  const filtered = saved.filter((s) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const name = ((s.company as Record<string, unknown>)?.name as string) || "";
+    return name.toLowerCase().includes(q) || s.cvr.includes(q);
+  });
+
+  const top = anchorRect.bottom + 4;
+  const left = anchorRect.left;
+  const width = Math.max(anchorRect.width, 300);
+
+  return createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-scale-in"
+      style={{ top, left, width, zIndex: 9999 }}
+    >
+      {/* Search input */}
+      <div className="p-2 border-b border-slate-100">
+        <div className="relative">
+          <span className="material-symbols-outlined text-sm text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2">search</span>
+          <input
+            type="text"
+            placeholder={d.searchSavedCompanies}
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            autoFocus
+            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-100 rounded-lg text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+          />
+        </div>
+      </div>
+
+      {/* Saved companies */}
+      <div className="max-h-48 overflow-y-auto">
+        {saved.length > 0 && (
+          <div className="px-3 pt-2 pb-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{d.savedCompanies}</p>
+          </div>
+        )}
+        {filtered.length === 0 && search && (
+          <div className="px-3 py-4 text-center text-xs text-slate-400">
+            {d.noSavedCompanies}
+          </div>
+        )}
+        {filtered.length === 0 && !search && saved.length === 0 && (
+          <div className="px-3 py-4 text-center text-xs text-slate-400">
+            {d.noSavedCompanies}
+          </div>
+        )}
+        {filtered.map((s) => {
+          const name = ((s.company as Record<string, unknown>)?.name as string) || s.cvr;
+          const city = ((s.company as Record<string, unknown>)?.city as string) || "";
+          const companyId = ((s.company as Record<string, unknown>)?.id as string) || "";
+          const color = getCompanyColor(name);
+          return (
+            <button
+              key={s.cvr}
+              type="button"
+              onClick={() => onSelect(companyId, s.cvr, name)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-blue-50 transition-colors cursor-pointer text-left"
+            >
+              <div className={`w-7 h-7 rounded-full ${color.bg} flex items-center justify-center shrink-0`}>
+                <span className={`text-[9px] font-bold ${color.text}`}>{getInitials(name)}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate">{name}</p>
+                <p className="text-[10px] text-slate-400 truncate">{s.cvr}{city ? ` · ${city}` : ""}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Manual CVR */}
+      <div className="border-t border-slate-100 p-2">
+        <p className="text-[10px] font-medium text-slate-400 mb-1.5 px-1">{d.orEnterCvr}</p>
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            placeholder="e.g. 12345678"
+            value={manualCvr}
+            onChange={(e) => setManualCvr(e.target.value.replace(/\D/g, "").slice(0, 8))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && manualCvr.trim()) {
+                onManualCvr(manualCvr.trim());
+                setManualCvr("");
+              }
+            }}
+            className="flex-1 px-3 py-2 text-sm border border-slate-100 rounded-lg text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (manualCvr.trim()) {
+                onManualCvr(manualCvr.trim());
+                setManualCvr("");
+              }
+            }}
+            disabled={!manualCvr.trim()}
+            className="px-3 py-2 rounded-lg bg-blue-50 text-blue-600 text-sm font-medium hover:bg-blue-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-sm">add</span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function CompanyPicker({
   isOpen,
   search,
@@ -79,38 +222,30 @@ function CompanyPicker({
   onManualCvr: (cvr: string) => void;
   d: Record<string, string>;
 }) {
-  const { data: savedData } = useSavedCompanies();
-  const saved = savedData?.results ?? [];
-  const pickerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        onToggle();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+  const handleToggle = useCallback(() => {
+    if (!isOpen && buttonRef.current) {
+      setAnchorRect(buttonRef.current.getBoundingClientRect());
+    }
+    onToggle();
   }, [isOpen, onToggle]);
 
-  const filtered = saved.filter((s) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const name = ((s.company as Record<string, unknown>)?.name as string) || "";
-    return name.toLowerCase().includes(q) || s.cvr.includes(q);
-  });
+  const handleClose = useCallback(() => {
+    if (isOpen) onToggle();
+  }, [isOpen, onToggle]);
 
   // If a company is selected, show the badge
   if (selectedCvr && selectedName) {
     const color = getCompanyColor(selectedName);
     return (
       <div className="flex items-center gap-2 flex-wrap">
-        <div className={`inline-flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-sm`}>
+        <div className="inline-flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-sm">
           <div className={`w-6 h-6 rounded-full ${color.bg} flex items-center justify-center`}>
             <span className={`text-[9px] font-bold ${color.text}`}>{getInitials(selectedName)}</span>
           </div>
-          <span className="font-medium text-slate-700">{selectedName}</span>
+          <span className="font-medium text-slate-700 truncate max-w-[160px]">{selectedName}</span>
           <span className="text-slate-400 text-xs">({selectedCvr})</span>
           <button
             type="button"
@@ -125,10 +260,11 @@ function CompanyPicker({
   }
 
   return (
-    <div className="relative" ref={pickerRef}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={onToggle}
+        onClick={handleToggle}
         className="w-full flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-500 hover:border-blue-300 hover:bg-blue-50/30 transition-all cursor-pointer text-left"
       >
         <span className="material-symbols-outlined text-lg text-slate-400">apartment</span>
@@ -138,77 +274,18 @@ function CompanyPicker({
         </span>
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-scale-in">
-          {/* Search input */}
-          <div className="p-2 border-b border-slate-100">
-            <div className="relative">
-              <span className="material-symbols-outlined text-sm text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2">search</span>
-              <input
-                type="text"
-                placeholder={d.searchSavedCompanies}
-                value={search}
-                onChange={(e) => onSearch(e.target.value)}
-                autoFocus
-                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-100 rounded-lg text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              />
-            </div>
-          </div>
-
-          {/* Saved companies */}
-          <div className="max-h-48 overflow-y-auto">
-            {saved.length > 0 && (
-              <div className="px-3 pt-2 pb-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{d.savedCompanies}</p>
-              </div>
-            )}
-            {filtered.length === 0 && search && (
-              <div className="px-3 py-4 text-center text-xs text-slate-400">
-                {d.noSavedCompanies}
-              </div>
-            )}
-            {filtered.map((s) => {
-              const name = ((s.company as Record<string, unknown>)?.name as string) || s.cvr;
-              const city = ((s.company as Record<string, unknown>)?.city as string) || "";
-              const companyId = ((s.company as Record<string, unknown>)?.id as string) || "";
-              const color = getCompanyColor(name);
-              return (
-                <button
-                  key={s.cvr}
-                  type="button"
-                  onClick={() => onSelect(companyId, s.cvr, name)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-blue-50 transition-colors cursor-pointer text-left"
-                >
-                  <div className={`w-7 h-7 rounded-full ${color.bg} flex items-center justify-center shrink-0`}>
-                    <span className={`text-[9px] font-bold ${color.text}`}>{getInitials(name)}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{name}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{s.cvr}{city ? ` · ${city}` : ""}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Manual CVR */}
-          <div className="border-t border-slate-100 p-2">
-            <p className="text-[10px] font-medium text-slate-400 mb-1.5 px-1">{d.orEnterCvr}</p>
-            <input
-              type="text"
-              placeholder="e.g. 12345678"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const val = (e.target as HTMLInputElement).value.trim();
-                  if (val) onManualCvr(val);
-                }
-              }}
-              className="w-full px-3 py-2 text-sm border border-slate-100 rounded-lg text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-            />
-          </div>
-        </div>
+      {isOpen && anchorRect && (
+        <CompanyPickerDropdown
+          anchorRect={anchorRect}
+          search={search}
+          onSearch={onSearch}
+          onSelect={onSelect}
+          onManualCvr={onManualCvr}
+          onClose={handleClose}
+          d={d}
+        />
       )}
-    </div>
+    </>
   );
 }
 

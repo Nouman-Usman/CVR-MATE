@@ -204,11 +204,24 @@ function SearchPage() {
     }
     const lifeStart = foundedToDate(foundedPeriod);
     if (lifeStart) params.set("life_start", lifeStart);
-    const empRange = sizeToEmploymentRange(size);
-    if (empRange.low) params.set("employment_interval_low", empRange.low);
-    if (employeesMin > 0) params.set("employment_interval_low", String(employeesMin));
+
+    // Employees: slider takes priority over dropdown
+    if (employeesMin > 0) {
+      params.set("employment_interval_low", String(employeesMin));
+    } else {
+      const empRange = sizeToEmploymentRange(size);
+      if (empRange.low) params.set("employment_interval_low", empRange.low);
+    }
+
+    // Segmentation post-filters (applied server-side after CVR API results)
+    if (employeesMax < 5000) params.set("seg_employees_max", String(employeesMax));
+    if (revenueMin > 0) params.set("seg_revenue_min", String(revenueMin));
+    if (revenueMax < 1000) params.set("seg_revenue_max", String(revenueMax));
+    if (profitMin > 0) params.set("seg_profit_min", String(profitMin));
+    if (profitMax < 1000) params.set("seg_profit_max", String(profitMax));
+
     return params.toString() ? params : null;
-  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin]);
+  }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
 
   // ─── TanStack Query for search results (cached, survives navigation) ───
   const {

@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
+import { getCompanyByVat } from "@/lib/cvr-api";
 
 export async function GET() {
   try {
@@ -62,12 +63,49 @@ export async function POST(req: NextRequest) {
     let resolvedCompanyId: string | null = companyId ?? null;
 
     if (!resolvedCompanyId && cvr && typeof cvr === "string" && cvr.trim()) {
+      const trimmedCvr = cvr.trim();
+
+      // Check local DB first
       const existing = await db.query.company.findFirst({
-        where: eq(company.vat, cvr.trim()),
+        where: eq(company.vat, trimmedCvr),
         columns: { id: true },
       });
+
       if (existing) {
         resolvedCompanyId = existing.id;
+      } else {
+        // Fetch from external CVR API and upsert locally
+        try {
+          const cvrData = await getCompanyByVat(Number(trimmedCvr));
+          const [newCompany] = await db
+            .insert(company)
+            .values({
+              vat: String(cvrData.vat),
+              name: cvrData.life?.name || `CVR ${trimmedCvr}`,
+              rawData: cvrData,
+              address: cvrData.address?.street || null,
+              zipcode: cvrData.address?.zipcode ? String(cvrData.address.zipcode) : null,
+              city: cvrData.address?.cityname || null,
+              municipality: cvrData.address?.municipalityname || null,
+              phone: cvrData.contact?.phone || null,
+              email: cvrData.contact?.email || null,
+              website: cvrData.contact?.www || null,
+              industryCode: cvrData.industry?.primary?.code ? String(cvrData.industry.primary.code) : null,
+              industryName: cvrData.industry?.primary?.text || null,
+              companyType: cvrData.companyform?.description || null,
+              companyStatus: cvrData.companystatus?.text || null,
+              founded: cvrData.life?.start || null,
+              employees: cvrData.employment?.months?.[0]?.amount ?? null,
+            })
+            .onConflictDoUpdate({
+              target: company.vat,
+              set: { lastFetchedAt: new Date() },
+            })
+            .returning();
+          resolvedCompanyId = newCompany.id;
+        } catch (e) {
+          console.warn("Could not fetch company from CVR API:", e);
+        }
       }
     }
 
