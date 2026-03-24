@@ -111,11 +111,18 @@ export const leadTrigger = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     filters: jsonb("filters").default({}).notNull(),
-    frequency: text("frequency").default("daily").notNull(),
+    frequency: text("frequency").default("daily").notNull(), // 'daily' | 'weekly' | 'custom'
     isActive: boolean("is_active").default(true).notNull(),
     notificationChannels: jsonb("notification_channels")
       .default(["in_app"])
       .notNull(),
+    // ─── Cron scheduling fields ───
+    cronExpression: text("cron_expression"), // e.g. "0 8 * * 1" — null means use frequency defaults
+    scheduledHour: integer("scheduled_hour").default(8).notNull(), // 0-23
+    scheduledMinute: integer("scheduled_minute").default(0).notNull(), // 0-59
+    scheduledDayOfWeek: integer("scheduled_day_of_week"), // 0=Sun..6=Sat, null for daily
+    timezone: text("timezone").default("Europe/Copenhagen").notNull(),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -126,6 +133,7 @@ export const leadTrigger = pgTable(
   (table) => [
     index("lead_trigger_user_idx").on(table.userId),
     index("lead_trigger_active_idx").on(table.userId, table.isActive),
+    index("lead_trigger_next_run_idx").on(table.nextRunAt),
   ]
 );
 

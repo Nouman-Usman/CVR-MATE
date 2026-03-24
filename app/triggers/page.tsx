@@ -26,6 +26,12 @@ interface TriggerFilters {
 
 const emptyFilters: TriggerFilters = {};
 
+const DAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
 export default function TriggersPage() {
   const { t, locale } = useLanguage();
   const tr = t.triggers;
@@ -51,6 +57,9 @@ export default function TriggersPage() {
   const [frequency, setFrequency] = useState("daily");
   const [filters, setFilters] = useState<TriggerFilters>(emptyFilters);
   const [channels, setChannels] = useState<NotificationChannel[]>(["in_app"]);
+  const [scheduledHour, setScheduledHour] = useState(8);
+  const [scheduledMinute, setScheduledMinute] = useState(0);
+  const [scheduledDayOfWeek, setScheduledDayOfWeek] = useState(1); // Monday
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -63,6 +72,9 @@ export default function TriggersPage() {
     setFrequency("daily");
     setFilters(emptyFilters);
     setChannels(["in_app"]);
+    setScheduledHour(8);
+    setScheduledMinute(0);
+    setScheduledDayOfWeek(1);
     setDialogOpen(true);
   };
 
@@ -72,6 +84,9 @@ export default function TriggersPage() {
     setFrequency(trigger.frequency);
     setFilters((trigger.filters ?? {}) as TriggerFilters);
     setChannels((trigger.notificationChannels ?? ["in_app"]) as NotificationChannel[]);
+    setScheduledHour(trigger.scheduledHour ?? 8);
+    setScheduledMinute(trigger.scheduledMinute ?? 0);
+    setScheduledDayOfWeek(trigger.scheduledDayOfWeek ?? 1);
     setDialogOpen(true);
   };
 
@@ -88,15 +103,19 @@ export default function TriggersPage() {
   const handleSave = () => {
     if (!name.trim()) return;
 
+    const payload = {
+      name: name.trim(),
+      frequency,
+      filters,
+      notificationChannels: channels,
+      scheduledHour,
+      scheduledMinute,
+      scheduledDayOfWeek: frequency === "weekly" ? scheduledDayOfWeek : null,
+    };
+
     if (editing) {
       updateMutation.mutate(
-        {
-          id: editing.id,
-          name: name.trim(),
-          frequency,
-          filters,
-          notificationChannels: channels,
-        },
+        { id: editing.id, ...payload },
         {
           onSuccess: () => {
             setDialogOpen(false);
@@ -105,20 +124,12 @@ export default function TriggersPage() {
         }
       );
     } else {
-      createMutation.mutate(
-        {
-          name: name.trim(),
-          frequency,
-          filters,
-          notificationChannels: channels,
+      createMutation.mutate(payload, {
+        onSuccess: () => {
+          setDialogOpen(false);
+          showToast(tr.created);
         },
-        {
-          onSuccess: () => {
-            setDialogOpen(false);
-            showToast(tr.created);
-          },
-        }
-      );
+      });
     }
   };
 
@@ -148,17 +159,51 @@ export default function TriggersPage() {
   const saving = createMutation.isPending || updateMutation.isPending;
   const runningId = runMutation.isPending ? (runMutation.variables ?? null) : null;
 
-  // Latest run result for expanded trigger
   const getLatestResult = (trigger: Trigger) => {
     const results = (trigger as Trigger & { results?: { matchCount: number; companies: { vat: number; name: string; city: string; industry: string }[]; createdAt: string }[] }).results;
     return results?.[0] ?? null;
   };
 
+  const formatSchedule = (trigger: Trigger) => {
+    const time = `${pad2(trigger.scheduledHour ?? 8)}:${pad2(trigger.scheduledMinute ?? 0)}`;
+    if (trigger.frequency === "weekly" && trigger.scheduledDayOfWeek !== null) {
+      const dayKey = DAY_KEYS[trigger.scheduledDayOfWeek ?? 1];
+      const dayName = tr[dayKey as keyof typeof tr] || dayKey;
+      return `${tr.everyWeekOn} ${dayName} ${tr.at} ${time}`;
+    }
+    return `${tr.everyDayAt} ${time}`;
+  };
+
+  const formatNextRun = (trigger: Trigger) => {
+    if (!trigger.nextRunAt) return null;
+    const d = new Date(trigger.nextRunAt);
+    const now = new Date();
+    const diffMs = d.getTime() - now.getTime();
+    const diffH = Math.round(diffMs / 3600000);
+
+    const dateStr = d.toLocaleDateString(locale === "da" ? "da-DK" : "en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    if (diffH > 0 && diffH < 24) {
+      return `${dateStr} (${diffH}h)`;
+    }
+    return dateStr;
+  };
+
+  // Hours & minutes for selectors
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = [0, 15, 30, 45];
+
   return (
     <DashboardLayout>
       {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-fade-in-up">
           <span className="material-symbols-outlined text-lg text-emerald-400">check_circle</span>
           {toast}
         </div>
@@ -191,7 +236,7 @@ export default function TriggersPage() {
 
       {/* Empty state */}
       {!isLoading && triggers.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center animate-fade-in-up">
           <span className="material-symbols-outlined text-6xl text-slate-200 mb-4 block">
             bolt
           </span>
@@ -204,9 +249,10 @@ export default function TriggersPage() {
           </button>
         </div>
       ) : !isLoading && (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-stagger">
           {triggers.map((trigger) => {
             const latestResult = getLatestResult(trigger);
+            const nextRun = formatNextRun(trigger);
             return (
               <div
                 key={trigger.id}
@@ -223,7 +269,7 @@ export default function TriggersPage() {
                       }`}
                     >
                       <span
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
                           trigger.isActive ? "translate-x-5" : "translate-x-0"
                         }`}
                       />
@@ -235,14 +281,16 @@ export default function TriggersPage() {
                         {trigger.name}
                       </p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
-                        <span>
-                          {trigger.frequency === "daily" ? tr.daily : tr.weekly}
+                        {/* Schedule badge */}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium border border-blue-100">
+                          <span className="material-symbols-outlined text-[11px]">schedule</span>
+                          {formatSchedule(trigger)}
                         </span>
+
                         <span>·</span>
                         <span>
                           {filterCount((trigger.filters ?? {}) as TriggerFilters)} {tr.filters}
                         </span>
-                        <span>·</span>
                         <span className="inline-flex items-center gap-1">
                           {(trigger.notificationChannels ?? []).includes("in_app") && (
                             <span className="material-symbols-outlined text-xs">
@@ -255,6 +303,19 @@ export default function TriggersPage() {
                             </span>
                           )}
                         </span>
+
+                        {/* Next run */}
+                        {trigger.isActive && nextRun && (
+                          <>
+                            <span>·</span>
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <span className="material-symbols-outlined text-xs">update</span>
+                              {tr.nextRun}: {nextRun}
+                            </span>
+                          </>
+                        )}
+
+                        {/* Last run */}
                         {trigger.lastRunAt && (
                           <>
                             <span>·</span>
@@ -285,10 +346,8 @@ export default function TriggersPage() {
                       className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
                       title={tr.showResults}
                     >
-                      <span className="material-symbols-outlined text-lg">
-                        {expandedId === trigger.id
-                          ? "expand_less"
-                          : "expand_more"}
+                      <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${expandedId === trigger.id ? "rotate-180" : ""}`}>
+                        expand_more
                       </span>
                     </button>
                     <button
@@ -328,7 +387,36 @@ export default function TriggersPage() {
 
                 {/* Expanded details */}
                 {expandedId === trigger.id && (
-                  <div className="px-4 sm:px-6 pb-5 border-t border-slate-100 pt-4 space-y-4">
+                  <div className="px-4 sm:px-6 pb-5 border-t border-slate-100 pt-4 space-y-4 animate-slide-down">
+                    {/* Schedule info */}
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                        {tr.schedule}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">schedule</span>
+                          {formatSchedule(trigger)}
+                        </span>
+                        {trigger.cronExpression && (
+                          <span className="px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-mono">
+                            {trigger.cronExpression}
+                          </span>
+                        )}
+                        {trigger.isActive && nextRun && (
+                          <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-sm">update</span>
+                            {tr.nextRun}: {nextRun}
+                          </span>
+                        )}
+                        {!trigger.isActive && (
+                          <span className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium">
+                            {tr.paused}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Filters */}
                     <div>
                       <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
@@ -428,10 +516,10 @@ export default function TriggersPage() {
       {dialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-overlay"
             onClick={() => setDialogOpen(false)}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col animate-modal">
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 shrink-0">
               <h2 className="text-lg font-extrabold text-slate-900 font-[family-name:var(--font-manrope)]">
@@ -441,31 +529,99 @@ export default function TriggersPage() {
 
             {/* Body */}
             <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-              {/* Name + Frequency */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                    {tr.name}
-                  </label>
-                  <input
-                    className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={tr.namePlaceholder}
-                  />
+              {/* Name */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  {tr.name}
+                </label>
+                <input
+                  className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={tr.namePlaceholder}
+                />
+              </div>
+
+              {/* Schedule section */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  {tr.schedule}
+                </label>
+
+                {/* Frequency + Day of week */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-slate-400 px-1">{tr.frequency}</label>
+                    <select
+                      value={frequency}
+                      onChange={(e) => setFrequency(e.target.value)}
+                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer"
+                    >
+                      <option value="daily">{tr.dailyTime}</option>
+                      <option value="weekly">{tr.weeklyTime}</option>
+                    </select>
+                  </div>
+
+                  {frequency === "weekly" && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-400 px-1">{tr.dayOfWeek}</label>
+                      <select
+                        value={scheduledDayOfWeek}
+                        onChange={(e) => setScheduledDayOfWeek(Number(e.target.value))}
+                        className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer"
+                      >
+                        {DAY_KEYS.map((key, idx) => (
+                          <option key={idx} value={idx}>
+                            {tr[key as keyof typeof tr]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
+
+                {/* Time picker */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                    {tr.frequency}
-                  </label>
-                  <select
-                    value={frequency}
-                    onChange={(e) => setFrequency(e.target.value)}
-                    className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                  >
-                    <option value="daily">{tr.dailyTime}</option>
-                    <option value="weekly">{tr.weeklyTime}</option>
-                  </select>
+                  <label className="text-xs text-slate-400 px-1">{tr.timeOfDay}</label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={scheduledHour}
+                      onChange={(e) => setScheduledHour(Number(e.target.value))}
+                      className="bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer tabular-nums"
+                    >
+                      {hours.map((h) => (
+                        <option key={h} value={h}>{pad2(h)}</option>
+                      ))}
+                    </select>
+                    <span className="text-slate-400 font-bold">:</span>
+                    <select
+                      value={scheduledMinute}
+                      onChange={(e) => setScheduledMinute(Number(e.target.value))}
+                      className="bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer tabular-nums"
+                    >
+                      {minutes.map((m) => (
+                        <option key={m} value={m}>{pad2(m)}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-slate-400 ml-2">(Europe/Copenhagen)</span>
+                  </div>
+                </div>
+
+                {/* Preview badge */}
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
+                  <span className="material-symbols-outlined text-blue-500 text-lg">schedule</span>
+                  <div className="text-sm">
+                    <span className="font-medium text-blue-700">
+                      {frequency === "weekly"
+                        ? `${tr.everyWeekOn} ${tr[DAY_KEYS[scheduledDayOfWeek] as keyof typeof tr]} ${tr.at} ${pad2(scheduledHour)}:${pad2(scheduledMinute)}`
+                        : `${tr.everyDayAt} ${pad2(scheduledHour)}:${pad2(scheduledMinute)}`}
+                    </span>
+                    <span className="text-blue-400 ml-2 font-mono text-xs">
+                      {frequency === "weekly"
+                        ? `${scheduledMinute} ${scheduledHour} * * ${scheduledDayOfWeek}`
+                        : `${scheduledMinute} ${scheduledHour} * * *`}
+                    </span>
+                  </div>
                 </div>
               </div>
 

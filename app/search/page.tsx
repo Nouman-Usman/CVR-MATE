@@ -452,7 +452,7 @@ function SearchPage() {
 
         {/* AI interpretation result */}
         {aiExplanation && (
-          <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-100">
+          <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-100 animate-fade-in-up">
             <span className="material-symbols-outlined text-violet-500 text-lg mt-0.5 shrink-0">auto_awesome</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-violet-700 font-medium">
@@ -475,17 +475,17 @@ function SearchPage() {
         {/* Filter toggle */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 cursor-pointer"
+          className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 cursor-pointer group"
         >
-          <span className="material-symbols-outlined text-lg">
-            {showFilters ? "expand_less" : "expand_more"}
+          <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${showFilters ? "rotate-180" : "rotate-0"}`}>
+            expand_more
           </span>
           {s.filters.title}
         </button>
 
         {/* Filters panel */}
         {showFilters && (
-          <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="mt-4 pt-4 border-t border-slate-100 animate-slide-down">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-600">{s.filters.industry}</label>
@@ -599,7 +599,7 @@ function SearchPage() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2">
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 animate-fade-in-up">
           <span className="material-symbols-outlined text-red-500 text-lg">error</span>
           <p className="text-sm font-medium text-red-700">{error}</p>
         </div>
@@ -607,7 +607,7 @@ function SearchPage() {
 
       {/* Selected actions */}
       {selected.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center justify-between animate-fade-in-up">
           <p className="text-sm font-medium text-blue-700">{selected.length} {s.selected}</p>
           <button className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-full hover:bg-blue-700 transition-colors">
             <span className="material-symbols-outlined text-lg">download</span>
@@ -661,7 +661,7 @@ function SearchPage() {
                   <th className="w-10 px-2 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-50 animate-stagger">
                 {results.map((c, idx) => {
                   const color = companyColors[idx % companyColors.length];
                   const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -701,7 +701,7 @@ function SearchPage() {
                           title={isSaved ? t.companyDetail.unsave : t.companyDetail.save}
                         >
                           <span
-                            className={`material-symbols-outlined text-lg transition-colors ${isSaved ? "text-red-500" : "text-slate-300 group-hover:text-red-400"}`}
+                            className={`material-symbols-outlined text-lg transition-all duration-200 ${isSaved ? "text-red-500 animate-check-pop" : "text-slate-300 group-hover:text-red-400 group-hover:scale-110"}`}
                             style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
                           >
                             favorite
@@ -756,9 +756,9 @@ function SearchPage() {
       {/* Save search modal */}
       {showSaveModal && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowSaveModal(false)} />
+          <div className="fixed inset-0 bg-black/30 z-50 animate-overlay" onClick={() => setShowSaveModal(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md p-6 animate-modal" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-bold text-slate-900 mb-1">{t.savedSearches.namePrompt}</h3>
               <p className="text-sm text-slate-400 mb-4">{t.savedSearches.subtitle}</p>
               <input

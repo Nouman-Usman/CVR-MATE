@@ -4,6 +4,7 @@ import { leadTrigger } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { computeNextRun, buildCronExpression } from "@/lib/cron";
 
 export async function GET() {
   try {
@@ -41,7 +42,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, filters, frequency, notificationChannels } = body;
+    const {
+      name,
+      filters,
+      frequency,
+      notificationChannels,
+      scheduledHour,
+      scheduledMinute,
+      scheduledDayOfWeek,
+      timezone,
+    } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
@@ -50,14 +60,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const freq = frequency ?? "daily";
+    const hour = scheduledHour ?? 8;
+    const minute = scheduledMinute ?? 0;
+    const dow = freq === "weekly" ? (scheduledDayOfWeek ?? 1) : null; // default Monday
+    const tz = timezone ?? "Europe/Copenhagen";
+
+    const cronExpr = buildCronExpression(freq, hour, minute, dow);
+    const nextRunAt = computeNextRun(freq, hour, minute, dow, tz);
+
     const [newTrigger] = await db
       .insert(leadTrigger)
       .values({
         userId: session.user.id,
         name: name.trim(),
         filters: filters ?? {},
-        frequency: frequency ?? "daily",
+        frequency: freq,
         notificationChannels: notificationChannels ?? ["in_app"],
+        scheduledHour: hour,
+        scheduledMinute: minute,
+        scheduledDayOfWeek: dow,
+        timezone: tz,
+        cronExpression: cronExpr,
+        nextRunAt,
       })
       .returning();
 

@@ -4,6 +4,7 @@ import { leadTrigger } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { computeNextRun, buildCronExpression } from "@/lib/cron";
 
 export async function PATCH(
   req: NextRequest,
@@ -18,7 +19,6 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
 
-    // Only allow updating own triggers
     const existing = await db.query.leadTrigger.findFirst({
       where: and(
         eq(leadTrigger.id, id),
@@ -37,6 +37,38 @@ export async function PATCH(
     if (body.isActive !== undefined) updates.isActive = body.isActive;
     if (body.notificationChannels !== undefined)
       updates.notificationChannels = body.notificationChannels;
+    if (body.scheduledHour !== undefined) updates.scheduledHour = body.scheduledHour;
+    if (body.scheduledMinute !== undefined) updates.scheduledMinute = body.scheduledMinute;
+    if (body.scheduledDayOfWeek !== undefined) updates.scheduledDayOfWeek = body.scheduledDayOfWeek;
+    if (body.timezone !== undefined) updates.timezone = body.timezone;
+
+    // Recompute cron expression and next run if schedule changed
+    const scheduleChanged =
+      body.frequency !== undefined ||
+      body.scheduledHour !== undefined ||
+      body.scheduledMinute !== undefined ||
+      body.scheduledDayOfWeek !== undefined ||
+      body.isActive !== undefined;
+
+    if (scheduleChanged) {
+      const freq = (updates.frequency ?? existing.frequency) as string;
+      const hour = (updates.scheduledHour ?? existing.scheduledHour) as number;
+      const minute = (updates.scheduledMinute ?? existing.scheduledMinute) as number;
+      const dow = freq === "weekly"
+        ? ((updates.scheduledDayOfWeek ?? existing.scheduledDayOfWeek ?? 1) as number)
+        : null;
+      const tz = (updates.timezone ?? existing.timezone) as string;
+      const isActive = (updates.isActive ?? existing.isActive) as boolean;
+
+      updates.cronExpression = buildCronExpression(freq, hour, minute, dow);
+      updates.scheduledDayOfWeek = dow;
+
+      if (isActive) {
+        updates.nextRunAt = computeNextRun(freq, hour, minute, dow, tz);
+      } else {
+        updates.nextRunAt = null;
+      }
+    }
 
     const [updated] = await db
       .update(leadTrigger)

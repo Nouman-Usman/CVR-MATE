@@ -1,0 +1,149 @@
+import { NextRequest, NextResponse } from "next/server";
+import { eq, and, lte, or, isNull } from "drizzle-orm";
+import { leadTrigger, triggerResult } from "@/db/schema";
+import { db } from "@/db";
+import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
+import { createNotification } from "@/lib/notifications";
+import { computeNextRun } from "@/lib/cron";
+
+// Cron endpoint: processes all active triggers that are due.
+// Secured via CRON_SECRET header. Configure in vercel.json.
+// Runs every 10 minutes to check for due triggers.
+
+function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
+  const params: SearchCompanyParams = {
+    companystatus_code: "20",
+  };
+  if (filters.industry_code)
+    params.industry_primary_code = String(filters.industry_code);
+  if (filters.city) params.address_city = String(filters.city);
+  if (filters.region) params.address_municipality = String(filters.region);
+  if (filters.company_type)
+    params.companyform_description = String(filters.company_type);
+  if (filters.min_employees)
+    params.employment_interval_low = String(filters.min_employees);
+  if (filters.founded_after)
+    params.life_start = String(filters.founded_after);
+  return params;
+}
+
+export async function GET(req: NextRequest) {
+  // ─── Auth: Vercel sends this header, or use Bearer token for manual calls ───
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
+  try {
+    const now = new Date();
+
+    // Find all active triggers that are due (nextRunAt <= now or nextRunAt is null)
+    const dueTriggers = await db.query.leadTrigger.findMany({
+      where: and(
+        eq(leadTrigger.isActive, true),
+        or(
+          lte(leadTrigger.nextRunAt, now),
+          isNull(leadTrigger.nextRunAt)
+        )
+      ),
+    });
+
+    const results: { triggerId: string; matchCount: number; error?: string }[] = [];
+
+    for (const trigger of dueTriggers) {
+      try {
+        const filters = (trigger.filters ?? {}) as Record<string, unknown>;
+        const searchParams = buildSearchParams(filters);
+
+        // Execute CVR search
+        const companies = await searchCompanies(searchParams);
+        const rawResults = Array.isArray(companies) ? companies : [];
+
+        // Sort newest first and deduplicate
+        rawResults.sort((a, b) => {
+          const da = a.life?.start || "";
+          const db2 = b.life?.start || "";
+          return db2.localeCompare(da);
+        });
+        const seen = new Set<number>();
+        const unique = rawResults.filter((c) => {
+          if (seen.has(c.vat)) return false;
+          seen.add(c.vat);
+          return true;
+        });
+
+        // Store summary
+        const companySummaries = unique.slice(0, 100).map((c) => ({
+          vat: c.vat,
+          name: c.life?.name ?? "",
+          city: c.address?.cityname ?? "",
+          industry: c.industry?.primary?.text ?? "",
+          founded: c.life?.start ?? "",
+        }));
+
+        await db.insert(triggerResult).values({
+          triggerId: trigger.id,
+          userId: trigger.userId,
+          companies: companySummaries,
+          matchCount: unique.length,
+        });
+
+        // Compute next run
+        const nextRun = computeNextRun(
+          trigger.frequency,
+          trigger.scheduledHour,
+          trigger.scheduledMinute,
+          trigger.scheduledDayOfWeek,
+          trigger.timezone
+        );
+
+        // Update trigger
+        await db
+          .update(leadTrigger)
+          .set({ lastRunAt: now, nextRunAt: nextRun })
+          .where(eq(leadTrigger.id, trigger.id));
+
+        // Send notification
+        if (unique.length > 0) {
+          await createNotification({
+            userId: trigger.userId,
+            type: "trigger",
+            title: `${trigger.name}: ${unique.length} matches`,
+            message:
+              unique
+                .slice(0, 3)
+                .map((c) => c.life?.name ?? "")
+                .filter(Boolean)
+                .join(", ") +
+              (unique.length > 3 ? ` +${unique.length - 3} more` : ""),
+            link: `/triggers`,
+          });
+        }
+
+        results.push({ triggerId: trigger.id, matchCount: unique.length });
+      } catch (err) {
+        console.error(`Cron: trigger ${trigger.id} failed:`, err);
+        results.push({
+          triggerId: trigger.id,
+          matchCount: 0,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    }
+
+    return NextResponse.json({
+      processed: dueTriggers.length,
+      results,
+      timestamp: now.toISOString(),
+    });
+  } catch (error) {
+    console.error("Cron trigger execution failed:", error);
+    return NextResponse.json(
+      { error: "Cron execution failed" },
+      { status: 500 }
+    );
+  }
+}

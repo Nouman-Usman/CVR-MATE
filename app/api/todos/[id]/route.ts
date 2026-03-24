@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { todo } from "@/db/schema";
+import { todo, company } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { cacheDel } from "@/lib/redis";
+import { cacheKey } from "@/lib/cache";
 
 export async function PATCH(
   req: NextRequest,
@@ -17,7 +19,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { title, description, isCompleted, priority, companyId, dueDate } =
+    const { title, description, isCompleted, priority, companyId, cvr, dueDate } =
       body;
 
     const updateData: Record<string, unknown> = {};
@@ -25,8 +27,24 @@ export async function PATCH(
     if (description !== undefined) updateData.description = description;
     if (isCompleted !== undefined) updateData.isCompleted = isCompleted;
     if (priority !== undefined) updateData.priority = priority;
-    if (companyId !== undefined) updateData.companyId = companyId;
     if (dueDate !== undefined) updateData.dueDate = dueDate;
+
+    // Resolve company: direct companyId takes priority, then CVR lookup
+    if (companyId !== undefined) {
+      updateData.companyId = companyId;
+    } else if (cvr !== undefined) {
+      if (cvr === null || cvr === "") {
+        updateData.companyId = null;
+      } else {
+        const existing = await db.query.company.findFirst({
+          where: eq(company.vat, cvr.trim()),
+          columns: { id: true },
+        });
+        if (existing) {
+          updateData.companyId = existing.id;
+        }
+      }
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
@@ -50,6 +68,9 @@ export async function PATCH(
       where: eq(todo.id, updated.id),
       with: { company: true },
     });
+
+    // Invalidate cache
+    await cacheDel(cacheKey.todos(session.user.id));
 
     return NextResponse.json({ todo: todoWithCompany });
   } catch (error) {
@@ -81,6 +102,9 @@ export async function DELETE(
     if (!deleted) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
+
+    // Invalidate cache
+    await cacheDel(cacheKey.todos(session.user.id));
 
     return NextResponse.json({ message: "Todo deleted" });
   } catch (error) {

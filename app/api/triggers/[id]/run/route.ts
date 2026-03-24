@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
+import { computeNextRun } from "@/lib/cron";
 
 // Maps trigger filter keys to CVR API search params
 function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
@@ -95,10 +96,19 @@ export async function POST(
       })
       .returning();
 
-    // Update trigger lastRunAt
+    // Compute next scheduled run
+    const nextRun = computeNextRun(
+      trigger.frequency,
+      trigger.scheduledHour,
+      trigger.scheduledMinute,
+      trigger.scheduledDayOfWeek,
+      trigger.timezone
+    );
+
+    // Update trigger lastRunAt + nextRunAt
     await db
       .update(leadTrigger)
-      .set({ lastRunAt: new Date() })
+      .set({ lastRunAt: new Date(), nextRunAt: nextRun })
       .where(eq(leadTrigger.id, id));
 
     // Create a real-time notification (pushed via SSE)

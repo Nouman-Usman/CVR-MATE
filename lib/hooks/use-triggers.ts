@@ -25,6 +25,12 @@ export interface Trigger {
   filters: TriggerFilters;
   frequency: string;
   isActive: boolean;
+  scheduledHour: number;
+  scheduledMinute: number;
+  scheduledDayOfWeek: number | null;
+  timezone: string;
+  cronExpression: string | null;
+  nextRunAt: string | null;
   lastRunAt: string | null;
   notificationChannels: string[];
   createdAt: string;
