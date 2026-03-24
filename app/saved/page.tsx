@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useSavedCompanies, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
+import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
 
 interface SavedCompany {
   id: string;
@@ -34,6 +36,7 @@ export default function SavedPage() {
   const { t, locale } = useLanguage();
   const router = useRouter();
   const sv = t.saved;
+  const ai = t.ai;
 
   const { data, isLoading: loading } = useSavedCompanies();
   const unsaveMutation = useUnsaveCompany();
@@ -44,16 +47,48 @@ export default function SavedPage() {
   };
   const removing = unsaveMutation.isPending ? (unsaveMutation.variables ?? null) : null;
 
+  // AI Pipeline Analysis
+  const pipelineMutation = usePipelineAnalysis();
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [expandedSegment, setExpandedSegment] = useState<number | null>(null);
+
+  const priorityMap = new Map<string, { score: string; reason: string }>();
+  if (pipelineMutation.data?.prioritized) {
+    for (const p of pipelineMutation.data.prioritized) {
+      priorityMap.set(p.vat, { score: p.score, reason: p.reason });
+    }
+  }
+
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
-          {sv.title}
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          {sv.subtitle} · {companies.length} {sv.count}
-        </p>
+      <div className="flex items-start justify-between mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+            {sv.title}
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            {sv.subtitle} · {companies.length} {sv.count}
+          </p>
+        </div>
+        {companies.length > 0 && (
+          <button
+            onClick={() => {
+              const vats = companies.map(c => c.cvr).slice(0, 25);
+              pipelineMutation.mutate({ companyVats: vats, locale });
+              setShowAnalysis(true);
+            }}
+            disabled={pipelineMutation.isPending}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer disabled:opacity-60 shrink-0"
+          >
+            {pipelineMutation.isPending ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined text-lg">auto_awesome</span>
+            )}
+            {pipelineMutation.isPending ? ai.pipeline.analyzing : ai.pipeline.analyze}
+          </button>
+        )}
       </div>
 
       {/* Loading */}
@@ -81,6 +116,80 @@ export default function SavedPage() {
             <span className="material-symbols-outlined text-lg">search</span>
             {sv.searchCompanies}
           </Link>
+        </div>
+      )}
+
+      {/* AI Pipeline Analysis */}
+      {showAnalysis && pipelineMutation.isPending && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center mb-6">
+          <div className="w-10 h-10 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 font-medium">{ai.pipeline.analyzing}</p>
+        </div>
+      )}
+
+      {showAnalysis && pipelineMutation.isError && (
+        <div className="bg-red-50 rounded-2xl border border-red-100 p-4 mb-6">
+          <p className="text-sm text-red-600">{ai.pipeline.error}</p>
+        </div>
+      )}
+
+      {showAnalysis && pipelineMutation.data && !pipelineMutation.isPending && (
+        <div className="space-y-4 mb-6">
+          {/* Segments */}
+          {pipelineMutation.data.segments?.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5">
+              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg text-violet-600">category</span>
+                {ai.pipeline.segments}
+              </h3>
+              <div className="space-y-2">
+                {pipelineMutation.data.segments.map((seg, i) => (
+                  <div key={i} className="rounded-xl border border-slate-100 overflow-hidden">
+                    <button
+                      onClick={() => setExpandedSegment(expandedSegment === i ? null : i)}
+                      className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-50/50 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-600">
+                          {seg.vats.length}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-800">{seg.name}</span>
+                      </div>
+                      <span className="material-symbols-outlined text-slate-400 text-lg">
+                        {expandedSegment === i ? "expand_less" : "expand_more"}
+                      </span>
+                    </button>
+                    {expandedSegment === i && (
+                      <div className="px-3 pb-3">
+                        <p className="text-sm text-slate-600">{seg.insight}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Next Actions */}
+          {pipelineMutation.data.nextActions?.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5">
+              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg text-emerald-500">task_alt</span>
+                {ai.pipeline.nextActions}
+              </h3>
+              <div className="space-y-2">
+                {pipelineMutation.data.nextActions.map((na, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                    <span className="material-symbols-outlined text-emerald-500 text-lg mt-0.5 shrink-0">arrow_right</span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{na.name}</p>
+                      <p className="text-sm text-slate-600">{na.action}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -140,9 +249,25 @@ export default function SavedPage() {
                             </span>
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">
-                              {c.name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">
+                                {c.name}
+                              </p>
+                              {priorityMap.has(s.cvr) && (
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase shrink-0 ${
+                                    priorityMap.get(s.cvr)!.score === "high"
+                                      ? "bg-emerald-50 text-emerald-600"
+                                      : priorityMap.get(s.cvr)!.score === "medium"
+                                        ? "bg-amber-50 text-amber-600"
+                                        : "bg-slate-50 text-slate-500"
+                                  }`}
+                                  title={priorityMap.get(s.cvr)!.reason}
+                                >
+                                  {priorityMap.get(s.cvr)!.score}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-400 truncate">
                               {c.address && `${c.address}, `}
                               {c.zipcode} {c.city}

@@ -7,6 +7,10 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useCompany } from "@/lib/hooks/use-company";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
+import { useCompanyBriefing } from "@/lib/hooks/use-company-briefing";
+import { useOutreach } from "@/lib/hooks/use-outreach";
+import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
+import { useCreateTodo } from "@/lib/hooks/use-todos";
 
 interface CompanyData {
   vat: number;
@@ -187,8 +191,24 @@ export default function CompanyDetailPage() {
   const saving = saveMutation.isPending || unsaveMutation.isPending;
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "financials" | "contact" | "people"
+    "overview" | "financials" | "contact" | "people" | "ai-briefing"
   >("overview");
+
+  // AI features
+  const briefingMutation = useCompanyBriefing();
+  const outreachMutation = useOutreach();
+  const suggestTodosMutation = useSuggestTodos();
+  const createTodoMutation = useCreateTodo();
+  const [showOutreach, setShowOutreach] = useState(false);
+  const [outreachType, setOutreachType] = useState<"email" | "linkedin" | "phone_script">("email");
+  const [outreachTone, setOutreachTone] = useState<"formal" | "casual">("formal");
+  const [sellingPoint, setSellingPoint] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("cvr-selling-point") || "";
+    return "";
+  });
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showTodoSuggestions, setShowTodoSuggestions] = useState(false);
+  const [addedTodos, setAddedTodos] = useState<Set<number>>(new Set());
 
   const handleSaveToggle = () => {
     if (!company) return;
@@ -203,11 +223,13 @@ export default function CompanyDetailPage() {
     }
   };
 
+  const ai = t.ai;
   const tabs = [
     { key: "overview" as const, label: cd.overview, icon: "info" },
     { key: "financials" as const, label: cd.financials, icon: "bar_chart" },
     { key: "contact" as const, label: cd.contact, icon: "call" },
     { key: "people" as const, label: cd.people, icon: "groups" },
+    { key: "ai-briefing" as const, label: ai.briefing.tab, icon: "auto_awesome" },
   ];
 
   // Financial data
@@ -262,27 +284,36 @@ export default function CompanyDetailPage() {
               </span>
               {cd.backToSearch}
             </Link>
-            <button
-              onClick={handleSaveToggle}
-              disabled={saving}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer disabled:opacity-50 ${
-                isSaved
-                  ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                  : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-              }`}
-            >
-              <span
-                className="material-symbols-outlined text-lg"
-                style={
-                  isSaved
-                    ? { fontVariationSettings: "'FILL' 1" }
-                    : undefined
-                }
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowOutreach(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100"
               >
-                bookmark
-              </span>
-              {saving ? "..." : isSaved ? cd.saved : cd.save}
-            </button>
+                <span className="material-symbols-outlined text-lg">edit_note</span>
+                {ai.outreach.button}
+              </button>
+              <button
+                onClick={handleSaveToggle}
+                disabled={saving}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer disabled:opacity-50 ${
+                  isSaved
+                    ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                }`}
+              >
+                <span
+                  className="material-symbols-outlined text-lg"
+                  style={
+                    isSaved
+                      ? { fontVariationSettings: "'FILL' 1" }
+                      : undefined
+                  }
+                >
+                  bookmark
+                </span>
+                {saving ? "..." : isSaved ? cd.saved : cd.save}
+              </button>
+            </div>
           </div>
 
           {/* Company Header Card */}
@@ -728,6 +759,345 @@ export default function CompanyDetailPage() {
                   <p className="text-slate-400 font-medium">{cd.noPeople}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* AI Briefing Tab */}
+          {activeTab === "ai-briefing" && (
+            <div className="space-y-6">
+              {/* Generate / Regenerate */}
+              {!briefingMutation.data && !briefingMutation.isPending && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
+                    <span className="material-symbols-outlined text-3xl text-white">auto_awesome</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">{ai.briefing.tab}</h3>
+                  <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
+                    {ai.briefing.empty}
+                  </p>
+                  <button
+                    onClick={() => briefingMutation.mutate({ vat, locale })}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                    {ai.briefing.generate}
+                  </button>
+                  {briefingMutation.isError && (
+                    <p className="text-sm text-red-500 mt-4">{ai.briefing.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Loading */}
+              {briefingMutation.isPending && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
+                  <div className="w-10 h-10 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-slate-500 font-medium">{ai.briefing.generating}</p>
+                </div>
+              )}
+
+              {/* Briefing Result */}
+              {briefingMutation.data && !briefingMutation.isPending && (
+                <>
+                  {/* Briefing text */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg text-violet-600">auto_awesome</span>
+                        {ai.briefing.tab}
+                      </h2>
+                      <button
+                        onClick={() => briefingMutation.mutate({ vat, locale })}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">refresh</span>
+                        {ai.briefing.regenerate}
+                      </button>
+                    </div>
+                    <div className="prose prose-sm prose-slate max-w-none">
+                      {briefingMutation.data.briefing.split("\n").filter(Boolean).map((p, i) => (
+                        <p key={i} className="text-sm text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Key Insights */}
+                  {briefingMutation.data.keyInsights?.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                      <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg text-amber-500">lightbulb</span>
+                        {ai.briefing.keyInsights}
+                      </h2>
+                      <div className="space-y-2">
+                        {briefingMutation.data.keyInsights.map((insight, i) => (
+                          <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                            <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">arrow_right</span>
+                            <p className="text-sm text-slate-700 font-medium">{insight}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested Approach */}
+                  {briefingMutation.data.suggestedApproach && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                      <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg text-emerald-500">route</span>
+                        {ai.briefing.suggestedApproach}
+                      </h2>
+                      <p className="text-sm text-slate-700 leading-relaxed">{briefingMutation.data.suggestedApproach}</p>
+                    </div>
+                  )}
+
+                  {/* Suggest Tasks */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg text-blue-600">task_alt</span>
+                        {ai.todos.suggest}
+                      </h2>
+                      <button
+                        onClick={() => {
+                          setShowTodoSuggestions(true);
+                          setAddedTodos(new Set());
+                          suggestTodosMutation.mutate({ vat, locale });
+                        }}
+                        disabled={suggestTodosMutation.isPending}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                        {suggestTodosMutation.isPending ? ai.todos.suggesting : ai.todos.suggest}
+                      </button>
+                    </div>
+
+                    {showTodoSuggestions && suggestTodosMutation.isPending && (
+                      <div className="flex items-center justify-center py-6">
+                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+
+                    {showTodoSuggestions && suggestTodosMutation.data?.suggestions && (
+                      <div className="space-y-2">
+                        {suggestTodosMutation.data.suggestions.map((suggestion, i) => (
+                          <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  suggestion.priority === "high" ? "bg-red-50 text-red-600" :
+                                  suggestion.priority === "medium" ? "bg-amber-50 text-amber-600" :
+                                  "bg-slate-50 text-slate-500"
+                                }`}>
+                                  {suggestion.priority}
+                                </span>
+                                <span className="text-[10px] text-slate-400">{suggestion.dueInDays}d</span>
+                              </div>
+                              <p className="text-sm font-medium text-slate-800">{suggestion.title}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">{suggestion.description}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const dueDate = new Date();
+                                dueDate.setDate(dueDate.getDate() + suggestion.dueInDays);
+                                createTodoMutation.mutate({
+                                  title: suggestion.title,
+                                  description: suggestion.description,
+                                  priority: suggestion.priority,
+                                  dueDate: dueDate.toISOString().split("T")[0],
+                                });
+                                setAddedTodos(prev => new Set(prev).add(i));
+                              }}
+                              disabled={addedTodos.has(i) || createTodoMutation.isPending}
+                              className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+                                addedTodos.has(i)
+                                  ? "bg-emerald-50 text-emerald-600"
+                                  : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-sm">
+                                {addedTodos.has(i) ? "check" : "add"}
+                              </span>
+                              {addedTodos.has(i) ? ai.todos.added : ai.todos.addTask}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {showTodoSuggestions && suggestTodosMutation.isError && (
+                      <p className="text-sm text-red-500">{ai.todos.error}</p>
+                    )}
+
+                    {!showTodoSuggestions && (
+                      <p className="text-sm text-slate-400 text-center py-4">
+                        {ai.todos.suggest}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Outreach Slide-over */}
+          {showOutreach && (
+            <div className="fixed inset-0 z-50 flex justify-end">
+              <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowOutreach(false)} />
+              <div className="relative w-full max-w-lg bg-white shadow-2xl overflow-y-auto">
+                <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between z-10">
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-violet-600">edit_note</span>
+                    {ai.outreach.title}
+                  </h2>
+                  <button
+                    onClick={() => setShowOutreach(false)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-slate-400">close</span>
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  {/* Message type */}
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.type}</label>
+                    <div className="flex gap-2">
+                      {(["email", "linkedin", "phone_script"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setOutreachType(t)}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                            outreachType === t ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                          }`}
+                        >
+                          {t === "email" ? ai.outreach.email : t === "linkedin" ? ai.outreach.linkedin : ai.outreach.phoneScript}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tone */}
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.tone}</label>
+                    <div className="flex gap-2">
+                      {(["formal", "casual"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setOutreachTone(t)}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                            outreachTone === t ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                          }`}
+                        >
+                          {t === "formal" ? ai.outreach.formal : ai.outreach.casual}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selling point */}
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.sellingPoint}</label>
+                    <textarea
+                      value={sellingPoint}
+                      onChange={(e) => {
+                        setSellingPoint(e.target.value);
+                        localStorage.setItem("cvr-selling-point", e.target.value);
+                      }}
+                      placeholder={ai.outreach.sellingPointPlaceholder}
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-none"
+                    />
+                  </div>
+
+                  {/* Generate button */}
+                  <button
+                    onClick={() => outreachMutation.mutate({
+                      vat,
+                      type: outreachType,
+                      tone: outreachTone,
+                      sellingPoint,
+                      locale,
+                    })}
+                    disabled={!sellingPoint.trim() || outreachMutation.isPending}
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {outreachMutation.isPending ? "hourglass_empty" : "auto_awesome"}
+                    </span>
+                    {outreachMutation.isPending
+                      ? ai.outreach.generating
+                      : outreachMutation.data ? ai.outreach.regenerate : ai.outreach.generate}
+                  </button>
+
+                  {outreachMutation.isError && (
+                    <p className="text-sm text-red-500">{ai.outreach.error}</p>
+                  )}
+
+                  {/* Result */}
+                  {outreachMutation.data && !outreachMutation.isPending && (
+                    <div className="space-y-4 pt-2">
+                      {outreachMutation.data.subject && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.subject}</label>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(outreachMutation.data?.subject ?? "");
+                                setCopiedField("subject");
+                                setTimeout(() => setCopiedField(null), 2000);
+                              }}
+                              className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                            >
+                              {copiedField === "subject" ? ai.outreach.copied : ai.outreach.copy}
+                            </button>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-800 font-medium">
+                            {outreachMutation.data.subject}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.message}</label>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(outreachMutation.data?.message ?? "");
+                              setCopiedField("message");
+                              setTimeout(() => setCopiedField(null), 2000);
+                            }}
+                            className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                          >
+                            {copiedField === "message" ? ai.outreach.copied : ai.outreach.copy}
+                          </button>
+                        </div>
+                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                          {outreachMutation.data.message}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.followUp}</label>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(outreachMutation.data?.followUp ?? "");
+                              setCopiedField("followup");
+                              setTimeout(() => setCopiedField(null), 2000);
+                            }}
+                            className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                          >
+                            {copiedField === "followup" ? ai.outreach.copied : ai.outreach.copy}
+                          </button>
+                        </div>
+                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                          {outreachMutation.data.followUp}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </>

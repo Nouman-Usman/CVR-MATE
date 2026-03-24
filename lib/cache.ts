@@ -5,7 +5,10 @@ export const CACHE_TTL = {
   search: 300,     // 5 minutes
   company: 3600,   // 1 hour
   suggest: 600,    // 10 minutes
-  recent: 300,     // 5 minutes
+  recent: 86400,   // 24 hours
+  aiBriefing: 86400,  // 24 hours
+  aiOutreach: 3600,   // 1 hour
+  aiPipeline: 1800,   // 30 minutes
 } as const;
 
 /** Build a deterministic cache key from a path and sorted params */
@@ -29,4 +32,9 @@ export const cacheKey = {
     `suggest:${query.toLowerCase().trim()}`,
 
   recent: (days: number) => `recent:${days}`,
+
+  aiBriefing: (vat: string, locale: string) => `ai:briefing:${vat}:${locale}`,
+  aiOutreach: (vat: string, type: string, tone: string) =>
+    `ai:outreach:${vat}:${type}:${tone}`,
+  aiPipeline: (userId: string) => `ai:pipeline:${userId}`,
 };

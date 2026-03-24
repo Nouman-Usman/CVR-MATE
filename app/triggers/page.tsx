@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import {
+  useTriggers,
+  useCreateTrigger,
+  useUpdateTrigger,
+  useDeleteTrigger,
+  useRunTrigger,
+  type Trigger,
+} from "@/lib/hooks/use-triggers";
 
 type NotificationChannel = "in_app" | "email";
 
@@ -16,69 +24,38 @@ interface TriggerFilters {
   founded_after?: string;
 }
 
-interface Trigger {
-  id: string;
-  name: string;
-  filters: TriggerFilters;
-  frequency: string;
-  is_active: boolean;
-  last_run_at: string | null;
-  created_at: string;
-  notification_channels: NotificationChannel[];
-}
-
 const emptyFilters: TriggerFilters = {};
-
-// Mock triggers
-const mockTriggers: Trigger[] = [
-  {
-    id: "1",
-    name: "Nye IT-virksomheder i København",
-    filters: { industry_code: "62", city: "København", min_employees: 5 },
-    frequency: "daily",
-    is_active: true,
-    last_run_at: "2026-03-22T08:00:00Z",
-    created_at: "2026-03-01T10:00:00Z",
-    notification_channels: ["in_app", "email"],
-  },
-  {
-    id: "2",
-    name: "Byggefirmaer i Midtjylland",
-    filters: { industry_code: "41", region: "midtjylland" },
-    frequency: "weekly",
-    is_active: true,
-    last_run_at: "2026-03-18T08:00:00Z",
-    created_at: "2026-02-15T14:00:00Z",
-    notification_channels: ["in_app"],
-  },
-  {
-    id: "3",
-    name: "Nye sundhedsvirksomheder",
-    filters: { industry_code: "86", founded_after: "2026-01-01" },
-    frequency: "daily",
-    is_active: false,
-    last_run_at: null,
-    created_at: "2026-03-10T09:00:00Z",
-    notification_channels: ["email"],
-  },
-];
 
 export default function TriggersPage() {
   const { t, locale } = useLanguage();
   const tr = t.triggers;
 
-  const [triggers, setTriggers] = useState<Trigger[]>(mockTriggers);
+  // Data
+  const { data, isLoading } = useTriggers();
+  const triggers = (data?.triggers ?? []) as Trigger[];
+
+  // Mutations
+  const createMutation = useCreateTrigger();
+  const updateMutation = useUpdateTrigger();
+  const deleteMutation = useDeleteTrigger();
+  const runMutation = useRunTrigger();
+
+  // UI state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Trigger | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [runningId, setRunningId] = useState<string | null>(null);
+  const [toast, setToast] = useState("");
 
   // Form state
   const [name, setName] = useState("");
   const [frequency, setFrequency] = useState("daily");
   const [filters, setFilters] = useState<TriggerFilters>(emptyFilters);
   const [channels, setChannels] = useState<NotificationChannel[]>(["in_app"]);
-  const [saving, setSaving] = useState(false);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -93,8 +70,8 @@ export default function TriggersPage() {
     setEditing(trigger);
     setName(trigger.name);
     setFrequency(trigger.frequency);
-    setFilters(trigger.filters);
-    setChannels(trigger.notification_channels);
+    setFilters((trigger.filters ?? {}) as TriggerFilters);
+    setChannels((trigger.notificationChannels ?? ["in_app"]) as NotificationChannel[]);
     setDialogOpen(true);
   };
 
@@ -110,64 +87,83 @@ export default function TriggersPage() {
 
   const handleSave = () => {
     if (!name.trim()) return;
-    setSaving(true);
 
-    setTimeout(() => {
-      if (editing) {
-        setTriggers((prev) =>
-          prev.map((t) =>
-            t.id === editing.id
-              ? { ...t, name, frequency, filters, notification_channels: channels }
-              : t
-          )
-        );
-      } else {
-        setTriggers((prev) => [
-          {
-            id: Date.now().toString(),
-            name,
-            frequency,
-            filters,
-            is_active: true,
-            last_run_at: null,
-            created_at: new Date().toISOString(),
-            notification_channels: channels,
+    if (editing) {
+      updateMutation.mutate(
+        {
+          id: editing.id,
+          name: name.trim(),
+          frequency,
+          filters,
+          notificationChannels: channels,
+        },
+        {
+          onSuccess: () => {
+            setDialogOpen(false);
+            showToast(tr.updated);
           },
-          ...prev,
-        ]);
-      }
-      setSaving(false);
-      setDialogOpen(false);
-    }, 500);
+        }
+      );
+    } else {
+      createMutation.mutate(
+        {
+          name: name.trim(),
+          frequency,
+          filters,
+          notificationChannels: channels,
+        },
+        {
+          onSuccess: () => {
+            setDialogOpen(false);
+            showToast(tr.created);
+          },
+        }
+      );
+    }
   };
 
-  const handleToggle = (id: string) => {
-    setTriggers((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, is_active: !t.is_active } : t))
-    );
+  const handleToggle = (trigger: Trigger) => {
+    updateMutation.mutate({ id: trigger.id, isActive: !trigger.isActive });
   };
 
   const handleDelete = (id: string) => {
-    setTriggers((prev) => prev.filter((t) => t.id !== id));
+    deleteMutation.mutate(id, {
+      onSuccess: () => showToast(tr.deleted),
+    });
   };
 
   const handleRun = (id: string) => {
-    setRunningId(id);
-    setTimeout(() => {
-      setTriggers((prev) =>
-        prev.map((t) =>
-          t.id === id ? { ...t, last_run_at: new Date().toISOString() } : t
-        )
-      );
-      setRunningId(null);
-    }, 1500);
+    runMutation.mutate(id, {
+      onSuccess: (data) => {
+        const count = data?.result?.matchCount ?? 0;
+        showToast(`${tr.runSuccess} — ${count} ${tr.runResults}`);
+      },
+      onError: () => showToast(tr.runError),
+    });
   };
 
   const filterCount = (f: TriggerFilters) =>
     Object.values(f).filter((v) => v !== undefined && v !== "").length;
 
+  const saving = createMutation.isPending || updateMutation.isPending;
+  const runningId = runMutation.isPending ? (runMutation.variables ?? null) : null;
+
+  // Latest run result for expanded trigger
+  const getLatestResult = (trigger: Trigger) => {
+    const results = (trigger as Trigger & { results?: { matchCount: number; companies: { vat: number; name: string; city: string; industry: string }[]; createdAt: string }[] }).results;
+    return results?.[0] ?? null;
+  };
+
   return (
     <DashboardLayout>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <span className="material-symbols-outlined text-lg text-emerald-400">check_circle</span>
+          {toast}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <div>
@@ -178,15 +174,23 @@ export default function TriggersPage() {
         </div>
         <button
           onClick={openCreate}
-          className="self-start flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm"
+          className="self-start flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm cursor-pointer"
         >
           <span className="material-symbols-outlined text-lg">add</span>
           {tr.newTrigger}
         </button>
       </div>
 
+      {/* Loading */}
+      {isLoading && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
+          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-slate-400 font-medium">...</p>
+        </div>
+      )}
+
       {/* Empty state */}
-      {triggers.length === 0 ? (
+      {!isLoading && triggers.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center">
           <span className="material-symbols-outlined text-6xl text-slate-200 mb-4 block">
             bolt
@@ -194,184 +198,229 @@ export default function TriggersPage() {
           <p className="text-slate-400 font-medium mb-6">{tr.noTriggers}</p>
           <button
             onClick={openCreate}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all cursor-pointer"
           >
             {tr.createFirst}
           </button>
         </div>
-      ) : (
+      ) : !isLoading && (
         <div className="space-y-3">
-          {triggers.map((trigger) => (
-            <div
-              key={trigger.id}
-              className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden"
-            >
-              {/* Trigger row */}
-              <div className="p-4 sm:p-6 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                  {/* Toggle */}
-                  <button
-                    onClick={() => handleToggle(trigger.id)}
-                    className={`relative w-11 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${
-                      trigger.is_active ? "bg-blue-600" : "bg-slate-200"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                        trigger.is_active ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-
-                  {/* Info */}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-slate-900 truncate">
-                      {trigger.name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
-                      <span>
-                        {trigger.frequency === "daily" ? tr.daily : tr.weekly}
-                      </span>
-                      <span>·</span>
-                      <span>
-                        {filterCount(trigger.filters)} {tr.filters}
-                      </span>
-                      <span>·</span>
-                      <span className="inline-flex items-center gap-1">
-                        {trigger.notification_channels.includes("in_app") && (
-                          <span className="material-symbols-outlined text-xs">
-                            notifications
-                          </span>
-                        )}
-                        {trigger.notification_channels.includes("email") && (
-                          <span className="material-symbols-outlined text-xs">
-                            mail
-                          </span>
-                        )}
-                      </span>
-                      {trigger.last_run_at && (
-                        <>
-                          <span>·</span>
-                          <span>
-                            {tr.lastRun}{" "}
-                            {new Date(trigger.last_run_at).toLocaleDateString(
-                              locale === "da" ? "da-DK" : "en-US",
-                              {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <button
-                    onClick={() =>
-                      setExpandedId(expandedId === trigger.id ? null : trigger.id)
-                    }
-                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
-                    title={tr.showResults}
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {expandedId === trigger.id
-                        ? "expand_less"
-                        : "expand_more"}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => handleRun(trigger.id)}
-                    disabled={runningId === trigger.id}
-                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors disabled:opacity-40 cursor-pointer"
-                    title={tr.runNow}
-                  >
-                    <span
-                      className={`material-symbols-outlined text-lg ${
-                        runningId === trigger.id ? "animate-spin" : ""
+          {triggers.map((trigger) => {
+            const latestResult = getLatestResult(trigger);
+            return (
+              <div
+                key={trigger.id}
+                className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden"
+              >
+                {/* Trigger row */}
+                <div className="p-4 sm:p-6 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    {/* Toggle */}
+                    <button
+                      onClick={() => handleToggle(trigger)}
+                      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${
+                        trigger.isActive ? "bg-blue-600" : "bg-slate-200"
                       }`}
                     >
-                      {runningId === trigger.id
-                        ? "progress_activity"
-                        : "play_arrow"}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => openEdit(trigger)}
-                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      edit
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(trigger.id)}
-                    className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      delete
-                    </span>
-                  </button>
-                </div>
-              </div>
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          trigger.isActive ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
 
-              {/* Expanded results preview */}
-              {expandedId === trigger.id && (
-                <div className="px-4 sm:px-6 pb-5 border-t border-slate-100 pt-4">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
-                    {tr.filtersLabel}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {trigger.filters.industry_code && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.industryCode}: {trigger.filters.industry_code}
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm text-slate-900 truncate">
+                        {trigger.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
+                        <span>
+                          {trigger.frequency === "daily" ? tr.daily : tr.weekly}
+                        </span>
+                        <span>·</span>
+                        <span>
+                          {filterCount((trigger.filters ?? {}) as TriggerFilters)} {tr.filters}
+                        </span>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          {(trigger.notificationChannels ?? []).includes("in_app") && (
+                            <span className="material-symbols-outlined text-xs">
+                              notifications
+                            </span>
+                          )}
+                          {(trigger.notificationChannels ?? []).includes("email") && (
+                            <span className="material-symbols-outlined text-xs">
+                              mail
+                            </span>
+                          )}
+                        </span>
+                        {trigger.lastRunAt && (
+                          <>
+                            <span>·</span>
+                            <span>
+                              {tr.lastRun}{" "}
+                              {new Date(trigger.lastRunAt).toLocaleDateString(
+                                locale === "da" ? "da-DK" : "en-US",
+                                {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() =>
+                        setExpandedId(expandedId === trigger.id ? null : trigger.id)
+                      }
+                      className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
+                      title={tr.showResults}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        {expandedId === trigger.id
+                          ? "expand_less"
+                          : "expand_more"}
                       </span>
-                    )}
-                    {trigger.filters.city && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.city}: {trigger.filters.city}
+                    </button>
+                    <button
+                      onClick={() => handleRun(trigger.id)}
+                      disabled={runningId === trigger.id}
+                      className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors disabled:opacity-40 cursor-pointer"
+                      title={tr.runNow}
+                    >
+                      <span
+                        className={`material-symbols-outlined text-lg ${
+                          runningId === trigger.id ? "animate-spin" : ""
+                        }`}
+                      >
+                        {runningId === trigger.id
+                          ? "progress_activity"
+                          : "play_arrow"}
                       </span>
-                    )}
-                    {trigger.filters.region && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.region}: {trigger.filters.region}
+                    </button>
+                    <button
+                      onClick={() => openEdit(trigger)}
+                      className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        edit
                       </span>
-                    )}
-                    {trigger.filters.company_type && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.companyType}: {trigger.filters.company_type}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(trigger.id)}
+                      className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        delete
                       </span>
-                    )}
-                    {trigger.filters.min_employees !== undefined && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.minEmployees}: {trigger.filters.min_employees}
-                      </span>
-                    )}
-                    {trigger.filters.max_employees !== undefined && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.maxEmployees}: {trigger.filters.max_employees}
-                      </span>
-                    )}
-                    {trigger.filters.founded_after && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                        {tr.foundedAfter}: {trigger.filters.founded_after}
-                      </span>
-                    )}
-                    {filterCount(trigger.filters) === 0 && (
-                      <span className="text-xs text-slate-400">
-                        {tr.noTriggers}
-                      </span>
-                    )}
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Expanded details */}
+                {expandedId === trigger.id && (
+                  <div className="px-4 sm:px-6 pb-5 border-t border-slate-100 pt-4 space-y-4">
+                    {/* Filters */}
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                        {tr.filtersLabel}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(trigger.filters as TriggerFilters)?.industry_code && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.industryCode}: {(trigger.filters as TriggerFilters).industry_code}
+                          </span>
+                        )}
+                        {(trigger.filters as TriggerFilters)?.city && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.city}: {(trigger.filters as TriggerFilters).city}
+                          </span>
+                        )}
+                        {(trigger.filters as TriggerFilters)?.region && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.region}: {(trigger.filters as TriggerFilters).region}
+                          </span>
+                        )}
+                        {(trigger.filters as TriggerFilters)?.company_type && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.companyType}: {(trigger.filters as TriggerFilters).company_type}
+                          </span>
+                        )}
+                        {(trigger.filters as TriggerFilters)?.min_employees !== undefined && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.minEmployees}: {(trigger.filters as TriggerFilters).min_employees}
+                          </span>
+                        )}
+                        {(trigger.filters as TriggerFilters)?.max_employees !== undefined && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.maxEmployees}: {(trigger.filters as TriggerFilters).max_employees}
+                          </span>
+                        )}
+                        {(trigger.filters as TriggerFilters)?.founded_after && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.foundedAfter}: {(trigger.filters as TriggerFilters).founded_after}
+                          </span>
+                        )}
+                        {filterCount((trigger.filters ?? {}) as TriggerFilters) === 0 && (
+                          <span className="text-xs text-slate-400">
+                            {tr.all} {tr.allDenmark}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Latest results */}
+                    {latestResult && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                          {tr.showResults} — {latestResult.matchCount} {tr.runResults}
+                        </p>
+                        {latestResult.companies && latestResult.companies.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {latestResult.companies.slice(0, 10).map((c: { vat: number; name: string; city: string; industry: string }) => (
+                              <a
+                                key={c.vat}
+                                href={`/company/${c.vat}`}
+                                className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                  <span className="text-[10px] font-bold text-blue-600">
+                                    {c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-slate-800 truncate">{c.name}</p>
+                                  <p className="text-[10px] text-slate-400 truncate">
+                                    {c.city}{c.industry ? ` · ${c.industry}` : ""}
+                                  </p>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400">{tr.noTriggers}</p>
+                        )}
+                        {latestResult.matchCount > 10 && (
+                          <p className="text-xs text-slate-400 mt-2">
+                            +{latestResult.matchCount - 10} more
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -632,14 +681,14 @@ export default function TriggersPage() {
             <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row gap-2 sm:justify-end shrink-0">
               <button
                 onClick={() => setDialogOpen(false)}
-                className="px-5 py-2.5 border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                className="px-5 py-2.5 border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 {tr.cancel}
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !name.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {saving
                   ? tr.saving

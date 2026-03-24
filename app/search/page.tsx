@@ -4,10 +4,11 @@ import { useState, useCallback, useEffect, useMemo, Suspense, useRef } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
-import { useSearchStore } from "@/lib/stores/search-store";
+import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-store";
 import { useSearchCompanies } from "@/lib/hooks/use-search";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 import { useSaveSearch } from "@/lib/hooks/use-saved-searches";
+import { useMutation } from "@tanstack/react-query";
 
 interface Company {
   cvr: string;
@@ -233,6 +234,38 @@ function SearchPage() {
   const [saveSearchName, setSaveSearchName] = useState("");
   const [localError, setLocalError] = useState("");
 
+  // ─── AI Search ───
+  const [aiExplanation, setAiExplanation] = useState("");
+  const aiSearchMutation = useMutation({
+    mutationFn: async (nlQuery: string) => {
+      const res = await fetch("/api/ai/parse-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: nlQuery, locale }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to interpret search");
+      return data as { filters: SearchFiltersState; explanation: string };
+    },
+    onSuccess: (data) => {
+      const f = data.filters;
+      if (f.query) setFilter("query", f.query);
+      if (f.industryText) setFilter("industryText", f.industryText);
+      if (f.industryCode && f.industryCode !== "all") setFilter("industryCode", f.industryCode);
+      if (f.companyForm && f.companyForm !== "all") setFilter("companyForm", f.companyForm);
+      if (f.size && f.size !== "all") setFilter("size", f.size);
+      if (f.zipcode) setFilter("zipcode", f.zipcode);
+      if (f.region && f.region !== "all") setFilter("region", f.region);
+      if (f.foundedPeriod && f.foundedPeriod !== "all") setFilter("foundedPeriod", f.foundedPeriod);
+      if (f.employeesMin > 0) setFilter("employeesMin", f.employeesMin);
+      if (f.employeesMax < 5000) setFilter("employeesMax", f.employeesMax);
+      if (f.revenueMin > 0) setFilter("revenueMin", f.revenueMin);
+      if (f.revenueMax < 1000) setFilter("revenueMax", f.revenueMax);
+      setAiExplanation(data.explanation);
+      setShowFilters(true);
+    },
+  });
+
   // ─── Hydrate from URL params (e.g. saved search link) ───
   const hydratedRef = useRef(false);
   useEffect(() => {
@@ -380,12 +413,29 @@ function SearchPage() {
             </span>
             <input
               className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
-              placeholder={s.searchPlaceholder}
+              placeholder={query.length > 0 ? s.searchPlaceholder : t.ai.search.placeholder}
               value={query}
               onChange={(e) => setFilter("query", e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
+          <button
+            onClick={() => {
+              if (query.trim().length >= 10) {
+                aiSearchMutation.mutate(query.trim());
+              }
+            }}
+            disabled={query.trim().length < 10 || aiSearchMutation.isPending}
+            className="flex items-center gap-2 px-4 py-3.5 bg-violet-50 text-violet-600 font-bold text-sm rounded-xl hover:bg-violet-100 border border-violet-200 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title={t.ai.search.interpret}
+          >
+            {aiSearchMutation.isPending ? (
+              <div className="w-5 h-5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined text-lg">auto_awesome</span>
+            )}
+            <span className="hidden sm:inline">{aiSearchMutation.isPending ? t.ai.search.interpreting : "AI"}</span>
+          </button>
           <button
             onClick={handleSearch}
             disabled={isLoading || isFetching}
@@ -399,6 +449,28 @@ function SearchPage() {
             {s.searchButton}
           </button>
         </div>
+
+        {/* AI interpretation result */}
+        {aiExplanation && (
+          <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-100">
+            <span className="material-symbols-outlined text-violet-500 text-lg mt-0.5 shrink-0">auto_awesome</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-violet-700 font-medium">
+                <span className="font-bold">{t.ai.search.understood}:</span> {aiExplanation}
+              </p>
+            </div>
+            <button
+              onClick={() => setAiExplanation("")}
+              className="shrink-0 text-violet-400 hover:text-violet-600 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        )}
+
+        {aiSearchMutation.isError && (
+          <p className="mt-3 text-sm text-red-500">{t.ai.search.error}</p>
+        )}
 
         {/* Filter toggle */}
         <button

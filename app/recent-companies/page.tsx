@@ -1,8 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { useRecentCompanies } from "@/lib/hooks/use-recent-companies";
+import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 
 const PAGE_SIZE = 20;
 
@@ -16,34 +19,28 @@ interface Company {
   employees: string;
 }
 
-// Mock data — replace with real API calls later
-const allMockCompanies: Company[] = [
-  { cvr: "44123456", name: "Nordic Health ApS", city: "København", industry: "Sundhed", status: "AKTIV", founded: "2026-03-22", employees: "12" },
-  { cvr: "44234567", name: "GreenBuild Danmark A/S", city: "Aarhus", industry: "Byggeri", status: "AKTIV", founded: "2026-03-22", employees: "85" },
-  { cvr: "44345678", name: "DataFlow Solutions ApS", city: "Odense", industry: "IT & Software", status: "AKTIV", founded: "2026-03-21", employees: "34" },
-  { cvr: "44456789", name: "Scandi Logistics ApS", city: "Aalborg", industry: "Transport", status: "AKTIV", founded: "2026-03-21", employees: "200+" },
-  { cvr: "44567890", name: "CleanTech Nordic IVS", city: "Esbjerg", industry: "Energi", status: "AKTIV", founded: "2026-03-20", employees: "18" },
-  { cvr: "44678901", name: "FoodTech Danmark ApS", city: "Roskilde", industry: "Fødevarer", status: "AKTIV", founded: "2026-03-20", employees: "7" },
-  { cvr: "44789012", name: "Nordic Fintech Group A/S", city: "København", industry: "Finans", status: "AKTIV", founded: "2026-03-19", employees: "45" },
-  { cvr: "44890123", name: "SmartHome DK ApS", city: "Vejle", industry: "IoT & Elektronik", status: "AKTIV", founded: "2026-03-19", employees: "22" },
-  { cvr: "44901234", name: "BioMed Scandinavia ApS", city: "København", industry: "Biotek", status: "AKTIV", founded: "2026-03-18", employees: "15" },
-  { cvr: "45012345", name: "EduPlatform ApS", city: "Aarhus", industry: "EdTech", status: "AKTIV", founded: "2026-03-18", employees: "9" },
-  { cvr: "45123456", name: "Nordic Solar Energy A/S", city: "Silkeborg", industry: "Energi", status: "AKTIV", founded: "2026-03-17", employees: "62" },
-  { cvr: "45234567", name: "Maritime AI Solutions", city: "København", industry: "Maritime", status: "AKTIV", founded: "2026-03-17", employees: "28" },
-  { cvr: "45345678", name: "AgriTech DK IVS", city: "Herning", industry: "Landbrug", status: "AKTIV", founded: "2026-03-16", employees: "5" },
-  { cvr: "45456789", name: "DesignStudio Nord ApS", city: "Aarhus", industry: "Design", status: "AKTIV", founded: "2026-03-16", employees: "11" },
-  { cvr: "45567890", name: "CyberShield Danmark A/S", city: "København", industry: "Cybersikkerhed", status: "AKTIV", founded: "2026-03-15", employees: "37" },
-  { cvr: "45678901", name: "PropTech Nordic ApS", city: "Odense", industry: "Ejendom", status: "AKTIV", founded: "2026-03-15", employees: "14" },
-  { cvr: "45789012", name: "HealthData ApS", city: "København", industry: "HealthTech", status: "AKTIV", founded: "2026-03-14", employees: "19" },
-  { cvr: "45890123", name: "RetailNext DK ApS", city: "Aalborg", industry: "Retail", status: "AKTIV", founded: "2026-03-14", employees: "8" },
-  { cvr: "45901234", name: "GreenMobility Solutions", city: "København", industry: "Transport", status: "AKTIV", founded: "2026-03-13", employees: "31" },
-  { cvr: "46012345", name: "CloudOps Nordic A/S", city: "Aarhus", industry: "Cloud & Infra", status: "AKTIV", founded: "2026-03-13", employees: "53" },
-  { cvr: "46123456", name: "Nordic HR Tech ApS", city: "Vejle", industry: "HRTech", status: "AKTIV", founded: "2026-03-12", employees: "16" },
-  { cvr: "46234567", name: "WasteZero DK IVS", city: "Randers", industry: "Miljø", status: "AKTIV", founded: "2026-03-12", employees: "6" },
-  { cvr: "46345678", name: "TravelTech Scandi ApS", city: "København", industry: "Rejser", status: "AKTIV", founded: "2026-03-11", employees: "24" },
-  { cvr: "46456789", name: "MedDevice Nordic A/S", city: "Hillerød", industry: "MedTech", status: "AKTIV", founded: "2026-03-11", employees: "42" },
-  { cvr: "46567890", name: "InsurTech Danmark ApS", city: "København", industry: "Forsikring", status: "AKTIV", founded: "2026-03-10", employees: "13" },
-];
+function mapCvrCompany(c: Record<string, unknown>): Company {
+  const comp = c as {
+    vat?: number;
+    life?: { name?: string; start?: string };
+    address?: { cityname?: string };
+    industry?: { primary?: { text?: string } };
+    companystatus?: { text?: string };
+    employment?: { months?: { amount?: number | null }[] };
+  };
+
+  const latestEmployment = comp.employment?.months?.[0]?.amount;
+
+  return {
+    cvr: String(comp.vat ?? ""),
+    name: comp.life?.name ?? "",
+    city: comp.address?.cityname ?? "",
+    industry: comp.industry?.primary?.text ?? "",
+    status: comp.companystatus?.text ?? "",
+    founded: comp.life?.start ?? "",
+    employees: latestEmployment != null ? String(latestEmployment) : "–",
+  };
+}
 
 const companyColors = [
   { bg: "bg-blue-100", text: "text-blue-600" },
@@ -54,23 +51,30 @@ const companyColors = [
 
 export default function RecentCompaniesPage() {
   const { t, locale } = useLanguage();
+  const router = useRouter();
   const r = t.recent;
 
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [saved, setSaved] = useState<Set<string>>(new Set());
+
+  // Fetch recent companies (last 7 days, cached 24h server-side via Redis)
+  const { data, isLoading, error: fetchError, refetch, isFetching } = useRecentCompanies(7);
+  const rawResults = data?.results ?? [];
+
+  // Map and filter
+  const allCompanies = useMemo(() => rawResults.map(r => mapCvrCompany(r as unknown as Record<string, unknown>)), [rawResults]);
 
   const filtered = useMemo(() => {
-    if (!filter.trim()) return allMockCompanies;
+    if (!filter.trim()) return allCompanies;
     const q = filter.toLowerCase();
-    return allMockCompanies.filter(
+    return allCompanies.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.cvr.includes(q) ||
         c.city.toLowerCase().includes(q) ||
         c.industry.toLowerCase().includes(q)
     );
-  }, [filter]);
+  }, [filter, allCompanies]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const companies = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -83,14 +87,23 @@ export default function RecentCompaniesPage() {
     return pages;
   }, [page, totalPages]);
 
-  const toggleSave = (cvr: string) => {
-    setSaved((prev) => {
-      const next = new Set(prev);
-      if (next.has(cvr)) next.delete(cvr);
-      else next.add(cvr);
-      return next;
-    });
+  // Saved companies integration
+  const savedCvrs = useSavedCvrSet();
+  const saveCompanyMutation = useSaveCompany();
+  const unsaveCompanyMutation = useUnsaveCompany();
+
+  const handleSaveToggle = (c: Company, rawResult: Record<string, unknown>) => {
+    if (savedCvrs.has(c.cvr)) {
+      unsaveCompanyMutation.mutate(c.cvr);
+    } else {
+      saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult });
+    }
   };
+  const savingCvr = saveCompanyMutation.isPending
+    ? (saveCompanyMutation.variables?.vat ?? null)
+    : unsaveCompanyMutation.isPending
+      ? (unsaveCompanyMutation.variables ?? null)
+      : null;
 
   const handleFilterChange = (val: string) => {
     setFilter(val);
@@ -109,8 +122,14 @@ export default function RecentCompaniesPage() {
             {r.subtitle} · {filtered.length} {r.found}
           </p>
         </div>
-        <button className="self-start flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-lg">refresh</span>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="self-start flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+        >
+          <span className={`material-symbols-outlined text-lg ${isFetching ? "animate-spin" : ""}`}>
+            refresh
+          </span>
           {r.refresh}
         </button>
       </div>
@@ -136,8 +155,24 @@ export default function RecentCompaniesPage() {
         )}
       </div>
 
-      {/* Table */}
-      {companies.length === 0 ? (
+      {/* Loading */}
+      {isLoading && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
+          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-slate-400 font-medium">...</p>
+        </div>
+      )}
+
+      {/* Error */}
+      {!isLoading && fetchError && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
+          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">error</span>
+          <p className="text-slate-400 font-medium">{r.fetchError}</p>
+        </div>
+      )}
+
+      {/* Empty / No filter match */}
+      {!isLoading && !fetchError && companies.length === 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
           <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">
             apartment
@@ -146,7 +181,10 @@ export default function RecentCompaniesPage() {
             {filter ? r.noFilter : r.noCompanies}
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* Table */}
+      {!isLoading && !fetchError && companies.length > 0 && (
         <>
           <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden">
             <div className="overflow-x-auto">
@@ -178,10 +216,15 @@ export default function RecentCompaniesPage() {
                   {companies.map((c, idx) => {
                     const color = companyColors[idx % companyColors.length];
                     const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+                    const isSaved = savedCvrs.has(c.cvr);
+                    const rawResult = rawResults.find(
+                      r => (r as unknown as { vat: number }).vat === Number(c.cvr)
+                    ) as unknown as Record<string, unknown> | undefined;
                     return (
                       <tr
                         key={c.cvr}
                         className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                        onClick={() => router.push(`/company/${c.cvr}`)}
                       >
                         <td className="px-4 sm:px-6 py-3.5">
                           <div className="flex items-center gap-3">
@@ -189,7 +232,7 @@ export default function RecentCompaniesPage() {
                               <span className={`text-xs font-bold ${color.text}`}>{initials}</span>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900 truncate">
+                              <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">
                                 {c.name}
                               </p>
                               <p className="text-[10px] text-slate-400 md:hidden">
@@ -202,37 +245,40 @@ export default function RecentCompaniesPage() {
                           {c.cvr}
                         </td>
                         <td className="px-4 py-3.5 text-sm text-slate-500 hidden md:table-cell">
-                          {c.city}
+                          {c.city || "–"}
                         </td>
                         <td className="px-4 py-3.5 text-sm text-slate-500 hidden lg:table-cell truncate max-w-[180px]">
-                          {c.industry}
+                          {c.industry || "–"}
                         </td>
                         <td className="px-4 py-3.5 hidden md:table-cell">
                           <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">
-                            {c.status}
+                            {c.status || r.statusActive}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-sm text-slate-400 tabular-nums hidden lg:table-cell">
-                          {new Date(c.founded).toLocaleDateString(
-                            locale === "da" ? "da-DK" : "en-US"
-                          )}
+                          {c.founded
+                            ? new Date(c.founded).toLocaleDateString(
+                                locale === "da" ? "da-DK" : "en-US"
+                              )
+                            : "–"}
                         </td>
                         <td
                           className="px-3 py-3.5"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
-                            onClick={() => toggleSave(c.cvr)}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            onClick={() => rawResult && handleSaveToggle(c, rawResult)}
+                            disabled={savingCvr === c.cvr}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
                           >
                             <span
                               className={`material-symbols-outlined text-lg ${
-                                saved.has(c.cvr)
+                                isSaved
                                   ? "text-red-500"
                                   : "text-slate-300"
                               }`}
                               style={
-                                saved.has(c.cvr)
+                                isSaved
                                   ? { fontVariationSettings: "'FILL' 1" }
                                   : undefined
                               }
