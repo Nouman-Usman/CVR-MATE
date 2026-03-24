@@ -1,55 +1,210 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSession } from "@/lib/auth-client";
 import { LogoFull } from "@/components/logo";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+gsap.registerPlugin(ScrollTrigger);
+
+const HeroScene = dynamic(() => import("@/components/landing/hero-scene"), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-[#0a0f1e]" />,
+});
+
+/* ─── Glass Card ────────────────────────────────────────────────── */
+
+function GlassCard({ children, className = "", glow = false }: {
+  children: React.ReactNode;
+  className?: string;
+  glow?: boolean;
+}) {
+  return (
+    <div className={`relative group ${className}`}>
+      {glow && (
+        <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-blue-500/20 via-cyan-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
+      )}
+      <div className="relative bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-8 hover:bg-white/[0.06] transition-all duration-300">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main Page ─────────────────────────────────────────────────── */
 
 export default function Home() {
   const { locale, t, toggleLocale } = useLanguage();
   const { data: session } = useSession();
   const isLoggedIn = !!session;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Refs for GSAP
+  const heroRef = useRef<HTMLDivElement>(null);
+  const heroTextRef = useRef<HTMLDivElement>(null);
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const pricingRef = useRef<HTMLDivElement>(null);
+  const ctaRef = useRef<HTMLDivElement>(null);
+
+  // Scroll detection for navbar
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // GSAP Animations
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Hero text entrance
+      if (heroTextRef.current) {
+        gsap.from(heroTextRef.current.children, {
+          y: 60,
+          opacity: 0,
+          duration: 1,
+          stagger: 0.15,
+          ease: "power3.out",
+          delay: 0.3,
+        });
+      }
+
+      // Features cards
+      if (featuresRef.current) {
+        gsap.from(featuresRef.current.querySelectorAll(".feature-card"), {
+          scrollTrigger: {
+            trigger: featuresRef.current,
+            start: "top 80%",
+            toggleActions: "play none none none",
+          },
+          y: 80,
+          opacity: 0,
+          duration: 0.8,
+          stagger: 0.15,
+          ease: "power3.out",
+        });
+      }
+
+      // Steps
+      if (stepsRef.current) {
+        gsap.from(stepsRef.current.querySelectorAll(".step-item"), {
+          scrollTrigger: {
+            trigger: stepsRef.current,
+            start: "top 80%",
+            toggleActions: "play none none none",
+          },
+          y: 50,
+          opacity: 0,
+          duration: 0.7,
+          stagger: 0.2,
+          ease: "power3.out",
+        });
+
+        gsap.from(stepsRef.current.querySelectorAll(".step-line"), {
+          scrollTrigger: {
+            trigger: stepsRef.current,
+            start: "top 80%",
+            toggleActions: "play none none none",
+          },
+          scaleX: 0,
+          duration: 1.2,
+          stagger: 0.3,
+          ease: "power3.inOut",
+          delay: 0.5,
+        });
+      }
+
+      // Pricing
+      if (pricingRef.current) {
+        gsap.from(pricingRef.current.querySelectorAll(".pricing-card"), {
+          scrollTrigger: {
+            trigger: pricingRef.current,
+            start: "top 80%",
+            toggleActions: "play none none none",
+          },
+          y: 60,
+          opacity: 0,
+          scale: 0.95,
+          duration: 0.8,
+          stagger: 0.2,
+          ease: "power3.out",
+        });
+      }
+
+      // CTA
+      if (ctaRef.current) {
+        gsap.from(ctaRef.current, {
+          scrollTrigger: {
+            trigger: ctaRef.current,
+            start: "top 85%",
+            toggleActions: "play none none none",
+          },
+          y: 40,
+          opacity: 0,
+          duration: 0.8,
+          ease: "power3.out",
+        });
+      }
+    });
+
+    return () => ctx.revert();
+  }, []);
 
   const navLinks = [
-    { label: t.nav.home, href: "#", active: true },
+    { label: t.nav.home, href: "#hero" },
     { label: t.nav.howItWorks, href: "#how-it-works" },
-    { label: t.nav.integrations, href: "#" },
     { label: t.nav.pricing, href: "#pricing" },
-    { label: t.nav.aboutAiMate, href: "#" },
+    { label: t.nav.aboutAiMate, href: "#features" },
+  ];
+
+  const features = [
+    { icon: "monitoring", title: t.features.card1Title, desc: t.features.card1Desc, gradient: "from-blue-500 to-cyan-400" },
+    { icon: "bolt", title: t.features.card2Title, desc: t.features.card2Desc, gradient: "from-violet-500 to-purple-400" },
+    { icon: "auto_awesome", title: t.products.flow.name, desc: t.products.flow.features[0], gradient: "from-cyan-500 to-emerald-400" },
+  ];
+
+  const steps = [
+    { num: "01", label: t.howItWorks.steps[0].title, desc: t.howItWorks.steps[0].desc, icon: "search" },
+    { num: "02", label: t.howItWorks.steps[1].title, desc: t.howItWorks.steps[1].desc, icon: "filter_alt" },
+    { num: "03", label: t.howItWorks.steps[2].title, desc: t.howItWorks.steps[2].desc, icon: "notifications_active" },
+    { num: "04", label: t.howItWorks.steps[3].title, desc: t.howItWorks.steps[3].desc, icon: "download" },
   ];
 
   return (
-    <>
-      {/* 1. NAVBAR */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl shadow-sm">
-        <div className="flex justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20">
-          <LogoFull size="small" />
+    <div className="bg-[#0a0f1e] text-white min-h-screen overflow-x-hidden">
 
-          {/* Desktop nav */}
+      {/* ─── NAVBAR ──────────────────────────────────────────── */}
+      <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-[#0a0f1e]/80 backdrop-blur-2xl border-b border-white/[0.06] shadow-2xl shadow-black/20"
+          : "bg-transparent"
+      }`}>
+        <div className="flex justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20">
+          <LogoFull size="small" variant="dark" />
+
           <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
               <a
                 key={link.label}
-                className={`font-bold tracking-tight text-sm font-[family-name:var(--font-manrope)] ${
-                  link.active
-                    ? "text-blue-600 border-b-2 border-blue-600 pb-1"
-                    : "text-slate-600 hover:text-blue-600 transition-colors"
-                }`}
                 href={link.href}
+                className="text-sm font-semibold text-slate-400 hover:text-white transition-colors font-[family-name:var(--font-manrope)]"
               >
                 {link.label}
               </a>
             ))}
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={toggleLocale}
-              className="text-slate-600 hover:bg-slate-50 p-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+              className="text-slate-400 hover:text-white hover:bg-white/[0.06] p-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-xl">language</span>
+              <span className="material-symbols-outlined text-lg">language</span>
               <span className="text-xs font-bold uppercase tracking-widest font-[family-name:var(--font-manrope)]">
                 {locale === "da" ? "EN" : "DA"}
               </span>
@@ -57,26 +212,26 @@ export default function Home() {
             {isLoggedIn ? (
               <Link
                 href="/dashboard"
-                className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-bold text-sm hover:scale-[1.02] transition-all duration-200"
+                className="hidden sm:flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all border border-white/10"
               >
-                <span className="material-symbols-outlined text-lg">dashboard</span>
                 Dashboard
               </Link>
             ) : (
               <>
-                <Link href="/login" className="hidden sm:block font-bold text-sm text-slate-600 px-4 font-[family-name:var(--font-manrope)]">
+                <Link href="/login" className="hidden sm:block font-semibold text-sm text-slate-400 hover:text-white px-4 transition-colors">
                   {t.nav.login}
                 </Link>
-                <Link href="/signup" className="hidden sm:block bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-bold text-sm hover:scale-[1.02] transition-all duration-200">
+                <Link
+                  href="/signup"
+                  className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-blue-500/25 transition-all"
+                >
                   {t.nav.getStarted}
                 </Link>
               </>
             )}
-
-            {/* Hamburger */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer"
+              className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-lg cursor-pointer"
             >
               <span className="material-symbols-outlined text-2xl">
                 {mobileMenuOpen ? "close" : "menu"}
@@ -87,16 +242,12 @@ export default function Home() {
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-slate-100 px-4 pb-6 pt-2 shadow-lg">
+          <div className="lg:hidden bg-[#0a0f1e]/95 backdrop-blur-2xl border-t border-white/[0.06] px-4 pb-6 pt-2 animate-slide-down">
             <div className="flex flex-col gap-1">
               {navLinks.map((link) => (
                 <a
                   key={link.label}
-                  className={`py-3 px-4 rounded-lg font-bold text-sm font-[family-name:var(--font-manrope)] ${
-                    link.active
-                      ? "text-blue-600 bg-blue-50"
-                      : "text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className="py-3 px-4 rounded-lg font-semibold text-sm text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -104,20 +255,17 @@ export default function Home() {
                 </a>
               ))}
             </div>
-            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3">
+            <div className="mt-4 pt-4 border-t border-white/[0.06] flex flex-col gap-3">
               {isLoggedIn ? (
-                <Link
-                  href="/dashboard"
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-bold text-sm text-center block"
-                >
+                <Link href="/dashboard" className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl font-bold text-sm text-center block">
                   Dashboard
                 </Link>
               ) : (
                 <>
-                  <Link href="/login" className="w-full py-3 text-slate-600 font-bold text-sm rounded-lg border border-slate-200 text-center block">
+                  <Link href="/login" className="w-full py-3 text-slate-400 font-semibold text-sm rounded-xl border border-white/10 text-center block hover:bg-white/[0.04]">
                     {t.nav.login}
                   </Link>
-                  <Link href="/signup" className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg font-bold text-sm text-center block">
+                  <Link href="/signup" className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl font-bold text-sm text-center block">
                     {t.nav.getStarted}
                   </Link>
                 </>
@@ -127,613 +275,330 @@ export default function Home() {
         )}
       </nav>
 
-      {/* 2. HERO */}
-      <section className="relative pt-24 sm:pt-32 pb-12 sm:pb-20 overflow-hidden hero-pattern">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          <div className="space-y-6 sm:space-y-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100/50 rounded-full border border-blue-100">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
-                {t.hero.badge}
-              </span>
-            </div>
-            <h1 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl lg:text-7xl font-extrabold text-slate-900 leading-[1.1] tracking-tight">
+      {/* ─── HERO ────────────────────────────────────────────── */}
+      <section id="hero" ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* 3D Scene */}
+        <Suspense fallback={<div className="absolute inset-0 bg-[#0a0f1e]" />}>
+          <HeroScene />
+        </Suspense>
+
+        {/* Radial gradient overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_#0a0f1e_70%)] z-[1]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0a0f1e] z-[1]" />
+
+        {/* Content */}
+        <div ref={heroTextRef} className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center pt-20">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/[0.06] backdrop-blur-sm rounded-full border border-white/[0.1] mb-8">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+              {t.hero.badge}
+            </span>
+          </div>
+
+          {/* Headline */}
+          <h1 className="font-[family-name:var(--font-manrope)] text-4xl sm:text-6xl lg:text-8xl font-extrabold leading-[1.05] tracking-tight mb-6">
+            <span className="bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
               {t.hero.headline}
-            </h1>
-            <p className="text-base sm:text-xl text-slate-500 max-w-xl leading-relaxed">
-              {t.hero.description}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-bold text-base sm:text-lg hover:shadow-lg hover:shadow-blue-500/20 transition-all w-full sm:w-auto">
+            </span>
+          </h1>
+
+          {/* Description */}
+          <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+            {t.hero.description}
+          </p>
+
+          {/* CTAs */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+            <Link
+              href="/signup"
+              className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base sm:text-lg overflow-hidden transition-all"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 transition-all group-hover:scale-105" />
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-blue-500 to-cyan-400" />
+              <span className="relative z-10 flex items-center gap-2">
                 {t.hero.bookDemo}
-              </button>
-              <button className="bg-white border border-slate-200 text-slate-900 px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-bold text-base sm:text-lg hover:bg-slate-50 transition-all w-full sm:w-auto">
-                {t.hero.explorePlatform}
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 sm:pt-6">
-              {t.hero.pills.map((item) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-2 text-sm text-slate-500"
-                >
-                  <span
-                    className="material-symbols-outlined text-blue-600"
-                    style={{ fontVariationSettings: "'FILL' 1" }}
-                  >
-                    check_circle
-                  </span>
-                  {item}
-                </div>
-              ))}
-            </div>
+                <span className="material-symbols-outlined text-lg">arrow_forward</span>
+              </span>
+            </Link>
+            <Link
+              href="#how-it-works"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base sm:text-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] backdrop-blur-sm transition-all text-slate-300 hover:text-white"
+            >
+              <span className="material-symbols-outlined text-lg">play_circle</span>
+              {t.hero.explorePlatform}
+            </Link>
           </div>
 
-          {/* CSS-built Dashboard Mockup */}
-          <div className="relative mt-8 lg:mt-0">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 sm:p-4 relative z-10">
-              <div className="flex items-center justify-between mb-4 sm:mb-6 px-2">
-                <div className="flex gap-1.5 sm:gap-2">
-                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-400" />
-                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400" />
-                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400" />
-                </div>
-                <div className="h-5 sm:h-6 w-24 sm:w-32 bg-slate-100 rounded-full" />
+          {/* Pills */}
+          <div className="flex flex-wrap justify-center gap-3">
+            {t.hero.pills.map((pill: string) => (
+              <span
+                key={pill}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-full text-xs font-medium text-slate-400"
+              >
+                <span className="material-symbols-outlined text-xs text-cyan-400">check_circle</span>
+                {pill}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 animate-bounce">
+          <span className="material-symbols-outlined text-xl text-slate-500">expand_more</span>
+        </div>
+      </section>
+
+      {/* ─── FEATURES ────────────────────────────────────────── */}
+      <section id="features" ref={featuresRef} className="relative py-24 sm:py-32">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          {/* Section header */}
+          <div className="text-center mb-16 sm:mb-20">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full text-xs font-bold uppercase tracking-widest text-blue-400 mb-4 border border-blue-500/20">
+              Features
+            </span>
+            <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight mb-4">
+              <span className="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                {t.features.title}
+              </span>
+            </h2>
+            <p className="text-lg text-slate-500 max-w-xl mx-auto">{t.features.subtitle}</p>
+          </div>
+
+          {/* Feature cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {features.map((f, i) => (
+              <div key={i} className="feature-card">
+                <GlassCard glow>
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-5 shadow-lg`}>
+                    <span className="material-symbols-outlined text-2xl text-white">{f.icon}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-3 font-[family-name:var(--font-manrope)]">{f.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+                </GlassCard>
               </div>
-              <div className="space-y-3 sm:space-y-4">
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <div className="h-20 sm:h-24 bg-slate-50 rounded-lg p-2 sm:p-3 flex flex-col justify-between">
-                    <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                      {t.hero.dashNewLeads}
-                    </span>
-                    <span className="text-base sm:text-xl font-black text-blue-600">
-                      1.284
-                    </span>
-                    <div className="h-1 bg-blue-100 rounded-full w-full overflow-hidden">
-                      <div className="h-full bg-blue-600 w-2/3" />
-                    </div>
-                  </div>
-                  <div className="h-20 sm:h-24 bg-slate-50 rounded-lg p-2 sm:p-3 flex flex-col justify-between">
-                    <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                      {t.hero.dashGrowth}
-                    </span>
-                    <span className="text-base sm:text-xl font-black text-cyan-600">
-                      +24%
-                    </span>
-                    <div className="flex items-end gap-0.5 sm:gap-1 h-4">
-                      <div className="w-1 bg-cyan-500 rounded-t h-2" />
-                      <div className="w-1 bg-cyan-500 rounded-t h-3" />
-                      <div className="w-1 bg-cyan-500 rounded-t h-4" />
-                      <div className="w-1 bg-cyan-500 rounded-t h-3" />
-                    </div>
-                  </div>
-                  <div className="h-20 sm:h-24 bg-slate-50 rounded-lg p-2 sm:p-3 flex flex-col justify-between">
-                    <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                      {t.hero.dashExport}
-                    </span>
-                    <span className="material-symbols-outlined text-slate-400 text-base sm:text-2xl">
-                      sync
-                    </span>
-                    <span className="text-[8px] sm:text-[10px] text-slate-500">
-                      {t.hero.dashAutoSync}
-                    </span>
-                  </div>
-                </div>
-                <div className="bg-slate-50 rounded-lg p-3 sm:p-4">
-                  <div className="flex justify-between items-center mb-3 sm:mb-4">
-                    <span className="text-xs sm:text-sm font-bold text-slate-900">
-                      {t.hero.dashTopCompanies}
-                    </span>
-                    <span className="text-[10px] text-blue-600 font-bold">
-                      {t.hero.dashSeeAll}
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-slate-200 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900 truncate">
-                            Novo Nordisk A/S
-                          </p>
-                          <p className="text-[9px] sm:text-[10px] text-slate-500">
-                            Medicinal • 20.000+
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-green-100 text-[8px] sm:text-[10px] font-bold text-green-700 shrink-0 ml-2">
-                        HIGH SCORE
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-slate-200 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900 truncate">
-                            Maersk Line
-                          </p>
-                          <p className="text-[9px] sm:text-[10px] text-slate-500">
-                            Transport • 10.000+
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-100 text-[8px] sm:text-[10px] font-bold text-blue-700 shrink-0 ml-2">
-                        RELEVANT
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Floating stat card */}
-            <div className="absolute -bottom-4 -right-2 sm:-bottom-6 sm:-right-6 bg-white/70 backdrop-blur-xl border border-white p-4 sm:p-6 rounded-2xl shadow-xl z-20 max-w-[160px] sm:max-w-[200px]">
-              <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                  <span className="material-symbols-outlined text-sm sm:text-base">
-                    trending_up
-                  </span>
-                </div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900">+420%</p>
-              </div>
-              <p className="text-[9px] sm:text-xs font-bold text-slate-500 leading-tight">
-                {t.hero.stat}
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* 3. FEATURES */}
-      <section className="py-16 sm:py-24 bg-[#f7f9fb]">
+      {/* ─── HOW IT WORKS ────────────────────────────────────── */}
+      <section id="how-it-works" ref={stepsRef} className="relative py-24 sm:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16 space-y-3 sm:space-y-4">
-            <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-4xl font-extrabold text-slate-900">
-              {t.features.title}
+          <div className="text-center mb-16 sm:mb-20">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-500/10 rounded-full text-xs font-bold uppercase tracking-widest text-cyan-400 mb-4 border border-cyan-500/20">
+              Process
+            </span>
+            <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight mb-4">
+              <span className="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                {t.howItWorks.title}
+              </span>
             </h2>
-            <p className="text-base sm:text-lg text-slate-500">{t.features.subtitle}</p>
+            <p className="text-lg text-slate-500 max-w-xl mx-auto">{t.howItWorks.subtitle}</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-            <div className="bg-white p-6 sm:p-10 rounded-2xl border border-slate-100 hover:shadow-xl transition-all group">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-blue-600/10 flex items-center justify-center text-blue-600 mb-4 sm:mb-6 group-hover:scale-110 transition-transform">
-                <span
-                  className="material-symbols-outlined text-2xl sm:text-3xl"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  database
-                </span>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-slate-900">
-                {t.features.card1Title}
-              </h3>
-              <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
-                {t.features.card1Desc}
-              </p>
+
+          {/* Steps */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+            {/* Connecting lines (desktop only) */}
+            <div className="hidden lg:block absolute top-16 left-[18%] right-[18%] h-[2px] z-0">
+              <div className="step-line w-full h-full bg-gradient-to-r from-blue-500/40 via-cyan-500/40 to-blue-500/40 origin-left" />
             </div>
-            <div className="bg-white p-6 sm:p-10 rounded-2xl border border-slate-100 hover:shadow-xl transition-all group">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-cyan-600/10 flex items-center justify-center text-cyan-600 mb-4 sm:mb-6 group-hover:scale-110 transition-transform">
-                <span
-                  className="material-symbols-outlined text-2xl sm:text-3xl"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  radar
-                </span>
+
+            {steps.map((step, i) => (
+              <div key={i} className="step-item relative z-10 text-center">
+                {/* Number circle */}
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-500/20">
+                  <span className="material-symbols-outlined text-2xl text-white">{step.icon}</span>
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400 mb-2">{step.num}</div>
+                <h3 className="text-base font-bold text-white mb-2 font-[family-name:var(--font-manrope)]">{step.label}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed max-w-[220px] mx-auto">{step.desc}</p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-slate-900">
-                {t.features.card2Title}
-              </h3>
-              <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
-                {t.features.card2Desc}
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* 4. TWO PRODUCTS */}
-      <section className="py-16 sm:py-24 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 sm:mb-16">
-            <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-4xl font-extrabold text-slate-900">
-              {t.products.title}
+      {/* ─── PRICING ─────────────────────────────────────────── */}
+      <section id="pricing" ref={pricingRef} className="relative py-24 sm:py-32">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 rounded-full text-xs font-bold uppercase tracking-widest text-violet-400 mb-4 border border-violet-500/20">
+              {t.pricing.title}
+            </span>
+            <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight mb-4">
+              <span className="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                {t.pricing.title}
+              </span>
             </h2>
+            <p className="text-lg text-slate-500 max-w-xl mx-auto">{t.pricing.subtitle}</p>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-10">
-            {/* GO */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-12 border border-slate-200 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-start mb-6 sm:mb-8">
-                  <div>
-                    <h3 className="text-2xl sm:text-3xl font-black mb-2 text-slate-900">
-                      {t.products.go.name}
-                    </h3>
-                    <span className="px-3 py-1 bg-slate-100 text-[10px] font-bold rounded-full text-slate-600 uppercase tracking-widest border border-slate-200">
-                      {t.products.go.badge}
-                    </span>
-                  </div>
-                  <span className="material-symbols-outlined text-3xl sm:text-4xl text-blue-600">
-                    rocket_launch
-                  </span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            {/* Starter/GO */}
+            <div className="pricing-card">
+              <GlassCard>
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.go.name}</h3>
+                  <p className="text-sm text-slate-500">{t.pricing.go.features[0]}</p>
                 </div>
-                <ul className="space-y-3 sm:space-y-4 mb-8 sm:mb-10">
-                  {t.products.go.features.map((f) => (
-                    <li key={f} className="flex items-start gap-3 text-sm sm:text-base text-slate-500">
-                      <span className="material-symbols-outlined text-blue-600 text-sm mt-0.5 shrink-0">
-                        check
-                      </span>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-extrabold text-white font-[family-name:var(--font-manrope)]">{t.pricing.go.price}</span>
+                  <span className="text-sm text-slate-500">{t.pricing.go.period}</span>
+                </div>
+                <ul className="space-y-3 mb-8">
+                  {t.pricing.go.features.map((f: string) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-400">
+                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5">check_circle</span>
                       {f}
                     </li>
                   ))}
                 </ul>
-              </div>
-              <button className="w-full py-3.5 sm:py-4 border-2 border-blue-600 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors text-sm sm:text-base">
-                {t.products.go.cta}
-              </button>
-            </div>
-            {/* FLOW */}
-            <div className="relative rounded-2xl sm:rounded-3xl p-[2px] bg-gradient-to-br from-blue-600 to-cyan-500 shadow-2xl overflow-hidden">
-              <div className="bg-white rounded-[calc(1rem-2px)] sm:rounded-[calc(1.5rem-2px)] p-6 sm:p-12 h-full flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute -top-12 -right-12 w-48 h-48 bg-cyan-500/5 rounded-full blur-3xl" />
-                <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-6 sm:mb-8">
-                    <div>
-                      <h3 className="text-2xl sm:text-3xl font-black mb-2 text-slate-900">
-                        {t.products.flow.name}
-                      </h3>
-                      <span className="px-3 py-1 bg-cyan-500 text-[10px] font-bold rounded-full text-white uppercase tracking-widest">
-                        {t.products.flow.badge}
-                      </span>
-                    </div>
-                    <span className="material-symbols-outlined text-3xl sm:text-4xl text-cyan-600">
-                      waves
-                    </span>
-                  </div>
-                  <ul className="space-y-3 sm:space-y-4 mb-8 sm:mb-10">
-                    {t.products.flow.features.map((f) => (
-                      <li key={f} className="flex items-start gap-3 text-sm sm:text-base text-slate-500">
-                        <span className="material-symbols-outlined text-cyan-600 text-sm mt-0.5 shrink-0">
-                          check
-                        </span>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <button className="relative z-10 w-full py-3.5 sm:py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:scale-[1.02] transition-transform text-sm sm:text-base">
-                  {t.products.flow.cta}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. BENEFITS */}
-      <section className="py-16 sm:py-24 bg-[#f7f9fb]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="mb-10 sm:mb-16">
-            <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-4xl font-extrabold text-slate-900">
-              {t.benefits.title}
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-12 sm:mb-20">
-            {t.benefits.items.map((item) => (
-              <div
-                key={item.title}
-                className="p-6 sm:p-8 bg-slate-50 rounded-2xl border border-slate-100"
-              >
-                <span className="material-symbols-outlined text-blue-600 mb-3 sm:mb-4 block text-2xl sm:text-3xl">
-                  {item.icon}
-                </span>
-                <h4 className="font-bold text-lg sm:text-xl mb-2 text-slate-900">
-                  {item.title}
-                </h4>
-                <p className="text-xs sm:text-sm text-slate-500">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-          {/* Quote */}
-          <div className="relative bg-blue-600 rounded-2xl sm:rounded-3xl p-6 sm:p-12 overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 sm:p-8 opacity-10">
-              <span className="material-symbols-outlined text-[6rem] sm:text-[12rem] text-white">
-                format_quote
-              </span>
-            </div>
-            <div className="relative z-10 max-w-2xl">
-              <p className="text-lg sm:text-2xl md:text-3xl font-bold text-white leading-relaxed mb-6 sm:mb-8">
-                &ldquo;{t.benefits.quote}&rdquo;
-              </p>
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm sm:text-lg shrink-0">
-                  MJ
-                </div>
-                <div>
-                  <p className="font-bold text-white text-sm sm:text-base">{t.benefits.quoteName}</p>
-                  <p className="text-blue-200 text-xs sm:text-sm">
-                    {t.benefits.quoteRole}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. HOW IT WORKS */}
-      <section id="how-it-works" className="py-16 sm:py-24 bg-slate-900 text-white overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="mb-12 sm:mb-20 text-center sm:text-left">
-            <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-4xl font-extrabold mb-3 sm:mb-4">
-              {t.howItWorks.title}
-            </h2>
-            <p className="text-slate-400 text-sm sm:text-base">{t.howItWorks.subtitle}</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-12 relative">
-            <div className="hidden md:block absolute top-10 left-0 w-full h-1 bg-gradient-to-r from-blue-600/30 to-cyan-500/30" />
-            {t.howItWorks.steps.map((step, i) => (
-              <div key={step.num} className="space-y-4 sm:space-y-6">
-                <div
-                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center relative mx-auto sm:mx-0 ${
-                    i === 3
-                      ? "bg-gradient-to-br from-blue-600 to-cyan-500"
-                      : "bg-slate-800 border-4 border-slate-900"
-                  } ${
-                    i === 0
-                      ? "shadow-[0_0_30px_rgba(37,99,235,0.2)]"
-                      : i === 1
-                        ? "shadow-[0_0_30px_rgba(57,184,253,0.2)]"
-                        : ""
-                  }`}
+                <Link
+                  href="/signup"
+                  className="block w-full py-3 rounded-xl border border-white/[0.12] text-center font-bold text-sm text-slate-300 hover:bg-white/[0.06] transition-all"
                 >
-                  <span
-                    className={`text-lg sm:text-2xl font-black ${
-                      i === 0
-                        ? "text-blue-500"
-                        : i === 1
-                          ? "text-cyan-400"
-                          : "text-white"
-                    }`}
-                  >
-                    {step.num}
+                  {t.pricing.go.cta}
+                </Link>
+              </GlassCard>
+            </div>
+
+            {/* Pro/FLOW */}
+            <div className="pricing-card relative">
+              {/* Glow border */}
+              <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 opacity-60 blur-[1px]" />
+              <div className="relative bg-[#0d1225] rounded-2xl p-6 sm:p-8 border border-white/[0.08]">
+                <div className="absolute top-0 right-6 -translate-y-1/2">
+                  <span className="px-3 py-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-full">
+                    Recommended
                   </span>
                 </div>
-                <div className="text-center sm:text-left">
-                  <h5 className="text-base sm:text-xl font-bold mb-1 sm:mb-3">{step.title}</h5>
-                  <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
-                    {step.desc}
-                  </p>
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.flow.name}</h3>
+                  <p className="text-sm text-slate-500">{t.pricing.flow.features[0]}</p>
                 </div>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent font-[family-name:var(--font-manrope)]">
+                    {t.pricing.flow.price}
+                  </span>
+                  <span className="text-sm text-slate-500">{t.pricing.flow.period}</span>
+                </div>
+                <ul className="space-y-3 mb-8">
+                  {t.pricing.flow.features.map((f: string) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
+                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5">check_circle</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/signup"
+                  className="block w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-center font-bold text-sm text-white hover:shadow-lg hover:shadow-blue-500/25 transition-all"
+                >
+                  {t.pricing.flow.cta}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── TRUST ───────────────────────────────────────────── */}
+      <section className="py-16 sm:py-20 border-t border-white/[0.04]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+            {t.trust.items.map((item: { icon: string; title: string; desc: string }, i: number) => (
+              <div key={i} className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                  <span className="material-symbols-outlined text-xl text-blue-400">{item.icon}</span>
+                </div>
+                <h4 className="text-sm font-bold text-white">{item.title}</h4>
+                <p className="text-xs text-slate-500">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 7. COMPARISON TABLE */}
-      <section className="py-16 sm:py-24 bg-[#f7f9fb]">
+      {/* ─── FINAL CTA ───────────────────────────────────────── */}
+      <section ref={ctaRef} className="py-24 sm:py-32">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-3xl font-extrabold text-slate-900 text-center mb-8 sm:mb-12">
-            {t.comparison.title}
-          </h2>
-          <div className="bg-white rounded-2xl overflow-hidden border border-slate-200">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[400px]">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="p-4 sm:p-6 font-bold text-xs sm:text-sm text-slate-700">
-                      {t.comparison.feature}
-                    </th>
-                    <th className="p-4 sm:p-6 font-bold text-xs sm:text-sm text-center text-slate-700">
-                      {t.comparison.traditional}
-                    </th>
-                    <th className="p-4 sm:p-6 font-bold text-xs sm:text-sm text-center text-blue-600 bg-blue-50/50">
-                      {t.comparison.cvrmate}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {t.comparison.rows.map((row) => (
-                    <tr key={row.feature}>
-                      <td className="p-4 sm:p-6 text-xs sm:text-sm font-medium text-slate-700">
-                        {row.feature}
-                      </td>
-                      <td className="p-4 sm:p-6 text-center text-slate-400">
-                        <span className="material-symbols-outlined text-red-400 text-lg sm:text-2xl">
-                          close
-                        </span>
-                      </td>
-                      <td className="p-4 sm:p-6 text-center text-emerald-500 bg-blue-50/50">
-                        <span className="material-symbols-outlined text-lg sm:text-2xl">
-                          check_circle
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
+          <div className="relative rounded-3xl overflow-hidden">
+            {/* Gradient bg */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-cyan-600/20 to-violet-600/20" />
+            <div className="absolute inset-0 bg-[#0a0f1e]/60 backdrop-blur-xl" />
+            <div className="absolute inset-[1px] rounded-3xl border border-white/[0.06]" />
 
-      {/* 8. PRICING */}
-      <section id="pricing" className="py-16 sm:py-24 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 sm:mb-16 space-y-3 sm:space-y-4">
-            <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-4xl font-extrabold text-slate-900">
-              {t.pricing.title}
-            </h2>
-            <p className="text-sm sm:text-base text-slate-500">{t.pricing.subtitle}</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-5xl mx-auto">
-            {/* GO */}
-            <div className="bg-white p-6 sm:p-10 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
-              <h3 className="text-lg sm:text-xl font-bold mb-2 text-slate-900">
-                {t.pricing.go.name}
-              </h3>
-              <div className="flex items-baseline gap-1 mb-4 sm:mb-6">
-                <span className="text-3xl sm:text-4xl font-black text-slate-900">
-                  {t.pricing.go.price}
+            <div className="relative py-16 sm:py-20 px-8 sm:px-16 text-center">
+              <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
+                <span className="bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent">
+                  {t.cta.title}
                 </span>
-                <span className="text-sm sm:text-base text-slate-500 font-bold">
-                  {t.pricing.go.period}
-                </span>
-              </div>
-              <ul className="space-y-3 sm:space-y-4 mb-8 sm:mb-10 text-xs sm:text-sm text-slate-500">
-                {t.pricing.go.features.map((f) => (
-                  <li key={f} className="flex gap-2">
-                    <span className="material-symbols-outlined text-emerald-500 text-sm shrink-0">
-                      check
-                    </span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button className="w-full py-3.5 sm:py-4 border border-slate-200 font-bold rounded-xl hover:bg-slate-50 transition-all text-slate-700 text-sm sm:text-base">
-                {t.pricing.go.cta}
-              </button>
-            </div>
-            {/* FLOW */}
-            <div className="bg-white p-6 sm:p-10 rounded-2xl sm:rounded-3xl border-2 border-blue-600 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold px-3 sm:px-4 py-1 uppercase tracking-widest rounded-bl-xl">
-                {t.pricing.flow.recommended}
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold mb-2 text-slate-900">
-                {t.pricing.flow.name}
-              </h3>
-              <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-3xl sm:text-4xl font-black text-slate-900">
-                  {t.pricing.flow.price}
-                </span>
-                <span className="text-sm sm:text-base text-slate-500 font-bold">
-                  {t.pricing.flow.period}
-                </span>
-              </div>
-              <p className="text-xs text-blue-600 font-bold mb-4 sm:mb-6">
-                {t.pricing.flow.setup}
+              </h2>
+              <p className="text-base sm:text-lg text-slate-400 max-w-lg mx-auto mb-8">
+                {t.cta.subtitle}
               </p>
-              <ul className="space-y-3 sm:space-y-4 mb-8 sm:mb-10 text-xs sm:text-sm text-slate-500">
-                {t.pricing.flow.features.map((f) => (
-                  <li
-                    key={f}
-                    className={`flex gap-2 ${f === t.pricing.flow.featureHighlight ? "font-bold text-slate-900" : ""}`}
-                  >
-                    <span className="material-symbols-outlined text-blue-600 text-sm shrink-0">
-                      check
-                    </span>
-                    {f}
-                  </li>
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-lg hover:shadow-xl hover:shadow-blue-500/25 transition-all"
+              >
+                {t.cta.button1}
+                <span className="material-symbols-outlined">arrow_forward</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── FOOTER ──────────────────────────────────────────── */}
+      <footer className="border-t border-white/[0.04] py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12 mb-12">
+            {/* Brand */}
+            <div className="sm:col-span-2 lg:col-span-1">
+              <LogoFull size="small" variant="dark" className="mb-4" />
+              <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
+                {t.footer.tagline}
+              </p>
+            </div>
+
+            {/* Links */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.platform}</h4>
+              <div className="flex flex-col gap-3">
+                {t.footer.platformLinks.map((label: string) => (
+                  <a key={label} href="#" className="text-sm text-slate-500 hover:text-white transition-colors">
+                    {label}
+                  </a>
                 ))}
-              </ul>
-              <button className="w-full py-3.5 sm:py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all text-sm sm:text-base">
-                {t.pricing.flow.cta}
-              </button>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.resources}</h4>
+              <div className="flex flex-col gap-3">
+                {t.footer.resourceLinks.map((label: string) => (
+                  <a key={label} href="#" className="text-sm text-slate-500 hover:text-white transition-colors">
+                    {label}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.contact}</h4>
+              <div className="flex flex-col gap-3">
+                <a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.privacy}</a>
+                <a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.terms}</a>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* 9. TRUST */}
-      <section className="py-12 sm:py-16 bg-[#f7f9fb] border-y border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-12 text-center">
-          {t.trust.items.map((item) => (
-            <div key={item.title} className="flex flex-col items-center">
-              <span className="material-symbols-outlined text-3xl sm:text-4xl text-slate-300 mb-3 sm:mb-4">
-                {item.icon}
-              </span>
-              <p className="font-bold text-slate-900 text-sm sm:text-base">{item.title}</p>
-              <p className="text-xs text-slate-500 mt-1">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 10. FINAL CTA */}
-      <section className="py-16 sm:py-32 bg-white relative overflow-hidden">
-        <div className="absolute inset-0 hero-pattern opacity-50" />
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center relative z-10">
-          <h2 className="font-[family-name:var(--font-manrope)] text-2xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 mb-6 sm:mb-8">
-            {t.cta.title}
-          </h2>
-          <p className="text-base sm:text-xl text-slate-500 mb-8 sm:mb-12 max-w-2xl mx-auto">
-            {t.cta.subtitle}
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
-            <button className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 sm:px-10 py-4 sm:py-5 rounded-xl sm:rounded-2xl font-black text-base sm:text-xl hover:scale-105 transition-transform shadow-xl shadow-blue-500/20">
-              {t.cta.button1}
-            </button>
-            <button className="bg-white border-2 border-slate-200 text-slate-900 px-6 sm:px-10 py-4 sm:py-5 rounded-xl sm:rounded-2xl font-black text-base sm:text-xl hover:bg-slate-50 transition-colors">
-              {t.cta.button2}
-            </button>
-          </div>
-          <p className="mt-6 sm:mt-8 text-xs sm:text-sm text-slate-400">{t.cta.note}</p>
-        </div>
-      </section>
-
-      {/* 11. FOOTER */}
-      <footer className="bg-slate-900 pt-12 sm:pt-16 pb-8 text-slate-400 text-sm">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="col-span-2 md:col-span-1 space-y-4">
-            <LogoFull size="small" variant="dark" />
-            <p className="text-slate-500 leading-relaxed text-xs sm:text-sm">
-              {t.footer.tagline}
-            </p>
-          </div>
-          <div className="space-y-4">
-            <h6 className="text-white font-bold uppercase tracking-widest text-xs">
-              {t.footer.platform}
-            </h6>
-            <ul className="space-y-2">
-              {t.footer.platformLinks.map((link) => (
-                <li key={link}>
-                  <a className="hover:text-blue-400 transition-colors opacity-80 text-xs sm:text-sm" href="#">
-                    {link}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="space-y-4">
-            <h6 className="text-white font-bold uppercase tracking-widest text-xs">
-              {t.footer.resources}
-            </h6>
-            <ul className="space-y-2">
-              {t.footer.resourceLinks.map((link) => (
-                <li key={link}>
-                  <a className="hover:text-blue-400 transition-colors opacity-80 text-xs sm:text-sm" href="#">
-                    {link}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="space-y-4 col-span-2 md:col-span-1">
-            <h6 className="text-white font-bold uppercase tracking-widest text-xs">
-              {t.footer.contact}
-            </h6>
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2 text-xs sm:text-sm">
-                <span className="material-symbols-outlined text-xs">mail</span>
-                kontakt@ai-mate.dk
-              </li>
-              <li className="flex items-center gap-2 text-xs sm:text-sm">
-                <span className="material-symbols-outlined text-xs">location_on</span>
-                København, Danmark
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-10 sm:mt-16 pt-6 sm:pt-8 border-t border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p className="text-xs sm:text-sm">{t.footer.rights}</p>
-          <div className="flex gap-6 sm:gap-8">
-            <a className="hover:text-white transition-colors text-xs sm:text-sm" href="#">
-              {t.footer.privacy}
-            </a>
-            <a className="hover:text-white transition-colors text-xs sm:text-sm" href="#">
-              {t.footer.terms}
-            </a>
+          {/* Bottom */}
+          <div className="pt-8 border-t border-white/[0.04] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-xs text-slate-600">{t.footer.rights}</p>
           </div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

@@ -2,11 +2,9 @@
 
 import { createAuthClient } from "better-auth/react";
 
-// NEXT_PUBLIC_BETTER_AUTH_URL must be set at build time for production.
-// Falls back to window.location.origin so it works on any deployment URL.
+// Always default to window.location.origin on the client so that requests hit the exact same domain
 const authBaseURL =
-  process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.replace(/\/$/, "") ||
-  (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  (typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.replace(/\/$/, "")) || "https://cvr-mate.vercel.app";
 
 export const authClient = createAuthClient({
   baseURL: authBaseURL,
