@@ -2,8 +2,14 @@
 
 import { createAuthClient } from "better-auth/react";
 
+// NEXT_PUBLIC_BETTER_AUTH_URL must be set at build time for production.
+// Falls back to window.location.origin so it works on any deployment URL.
+const authBaseURL =
+  process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.replace(/\/$/, "") ||
+  (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.replace(/\/$/, "") || "http://localhost:3000",
+  baseURL: authBaseURL,
   fetchOptions: {
     onSuccess: (ctx) => {
       // Cache session data on successful auth responses

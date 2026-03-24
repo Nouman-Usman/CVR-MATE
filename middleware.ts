@@ -10,6 +10,7 @@ const PROTECTED_ROUTES = [
   "/exports",
   "/settings",
   "/company",
+  "/todos",
 ];
 
 const AUTH_ROUTES = ["/login", "/signup"];
@@ -57,6 +58,7 @@ export const config = {
     "/exports/:path*",
     "/settings/:path*",
     "/company/:path*",
+    "/todos/:path*",
     "/login",
     "/signup",
   ],
