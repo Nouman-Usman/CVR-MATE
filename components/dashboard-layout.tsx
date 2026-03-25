@@ -65,9 +65,36 @@ export default function DashboardLayout({
   const activeSession = session || (isPending ? cachedSession : null);
 
   const [mounted, setMounted] = useState(false);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Onboarding guard: check if user has a brand profile
+  useEffect(() => {
+    if (!mounted || !activeSession) return;
+    // Skip check if we already know onboarding is complete
+    if (sessionStorage.getItem("onboarding_complete") === "true") return;
+    // Skip redirect if user explicitly skipped
+    const skipped = sessionStorage.getItem("onboarding_skipped") === "true";
+
+    fetch("/api/brand")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.brand) {
+          if (skipped) {
+            setShowOnboardingBanner(true);
+          } else {
+            router.push("/onboarding");
+          }
+        } else {
+          sessionStorage.setItem("onboarding_complete", "true");
+        }
+      })
+      .catch(() => {});
+  }, [mounted, activeSession, router]);
 
   // Middleware handles redirects — just show loading if no data yet
   if (!mounted || !activeSession) {
@@ -298,6 +325,28 @@ export default function DashboardLayout({
         </header>
 
         <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
+          {showOnboardingBanner && !bannerDismissed && (
+            <div className="mb-6 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl p-4 flex items-center justify-between gap-4 shadow-md">
+              <div className="flex items-center gap-3 text-white">
+                <span className="material-symbols-outlined text-2xl shrink-0">auto_awesome</span>
+                <p className="text-sm font-medium">{t.onboarding.bannerText}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href="/onboarding"
+                  className="px-4 py-2 bg-white text-blue-600 font-bold text-sm rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  {t.onboarding.bannerButton}
+                </Link>
+                <button
+                  onClick={() => setBannerDismissed(true)}
+                  className="text-white/70 hover:text-white p-1 transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
+          )}
           {children}
         </main>
       </div>

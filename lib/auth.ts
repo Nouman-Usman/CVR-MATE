@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { organization } from "better-auth/plugins/organization";
 import { db } from "@/db";
 
 // In production on Vercel, VERCEL_URL is auto-set (e.g. "my-app.vercel.app")
@@ -38,4 +39,9 @@ export const auth = betterAuth({
       maxAge: 5 * 60,
     },
   },
+  plugins: [
+    organization({
+      allowUserToCreateOrganization: true,
+    }),
+  ],
 });

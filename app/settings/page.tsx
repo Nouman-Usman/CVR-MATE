@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import Link from "next/link";
 
 function Toggle({
   checked,
@@ -28,21 +30,430 @@ function Toggle({
   );
 }
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface OrgMember {
+  id: string;
+  role: string;
+  createdAt: string;
+  userId: string;
+  user: { id: string; name: string; email: string; image?: string | null };
+}
+
+interface OrgInvitation {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface Org {
+  id: string;
+  name: string;
+  slug: string;
+  members?: OrgMember[];
+  invitations?: OrgInvitation[];
+}
+
+// ─── Page ───────────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
   const { t, locale, toggleLocale } = useLanguage();
   const { data: session } = useSession();
   const st = t.settings;
 
+  // Profile
   const [name, setName] = useState(session?.user?.name || "");
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // Notifications
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [triggerAlerts, setTriggerAlerts] = useState(true);
   const [weeklyReport, setWeeklyReport] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+
+  // Password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [isOAuthUser, setIsOAuthUser] = useState(false);
+
+  // Brand state
+  const [brandLoaded, setBrandLoaded] = useState(false);
+  const [hasBrand, setHasBrand] = useState(false);
+  const [brandCompanyName, setBrandCompanyName] = useState("");
+  const [brandCvr, setBrandCvr] = useState("");
+  const [brandIndustry, setBrandIndustry] = useState("");
+  const [brandCompanySize, setBrandCompanySize] = useState("");
+  const [brandWebsite, setBrandWebsite] = useState("");
+  const [brandProducts, setBrandProducts] = useState("");
+  const [brandTargetAudience, setBrandTargetAudience] = useState("");
+  const [brandTone, setBrandTone] = useState("formal");
+  const [brandSaving, setBrandSaving] = useState(false);
+  const [cvrLoading, setCvrLoading] = useState(false);
+  const [cvrStatus, setCvrStatus] = useState<"idle" | "found" | "notfound">(
+    "idle"
+  );
+
+  // Team / Organization
+  const [org, setOrg] = useState<Org | null>(null);
+  const [orgLoading, setOrgLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [orgCreating, setOrgCreating] = useState(false);
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  const showToast = useCallback(
+    (msg: string, type: "success" | "error" = "success") => {
+      setToast(msg);
+      setToastType(type);
+      setTimeout(() => setToast(null), 3000);
+    },
+    []
+  );
+
+  // ── Sync name from session ──────────────────────────────────────────────
+
+  useEffect(() => {
+    if (session?.user?.name && !name) {
+      setName(session.user.name);
+    }
+  }, [session?.user?.name, name]);
+
+  // ── Load brand data ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    fetch("/api/brand")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.brand) {
+          setHasBrand(true);
+          setBrandCompanyName(data.brand.companyName || "");
+          setBrandCvr(data.brand.cvr || "");
+          setBrandIndustry(data.brand.industry || "");
+          setBrandCompanySize(data.brand.companySize || "");
+          setBrandWebsite(data.brand.website || "");
+          setBrandProducts(data.brand.products || "");
+          setBrandTargetAudience(data.brand.targetAudience || "");
+          setBrandTone(data.brand.tone || "formal");
+        }
+        setBrandLoaded(true);
+      })
+      .catch(() => setBrandLoaded(true));
+  }, []);
+
+  // ── Check if OAuth user (no password to change) ─────────────────────────
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    // If user signed up via Google OAuth, there's no credential account
+    // We check by trying to see if they have a "credential" provider account
+    // Simple heuristic: if email is verified but they never set a password
+    // Better approach: check accounts via session
+    fetch("/api/auth/list-accounts", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          const hasCredential = data.some?.(
+            (a: { providerId: string }) => a.providerId === "credential"
+          );
+          setIsOAuthUser(!hasCredential);
+        }
+      })
+      .catch(() => {});
+  }, [session?.user?.id]);
+
+  // ── Load organization data ──────────────────────────────────────────────
+
+  const loadOrg = useCallback(async () => {
+    setOrgLoading(true);
+    try {
+      // List user's organizations via better-auth REST API
+      const orgsRes = await fetch("/api/auth/organization/list", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!orgsRes.ok) { setOrg(null); setOrgLoading(false); return; }
+      const orgs = await orgsRes.json();
+      if (Array.isArray(orgs) && orgs.length > 0) {
+        // Set active org and get full details
+        const fullRes = await fetch(
+          `/api/auth/organization/get-full-organization?organizationId=${orgs[0].id}`,
+          { method: "GET", credentials: "include" }
+        );
+        if (fullRes.ok) {
+          const fullOrg = await fullRes.json();
+          setOrg(fullOrg);
+        }
+      } else {
+        setOrg(null);
+      }
+    } catch {
+      setOrg(null);
+    } finally {
+      setOrgLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrg();
+  }, [loadOrg]);
+
+  // ── Profile save ────────────────────────────────────────────────────────
+
+  const handleProfileSave = async () => {
+    if (!name.trim()) return;
+    setProfileSaving(true);
+    try {
+      await authClient.updateUser({ name: name.trim() });
+      showToast(st.saved);
+    } catch {
+      showToast(locale === "da" ? "Kunne ikke gemme" : "Failed to save", "error");
+    } finally {
+      setProfileSaving(false);
+    }
   };
+
+  // ── Password change ─────────────────────────────────────────────────────
+
+  const handlePasswordChange = async () => {
+    setPasswordError("");
+
+    if (newPassword.length < 8) {
+      setPasswordError(st.password.tooShort);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(st.password.mismatch);
+      return;
+    }
+
+    setPasswordChanging(true);
+    try {
+      const res = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: false,
+      });
+      if (res.error) {
+        setPasswordError(st.password.wrongCurrent);
+      } else {
+        showToast(st.password.changed);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      setPasswordError(st.password.wrongCurrent);
+    } finally {
+      setPasswordChanging(false);
+    }
+  };
+
+  // ── Brand CVR lookup ────────────────────────────────────────────────────
+
+  const handleBrandCvrLookup = async () => {
+    if (!/^\d{8}$/.test(brandCvr)) return;
+    setCvrLoading(true);
+    setCvrStatus("idle");
+    try {
+      const res = await fetch("/api/brand/cvr-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vat: brandCvr }),
+      });
+      if (!res.ok) {
+        setCvrStatus("notfound");
+        return;
+      }
+      const data = await res.json();
+      if (data.companyName) setBrandCompanyName(data.companyName);
+      if (data.industry) setBrandIndustry(data.industry);
+      if (data.employees) {
+        const emp = data.employees;
+        if (emp <= 4) setBrandCompanySize("1-4");
+        else if (emp <= 9) setBrandCompanySize("5-9");
+        else if (emp <= 19) setBrandCompanySize("10-19");
+        else if (emp <= 49) setBrandCompanySize("20-49");
+        else if (emp <= 99) setBrandCompanySize("50-99");
+        else setBrandCompanySize("100+");
+      }
+      if (data.website) setBrandWebsite(data.website);
+      setCvrStatus("found");
+    } catch {
+      setCvrStatus("notfound");
+    } finally {
+      setCvrLoading(false);
+    }
+  };
+
+  // ── Brand save ──────────────────────────────────────────────────────────
+
+  const handleBrandSave = async () => {
+    if (!brandCompanyName.trim() || !brandProducts.trim()) return;
+    setBrandSaving(true);
+    try {
+      const method = hasBrand ? "PATCH" : "POST";
+      const res = await fetch("/api/brand", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: brandCompanyName,
+          cvr: brandCvr || null,
+          industry: brandIndustry || null,
+          companySize: brandCompanySize || null,
+          website: brandWebsite || null,
+          products: brandProducts,
+          targetAudience: brandTargetAudience || null,
+          tone: brandTone,
+        }),
+      });
+      if (res.ok) {
+        setHasBrand(true);
+        sessionStorage.setItem("onboarding_complete", "true");
+        showToast(st.brand.saved);
+      }
+    } catch {
+      showToast(
+        locale === "da" ? "Kunne ikke gemme" : "Failed to save",
+        "error"
+      );
+    } finally {
+      setBrandSaving(false);
+    }
+  };
+
+  // ── Org create ──────────────────────────────────────────────────────────
+
+  const handleCreateOrg = async () => {
+    if (!newOrgName.trim()) return;
+    setOrgCreating(true);
+    try {
+      const slug = newOrgName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      const res = await fetch("/api/auth/organization/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: newOrgName.trim(),
+          slug: slug || `org-${Date.now()}`,
+        }),
+      });
+      if (res.ok) {
+        showToast(st.team.created);
+        setNewOrgName("");
+        await loadOrg();
+      } else {
+        showToast(locale === "da" ? "Kunne ikke oprette" : "Failed to create", "error");
+      }
+    } catch {
+      showToast(
+        locale === "da" ? "Kunne ikke oprette" : "Failed to create",
+        "error"
+      );
+    } finally {
+      setOrgCreating(false);
+    }
+  };
+
+  // ── Invite member ───────────────────────────────────────────────────────
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !org) return;
+    setInviteSending(true);
+    try {
+      const res = await fetch("/api/auth/organization/invite-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: inviteRole,
+          organizationId: org.id,
+        }),
+      });
+      if (res.ok) {
+        showToast(st.team.sent);
+        setInviteEmail("");
+        await loadOrg();
+      } else {
+        showToast(st.team.inviteError, "error");
+      }
+    } catch {
+      showToast(st.team.inviteError, "error");
+    } finally {
+      setInviteSending(false);
+    }
+  };
+
+  // ── Remove member ───────────────────────────────────────────────────────
+
+  const handleRemoveMember = async (memberIdOrEmail: string) => {
+    if (!org) return;
+    if (!window.confirm(st.team.removeConfirm)) return;
+    try {
+      const res = await fetch("/api/auth/organization/remove-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          memberIdOrEmail,
+          organizationId: org.id,
+        }),
+      });
+      if (res.ok) {
+        showToast(st.team.removed);
+        await loadOrg();
+      }
+    } catch {
+      showToast(
+        locale === "da" ? "Kunne ikke fjerne" : "Failed to remove",
+        "error"
+      );
+    }
+  };
+
+  // ── Cancel invitation ───────────────────────────────────────────────────
+
+  const handleCancelInvite = async (invitationId: string) => {
+    if (!window.confirm(st.team.cancelConfirm)) return;
+    try {
+      const res = await fetch("/api/auth/organization/cancel-invitation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ invitationId }),
+      });
+      if (res.ok) {
+        showToast(st.team.cancelled);
+        await loadOrg();
+      }
+    } catch {
+      showToast(
+        locale === "da" ? "Kunne ikke annullere" : "Failed to cancel",
+        "error"
+      );
+    }
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   const userEmail = session?.user?.email || "";
   const initials = (session?.user?.name || userEmail)
@@ -52,13 +463,32 @@ export default function SettingsPage() {
     .slice(0, 2)
     .toUpperCase();
 
+  const cardClass =
+    "bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 p-4 sm:p-6 md:p-8";
+  const labelClass =
+    "text-xs font-bold uppercase tracking-wider text-slate-400 px-1";
+  const inputClass =
+    "w-full bg-slate-50 border-none rounded-lg py-3 px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none";
+  const btnPrimary =
+    "px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
+
   return (
     <DashboardLayout>
       {/* Toast */}
       {toast && (
-        <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-full shadow-2xl text-sm font-medium flex items-center gap-2">
-          <span className="material-symbols-outlined text-emerald-400 text-lg">
-            check_circle
+        <div
+          className={`fixed top-20 right-6 z-50 px-5 py-3 rounded-full shadow-2xl text-sm font-medium flex items-center gap-2 ${
+            toastType === "error"
+              ? "bg-red-600 text-white"
+              : "bg-slate-900 text-white"
+          }`}
+        >
+          <span
+            className={`material-symbols-outlined text-lg ${
+              toastType === "error" ? "text-red-200" : "text-emerald-400"
+            }`}
+          >
+            {toastType === "error" ? "error" : "check_circle"}
           </span>
           {toast}
         </div>
@@ -73,8 +503,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-3xl space-y-6">
-        {/* Profile */}
-        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 p-4 sm:p-6 md:p-8">
+        {/* ── Profile ──────────────────────────────────────────────────── */}
+        <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               person
@@ -91,19 +521,15 @@ export default function SettingsPage() {
             <div className="flex-1 w-full">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
-                    {st.profile.name}
-                  </label>
+                  <label className={labelClass}>{st.profile.name}</label>
                   <input
-                    className="w-full bg-slate-50 border-none rounded-lg py-3 px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    className={inputClass}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
-                    {st.profile.email}
-                  </label>
+                  <label className={labelClass}>{st.profile.email}</label>
                   <input
                     className="w-full bg-slate-50 border-none rounded-lg py-3 px-4 text-sm text-slate-400 cursor-not-allowed"
                     value={userEmail}
@@ -112,17 +538,575 @@ export default function SettingsPage() {
                 </div>
               </div>
               <button
-                onClick={() => showToast(st.saved)}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm"
+                onClick={handleProfileSave}
+                disabled={profileSaving || !name.trim()}
+                className={btnPrimary}
               >
-                {st.profile.save}
+                {profileSaving ? (
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-sm">
+                      progress_activity
+                    </span>
+                    {locale === "da" ? "Gemmer..." : "Saving..."}
+                  </span>
+                ) : (
+                  st.profile.save
+                )}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Notifications */}
-        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 p-4 sm:p-6 md:p-8">
+        {/* ── Change Password ──────────────────────────────────────────── */}
+        <div className={cardClass}>
+          <div className="flex items-center gap-2 mb-6">
+            <span className="material-symbols-outlined text-slate-400 text-xl">
+              lock
+            </span>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              {st.password.title}
+            </h2>
+          </div>
+
+          {isOAuthUser ? (
+            <div className="bg-slate-50 rounded-xl p-5 flex items-start gap-3">
+              <span className="material-symbols-outlined text-slate-400 text-xl shrink-0 mt-0.5">
+                info
+              </span>
+              <p className="text-sm text-slate-500">{st.password.oauthOnly}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {passwordError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start gap-2">
+                  <span className="material-symbols-outlined text-red-500 text-lg shrink-0 mt-0.5">
+                    error
+                  </span>
+                  {passwordError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className={labelClass}>{st.password.current}</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                    <span className="material-symbols-outlined text-lg">
+                      lock
+                    </span>
+                  </div>
+                  <input
+                    className="w-full bg-slate-50 border-none rounded-lg py-3 pl-11 pr-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{st.password.new}</label>
+                  <input
+                    className={inputClass}
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    minLength={8}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{st.password.confirm}</label>
+                  <input
+                    className={inputClass}
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-red-500 flex items-center gap-1 px-1">
+                  <span className="material-symbols-outlined text-sm">
+                    warning
+                  </span>
+                  {st.password.mismatch}
+                </p>
+              )}
+
+              <button
+                onClick={handlePasswordChange}
+                disabled={
+                  passwordChanging ||
+                  !currentPassword ||
+                  !newPassword ||
+                  newPassword !== confirmPassword ||
+                  newPassword.length < 8
+                }
+                className={btnPrimary}
+              >
+                {passwordChanging ? (
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-sm">
+                      progress_activity
+                    </span>
+                    {st.password.changing}
+                  </span>
+                ) : (
+                  st.password.change
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Company Profile / Brand ──────────────────────────────────── */}
+        <div className={cardClass}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="material-symbols-outlined text-slate-400 text-xl">
+              apartment
+            </span>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              {st.brand.title}
+            </h2>
+          </div>
+          <p className="text-xs text-slate-400 mb-6">{st.brand.subtitle}</p>
+
+          {brandLoaded && !hasBrand && !brandCompanyName ? (
+            <div className="bg-slate-50 rounded-xl p-6 text-center">
+              <span className="material-symbols-outlined text-4xl text-slate-300 mb-3 block">
+                auto_awesome
+              </span>
+              <p className="text-sm text-slate-500 mb-4">
+                {st.brand.notSetup}
+              </p>
+              <Link
+                href="/onboarding"
+                className={`inline-block ${btnPrimary}`}
+              >
+                {st.brand.setupNow}
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* CVR Lookup */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                    <span className="material-symbols-outlined text-lg">
+                      tag
+                    </span>
+                  </div>
+                  <input
+                    className="w-full bg-slate-50 border-none rounded-lg py-3 pl-11 pr-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    placeholder={t.onboarding.cvrPlaceholder}
+                    maxLength={8}
+                    value={brandCvr}
+                    onChange={(e) => {
+                      setBrandCvr(e.target.value.replace(/\D/g, ""));
+                      setCvrStatus("idle");
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBrandCvrLookup}
+                  disabled={!/^\d{8}$/.test(brandCvr) || cvrLoading}
+                  className="px-4 py-2.5 bg-slate-200 text-slate-700 font-semibold text-sm rounded-lg hover:bg-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0"
+                >
+                  {cvrLoading ? (
+                    <span className="material-symbols-outlined animate-spin text-sm">
+                      progress_activity
+                    </span>
+                  ) : (
+                    <span className="material-symbols-outlined text-sm">
+                      search
+                    </span>
+                  )}
+                  {t.onboarding.cvrLookup}
+                </button>
+              </div>
+              {cvrStatus === "found" && (
+                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1 -mt-2">
+                  <span className="material-symbols-outlined text-sm">
+                    check_circle
+                  </span>
+                  {t.onboarding.cvrFound}
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className={labelClass}>
+                    {t.onboarding.companyName}{" "}
+                    <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    className={inputClass}
+                    value={brandCompanyName}
+                    onChange={(e) => setBrandCompanyName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t.onboarding.industry}</label>
+                  <input
+                    className={inputClass}
+                    value={brandIndustry}
+                    onChange={(e) => setBrandIndustry(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className={labelClass}>
+                    {t.onboarding.companySize}
+                  </label>
+                  <select
+                    className={`${inputClass} appearance-none`}
+                    value={brandCompanySize}
+                    onChange={(e) => setBrandCompanySize(e.target.value)}
+                  >
+                    <option value="">
+                      {t.onboarding.companySizePlaceholder}
+                    </option>
+                    {t.onboarding.sizes.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t.onboarding.website}</label>
+                  <input
+                    className={inputClass}
+                    value={brandWebsite}
+                    onChange={(e) => setBrandWebsite(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  {t.onboarding.products}{" "}
+                  <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  className={`${inputClass} min-h-[80px] resize-y`}
+                  value={brandProducts}
+                  onChange={(e) => setBrandProducts(e.target.value)}
+                  placeholder={t.onboarding.productsPlaceholder}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  {t.onboarding.targetAudience}
+                </label>
+                <textarea
+                  className={`${inputClass} min-h-[60px] resize-y`}
+                  value={brandTargetAudience}
+                  onChange={(e) => setBrandTargetAudience(e.target.value)}
+                  placeholder={t.onboarding.targetAudiencePlaceholder}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  {locale === "da" ? "AI Tone" : "AI Tone"}
+                </label>
+                <div className="flex gap-2">
+                  {(["formal", "friendly", "casual"] as const).map((tn) => {
+                    const labels = {
+                      formal: t.onboarding.toneFormal,
+                      friendly: t.onboarding.toneFriendly,
+                      casual: t.onboarding.toneCasual,
+                    };
+                    return (
+                      <button
+                        key={tn}
+                        type="button"
+                        onClick={() => setBrandTone(tn)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+                          brandTone === tn
+                            ? "bg-blue-50 text-blue-600 ring-2 ring-blue-500/20"
+                            : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                        }`}
+                      >
+                        {labels[tn]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                onClick={handleBrandSave}
+                disabled={
+                  brandSaving ||
+                  !brandCompanyName.trim() ||
+                  !brandProducts.trim()
+                }
+                className={btnPrimary}
+              >
+                {brandSaving ? st.brand.saving : st.brand.save}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Team / Organization ──────────────────────────────────────── */}
+        <div className={cardClass}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="material-symbols-outlined text-slate-400 text-xl">
+              groups
+            </span>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              {st.team.title}
+            </h2>
+          </div>
+          <p className="text-xs text-slate-400 mb-6">{st.team.subtitle}</p>
+
+          {orgLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <span className="material-symbols-outlined animate-spin text-2xl text-slate-300">
+                progress_activity
+              </span>
+            </div>
+          ) : !org ? (
+            /* No org — create one */
+            <div className="bg-slate-50 rounded-xl p-6">
+              <div className="flex items-start gap-3 mb-5">
+                <span className="material-symbols-outlined text-blue-500 text-2xl shrink-0">
+                  group_add
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {st.team.createOrg}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {st.team.createOrgDesc}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className={`flex-1 ${inputClass}`}
+                  placeholder={st.team.orgNamePlaceholder}
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                />
+                <button
+                  onClick={handleCreateOrg}
+                  disabled={orgCreating || !newOrgName.trim()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
+                >
+                  {orgCreating ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin text-sm">
+                        progress_activity
+                      </span>
+                      {st.team.creating}
+                    </>
+                  ) : (
+                    st.team.create
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Has org — show members + invite */
+            <div className="space-y-6">
+              {/* Invite form */}
+              <div className="bg-slate-50 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-blue-500 text-lg">
+                    person_add
+                  </span>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {st.team.invite}
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <span className="material-symbols-outlined text-lg">
+                        mail
+                      </span>
+                    </div>
+                    <input
+                      className="w-full bg-white border border-slate-200 rounded-lg py-2.5 pl-10 pr-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                      type="email"
+                      placeholder={st.team.emailPlaceholder}
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                  </div>
+                  <select
+                    className="bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 outline-none appearance-none sm:w-32"
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                  >
+                    <option value="member">{st.team.member}</option>
+                    <option value="admin">{st.team.admin}</option>
+                  </select>
+                  <button
+                    onClick={handleInvite}
+                    disabled={inviteSending || !inviteEmail.trim()}
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
+                  >
+                    {inviteSending ? (
+                      <>
+                        <span className="material-symbols-outlined animate-spin text-sm">
+                          progress_activity
+                        </span>
+                        {st.team.sending}
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-sm">
+                          send
+                        </span>
+                        {st.team.send}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Members list */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
+                  {st.team.members}
+                </h3>
+                {org.members && org.members.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {org.members.map((m) => {
+                      const mInitials = (m.user.name || m.user.email)
+                        .split(" ")
+                        .map((w) => w[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase();
+                      const isCurrentUser = m.userId === session?.user?.id;
+                      const roleLabel =
+                        m.role === "owner"
+                          ? st.team.owner
+                          : m.role === "admin"
+                            ? st.team.admin
+                            : st.team.member;
+                      return (
+                        <div
+                          key={m.id}
+                          className="flex items-center gap-3 py-3"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                            {mInitials}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 truncate">
+                              {m.user.name || m.user.email}
+                              {isCurrentUser && (
+                                <span className="text-xs text-slate-400 ml-1.5 font-normal">
+                                  ({locale === "da" ? "dig" : "you"})
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate">
+                              {m.user.email}
+                            </p>
+                          </div>
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                              m.role === "owner"
+                                ? "bg-amber-50 text-amber-700"
+                                : m.role === "admin"
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {roleLabel}
+                          </span>
+                          {!isCurrentUser && m.role !== "owner" && (
+                            <button
+                              onClick={() => handleRemoveMember(m.id)}
+                              className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer shrink-0"
+                              title={st.team.remove}
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                close
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400 py-3">
+                    {st.team.noMembers}
+                  </p>
+                )}
+              </div>
+
+              {/* Pending invitations */}
+              {org.invitations &&
+                org.invitations.filter((i) => i.status === "pending").length >
+                  0 && (
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
+                      {st.team.pendingInvites}
+                    </h3>
+                    <div className="divide-y divide-slate-100">
+                      {org.invitations
+                        .filter((i) => i.status === "pending")
+                        .map((inv) => (
+                          <div
+                            key={inv.id}
+                            className="flex items-center gap-3 py-3"
+                          >
+                            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                              <span className="material-symbols-outlined text-lg">
+                                mail
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-700 truncate">
+                                {inv.email}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {inv.role === "admin"
+                                  ? st.team.admin
+                                  : st.team.member}
+                              </p>
+                            </div>
+                            <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0">
+                              {locale === "da" ? "Ventende" : "Pending"}
+                            </span>
+                            <button
+                              onClick={() => handleCancelInvite(inv.id)}
+                              className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer shrink-0"
+                              title={st.team.cancel}
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                close
+                              </span>
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Notifications ────────────────────────────────────────────── */}
+        <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               notifications
@@ -169,8 +1153,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Language */}
-        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 p-4 sm:p-6 md:p-8">
+        {/* ── Language ─────────────────────────────────────────────────── */}
+        <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               language
@@ -181,9 +1165,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-1.5 max-w-xs">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
-              {st.language.label}
-            </label>
+            <label className={labelClass}>{st.language.label}</label>
             <div className="flex bg-slate-50 rounded-full p-1 gap-1">
               <button
                 onClick={() => locale !== "da" && toggleLocale()}
@@ -209,8 +1191,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Subscription */}
-        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 p-4 sm:p-6 md:p-8">
+        {/* ── Subscription ─────────────────────────────────────────────── */}
+        <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               credit_card
@@ -252,7 +1234,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Danger zone */}
+        {/* ── Danger zone ──────────────────────────────────────────────── */}
         <div className="bg-red-50/50 rounded-2xl border border-red-100 p-4 sm:p-6 md:p-8">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-red-500 text-xl">

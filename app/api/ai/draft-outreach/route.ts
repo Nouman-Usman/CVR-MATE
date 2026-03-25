@@ -5,6 +5,7 @@ import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
+import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 
 interface OutreachResponse {
   subject?: string;
@@ -22,8 +23,8 @@ export async function POST(req: NextRequest) {
     const {
       vat,
       type = "email",
-      tone = "formal",
-      sellingPoint,
+      tone: requestTone,
+      sellingPoint: requestSellingPoint,
       targetRole,
       locale = "en",
     } = await req.json();
@@ -34,6 +35,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Use brand data as defaults for sellingPoint and tone
+    const brand = await getUserBrand(session.user.id);
+    const sellingPoint = requestSellingPoint || brand?.products;
+    const tone = requestTone || brand?.tone || "formal";
+
     if (!sellingPoint || typeof sellingPoint !== "string") {
       return NextResponse.json(
         { error: "sellingPoint is required" },
@@ -41,7 +48,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const key = cacheKey.aiOutreach(String(vat), type, tone);
+    const key = cacheKey.aiOutreach(String(vat), type, tone) + `:${session.user.id}`;
 
     const company = await getCompanyByVat(Number(vat));
     const accounting = company.accounting?.documents?.[0]?.summary;
@@ -84,6 +91,8 @@ KEY PEOPLE:
 ${participants.slice(0, 5).map(p => `- ${p.life.name}: ${p.roles?.life?.title ?? p.roles?.type ?? "N/A"}`).join("\n") || "Not available"}
 
 WHAT I'M SELLING: ${sellingPoint}
+
+${formatBrandContext(brand)}
 
 RULES:
 - Reference specific company details (industry, size, location) to show you've done research

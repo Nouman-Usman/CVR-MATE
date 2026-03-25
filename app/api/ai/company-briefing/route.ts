@@ -5,6 +5,7 @@ import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
+import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 
 interface BriefingResponse {
   briefing: string;
@@ -28,13 +29,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check cache
-    const key = cacheKey.aiBriefing(String(vat), locale);
+    // Check cache (include userId to separate brand-personalized results)
+    const key = cacheKey.aiBriefing(String(vat), locale) + `:${session.user.id}`;
     const cached = await cacheGet<BriefingResponse>(key);
     if (cached) return NextResponse.json(cached);
 
-    // Fetch company data
-    const company = await getCompanyByVat(Number(vat));
+    // Fetch company data and user brand
+    const [company, brand] = await Promise.all([
+      getCompanyByVat(Number(vat)),
+      getUserBrand(session.user.id),
+    ]);
 
     const accounting = company.accounting?.documents?.[0]?.summary;
     const employmentHistory = company.employment?.years?.slice(0, 5) ?? [];
@@ -42,7 +46,8 @@ export async function POST(req: NextRequest) {
 
     const lang = locale === "da" ? "Danish" : "English";
 
-    const systemPrompt = `You are a B2B sales intelligence analyst specializing in Danish companies. You produce concise, actionable briefings for sales professionals. Always respond in ${lang}. Be specific and data-driven. Focus on what matters for a salesperson preparing for outreach.`;
+    const brandNote = brand ? ` Tailor insights to be relevant for a company that sells "${brand.products}"${brand.targetAudience ? ` to ${brand.targetAudience}` : ""}.` : "";
+    const systemPrompt = `You are a B2B sales intelligence analyst specializing in Danish companies. You produce concise, actionable briefings for sales professionals. Always respond in ${lang}. Be specific and data-driven. Focus on what matters for a salesperson preparing for outreach.${brandNote}`;
 
     const userPrompt = `Analyze this Danish company and produce a sales briefing:
 
@@ -81,7 +86,9 @@ CONTACT:
 Respond with a JSON object containing:
 - "briefing": A 3-4 paragraph natural-language analysis covering: what the company does, financial health, growth signals, and notable characteristics. Be specific with numbers.
 - "keyInsights": An array of 3-5 short bullet points highlighting the most important findings for a salesperson (each under 100 chars).
-- "suggestedApproach": A short paragraph (2-3 sentences) recommending how to approach this company, who to contact, and what angle to use.`;
+- "suggestedApproach": A short paragraph (2-3 sentences) recommending how to approach this company, who to contact, and what angle to use.
+
+${formatBrandContext(brand)}`;
 
     const raw = await generateAiJson<Record<string, unknown>>({
       model: "gemini-2.5-flash",

@@ -72,7 +72,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push("/onboarding");
     } catch {
       setError(
         locale === "da"
@@ -84,7 +84,7 @@ export default function SignupPage() {
   };
 
   const handleGoogleSignup = async () => {
-    await signIn.social({ provider: "google", callbackURL: "/dashboard" });
+    await signIn.social({ provider: "google", callbackURL: "/onboarding" });
   };
 
   const a = t.auth.signup;

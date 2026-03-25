@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   date,
 } from "drizzle-orm/pg-core";
-import { user } from "./auth-schema";
+import { user, session, account } from "./auth-schema";
 
 // ─── COMPANY (CVR data cache) ───────────────────────────────────────────────
 
@@ -251,6 +251,36 @@ export const enterpriseInquiry = pgTable("enterprise_inquiry", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── USER BRAND (onboarding company profile for AI personalization) ─────────
+
+export const userBrand = pgTable(
+  "user_brand",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyName: text("company_name").notNull(),
+    cvr: text("cvr"),
+    industry: text("industry"),
+    industryCode: text("industry_code"),
+    companySize: text("company_size"), // '1-4' | '5-9' | '10-19' | '20-49' | '50-99' | '100+'
+    employees: integer("employees"),
+    website: text("website"),
+    products: text("products").notNull(), // what they sell — critical for AI
+    targetAudience: text("target_audience"),
+    tone: text("tone").default("formal").notNull(), // 'formal' | 'friendly' | 'casual'
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_brand_user_idx").on(table.userId),
+  ]
+);
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
@@ -299,4 +329,15 @@ export const companyNoteRelations = relations(companyNote, ({ one }) => ({
     references: [company.id],
   }),
   user: one(user, { fields: [companyNote.userId], references: [user.id] }),
+}));
+
+export const userBrandRelations = relations(userBrand, ({ one }) => ({
+  user: one(user, { fields: [userBrand.userId], references: [user.id] }),
+}));
+
+// Defined here (not in auth-schema.ts) to avoid circular imports
+export const userRelations = relations(user, ({ many, one }) => ({
+  sessions: many(session),
+  accounts: many(account),
+  brand: one(userBrand),
 }));

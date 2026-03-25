@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
+import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 
 interface TodoSuggestion {
   title: string;
@@ -31,14 +32,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const company = await getCompanyByVat(Number(vat));
+    const [company, brand] = await Promise.all([
+      getCompanyByVat(Number(vat)),
+      getUserBrand(session.user.id),
+    ]);
     const accounting = company.accounting?.documents?.[0]?.summary;
     const participants = company.participants ?? [];
     const emp = company.employment?.years?.[0];
 
     const lang = locale === "da" ? "Danish" : "English";
+    const brandNote = brand ? ` The salesperson works at "${brand.companyName}" and sells: ${brand.products}.` : "";
 
-    const systemPrompt = `You are a B2B sales task planner. You suggest specific, actionable follow-up tasks for a salesperson evaluating a potential lead. Always respond in ${lang}.`;
+    const systemPrompt = `You are a B2B sales task planner. You suggest specific, actionable follow-up tasks for a salesperson evaluating a potential lead. Always respond in ${lang}.${brandNote}`;
 
     const userPrompt = `Suggest 3-5 actionable follow-up tasks for this company:
 
@@ -75,7 +80,9 @@ RULES:
 - Due dates: high priority = 1-3 days, medium = 3-7 days, low = 7-14 days
 - Task types: research, outreach, preparation, follow-up
 - If contact info is available, suggest using it
-- If key people are listed, suggest reaching out to specific individuals`;
+- If key people are listed, suggest reaching out to specific individuals
+
+${formatBrandContext(brand)}`;
 
     const raw = await generateAiJson<Record<string, unknown>>({
       model: "gemini-2.5-flash",

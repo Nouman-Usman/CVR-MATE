@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
+import { getUserBrand } from "@/lib/get-user-brand";
 
 interface ParsedFilters {
   query: string;
@@ -42,8 +43,10 @@ export async function POST(req: NextRequest) {
     }
 
     const lang = locale === "da" ? "Danish" : "English";
+    const brand = await getUserBrand(session.user.id);
+    const brandNote = brand ? ` The user works in ${brand.industry ?? "an unspecified industry"} and sells: ${brand.products}. If the query is ambiguous, prefer interpretations relevant to their industry.` : "";
 
-    const systemPrompt = `You are a search query interpreter for a Danish business registry platform. Convert natural language queries into structured search filters. Always respond in ${lang} for the explanation field.`;
+    const systemPrompt = `You are a search query interpreter for a Danish business registry platform. Convert natural language queries into structured search filters. Always respond in ${lang} for the explanation field.${brandNote}`;
 
     const userPrompt = `Convert this natural language search into structured filters:
 

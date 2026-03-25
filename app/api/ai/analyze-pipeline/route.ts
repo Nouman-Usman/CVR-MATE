@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
+import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 
 interface PrioritizedCompany {
   vat: string;
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     const lang = locale === "da" ? "Danish" : "English";
+    const brand = await getUserBrand(session.user.id);
 
     const companySummaries = validCompanies.map((c) => {
       const acc = c!.accounting?.documents?.[0]?.summary;
@@ -79,7 +81,8 @@ export async function POST(req: NextRequest) {
       return `- ${c!.life.name} (CVR: ${c!.vat}) | Industry: ${c!.industry?.primary?.text ?? "?"} | City: ${c!.address?.cityname ?? "?"} | Employees: ${emp?.amount ?? acc?.averagenumberofemployees ?? "?"} | Revenue: ${acc?.revenue != null ? `${acc.revenue} DKK` : "?"} | Profit: ${acc?.profitloss != null ? `${acc.profitloss} DKK` : "?"} | Founded: ${c!.life.start ?? "?"} | Status: ${c!.companystatus?.text ?? "?"} | Bankrupt: ${c!.status?.bankrupt ? "Yes" : "No"}`;
     });
 
-    const systemPrompt = `You are a B2B sales pipeline analyst. You help sales teams prioritize their saved leads. Always respond in ${lang}. Be data-driven and actionable.`;
+    const brandNote = brand ? ` The user sells: "${brand.products}"${brand.targetAudience ? ` to ${brand.targetAudience}` : ""}. Factor fit with their offering into scoring.` : "";
+    const systemPrompt = `You are a B2B sales pipeline analyst. You help sales teams prioritize their saved leads. Always respond in ${lang}. Be data-driven and actionable.${brandNote}`;
 
     const userPrompt = `Analyze this pipeline of ${validCompanies.length} saved companies and provide prioritization:
 
@@ -100,11 +103,13 @@ Respond with a JSON object:
 }
 
 RULES:
-- Score based on: financial health (revenue/profit), growth signals (employee growth), company maturity, and industry attractiveness
+- Score based on: financial health (revenue/profit), growth signals (employee growth), company maturity, industry attractiveness, and fit with the seller's target audience
 - Bankrupt companies = "low" automatically
 - Create 2-4 meaningful segments (by industry, size, growth stage, etc.)
 - Suggest 1 specific next action per company
-- Keep all text concise`;
+- Keep all text concise
+
+${formatBrandContext(brand)}`;
 
     const raw = await generateAiJson<Record<string, unknown>>({
       model: "gemini-2.5-flash",

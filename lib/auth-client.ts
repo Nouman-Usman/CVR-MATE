@@ -1,6 +1,7 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
+import { organizationClient } from "better-auth/client/plugins";
 
 // Always default to window.location.origin on the client so that requests hit the exact same domain
 const authBaseURL =
@@ -8,6 +9,7 @@ const authBaseURL =
 
 export const authClient = createAuthClient({
   baseURL: authBaseURL,
+  plugins: [organizationClient()],
   fetchOptions: {
     onSuccess: (ctx) => {
       // Cache session data on successful auth responses
