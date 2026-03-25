@@ -6,6 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
+import { useIntegrations, useCrmDisconnect, useSyncHistory } from "@/lib/hooks/use-integrations";
 
 function Toggle({
   checked,
@@ -55,6 +56,175 @@ interface Org {
   slug: string;
   members?: OrgMember[];
   invitations?: OrgInvitation[];
+}
+
+// ─── CRM Integrations Section ────────────────────────────────────────────────
+
+const CRM_CARDS: { provider: "hubspot" | "salesforce" | "pipedrive"; name: string; color: string; icon: string; desc: string }[] = [
+  { provider: "hubspot", name: "HubSpot", color: "#FF7A59", icon: "hub", desc: "Sync companies to HubSpot CRM" },
+  { provider: "salesforce", name: "Salesforce", color: "#00A1E0", icon: "cloud", desc: "Push leads to Salesforce Accounts" },
+  { provider: "pipedrive", name: "Pipedrive", color: "#017737", icon: "filter_alt", desc: "Send companies to Pipedrive" },
+];
+
+function CrmIntegrationsSection() {
+  const { t } = useLanguage();
+  const ig = t.integrations;
+  const { data: intData, isLoading: intLoading } = useIntegrations();
+  const disconnectMutation = useCrmDisconnect();
+  const { data: historyData } = useSyncHistory();
+  const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
+
+  const connections = intData?.connections ?? [];
+  const connMap = new Map(connections.filter(c => c.isActive).map(c => [c.provider, c]));
+
+  const handleConnect = (provider: string) => {
+    window.location.href = `/api/integrations/${provider}/connect`;
+  };
+
+  const handleDisconnect = (provider: string) => {
+    disconnectMutation.mutate(provider, {
+      onSuccess: () => setConfirmDisconnect(null),
+    });
+  };
+
+  const logs = historyData?.logs ?? [];
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="material-symbols-outlined text-slate-400 text-xl">sync</span>
+        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+          {ig.title}
+        </h2>
+      </div>
+      <p className="text-sm text-slate-400 mb-6">{ig.subtitle}</p>
+
+      {/* CRM Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {CRM_CARDS.map((crm) => {
+          const conn = connMap.get(crm.provider);
+          const isConnected = !!conn;
+
+          return (
+            <div
+              key={crm.provider}
+              className={`relative rounded-xl border-2 p-5 transition-all ${
+                isConnected
+                  ? "border-emerald-200 bg-emerald-50/30"
+                  : "border-slate-100 bg-slate-50/30 hover:border-slate-200"
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: crm.color + "18" }}
+                >
+                  <span
+                    className="material-symbols-outlined text-xl"
+                    style={{ color: crm.color }}
+                  >
+                    {crm.icon}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{crm.name}</p>
+                  <p className="text-[11px] text-slate-400">{crm.desc}</p>
+                </div>
+              </div>
+
+              {isConnected ? (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <span className="material-symbols-outlined text-emerald-600 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      check_circle
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-700">{ig.connected}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mb-3">
+                    {ig.connectedSince}{" "}
+                    {new Date(conn.connectedAt).toLocaleDateString()}
+                  </p>
+
+                  {confirmDisconnect === crm.provider ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-500">{ig.confirmDisconnect}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDisconnect(crm.provider)}
+                          disabled={disconnectMutation.isPending}
+                          className="px-3 py-1.5 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                        >
+                          {ig.disconnect}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDisconnect(null)}
+                          className="px-3 py-1.5 border border-slate-200 text-xs font-medium text-slate-600 rounded-lg hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDisconnect(crm.provider)}
+                      className="text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      {ig.disconnect}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleConnect(crm.provider)}
+                  disabled={intLoading}
+                  className="w-full px-4 py-2.5 text-white text-sm font-semibold rounded-lg transition-colors hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: crm.color }}
+                >
+                  {ig.connect} {crm.name}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sync History */}
+      {logs.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+            {ig.syncHistory}
+          </h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {logs.slice(0, 8).map((log) => (
+              <div
+                key={log.id}
+                className="flex items-center gap-3 text-xs py-2 border-b border-slate-50 last:border-0"
+              >
+                <span
+                  className={`material-symbols-outlined text-sm ${
+                    log.status === "success"
+                      ? "text-emerald-500"
+                      : "text-red-500"
+                  }`}
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  {log.status === "success" ? "check_circle" : "error"}
+                </span>
+                <span className="font-medium text-slate-600 capitalize">
+                  {log.connection.provider}
+                </span>
+                <span className="text-slate-400">{log.action.replace(/_/g, " ")}</span>
+                <span className="ml-auto text-slate-400">
+                  {new Date(log.createdAt).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -1190,6 +1360,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* ── CRM Integrations ─────────────────────────────────────────── */}
+        <CrmIntegrationsSection />
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
         <div className={cardClass}>

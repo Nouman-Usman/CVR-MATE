@@ -11,6 +11,7 @@ import { useCompanyBriefing } from "@/lib/hooks/use-company-briefing";
 import { useOutreach } from "@/lib/hooks/use-outreach";
 import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
+import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
 
 interface CompanyData {
   vat: number;
@@ -210,6 +211,12 @@ export default function CompanyDetailPage() {
   const [showTodoSuggestions, setShowTodoSuggestions] = useState(false);
   const [addedTodos, setAddedTodos] = useState<Set<number>>(new Set());
 
+  // CRM Integration
+  const activeConnections = useActiveConnections();
+  const pushToCrm = usePushToCrm();
+  const [showCrmMenu, setShowCrmMenu] = useState(false);
+  const [crmToast, setCrmToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
   const handleSaveToggle = () => {
     if (!company) return;
     if (isSaved) {
@@ -313,8 +320,72 @@ export default function CompanyDetailPage() {
                 </span>
                 {saving ? "..." : isSaved ? cd.saved : cd.save}
               </button>
+
+              {/* Push to CRM */}
+              {activeConnections.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCrmMenu(!showCrmMenu)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  >
+                    <span className="material-symbols-outlined text-lg">sync</span>
+                    {t.integrations.pushToCrm}
+                  </button>
+                  {showCrmMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowCrmMenu(false)} />
+                      <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl shadow-xl border border-slate-100 py-2 min-w-[200px]">
+                        {activeConnections.map((conn) => (
+                          <button
+                            key={conn.id}
+                            onClick={() => {
+                              setShowCrmMenu(false);
+                              // We need the company DB id — use the vat to fetch it
+                              pushToCrm.mutate(
+                                { connectionId: conn.id, companyId: (company as unknown as Record<string, string>)?.id || vat },
+                                {
+                                  onSuccess: (res) => {
+                                    setCrmToast({ msg: `${t.integrations.pushSuccess} ${conn.provider}`, type: "success" });
+                                    setTimeout(() => setCrmToast(null), 3000);
+                                  },
+                                  onError: (err) => {
+                                    setCrmToast({ msg: `${t.integrations.pushError}: ${err.message}`, type: "error" });
+                                    setTimeout(() => setCrmToast(null), 4000);
+                                  },
+                                }
+                              );
+                            }}
+                            disabled={pushToCrm.isPending}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                          >
+                            <span className="material-symbols-outlined text-base text-slate-400">
+                              {conn.provider === "hubspot" ? "hub" : conn.provider === "salesforce" ? "cloud" : "filter_alt"}
+                            </span>
+                            <span className="font-medium capitalize">{conn.provider}</span>
+                            {pushToCrm.isPending && (
+                              <span className="material-symbols-outlined text-sm text-blue-500 animate-spin ml-auto">progress_activity</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* CRM Toast */}
+          {crmToast && (
+            <div className={`fixed top-20 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl text-sm font-medium flex items-center gap-2.5 animate-[fadeIn_0.2s] ${
+              crmToast.type === "success" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+            }`}>
+              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+                {crmToast.type === "success" ? "check_circle" : "error"}
+              </span>
+              {crmToast.msg}
+            </div>
+          )}
 
           {/* Company Header Card */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-7 mb-6">

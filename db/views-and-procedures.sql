@@ -359,3 +359,200 @@ CREATE INDEX IF NOT EXISTS trigger_result_trigger_created_idx
 -- Requires: CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- CREATE INDEX IF NOT EXISTS company_name_trgm_idx
 --   ON company USING gin (name gin_trgm_ops);
+
+
+-- ─── SCHEMA v2 ADDITIONS (multi-tenancy, CRM, activity, soft deletes) ──────
+
+-- GIN index on company raw_data for JSONB filtering
+CREATE INDEX IF NOT EXISTS company_raw_data_gin_idx
+  ON company USING GIN (raw_data);
+
+-- Soft delete: exclude deleted records by default
+CREATE INDEX IF NOT EXISTS company_active_idx
+  ON company (id) WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS saved_company_active_idx
+  ON saved_company (user_id) WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS todo_active_idx
+  ON todo (user_id) WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS company_note_active_idx
+  ON company_note (company_id) WHERE deleted_at IS NULL;
+
+-- Activity timeline: fast per-entity lookups
+CREATE INDEX IF NOT EXISTS activity_entity_created_idx
+  ON activity (entity_type, entity_id, created_at DESC);
+
+-- Activity timeline: fast per-user recent activity
+CREATE INDEX IF NOT EXISTS activity_user_recent_idx
+  ON activity (user_id, created_at DESC);
+
+-- Company workspace: fast org-level pipeline views
+CREATE INDEX IF NOT EXISTS company_workspace_org_status_idx
+  ON company_workspace (organization_id, status);
+
+-- CRM sync mapping: find pending/error syncs quickly
+CREATE INDEX IF NOT EXISTS crm_sync_mapping_pending_idx
+  ON crm_sync_mapping (connection_id, sync_status)
+  WHERE sync_status IN ('pending', 'error', 'conflict');
+
+-- Company metrics: fast time-series queries
+CREATE INDEX IF NOT EXISTS company_metrics_time_idx
+  ON company_metrics (company_id, recorded_at DESC);
+
+
+-- ─── UPDATED VIEWS (soft delete aware) ─────────────────────────────────────
+
+-- Updated dashboard stats view (soft delete aware)
+CREATE OR REPLACE VIEW v_user_dashboard_stats AS
+SELECT
+  u.id AS user_id,
+  u.name AS user_name,
+  u.email,
+  COALESCE(t.trigger_count, 0) AS active_triggers,
+  COALESCE(t.total_triggers, 0) AS total_triggers,
+  COALESCE(ss.saved_search_count, 0) AS saved_searches,
+  COALESCE(sc.saved_company_count, 0) AS saved_companies,
+  COALESCE(n.unread_count, 0) AS unread_notifications,
+  COALESCE(td.pending_todos, 0) AS pending_todos
+FROM "user" u
+LEFT JOIN (
+  SELECT user_id,
+    COUNT(*) FILTER (WHERE is_active = true) AS trigger_count,
+    COUNT(*) AS total_triggers
+  FROM lead_trigger GROUP BY user_id
+) t ON t.user_id = u.id
+LEFT JOIN (
+  SELECT user_id, COUNT(*) AS saved_search_count
+  FROM saved_search GROUP BY user_id
+) ss ON ss.user_id = u.id
+LEFT JOIN (
+  SELECT user_id, COUNT(*) AS saved_company_count
+  FROM saved_company WHERE deleted_at IS NULL GROUP BY user_id
+) sc ON sc.user_id = u.id
+LEFT JOIN (
+  SELECT user_id, COUNT(*) AS unread_count
+  FROM notification WHERE is_read = false GROUP BY user_id
+) n ON n.user_id = u.id
+LEFT JOIN (
+  SELECT user_id, COUNT(*) AS pending_todos
+  FROM todo WHERE is_completed = false AND deleted_at IS NULL GROUP BY user_id
+) td ON td.user_id = u.id;
+
+
+-- CRM sync overview per user
+CREATE OR REPLACE VIEW v_crm_sync_overview AS
+SELECT
+  cc.user_id,
+  cc.provider,
+  cc.is_active,
+  cc.connected_at,
+  cc.last_refreshed_at,
+  COALESCE(m.total_synced, 0) AS total_synced,
+  COALESCE(m.pending_count, 0) AS pending_count,
+  COALESCE(m.error_count, 0) AS error_count,
+  l.last_sync_at
+FROM crm_connection cc
+LEFT JOIN (
+  SELECT connection_id,
+    COUNT(*) AS total_synced,
+    COUNT(*) FILTER (WHERE sync_status = 'pending') AS pending_count,
+    COUNT(*) FILTER (WHERE sync_status = 'error') AS error_count
+  FROM crm_sync_mapping
+  GROUP BY connection_id
+) m ON m.connection_id = cc.id
+LEFT JOIN (
+  SELECT connection_id,
+    MAX(created_at) AS last_sync_at
+  FROM crm_sync_log
+  WHERE status = 'success'
+  GROUP BY connection_id
+) l ON l.connection_id = cc.id;
+
+
+-- Organization pipeline view (company workspace)
+CREATE OR REPLACE VIEW v_org_pipeline AS
+SELECT
+  cw.organization_id,
+  cw.status,
+  COUNT(*) AS company_count,
+  AVG(c.employees) AS avg_employees,
+  json_agg(json_build_object(
+    'company_id', c.id,
+    'name', c.name,
+    'vat', c.vat,
+    'city', c.city,
+    'employees', c.employees,
+    'status', cw.status,
+    'tags', cw.tags
+  ) ORDER BY c.name) AS companies
+FROM company_workspace cw
+JOIN company c ON c.id = cw.company_id
+WHERE c.deleted_at IS NULL
+GROUP BY cw.organization_id, cw.status;
+
+
+-- ─── NEW FUNCTIONS ──────────────────────────────────────────────────────────
+
+-- Record an activity event
+CREATE OR REPLACE FUNCTION record_activity(
+  p_user_id TEXT,
+  p_organization_id TEXT,
+  p_entity_type TEXT,
+  p_entity_id UUID,
+  p_action TEXT,
+  p_metadata JSONB DEFAULT '{}'
+) RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  INSERT INTO activity (user_id, organization_id, entity_type, entity_id, action, metadata)
+  VALUES (p_user_id, p_organization_id, p_entity_type, p_entity_id, p_action, p_metadata)
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
+
+
+-- Soft delete a company (cascades to saved_company, notes, todos)
+CREATE OR REPLACE FUNCTION soft_delete_company(p_company_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE company SET deleted_at = NOW() WHERE id = p_company_id AND deleted_at IS NULL;
+  UPDATE saved_company SET deleted_at = NOW() WHERE company_id = p_company_id AND deleted_at IS NULL;
+  UPDATE company_note SET deleted_at = NOW() WHERE company_id = p_company_id AND deleted_at IS NULL;
+  UPDATE todo SET deleted_at = NOW() WHERE company_id = p_company_id AND deleted_at IS NULL;
+END;
+$$;
+
+
+-- Updated dashboard stats (soft delete aware)
+CREATE OR REPLACE FUNCTION get_dashboard_stats(p_user_id TEXT)
+RETURNS TABLE(
+  active_triggers BIGINT,
+  saved_searches BIGINT,
+  saved_companies BIGINT,
+  unread_notifications BIGINT,
+  pending_todos BIGINT,
+  recent_trigger_runs BIGINT,
+  crm_connections BIGINT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    (SELECT COUNT(*) FROM lead_trigger WHERE user_id = p_user_id AND is_active = true),
+    (SELECT COUNT(*) FROM saved_search WHERE user_id = p_user_id),
+    (SELECT COUNT(*) FROM saved_company WHERE user_id = p_user_id AND deleted_at IS NULL),
+    (SELECT COUNT(*) FROM notification WHERE user_id = p_user_id AND is_read = false),
+    (SELECT COUNT(*) FROM todo WHERE user_id = p_user_id AND is_completed = false AND deleted_at IS NULL),
+    (SELECT COUNT(*) FROM trigger_result WHERE user_id = p_user_id AND created_at > NOW() - INTERVAL '7 days'),
+    (SELECT COUNT(*) FROM crm_connection WHERE user_id = p_user_id AND is_active = true);
+END;
+$$;

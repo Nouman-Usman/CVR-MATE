@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   date,
 } from "drizzle-orm/pg-core";
-import { user, session, account } from "./auth-schema";
+import { user, session, account, organization } from "./auth-schema";
 
 // ─── COMPANY (CVR data cache) ───────────────────────────────────────────────
 
@@ -40,6 +40,9 @@ export const company = pgTable(
     employees: integer("employees"),
     capital: numeric("capital"),
 
+    // Soft delete
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+
     lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }).defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -55,6 +58,30 @@ export const company = pgTable(
     index("company_founded_idx").on(table.founded),
     index("company_employees_idx").on(table.employees),
     index("company_name_idx").on(table.name),
+    index("company_type_idx").on(table.companyType),
+  ]
+);
+
+// ─── COMPANY METRICS (employee / financial history for growth tracking) ─────
+
+export const companyMetrics = pgTable(
+  "company_metrics",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    employees: integer("employees"),
+    revenue: numeric("revenue"),
+    profit: numeric("profit"),
+    equity: numeric("equity"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+    source: text("source").default("cvr_api").notNull(), // 'cvr_api' | 'manual' | 'import'
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("company_metrics_company_idx").on(table.companyId),
+    index("company_metrics_recorded_idx").on(table.companyId, table.recordedAt),
   ]
 );
 
@@ -67,16 +94,21 @@ export const savedCompany = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
     companyId: uuid("company_id")
       .notNull()
       .references(() => company.id, { onDelete: "cascade" }),
     cvr: text("cvr").notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("saved_company_user_cvr_idx").on(table.userId, table.cvr),
     index("saved_company_user_idx").on(table.userId),
     index("saved_company_cvr_idx").on(table.cvr),
+    index("saved_company_org_idx").on(table.organizationId),
   ]
 );
 
@@ -89,6 +121,9 @@ export const savedSearch = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     filters: jsonb("filters").default({}).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -97,7 +132,10 @@ export const savedSearch = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("saved_search_user_idx").on(table.userId)]
+  (table) => [
+    index("saved_search_user_idx").on(table.userId),
+    index("saved_search_org_idx").on(table.organizationId),
+  ]
 );
 
 // ─── LEAD TRIGGER ───────────────────────────────────────────────────────────
@@ -109,6 +147,9 @@ export const leadTrigger = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     filters: jsonb("filters").default({}).notNull(),
     frequency: text("frequency").default("daily").notNull(), // 'daily' | 'weekly' | 'custom'
@@ -116,11 +157,15 @@ export const leadTrigger = pgTable(
     notificationChannels: jsonb("notification_channels")
       .default(["in_app"])
       .notNull(),
+    // Extracted filter fields for fast query acceleration
+    industryCode: text("filter_industry_code"),
+    minEmployees: integer("filter_min_employees"),
+    maxEmployees: integer("filter_max_employees"),
     // ─── Cron scheduling fields ───
-    cronExpression: text("cron_expression"), // e.g. "0 8 * * 1" — null means use frequency defaults
-    scheduledHour: integer("scheduled_hour").default(8).notNull(), // 0-23
-    scheduledMinute: integer("scheduled_minute").default(0).notNull(), // 0-59
-    scheduledDayOfWeek: integer("scheduled_day_of_week"), // 0=Sun..6=Sat, null for daily
+    cronExpression: text("cron_expression"),
+    scheduledHour: integer("scheduled_hour").default(8).notNull(),
+    scheduledMinute: integer("scheduled_minute").default(0).notNull(),
+    scheduledDayOfWeek: integer("scheduled_day_of_week"),
     timezone: text("timezone").default("Europe/Copenhagen").notNull(),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
@@ -134,6 +179,8 @@ export const leadTrigger = pgTable(
     index("lead_trigger_user_idx").on(table.userId),
     index("lead_trigger_active_idx").on(table.userId, table.isActive),
     index("lead_trigger_next_run_idx").on(table.nextRunAt),
+    index("lead_trigger_org_idx").on(table.organizationId),
+    index("lead_trigger_industry_idx").on(table.industryCode),
   ]
 );
 
@@ -169,17 +216,20 @@ export const notification = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    type: text("type").default("system").notNull(), // 'trigger' | 'system' | 'export'
+    type: text("type").default("system").notNull(), // 'trigger' | 'system' | 'export' | 'crm_sync'
     title: text("title").notNull(),
     message: text("message"),
     isRead: boolean("is_read").default(false).notNull(),
     link: text("link"),
+    priority: text("priority").default("normal").notNull(), // 'low' | 'normal' | 'high' | 'urgent'
+    metadata: jsonb("metadata").default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("notification_user_idx").on(table.userId),
     index("notification_user_unread_idx").on(table.userId, table.isRead),
     index("notification_created_idx").on(table.createdAt),
+    index("notification_type_idx").on(table.userId, table.type),
   ]
 );
 
@@ -192,6 +242,9 @@ export const todo = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
     title: text("title").notNull(),
     description: text("description"),
     isCompleted: boolean("is_completed").default(false).notNull(),
@@ -200,6 +253,7 @@ export const todo = pgTable(
       onDelete: "set null",
     }),
     dueDate: date("due_date"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -211,6 +265,8 @@ export const todo = pgTable(
     index("todo_user_completed_idx").on(table.userId, table.isCompleted),
     index("todo_due_date_idx").on(table.dueDate),
     index("todo_company_idx").on(table.companyId),
+    index("todo_org_idx").on(table.organizationId),
+    index("todo_priority_idx").on(table.userId, table.priority),
   ]
 );
 
@@ -226,7 +282,11 @@ export const companyNote = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
     content: text("content").notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -236,6 +296,7 @@ export const companyNote = pgTable(
   (table) => [
     index("company_note_company_idx").on(table.companyId),
     index("company_note_user_idx").on(table.userId),
+    index("company_note_org_idx").on(table.organizationId),
   ]
 );
 
@@ -264,12 +325,12 @@ export const userBrand = pgTable(
     cvr: text("cvr"),
     industry: text("industry"),
     industryCode: text("industry_code"),
-    companySize: text("company_size"), // '1-4' | '5-9' | '10-19' | '20-49' | '50-99' | '100+'
+    companySize: text("company_size"),
     employees: integer("employees"),
     website: text("website"),
-    products: text("products").notNull(), // what they sell — critical for AI
+    products: text("products").notNull(),
     targetAudience: text("target_audience"),
-    tone: text("tone").default("formal").notNull(), // 'formal' | 'friendly' | 'casual'
+    tone: text("tone").default("formal").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -281,12 +342,176 @@ export const userBrand = pgTable(
   ]
 );
 
+// ─── ACTIVITY TIMELINE (unified audit trail) ────────────────────────────────
+
+export const activity = pgTable(
+  "activity",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    entityType: text("entity_type").notNull(), // 'company' | 'todo' | 'note' | 'trigger' | 'crm_sync'
+    entityId: uuid("entity_id"),
+    action: text("action").notNull(), // 'created' | 'updated' | 'deleted' | 'synced' | 'exported' | 'saved' | 'unsaved'
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("activity_user_idx").on(table.userId),
+    index("activity_entity_idx").on(table.entityType, table.entityId),
+    index("activity_org_idx").on(table.organizationId),
+    index("activity_created_idx").on(table.createdAt),
+    index("activity_user_type_idx").on(table.userId, table.entityType),
+  ]
+);
+
+// ─── COMPANY WORKSPACE (org-level company ownership + tags) ──────────────────
+
+export const companyWorkspace = pgTable(
+  "company_workspace",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    status: text("status").default("prospect").notNull(), // 'prospect' | 'lead' | 'qualified' | 'customer' | 'churned'
+    tags: jsonb("tags").default([]),
+    assignedUserId: text("assigned_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("company_workspace_org_company_idx").on(table.organizationId, table.companyId),
+    index("company_workspace_org_idx").on(table.organizationId),
+    index("company_workspace_status_idx").on(table.organizationId, table.status),
+    index("company_workspace_assigned_idx").on(table.assignedUserId),
+  ]
+);
+
+// ─── CRM CONNECTION ─────────────────────────────────────────────────────────
+
+export const crmConnection = pgTable(
+  "crm_connection",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    provider: text("provider").notNull(), // 'hubspot' | 'salesforce' | 'pipedrive'
+    accessToken: text("access_token").notNull(), // encrypted
+    refreshToken: text("refresh_token"), // encrypted
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    instanceUrl: text("instance_url"), // Salesforce instance URL
+    scopes: text("scopes"),
+    isActive: boolean("is_active").default(true).notNull(),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow().notNull(),
+    lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("crm_connection_user_provider_idx").on(table.userId, table.provider),
+    index("crm_connection_user_idx").on(table.userId),
+    index("crm_connection_org_idx").on(table.organizationId),
+  ]
+);
+
+// ─── CRM SYNC MAPPING ───────────────────────────────────────────────────────
+
+export const crmSyncMapping = pgTable(
+  "crm_sync_mapping",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => crmConnection.id, { onDelete: "cascade" }),
+    localEntityType: text("local_entity_type").notNull(), // 'company' | 'todo' | 'note'
+    localEntityId: uuid("local_entity_id").notNull(),
+    crmEntityType: text("crm_entity_type").notNull(),
+    crmEntityId: text("crm_entity_id").notNull(),
+    // Sync tracking
+    syncDirection: text("sync_direction").default("push").notNull(), // 'push' | 'pull' | 'bidirectional'
+    version: integer("version").default(1).notNull(),
+    lastLocalUpdate: timestamp("last_local_update", { withTimezone: true }),
+    lastRemoteUpdate: timestamp("last_remote_update", { withTimezone: true }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).defaultNow().notNull(),
+    syncStatus: text("sync_status").default("synced").notNull(), // 'synced' | 'pending' | 'error' | 'conflict'
+    syncError: text("sync_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("crm_sync_mapping_unique_idx").on(
+      table.connectionId,
+      table.localEntityType,
+      table.localEntityId
+    ),
+    index("crm_sync_mapping_connection_idx").on(table.connectionId),
+    index("crm_sync_mapping_local_idx").on(table.localEntityType, table.localEntityId),
+    index("crm_sync_mapping_status_idx").on(table.connectionId, table.syncStatus),
+  ]
+);
+
+// ─── CRM SYNC LOG ────────────────────────────────────────────────────────────
+
+export const crmSyncLog = pgTable(
+  "crm_sync_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => crmConnection.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    action: text("action").notNull(), // 'push_company' | 'push_bulk' | 'update_company' | 'pull_company'
+    localEntityType: text("local_entity_type"),
+    localEntityId: uuid("local_entity_id"),
+    crmEntityId: text("crm_entity_id"),
+    status: text("status").notNull(), // 'success' | 'error' | 'skipped' | 'conflict'
+    errorMessage: text("error_message"),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("crm_sync_log_connection_idx").on(table.connectionId),
+    index("crm_sync_log_user_idx").on(table.userId),
+    index("crm_sync_log_created_idx").on(table.createdAt),
+  ]
+);
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
   savedBy: many(savedCompany),
   notes: many(companyNote),
   todos: many(todo),
+  metrics: many(companyMetrics),
+  workspaces: many(companyWorkspace),
+}));
+
+export const companyMetricsRelations = relations(companyMetrics, ({ one }) => ({
+  company: one(company, {
+    fields: [companyMetrics.companyId],
+    references: [company.id],
+  }),
 }));
 
 export const savedCompanyRelations = relations(savedCompany, ({ one }) => ({
@@ -335,9 +560,47 @@ export const userBrandRelations = relations(userBrand, ({ one }) => ({
   user: one(user, { fields: [userBrand.userId], references: [user.id] }),
 }));
 
+export const activityRelations = relations(activity, ({ one }) => ({
+  user: one(user, { fields: [activity.userId], references: [user.id] }),
+}));
+
+export const companyWorkspaceRelations = relations(companyWorkspace, ({ one }) => ({
+  company: one(company, {
+    fields: [companyWorkspace.companyId],
+    references: [company.id],
+  }),
+  assignedUser: one(user, {
+    fields: [companyWorkspace.assignedUserId],
+    references: [user.id],
+  }),
+}));
+
+export const crmConnectionRelations = relations(crmConnection, ({ one, many }) => ({
+  user: one(user, { fields: [crmConnection.userId], references: [user.id] }),
+  syncMappings: many(crmSyncMapping),
+  syncLogs: many(crmSyncLog),
+}));
+
+export const crmSyncMappingRelations = relations(crmSyncMapping, ({ one }) => ({
+  connection: one(crmConnection, {
+    fields: [crmSyncMapping.connectionId],
+    references: [crmConnection.id],
+  }),
+}));
+
+export const crmSyncLogRelations = relations(crmSyncLog, ({ one }) => ({
+  connection: one(crmConnection, {
+    fields: [crmSyncLog.connectionId],
+    references: [crmConnection.id],
+  }),
+  user: one(user, { fields: [crmSyncLog.userId], references: [user.id] }),
+}));
+
 // Defined here (not in auth-schema.ts) to avoid circular imports
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   brand: one(userBrand),
+  crmConnections: many(crmConnection),
+  activities: many(activity),
 }));
