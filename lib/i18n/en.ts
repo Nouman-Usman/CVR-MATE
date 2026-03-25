@@ -815,6 +815,10 @@ const en: Dictionary = {
       suggestedApproach: "Suggested Approach",
       error: "Failed to generate briefing. Please try again.",
       empty: "No data available for analysis.",
+      saved: "Saved",
+      history: "Previous briefings",
+      viewHistory: "View history",
+      hideHistory: "Hide history",
     },
     search: {
       placeholder: "Describe what you're looking for, e.g. \"IT companies in Aarhus with 20+ employees\"",
@@ -847,6 +851,12 @@ const en: Dictionary = {
       copied: "Copied!",
       error: "Failed to generate message. Please try again.",
       close: "Close",
+      saved: "Saved",
+      history: "Previous drafts",
+      noHistory: "No previous drafts for this company",
+      viewHistory: "View history",
+      hideHistory: "Hide history",
+      noBrand: "Set up your company profile in Settings to enable one-click outreach generation.",
     },
     pipeline: {
       analyze: "AI Analyze",

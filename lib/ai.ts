@@ -165,17 +165,26 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
     },
   });
 
-  // Try up to 2 times (initial + 1 retry)
+  // Try up to 3 times (initial + 2 retries)
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await genModel.generateContent(userPrompt);
       const text = result.response.text();
       return extractJson<T>(text);
     } catch (err) {
       lastError = err;
-      // Only retry on parse failures, not API errors
-      if (err instanceof SyntaxError || (err instanceof Error && err.message.startsWith("Failed to parse"))) {
+      const msg = err instanceof Error ? err.message : "";
+      // Retry on parse failures and network/fetch errors
+      if (
+        err instanceof SyntaxError ||
+        msg.startsWith("Failed to parse") ||
+        msg.includes("fetch failed") ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("timeout") ||
+        msg.includes("network")
+      ) {
+        console.warn(`[AI] Attempt ${attempt + 1} failed (${msg.slice(0, 80)}), retrying...`);
         continue;
       }
       throw err;

@@ -61,6 +61,10 @@ export function useCreateTrigger() {
       filters: TriggerFilters;
       frequency: string;
       notificationChannels: string[];
+      scheduledHour?: number;
+      scheduledMinute?: number;
+      scheduledDayOfWeek?: number | null;
+      timezone?: string;
     }) => {
       const res = await fetch("/api/triggers", {
         method: "POST",

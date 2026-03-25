@@ -813,6 +813,10 @@ const da = {
       suggestedApproach: "Foreslået tilgang",
       error: "Kunne ikke generere briefing. Prøv igen.",
       empty: "Ingen data tilgængelig til analyse.",
+      saved: "Gemt",
+      history: "Tidligere briefings",
+      viewHistory: "Vis historik",
+      hideHistory: "Skjul historik",
     },
     search: {
       placeholder: "Beskriv hvad du leder efter, f.eks. \"IT-virksomheder i København med over 20 ansatte\"",
@@ -845,6 +849,12 @@ const da = {
       copied: "Kopieret!",
       error: "Kunne ikke generere besked. Prøv igen.",
       close: "Luk",
+      saved: "Gemt",
+      history: "Tidligere udkast",
+      noHistory: "Ingen tidligere udkast for denne virksomhed",
+      viewHistory: "Vis historik",
+      hideHistory: "Skjul historik",
+      noBrand: "Opsæt din virksomhedsprofil under Indstillinger for at aktivere ét-klik beskedgenerering.",
     },
     pipeline: {
       analyze: "AI Analyse",

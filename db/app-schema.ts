@@ -342,6 +342,54 @@ export const userBrand = pgTable(
   ]
 );
 
+// ─── COMPANY BRIEFING (persisted AI-generated briefings) ─────────────────────
+
+export const companyBriefing = pgTable(
+  "company_briefing",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyVat: text("company_vat").notNull(),
+    companyName: text("company_name").notNull(),
+    briefing: text("briefing").notNull(),
+    keyInsights: jsonb("key_insights").default([]).notNull(),
+    suggestedApproach: text("suggested_approach").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("company_briefing_user_idx").on(table.userId),
+    index("company_briefing_user_vat_idx").on(table.userId, table.companyVat),
+    index("company_briefing_created_idx").on(table.createdAt),
+  ]
+);
+
+// ─── OUTREACH MESSAGE (persisted AI-generated outreach drafts) ───────────────
+
+export const outreachMessage = pgTable(
+  "outreach_message",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyVat: text("company_vat").notNull(),
+    companyName: text("company_name").notNull(),
+    type: text("type").notNull(), // 'email' | 'linkedin' | 'phone_script'
+    tone: text("tone").notNull(), // 'formal' | 'casual'
+    subject: text("subject"),
+    message: text("message").notNull(),
+    followUp: text("follow_up").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("outreach_message_user_idx").on(table.userId),
+    index("outreach_message_user_vat_idx").on(table.userId, table.companyVat),
+    index("outreach_message_created_idx").on(table.createdAt),
+  ]
+);
+
 // ─── ACTIVITY TIMELINE (unified audit trail) ────────────────────────────────
 
 export const activity = pgTable(
@@ -558,6 +606,14 @@ export const companyNoteRelations = relations(companyNote, ({ one }) => ({
 
 export const userBrandRelations = relations(userBrand, ({ one }) => ({
   user: one(user, { fields: [userBrand.userId], references: [user.id] }),
+}));
+
+export const companyBriefingRelations = relations(companyBriefing, ({ one }) => ({
+  user: one(user, { fields: [companyBriefing.userId], references: [user.id] }),
+}));
+
+export const outreachMessageRelations = relations(outreachMessage, ({ one }) => ({
+  user: one(user, { fields: [outreachMessage.userId], references: [user.id] }),
 }));
 
 export const activityRelations = relations(activity, ({ one }) => ({

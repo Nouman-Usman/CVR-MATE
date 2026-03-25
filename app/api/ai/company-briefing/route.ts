@@ -3,11 +3,12 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
-import { cacheGet, cacheSet } from "@/lib/redis";
-import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
+import { db } from "@/db";
+import { companyBriefing } from "@/db/schema";
 
 interface BriefingResponse {
+  id?: string;
   briefing: string;
   keyInsights: string[];
   suggestedApproach: string;
@@ -28,11 +29,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Check cache (include userId to separate brand-personalized results)
-    const key = cacheKey.aiBriefing(String(vat), locale) + `:${session.user.id}`;
-    const cached = await cacheGet<BriefingResponse>(key);
-    if (cached) return NextResponse.json(cached);
 
     // Fetch company data and user brand
     const [company, brand] = await Promise.all([
@@ -97,19 +93,46 @@ ${formatBrandContext(brand)}`;
       maxTokens: 2048,
     });
 
+    // Flatten nested wrapper if Gemini wraps in a top-level key
+    const topKeys = Object.keys(raw);
+    let data = raw;
+    if (topKeys.length === 1 && typeof raw[topKeys[0]] === "object" && raw[topKeys[0]] !== null) {
+      data = raw[topKeys[0]] as Record<string, unknown>;
+    }
+
     // Normalize — Gemini may vary key casing
     const result: BriefingResponse = {
-      briefing: (raw.briefing ?? raw.Briefing ?? raw.analysis ?? "") as string,
-      keyInsights: (raw.keyInsights ?? raw.key_insights ?? raw.insights ?? raw.KeyInsights ?? []) as string[],
-      suggestedApproach: (raw.suggestedApproach ?? raw.suggested_approach ?? raw.SuggestedApproach ?? raw.approach ?? "") as string,
+      briefing: String(data.briefing ?? data.Briefing ?? data.analysis ?? ""),
+      keyInsights: (
+        Array.isArray(data.keyInsights) ? data.keyInsights
+        : Array.isArray(data.key_insights) ? data.key_insights
+        : Array.isArray(data.insights) ? data.insights
+        : Array.isArray(data.KeyInsights) ? data.KeyInsights
+        : []
+      ) as string[],
+      suggestedApproach: String(data.suggestedApproach ?? data.suggested_approach ?? data.SuggestedApproach ?? data.approach ?? ""),
     };
 
-    // Cache the result
-    await cacheSet(key, result, CACHE_TTL.aiBriefing);
+    if (!result.briefing) {
+      return NextResponse.json({ error: "AI returned empty briefing" }, { status: 500 });
+    }
 
-    return NextResponse.json(result);
+    // Persist to database
+    const [saved] = await db
+      .insert(companyBriefing)
+      .values({
+        userId: session.user.id,
+        companyVat: String(vat),
+        companyName: company.life.name,
+        briefing: result.briefing,
+        keyInsights: result.keyInsights,
+        suggestedApproach: result.suggestedApproach || "",
+      })
+      .returning();
+
+    return NextResponse.json({ ...result, id: saved.id });
   } catch (error) {
-    console.error("AI briefing error:", error);
+    console.error("AI briefing error:", error instanceof Error ? error.stack : error);
     const message =
       error instanceof Error ? error.message : "Failed to generate briefing";
     return NextResponse.json({ error: message }, { status: 500 });

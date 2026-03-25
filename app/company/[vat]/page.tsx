@@ -7,8 +7,8 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useCompany } from "@/lib/hooks/use-company";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
-import { useCompanyBriefing } from "@/lib/hooks/use-company-briefing";
-import { useOutreach } from "@/lib/hooks/use-outreach";
+import { useCompanyBriefing, useSavedBriefings } from "@/lib/hooks/use-company-briefing";
+import { useOutreach, useOutreachMessages } from "@/lib/hooks/use-outreach";
 import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
@@ -203,13 +203,19 @@ export default function CompanyDetailPage() {
   const [showOutreach, setShowOutreach] = useState(false);
   const [outreachType, setOutreachType] = useState<"email" | "linkedin" | "phone_script">("email");
   const [outreachTone, setOutreachTone] = useState<"formal" | "casual">("formal");
-  const [sellingPoint, setSellingPoint] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("cvr-selling-point") || "";
-    return "";
-  });
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showOutreachHistory, setShowOutreachHistory] = useState(false);
+  const [viewingHistoryItem, setViewingHistoryItem] = useState<string | null>(null);
   const [showTodoSuggestions, setShowTodoSuggestions] = useState(false);
   const [addedTodos, setAddedTodos] = useState<Set<number>>(new Set());
+
+  // Saved outreach messages
+  const outreachMessages = useOutreachMessages(validVat);
+
+  // Saved briefings
+  const savedBriefings = useSavedBriefings(validVat);
+  const [showBriefingHistory, setShowBriefingHistory] = useState(false);
+  const [viewingBriefingItem, setViewingBriefingItem] = useState<string | null>(null);
 
   // CRM Integration
   const activeConnections = useActiveConnections();
@@ -834,10 +840,31 @@ export default function CompanyDetailPage() {
           )}
 
           {/* AI Briefing Tab */}
-          {activeTab === "ai-briefing" && (
+          {activeTab === "ai-briefing" && (() => {
+            // Use freshly generated briefing if available, else the latest saved one
+            const latestSaved = savedBriefings.data?.[0];
+            const activeBriefing = briefingMutation.data?.briefing
+              ? briefingMutation.data
+              : latestSaved
+                ? { briefing: latestSaved.briefing, keyInsights: latestSaved.keyInsights as string[], suggestedApproach: latestSaved.suggestedApproach }
+                : null;
+            const hasSavedHistory = (savedBriefings.data?.length ?? 0) > 0;
+
+            // Treat as loading while query is in initial loading OR fetching state
+            const isLoadingSaved = savedBriefings.isLoading || (savedBriefings.isFetching && !savedBriefings.data);
+
+            return (
             <div className="space-y-6">
-              {/* Generate / Regenerate */}
-              {!briefingMutation.data && !briefingMutation.isPending && (
+              {/* Loading saved briefings */}
+              {isLoadingSaved && !briefingMutation.isPending && !activeBriefing && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
+                  <div className="w-10 h-10 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-slate-500 font-medium">{ai.briefing.generating}</p>
+                </div>
+              )}
+
+              {/* Generate / Regenerate — show only when saved data loaded and empty */}
+              {!activeBriefing && !briefingMutation.isPending && !isLoadingSaved && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
                     <span className="material-symbols-outlined text-3xl text-white">auto_awesome</span>
@@ -867,40 +894,118 @@ export default function CompanyDetailPage() {
                 </div>
               )}
 
-              {/* Briefing Result */}
-              {briefingMutation.data && !briefingMutation.isPending && (
+              {/* Briefing History */}
+              {showBriefingHistory && hasSavedHistory && (
+                <div className="space-y-3">
+                  {savedBriefings.data?.map((b) => {
+                    const isViewing = viewingBriefingItem === b.id;
+                    return (
+                      <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-slate-100/60 overflow-hidden">
+                        <button
+                          onClick={() => setViewingBriefingItem(isViewing ? null : b.id)}
+                          className="w-full flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="material-symbols-outlined text-violet-500 text-lg">auto_awesome</span>
+                            <span className="text-sm font-medium text-slate-700 truncate">{ai.briefing.tab}</span>
+                            <span className="text-xs text-slate-400">
+                              {new Date(b.createdAt).toLocaleDateString(locale === "da" ? "da-DK" : "en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <span className="material-symbols-outlined text-sm text-slate-400">
+                            {isViewing ? "expand_less" : "expand_more"}
+                          </span>
+                        </button>
+                        {isViewing && (
+                          <div className="px-4 pb-4 space-y-4 border-t border-slate-50">
+                            <div className="pt-3 prose prose-sm prose-slate max-w-none">
+                              {b.briefing.split("\n").filter(Boolean).map((p, i) => (
+                                <p key={i} className="text-sm text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
+                              ))}
+                            </div>
+                            {(b.keyInsights as string[])?.length > 0 && (
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">{ai.briefing.keyInsights}</h3>
+                                <div className="space-y-2">
+                                  {(b.keyInsights as string[]).map((insight, i) => (
+                                    <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                                      <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">arrow_right</span>
+                                      <p className="text-sm text-slate-700 font-medium">{insight}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {b.suggestedApproach && (
+                              <div>
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">{ai.briefing.suggestedApproach}</h3>
+                                <p className="text-sm text-slate-700 leading-relaxed">{b.suggestedApproach}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Active Briefing Result */}
+              {activeBriefing && !briefingMutation.isPending && !showBriefingHistory && (
                 <>
                   {/* Briefing text */}
                   <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg text-violet-600">auto_awesome</span>
-                        {ai.briefing.tab}
-                      </h2>
-                      <button
-                        onClick={() => briefingMutation.mutate({ vat, locale })}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-sm">refresh</span>
-                        {ai.briefing.regenerate}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <span className="material-symbols-outlined text-lg text-violet-600">auto_awesome</span>
+                          {ai.briefing.tab}
+                        </h2>
+                        {briefingMutation.data?.briefing && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase">
+                            <span className="material-symbols-outlined text-xs">check_circle</span>
+                            {ai.briefing.saved}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasSavedHistory && (savedBriefings.data?.length ?? 0) > 1 && (
+                          <button
+                            onClick={() => { setShowBriefingHistory(true); setViewingBriefingItem(null); }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm">history</span>
+                            {ai.briefing.viewHistory}
+                            <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold">
+                              {savedBriefings.data?.length}
+                            </span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => briefingMutation.mutate({ vat, locale })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm">refresh</span>
+                          {ai.briefing.regenerate}
+                        </button>
+                      </div>
                     </div>
                     <div className="prose prose-sm prose-slate max-w-none">
-                      {briefingMutation.data.briefing.split("\n").filter(Boolean).map((p, i) => (
+                      {activeBriefing.briefing.split("\n").filter(Boolean).map((p, i) => (
                         <p key={i} className="text-sm text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
                       ))}
                     </div>
                   </div>
 
                   {/* Key Insights */}
-                  {briefingMutation.data.keyInsights?.length > 0 && (
+                  {activeBriefing.keyInsights?.length > 0 && (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
                       <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg text-amber-500">lightbulb</span>
                         {ai.briefing.keyInsights}
                       </h2>
                       <div className="space-y-2">
-                        {briefingMutation.data.keyInsights.map((insight, i) => (
+                        {activeBriefing.keyInsights.map((insight, i) => (
                           <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
                             <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">arrow_right</span>
                             <p className="text-sm text-slate-700 font-medium">{insight}</p>
@@ -911,13 +1016,13 @@ export default function CompanyDetailPage() {
                   )}
 
                   {/* Suggested Approach */}
-                  {briefingMutation.data.suggestedApproach && (
+                  {activeBriefing.suggestedApproach && (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
                       <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg text-emerald-500">route</span>
                         {ai.briefing.suggestedApproach}
                       </h2>
-                      <p className="text-sm text-slate-700 leading-relaxed">{briefingMutation.data.suggestedApproach}</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{activeBriefing.suggestedApproach}</p>
                     </div>
                   )}
 
@@ -1007,8 +1112,22 @@ export default function CompanyDetailPage() {
                   </div>
                 </>
               )}
+
+              {/* Back to current briefing from history */}
+              {showBriefingHistory && (
+                <div className="text-center">
+                  <button
+                    onClick={() => setShowBriefingHistory(false)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">arrow_back</span>
+                    {ai.briefing.hideHistory}
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Outreach Slide-over */}
           {showOutreach && (
@@ -1020,152 +1139,249 @@ export default function CompanyDetailPage() {
                     <span className="material-symbols-outlined text-violet-600">edit_note</span>
                     {ai.outreach.title}
                   </h2>
-                  <button
-                    onClick={() => setShowOutreach(false)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-slate-400">close</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {outreachMessages.data && outreachMessages.data.length > 0 && (
+                      <button
+                        onClick={() => { setShowOutreachHistory(!showOutreachHistory); setViewingHistoryItem(null); }}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                          showOutreachHistory ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">history</span>
+                        {showOutreachHistory ? ai.outreach.hideHistory : ai.outreach.viewHistory}
+                        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold">
+                          {outreachMessages.data.length}
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowOutreach(false)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-slate-400">close</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-6 space-y-5">
-                  {/* Message type */}
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.type}</label>
-                    <div className="flex gap-2">
-                      {(["email", "linkedin", "phone_script"] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setOutreachType(t)}
-                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
-                            outreachType === t ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                          }`}
-                        >
-                          {t === "email" ? ai.outreach.email : t === "linkedin" ? ai.outreach.linkedin : ai.outreach.phoneScript}
-                        </button>
-                      ))}
+                  {/* History view */}
+                  {showOutreachHistory && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.history}</h3>
+                      {outreachMessages.data?.map((msg) => {
+                        const isViewing = viewingHistoryItem === msg.id;
+                        return (
+                          <div key={msg.id} className="border border-slate-100 rounded-xl overflow-hidden">
+                            <button
+                              onClick={() => setViewingHistoryItem(isViewing ? null : msg.id)}
+                              className="w-full flex items-center justify-between p-3 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  msg.type === "email" ? "bg-blue-50 text-blue-600" :
+                                  msg.type === "linkedin" ? "bg-sky-50 text-sky-600" :
+                                  "bg-amber-50 text-amber-600"
+                                }`}>
+                                  {msg.type === "email" ? ai.outreach.email : msg.type === "linkedin" ? ai.outreach.linkedin : ai.outreach.phoneScript}
+                                </span>
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  msg.tone === "formal" ? "bg-slate-100 text-slate-500" : "bg-purple-50 text-purple-500"
+                                }`}>
+                                  {msg.tone === "formal" ? ai.outreach.formal : ai.outreach.casual}
+                                </span>
+                                <span className="text-xs text-slate-400 truncate">
+                                  {new Date(msg.createdAt).toLocaleDateString(locale === "da" ? "da-DK" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <span className="material-symbols-outlined text-sm text-slate-400">
+                                {isViewing ? "expand_less" : "expand_more"}
+                              </span>
+                            </button>
+                            {isViewing && (
+                              <div className="px-3 pb-3 space-y-3 border-t border-slate-50">
+                                {msg.subject && (
+                                  <div className="pt-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.subject}</label>
+                                      <button
+                                        onClick={() => { navigator.clipboard.writeText(msg.subject ?? ""); setCopiedField(`h-subject-${msg.id}`); setTimeout(() => setCopiedField(null), 2000); }}
+                                        className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                                      >
+                                        {copiedField === `h-subject-${msg.id}` ? ai.outreach.copied : ai.outreach.copy}
+                                      </button>
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-800 font-medium">{msg.subject}</div>
+                                  </div>
+                                )}
+                                <div className={msg.subject ? "" : "pt-3"}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.message}</label>
+                                    <button
+                                      onClick={() => { navigator.clipboard.writeText(msg.message); setCopiedField(`h-msg-${msg.id}`); setTimeout(() => setCopiedField(null), 2000); }}
+                                      className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                                    >
+                                      {copiedField === `h-msg-${msg.id}` ? ai.outreach.copied : ai.outreach.copy}
+                                    </button>
+                                  </div>
+                                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{msg.message}</div>
+                                </div>
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.followUp}</label>
+                                    <button
+                                      onClick={() => { navigator.clipboard.writeText(msg.followUp); setCopiedField(`h-fu-${msg.id}`); setTimeout(() => setCopiedField(null), 2000); }}
+                                      className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                                    >
+                                      {copiedField === `h-fu-${msg.id}` ? ai.outreach.copied : ai.outreach.copy}
+                                    </button>
+                                  </div>
+                                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{msg.followUp}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-
-                  {/* Tone */}
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.tone}</label>
-                    <div className="flex gap-2">
-                      {(["formal", "casual"] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setOutreachTone(t)}
-                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
-                            outreachTone === t ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                          }`}
-                        >
-                          {t === "formal" ? ai.outreach.formal : ai.outreach.casual}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Selling point */}
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.sellingPoint}</label>
-                    <textarea
-                      value={sellingPoint}
-                      onChange={(e) => {
-                        setSellingPoint(e.target.value);
-                        localStorage.setItem("cvr-selling-point", e.target.value);
-                      }}
-                      placeholder={ai.outreach.sellingPointPlaceholder}
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-none"
-                    />
-                  </div>
-
-                  {/* Generate button */}
-                  <button
-                    onClick={() => outreachMutation.mutate({
-                      vat,
-                      type: outreachType,
-                      tone: outreachTone,
-                      sellingPoint,
-                      locale,
-                    })}
-                    disabled={!sellingPoint.trim() || outreachMutation.isPending}
-                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {outreachMutation.isPending ? "hourglass_empty" : "auto_awesome"}
-                    </span>
-                    {outreachMutation.isPending
-                      ? ai.outreach.generating
-                      : outreachMutation.data ? ai.outreach.regenerate : ai.outreach.generate}
-                  </button>
-
-                  {outreachMutation.isError && (
-                    <p className="text-sm text-red-500">{ai.outreach.error}</p>
                   )}
 
-                  {/* Result */}
-                  {outreachMutation.data && !outreachMutation.isPending && (
-                    <div className="space-y-4 pt-2">
-                      {outreachMutation.data.subject && (
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.subject}</label>
+                  {/* Generate new outreach */}
+                  {!showOutreachHistory && (
+                    <>
+                      {/* Message type */}
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.type}</label>
+                        <div className="flex gap-2">
+                          {(["email", "linkedin", "phone_script"] as const).map((t) => (
                             <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(outreachMutation.data?.subject ?? "");
-                                setCopiedField("subject");
-                                setTimeout(() => setCopiedField(null), 2000);
-                              }}
-                              className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                              key={t}
+                              onClick={() => setOutreachType(t)}
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                                outreachType === t ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                              }`}
                             >
-                              {copiedField === "subject" ? ai.outreach.copied : ai.outreach.copy}
+                              {t === "email" ? ai.outreach.email : t === "linkedin" ? ai.outreach.linkedin : ai.outreach.phoneScript}
                             </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tone */}
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 block">{ai.outreach.tone}</label>
+                        <div className="flex gap-2">
+                          {(["formal", "casual"] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setOutreachTone(t)}
+                              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                                outreachTone === t ? "bg-violet-100 text-violet-700" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                              }`}
+                            >
+                              {t === "formal" ? ai.outreach.formal : ai.outreach.casual}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Generate button — uses brand products, no selling point needed */}
+                      <button
+                        onClick={() => outreachMutation.mutate({
+                          vat,
+                          type: outreachType,
+                          tone: outreachTone,
+                          locale,
+                        })}
+                        disabled={outreachMutation.isPending}
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="material-symbols-outlined text-lg">
+                          {outreachMutation.isPending ? "hourglass_empty" : "auto_awesome"}
+                        </span>
+                        {outreachMutation.isPending
+                          ? ai.outreach.generating
+                          : outreachMutation.data ? ai.outreach.regenerate : ai.outreach.generate}
+                      </button>
+
+                      {outreachMutation.isError && (
+                        <p className="text-sm text-red-500">{ai.outreach.error}</p>
+                      )}
+
+                      {/* Result */}
+                      {outreachMutation.data && !outreachMutation.isPending && !outreachMutation.data.message && (
+                        <p className="text-sm text-red-500">{ai.outreach.error}</p>
+                      )}
+
+                      {outreachMutation.data && !outreachMutation.isPending && outreachMutation.data.message && (
+                        <div className="space-y-4 pt-2">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase">
+                              <span className="material-symbols-outlined text-xs">check_circle</span>
+                              {ai.outreach.saved}
+                            </span>
                           </div>
-                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-800 font-medium">
-                            {outreachMutation.data.subject}
+
+                          {outreachMutation.data.subject && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.subject}</label>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(outreachMutation.data?.subject ?? "");
+                                    setCopiedField("subject");
+                                    setTimeout(() => setCopiedField(null), 2000);
+                                  }}
+                                  className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                                >
+                                  {copiedField === "subject" ? ai.outreach.copied : ai.outreach.copy}
+                                </button>
+                              </div>
+                              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-800 font-medium">
+                                {outreachMutation.data.subject}
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.message}</label>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(outreachMutation.data?.message ?? "");
+                                  setCopiedField("message");
+                                  setTimeout(() => setCopiedField(null), 2000);
+                                }}
+                                className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                              >
+                                {copiedField === "message" ? ai.outreach.copied : ai.outreach.copy}
+                              </button>
+                            </div>
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                              {outreachMutation.data.message}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.followUp}</label>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(outreachMutation.data?.followUp ?? "");
+                                  setCopiedField("followup");
+                                  setTimeout(() => setCopiedField(null), 2000);
+                                }}
+                                className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
+                              >
+                                {copiedField === "followup" ? ai.outreach.copied : ai.outreach.copy}
+                              </button>
+                            </div>
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                              {outreachMutation.data.followUp}
+                            </div>
                           </div>
                         </div>
                       )}
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.message}</label>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(outreachMutation.data?.message ?? "");
-                              setCopiedField("message");
-                              setTimeout(() => setCopiedField(null), 2000);
-                            }}
-                            className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
-                          >
-                            {copiedField === "message" ? ai.outreach.copied : ai.outreach.copy}
-                          </button>
-                        </div>
-                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                          {outreachMutation.data.message}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">{ai.outreach.followUp}</label>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(outreachMutation.data?.followUp ?? "");
-                              setCopiedField("followup");
-                              setTimeout(() => setCopiedField(null), 2000);
-                            }}
-                            className="text-xs text-violet-600 hover:text-violet-700 font-semibold cursor-pointer"
-                          >
-                            {copiedField === "followup" ? ai.outreach.copied : ai.outreach.copy}
-                          </button>
-                        </div>
-                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                          {outreachMutation.data.followUp}
-                        </div>
-                      </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>

@@ -3,9 +3,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
-import { cacheGet, cacheSet } from "@/lib/redis";
-import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
+import { db } from "@/db";
+import { outreachMessage } from "@/db/schema";
 
 interface OutreachResponse {
   subject?: string;
@@ -38,17 +38,8 @@ export async function POST(req: NextRequest) {
 
     // Use brand data as defaults for sellingPoint and tone
     const brand = await getUserBrand(session.user.id);
-    const sellingPoint = requestSellingPoint || brand?.products;
+    const sellingPoint = requestSellingPoint || brand?.products || "";
     const tone = requestTone || brand?.tone || "formal";
-
-    if (!sellingPoint || typeof sellingPoint !== "string") {
-      return NextResponse.json(
-        { error: "sellingPoint is required" },
-        { status: 400 }
-      );
-    }
-
-    const key = cacheKey.aiOutreach(String(vat), type, tone) + `:${session.user.id}`;
 
     const company = await getCompanyByVat(Number(vat));
     const accounting = company.accounting?.documents?.[0]?.summary;
@@ -90,7 +81,7 @@ ${targetPerson}
 KEY PEOPLE:
 ${participants.slice(0, 5).map(p => `- ${p.life.name}: ${p.roles?.life?.title ?? p.roles?.type ?? "N/A"}`).join("\n") || "Not available"}
 
-WHAT I'M SELLING: ${sellingPoint}
+${sellingPoint ? `WHAT I'M SELLING: ${sellingPoint}` : ""}
 
 ${formatBrandContext(brand)}
 
@@ -116,13 +107,21 @@ Respond with a JSON object:
       maxTokens: 2048,
     });
 
-    console.log("AI outreach raw keys:", Object.keys(raw), "raw:", JSON.stringify(raw).slice(0, 500));
-
     // Gemini sometimes wraps the response inside a single top-level key
-    // e.g. { "response": { "message": "...", ... } } or { "email": { ... } }
     const rawKeys = Object.keys(raw);
     if (rawKeys.length === 1 && typeof raw[rawKeys[0]] === "object" && raw[rawKeys[0]] !== null) {
       raw = raw[rawKeys[0]] as Record<string, unknown>;
+    }
+
+    // Flatten any nested objects into the raw object for key lookup
+    for (const [rk, rv] of Object.entries(raw)) {
+      if (rv != null && typeof rv === "object" && !Array.isArray(rv)) {
+        for (const [nk, nv] of Object.entries(rv as Record<string, unknown>)) {
+          if (typeof nv === "string" && !(nk in raw)) {
+            raw[nk] = nv;
+          }
+        }
+      }
     }
 
     // Find a string value by checking multiple possible key names (case-insensitive)
@@ -130,12 +129,12 @@ Respond with a JSON object:
       for (const k of keys) {
         if (raw[k] != null && typeof raw[k] === "string") return raw[k] as string;
       }
-      // Case-insensitive fallback
       for (const [rk, rv] of Object.entries(raw)) {
         if (rv != null && typeof rv === "string") {
-          const lower = rk.toLowerCase().replace(/_/g, "");
+          const lower = rk.toLowerCase().replace(/[_\s-]/g, "");
           for (const k of keys) {
-            if (lower === k.toLowerCase().replace(/_/g, "")) return rv;
+            if (lower === k.toLowerCase().replace(/[_\s-]/g, "")) return rv;
+            if (lower.includes(k.toLowerCase().replace(/[_\s-]/g, ""))) return rv;
           }
         }
       }
@@ -148,14 +147,26 @@ Respond with a JSON object:
       followUp: get("followUp", "follow_up", "followup", "followUpMessage", "follow_up_message"),
     };
 
-    console.log("AI outreach normalized:", { subject: !!normalized.subject, messageLen: normalized.message.length, followUpLen: normalized.followUp.length });
-
-    // Only cache if we got real content
-    if (normalized.message.length > 0) {
-      await cacheSet(key, normalized, CACHE_TTL.aiOutreach);
+    if (!normalized.message) {
+      return NextResponse.json({ error: "AI returned empty message" }, { status: 500 });
     }
 
-    return NextResponse.json(normalized);
+    // Persist to database
+    const [saved] = await db
+      .insert(outreachMessage)
+      .values({
+        userId: session.user.id,
+        companyVat: String(vat),
+        companyName: company.life.name,
+        type,
+        tone,
+        subject: normalized.subject || null,
+        message: normalized.message,
+        followUp: normalized.followUp || "",
+      })
+      .returning();
+
+    return NextResponse.json({ ...normalized, id: saved.id });
   } catch (error) {
     console.error("AI outreach error:", error);
     const message =

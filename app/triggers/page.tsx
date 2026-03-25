@@ -121,6 +121,7 @@ export default function TriggersPage() {
             setDialogOpen(false);
             showToast(tr.updated);
           },
+          onError: () => showToast(tr.runError),
         }
       );
     } else {
@@ -129,6 +130,7 @@ export default function TriggersPage() {
           setDialogOpen(false);
           showToast(tr.created);
         },
+        onError: () => showToast(tr.runError),
       });
     }
   };
@@ -138,6 +140,7 @@ export default function TriggersPage() {
   };
 
   const handleDelete = (id: string) => {
+    if (!window.confirm(tr.deleteConfirm)) return;
     deleteMutation.mutate(id, {
       onSuccess: () => showToast(tr.deleted),
     });
