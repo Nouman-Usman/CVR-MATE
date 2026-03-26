@@ -8,7 +8,7 @@ function getClient(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(apiKey);
 }
 
-export type AiModel = "gemini-2.5-flash" | "gemini-2.5-pro";
+export type AiModel = "gemini-2.0-flash" | "gemini-2.5-flash" | "gemini-2.5-pro";
 
 interface GenerateOptions {
   model?: AiModel;
@@ -19,7 +19,7 @@ interface GenerateOptions {
 
 export async function generateAiResponse(options: GenerateOptions): Promise<string> {
   const {
-    model = "gemini-2.5-flash",
+    model = "gemini-2.0-flash",
     systemPrompt,
     userPrompt,
     maxTokens = 1024,
@@ -34,9 +34,17 @@ export async function generateAiResponse(options: GenerateOptions): Promise<stri
     },
   });
 
-  const result = await genModel.generateContent(userPrompt);
-  const text = result.response.text();
-  return text;
+  try {
+    const result = await genModel.generateContent(userPrompt);
+    const text = result.response.text();
+    return text;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("429") || msg.includes("quota") || msg.includes("Too Many Requests")) {
+      throw new Error("AI rate limit reached. Please wait a moment and try again.");
+    }
+    throw err;
+  }
 }
 
 /**
@@ -149,7 +157,7 @@ function extractJson<T>(raw: string): T {
 
 export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
   const {
-    model = "gemini-2.5-flash",
+    model = "gemini-2.0-flash",
     systemPrompt,
     userPrompt,
     maxTokens = 1024,
@@ -175,6 +183,12 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
     } catch (err) {
       lastError = err;
       const msg = err instanceof Error ? err.message : "";
+
+      // Rate limit — throw user-friendly error immediately (no retry)
+      if (msg.includes("429") || msg.includes("quota") || msg.includes("Too Many Requests")) {
+        throw new Error("AI rate limit reached. Please wait a moment and try again.");
+      }
+
       // Retry on parse failures and network/fetch errors
       if (
         err instanceof SyntaxError ||

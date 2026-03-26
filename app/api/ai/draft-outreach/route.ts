@@ -111,7 +111,7 @@ Respond with a JSON object:
 }`;
 
     let raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       systemPrompt,
       userPrompt,
       maxTokens: 2048,
