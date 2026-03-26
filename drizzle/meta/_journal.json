@@ -43,6 +43,13 @@
       "when": 1774473238242,
       "tag": "0005_small_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774549059212,
+      "tag": "0006_lethal_mac_gargan",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
 import { useIntegrations, useCrmDisconnect, useSyncHistory } from "@/lib/hooks/use-integrations";
+import { useSubscription, useCheckout, useCustomerPortal } from "@/lib/hooks/use-subscription";
 
 function Toggle({
   checked,
@@ -56,6 +57,185 @@ interface Org {
   slug: string;
   members?: OrgMember[];
   invitations?: OrgInvitation[];
+}
+
+// ─── Subscription Section ─────────────────────────────────────────────────────
+
+const PLAN_COLORS = {
+  free: { bg: "bg-slate-100", text: "text-slate-700" },
+  go: { bg: "bg-blue-50", text: "text-blue-700" },
+  flow: { bg: "bg-violet-50", text: "text-violet-700" },
+} as const;
+
+function SubscriptionSection() {
+  const { t, locale } = useLanguage();
+  const st = t.settings;
+  const sub = st.subscription as Record<string, unknown>;
+  const { data, isLoading } = useSubscription();
+  const checkoutMutation = useCheckout();
+  const portalMutation = useCustomerPortal();
+
+  const cardClass =
+    "bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8";
+
+  const goPriceId = process.env.NEXT_PUBLIC_STRIPE_GO_PRICE_ID;
+  const flowPriceId = process.env.NEXT_PUBLIC_STRIPE_FLOW_PRICE_ID;
+
+  const plan = data?.plan ?? "free";
+  const planColor = PLAN_COLORS[plan];
+  const planNames = {
+    free: (sub.free as { name: string })?.name ?? "Free",
+    go: (sub.go as { name: string })?.name ?? "CVR-MATE GO",
+    flow: (sub.flow as { name: string })?.name ?? "CVR-MATE FLOW",
+  };
+  const planDescriptions = {
+    free: (sub.free as { description: string })?.description ?? "",
+    go: (sub.go as { description: string })?.description ?? "",
+    flow: (sub.flow as { description: string })?.description ?? "",
+  };
+
+  const isPaid = plan !== "free";
+  const isPastDue = data?.status === "past_due";
+  const isCanceling = data?.cancelAtPeriodEnd === true;
+
+  const nextBillingDate = data?.currentPeriodEnd
+    ? new Date(data.currentPeriodEnd).toLocaleDateString(
+        locale === "da" ? "da-DK" : "en-US",
+        { year: "numeric", month: "long", day: "numeric" }
+      )
+    : null;
+
+  return (
+    <div className={cardClass}>
+      <div className="flex items-center gap-2 mb-6">
+        <span className="material-symbols-outlined text-slate-400 text-xl">
+          credit_card
+        </span>
+        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+          {sub.title as string}
+        </h2>
+      </div>
+
+      {isLoading ? (
+        <div className="bg-slate-50 rounded-xl p-6 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <>
+          {/* Past-due warning */}
+          {isPastDue && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+              <span className="material-symbols-outlined text-red-500 text-lg mt-0.5 shrink-0">error</span>
+              <div>
+                <p className="text-sm font-semibold text-red-700">{sub.pastDueWarning as string}</p>
+                <button
+                  onClick={() => portalMutation.mutate()}
+                  disabled={portalMutation.isPending}
+                  className="mt-2 text-sm font-medium text-red-600 hover:text-red-800 underline cursor-pointer"
+                >
+                  {sub.updatePayment as string}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Cancel notice */}
+          {isCanceling && !isPastDue && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">schedule</span>
+              <p className="text-sm text-amber-700">{sub.cancelNotice as string}</p>
+            </div>
+          )}
+
+          {/* Current plan card */}
+          <div className="bg-slate-50 rounded-xl p-6 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <span className={`px-3 py-1 ${planColor.bg} ${planColor.text} rounded-full text-xs font-bold uppercase tracking-wider`}>
+                    {planNames[plan]}
+                  </span>
+                  {isPaid && data?.price != null && (
+                    <span className="text-lg font-black text-slate-900">
+                      {data.price.toLocaleString(locale === "da" ? "da-DK" : "en-US")} {data.currency}{sub.perMonth as string}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-slate-500 mt-1">{planDescriptions[plan]}</p>
+                {nextBillingDate && isPaid && !isCanceling && (
+                  <p className="text-xs text-slate-400 mt-2">
+                    {sub.nextBilling as string}: {nextBillingDate}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 self-start shrink-0">
+                {isPaid ? (
+                  <button
+                    onClick={() => portalMutation.mutate()}
+                    disabled={portalMutation.isPending}
+                    className="px-5 py-2.5 border-2 border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {portalMutation.isPending ? (
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      sub.manageBilling as string
+                    )}
+                  </button>
+                ) : (
+                  <p className="text-sm text-slate-400">{sub.freePlan as string}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Upgrade options for non-Flow users */}
+          {plan !== "flow" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {plan === "free" && goPriceId && (
+                <button
+                  onClick={() => checkoutMutation.mutate(goPriceId)}
+                  disabled={checkoutMutation.isPending}
+                  className="flex items-center justify-between p-4 rounded-xl border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-slate-900">{planNames.go}</p>
+                    <p className="text-xs text-slate-500">{planDescriptions.go}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-bold text-blue-600">2.999 DKK{sub.perMonth as string}</span>
+                    <span className="material-symbols-outlined text-blue-600 text-lg">arrow_forward</span>
+                  </div>
+                </button>
+              )}
+              {flowPriceId && (
+                <button
+                  onClick={() => {
+                    if (isPaid) {
+                      portalMutation.mutate();
+                    } else {
+                      checkoutMutation.mutate(flowPriceId);
+                    }
+                  }}
+                  disabled={checkoutMutation.isPending || portalMutation.isPending}
+                  className="flex items-center justify-between p-4 rounded-xl border-2 border-violet-200 hover:border-violet-400 hover:bg-violet-50/50 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-slate-900">{planNames.flow}</p>
+                    <p className="text-xs text-slate-500">{planDescriptions.flow}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm font-bold text-violet-600">4.999 DKK{sub.perMonth as string}</span>
+                    <span className="material-symbols-outlined text-violet-600 text-lg">arrow_forward</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 // ─── CRM Integrations Section ────────────────────────────────────────────────
@@ -1365,47 +1545,7 @@ export default function SettingsPage() {
         <CrmIntegrationsSection />
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
-        <div className={cardClass}>
-          <div className="flex items-center gap-2 mb-6">
-            <span className="material-symbols-outlined text-slate-400 text-xl">
-              credit_card
-            </span>
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              {st.subscription.title}
-            </h2>
-          </div>
-
-          <div className="bg-slate-50 rounded-xl p-6 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider">
-                  {st.subscription.plan}
-                </span>
-                <span className="text-lg font-black text-slate-900">
-                  {st.subscription.price}
-                </span>
-              </div>
-              <button className="self-start px-5 py-2.5 border-2 border-blue-600 rounded-full text-sm font-medium text-blue-600 hover:bg-blue-600 hover:text-white transition-colors">
-                {st.subscription.upgrade}
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">
-                  3.241 / 5.000 {st.subscription.usage}
-                </span>
-                <span className="font-bold text-slate-700">65%</span>
-              </div>
-              <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full transition-all"
-                  style={{ width: "65%" }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <SubscriptionSection />
 
         {/* ── Danger zone ──────────────────────────────────────────────── */}
         <div className="bg-red-50/50 rounded-2xl border border-red-100 p-4 sm:p-6 md:p-8">

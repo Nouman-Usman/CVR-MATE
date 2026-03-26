@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { company, savedCompany } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
 
 // GET /api/cvr/saved — list saved companies for the current user
 export async function GET() {
@@ -42,6 +43,24 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check saved companies limit
+    const [{ value: savedCount }] = await db
+      .select({ value: count() })
+      .from(savedCompany)
+      .where(eq(savedCompany.userId, session.user.id));
+
+    const { allowed, limit } = await checkUsageEntitlement(
+      session.user.id,
+      "savedCompanies",
+      savedCount
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Saved companies limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 import { leadTrigger } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { computeNextRun, buildCronExpression } from "@/lib/cron";
+import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
 
 export async function GET() {
   try {
@@ -39,6 +40,24 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check trigger limit
+    const [{ value: triggerCount }] = await db
+      .select({ value: count() })
+      .from(leadTrigger)
+      .where(eq(leadTrigger.userId, session.user.id));
+
+    const { allowed, limit } = await checkUsageEntitlement(
+      session.user.id,
+      "triggers",
+      triggerCount
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Trigger limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();
