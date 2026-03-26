@@ -438,7 +438,7 @@ export default function CompanyDetailPage() {
                     </span>
                   )}
                   {company.life?.adprotected && (
-                    <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700">
+                    <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
                       {cd.adProtected}
                     </span>
                   )}

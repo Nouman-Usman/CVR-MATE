@@ -8,7 +8,7 @@ function getClient(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(apiKey);
 }
 
-export type AiModel = "gemini-2.5-flash" | "gemini-2.5-flash" | "gemini-2.5-pro";
+export type AiModel = "gemini-2.5-flash" | "gemini-2.5-pro" | "gemini-2.0-flash-lite";
 
 interface GenerateOptions {
   model?: AiModel;
@@ -59,7 +59,12 @@ function extractJson<T>(raw: string): T {
 
   // Try direct parse first
   try {
-    return JSON.parse(text) as T;
+    const parsed = JSON.parse(text);
+    // Reject empty objects/arrays — likely truncated or broken response
+    if (parsed && typeof parsed === "object" && Object.keys(parsed).length === 0 && !Array.isArray(parsed)) {
+      throw new Error("Parsed to empty object — likely truncated");
+    }
+    return parsed as T;
   } catch {
     // Continue to repair attempts
   }
@@ -115,44 +120,88 @@ function extractJson<T>(raw: string): T {
 
     const candidate = text.slice(start, end + 1);
     try {
-      return JSON.parse(candidate) as T;
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        return parsed as T;
+      }
     } catch {
       // Try fixing truncated JSON by closing open braces/brackets
-      let fixed = candidate;
-      // Remove trailing comma before we add closing brackets
-      fixed = fixed.replace(/,\s*$/, "");
+    }
 
-      // Recount open vs close braces/brackets
-      let braces = 0;
-      let brackets = 0;
-      let inStr = false;
-      let esc = false;
-      for (const c of fixed) {
-        if (esc) { esc = false; continue; }
-        if (c === "\\") { esc = true; continue; }
-        if (c === '"') { inStr = !inStr; continue; }
-        if (inStr) continue;
-        if (c === "{") braces++;
-        if (c === "}") braces--;
-        if (c === "[") brackets++;
-        if (c === "]") brackets--;
+    let fixed = candidate;
+    // Remove trailing comma before we add closing brackets
+    fixed = fixed.replace(/,\s*$/, "");
+
+    // Recount open vs close braces/brackets
+    let braces = 0;
+    let brackets = 0;
+    let inStr = false;
+    let esc = false;
+    for (const c of fixed) {
+      if (esc) { esc = false; continue; }
+      if (c === "\\") { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === "{") braces++;
+      if (c === "}") braces--;
+      if (c === "[") brackets++;
+      if (c === "]") brackets--;
+    }
+
+    // If we're inside a string, close it
+    if (inStr) fixed += '"';
+    // Close open brackets/braces
+    while (brackets > 0) { fixed += "]"; brackets--; }
+    while (braces > 0) { fixed += "}"; braces--; }
+
+    try {
+      const parsed = JSON.parse(fixed);
+      if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+        return parsed as T;
       }
-
-      // If we're inside a string, close it
-      if (inStr) fixed += '"';
-      // Close open brackets/braces
-      while (brackets > 0) { fixed += "]"; brackets--; }
-      while (braces > 0) { fixed += "}"; braces--; }
-
-      try {
-        return JSON.parse(fixed) as T;
-      } catch {
-        // Give up
-      }
+    } catch {
+      // Give up
     }
   }
 
-  throw new Error(`Failed to parse AI JSON response: ${text.slice(0, 200)}`);
+  throw new Error(`Failed to parse AI JSON response (possibly truncated): ${text.slice(0, 300)}`);
+}
+
+/**
+ * Extract the actual text content from a Gemini response,
+ * handling thinking models where .text() may return empty.
+ */
+function extractResponseText(result: { response: { text: () => string; candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] } }): string {
+  // Try the standard .text() first
+  const directText = result.response.text();
+  if (directText && directText.trim() !== "" && directText.trim() !== "{}") {
+    return directText;
+  }
+
+  // For thinking models (gemini-2.5-*), .text() can return empty.
+  // Walk the response parts and collect non-thought text parts.
+  const candidates = result.response.candidates;
+  if (candidates?.[0]?.content?.parts) {
+    const textParts: string[] = [];
+    for (const part of candidates[0].content.parts) {
+      // Skip thinking/thought parts — we only want the actual output
+      if (part.thought) continue;
+      if (part.text) textParts.push(part.text);
+    }
+    if (textParts.length > 0) {
+      return textParts.join("");
+    }
+
+    // If ALL parts are thought parts, try collecting those as last resort
+    for (const part of candidates[0].content.parts) {
+      if (part.text) textParts.push(part.text);
+    }
+    if (textParts.length > 0) {
+      return textParts.join("");
+    }
+  }
+
+  return directText;
 }
 
 export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
@@ -163,22 +212,39 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
     maxTokens = 1024,
   } = options;
 
+  const isThinkingModel = model.includes("2.5");
   const client = getClient();
+
+  // Thinking models (gemini-2.5-*) use thinking tokens that count toward
+  // maxOutputTokens. We need a much larger budget so the actual JSON output
+  // isn't truncated. Also omit responseMimeType which breaks thinking models.
+  const effectiveMaxTokens = isThinkingModel ? Math.max(maxTokens * 5, 16384) : maxTokens;
+
   const genModel = client.getGenerativeModel({
     model,
     systemInstruction: systemPrompt,
     generationConfig: {
-      maxOutputTokens: maxTokens,
-      responseMimeType: "application/json",
+      maxOutputTokens: effectiveMaxTokens,
+      ...(isThinkingModel ? {} : { responseMimeType: "application/json" }),
     },
   });
+
+  const jsonPrompt = isThinkingModel
+    ? `${userPrompt}\n\nIMPORTANT: Respond ONLY with a valid JSON object. No markdown fences, no explanation outside the JSON.`
+    : userPrompt;
 
   // Try up to 3 times (initial + 2 retries)
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await genModel.generateContent(userPrompt);
-      const text = result.response.text();
+      const result = await genModel.generateContent(jsonPrompt);
+      const text = extractResponseText(result);
+      console.log(`[AI JSON] ${model} attempt ${attempt + 1}: ${text.length} chars`);
+
+      if (!text || text.trim() === "" || text.trim() === "{}") {
+        throw new Error("AI returned empty response");
+      }
+
       return extractJson<T>(text);
     } catch (err) {
       lastError = err;
@@ -189,10 +255,13 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
         throw new Error("AI rate limit reached. Please wait a moment and try again.");
       }
 
-      // Retry on parse failures and network/fetch errors
+      // Retry on parse failures, empty responses, and network errors
       if (
         err instanceof SyntaxError ||
         msg.startsWith("Failed to parse") ||
+        msg.includes("truncated") ||
+        msg.includes("empty response") ||
+        msg.includes("empty object") ||
         msg.includes("fetch failed") ||
         msg.includes("ECONNRESET") ||
         msg.includes("timeout") ||
