@@ -5,10 +5,11 @@ import { db } from "@/db";
 import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
+import { verifyQStashRequest } from "@/lib/qstash";
 
 // Cron endpoint: processes all active triggers that are due.
-// Secured via CRON_SECRET header. Configure in vercel.json.
-// Runs every 10 minutes to check for due triggers.
+// Secured via QStash signature (production) or CRON_SECRET Bearer token (local/manual).
+// Scheduled via Upstash QStash (POST) — GET kept for manual testing.
 
 function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
   const params: SearchCompanyParams = {
@@ -27,16 +28,16 @@ function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParam
   return params;
 }
 
-export async function GET(req: NextRequest) {
-  // ─── Auth: Vercel sends this header, or use Bearer token for manual calls ───
+async function verifyAuth(req: NextRequest): Promise<boolean> {
+  // Try QStash signature first (production)
+  if (await verifyQStashRequest(req)) return true;
+  // Fall back to Bearer token (manual/local testing)
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const authHeader = req.headers.get("authorization");
+  return !!cronSecret && authHeader === `Bearer ${cronSecret}`;
+}
 
+async function processTriggers() {
   try {
     const now = new Date();
 
@@ -146,4 +147,20 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// POST: Called by QStash in production
+export async function POST(req: NextRequest) {
+  if (!(await verifyAuth(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return processTriggers();
+}
+
+// GET: For manual testing / backward compatibility
+export async function GET(req: NextRequest) {
+  if (!(await verifyAuth(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return processTriggers();
 }
