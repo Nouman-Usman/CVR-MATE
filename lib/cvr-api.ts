@@ -24,7 +24,7 @@ async function cvrFetch<T>(path: string, params?: Record<string, string>): Promi
       Accept: "application/json",
       Authorization: getAuthHeader(),
     },
-    next: { revalidate: 60 },
+    cache: "no-store",
   });
 
   if (!res.ok) {

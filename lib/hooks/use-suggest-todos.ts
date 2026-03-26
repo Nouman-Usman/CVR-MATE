@@ -15,12 +15,12 @@ export interface SuggestTodosResponse {
 }
 
 export function useSuggestTodos() {
-  return useMutation<SuggestTodosResponse, Error, { vat: string; locale: string }>({
-    mutationFn: async ({ vat, locale }) => {
+  return useMutation<SuggestTodosResponse, Error, { vat: string; locale: string; companyData?: Record<string, unknown> }>({
+    mutationFn: async ({ vat, locale, companyData }) => {
       const res = await fetch("/api/ai/suggest-todos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vat, locale }),
+        body: JSON.stringify({ vat, locale, companyData }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to suggest tasks");

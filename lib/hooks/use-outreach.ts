@@ -17,6 +17,7 @@ interface OutreachParams {
   sellingPoint?: string;
   targetRole?: string;
   locale: string;
+  companyData?: Record<string, unknown>;
 }
 
 export interface SavedOutreachMessage {

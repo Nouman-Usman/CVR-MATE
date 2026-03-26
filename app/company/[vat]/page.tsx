@@ -874,7 +874,7 @@ export default function CompanyDetailPage() {
                     {ai.briefing.empty}
                   </p>
                   <button
-                    onClick={() => briefingMutation.mutate({ vat, locale })}
+                    onClick={() => briefingMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> })}
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-lg">auto_awesome</span>
@@ -982,7 +982,7 @@ export default function CompanyDetailPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => briefingMutation.mutate({ vat, locale })}
+                          onClick={() => briefingMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> })}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-sm">refresh</span>
@@ -1037,7 +1037,7 @@ export default function CompanyDetailPage() {
                         onClick={() => {
                           setShowTodoSuggestions(true);
                           setAddedTodos(new Set());
-                          suggestTodosMutation.mutate({ vat, locale });
+                          suggestTodosMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> });
                         }}
                         disabled={suggestTodosMutation.isPending}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
@@ -1080,6 +1080,7 @@ export default function CompanyDetailPage() {
                                   description: suggestion.description,
                                   priority: suggestion.priority,
                                   dueDate: dueDate.toISOString().split("T")[0],
+                                  cvr: vat,
                                 });
                                 setAddedTodos(prev => new Set(prev).add(i));
                               }}
@@ -1291,6 +1292,7 @@ export default function CompanyDetailPage() {
                           type: outreachType,
                           tone: outreachTone,
                           locale,
+                          companyData: company as unknown as Record<string, unknown>,
                         })}
                         disabled={outreachMutation.isPending}
                         className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

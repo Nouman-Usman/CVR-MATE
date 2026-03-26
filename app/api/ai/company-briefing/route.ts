@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getCompanyByVat } from "@/lib/cvr-api";
+import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { db } from "@/db";
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { vat, locale = "en" } = await req.json();
+    const { vat, locale = "en", companyData } = await req.json();
 
     if (!vat || !/^\d{8}$/.test(String(vat))) {
       return NextResponse.json(
@@ -30,11 +30,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch company data and user brand
-    const [company, brand] = await Promise.all([
-      getCompanyByVat(Number(vat)),
-      getUserBrand(session.user.id),
-    ]);
+    // Fetch company data and user brand — use client-provided data as fallback
+    let company: CvrCompany;
+    try {
+      company = await getCompanyByVat(Number(vat));
+    } catch (err) {
+      if (companyData) {
+        company = companyData as CvrCompany;
+      } else {
+        throw err;
+      }
+    }
+    const brand = await getUserBrand(session.user.id);
 
     const accounting = company.accounting?.documents?.[0]?.summary;
     const employmentHistory = company.employment?.years?.slice(0, 5) ?? [];

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getCompanyByVat } from "@/lib/cvr-api";
+import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { db } from "@/db";
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       sellingPoint: requestSellingPoint,
       targetRole,
       locale = "en",
+      companyData,
     } = await req.json();
 
     if (!vat || !/^\d{8}$/.test(String(vat))) {
@@ -41,7 +42,16 @@ export async function POST(req: NextRequest) {
     const sellingPoint = requestSellingPoint || brand?.products || "";
     const tone = requestTone || brand?.tone || "formal";
 
-    const company = await getCompanyByVat(Number(vat));
+    let company: CvrCompany;
+    try {
+      company = await getCompanyByVat(Number(vat));
+    } catch (err) {
+      if (companyData) {
+        company = companyData as CvrCompany;
+      } else {
+        throw err;
+      }
+    }
     const accounting = company.accounting?.documents?.[0]?.summary;
     const participants = company.participants ?? [];
 
