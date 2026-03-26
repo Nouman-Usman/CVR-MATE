@@ -94,7 +94,7 @@ Respond with a JSON object containing:
 ${formatBrandContext(brand)}`;
 
     const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       systemPrompt,
       userPrompt,
       maxTokens: 2048,
@@ -112,10 +112,10 @@ ${formatBrandContext(brand)}`;
       briefing: String(data.briefing ?? data.Briefing ?? data.analysis ?? ""),
       keyInsights: (
         Array.isArray(data.keyInsights) ? data.keyInsights
-        : Array.isArray(data.key_insights) ? data.key_insights
-        : Array.isArray(data.insights) ? data.insights
-        : Array.isArray(data.KeyInsights) ? data.KeyInsights
-        : []
+          : Array.isArray(data.key_insights) ? data.key_insights
+            : Array.isArray(data.insights) ? data.insights
+              : Array.isArray(data.KeyInsights) ? data.KeyInsights
+                : []
       ) as string[],
       suggestedApproach: String(data.suggestedApproach ?? data.suggested_approach ?? data.SuggestedApproach ?? data.approach ?? ""),
     };

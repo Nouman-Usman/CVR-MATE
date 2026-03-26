@@ -8,7 +8,7 @@ function getClient(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(apiKey);
 }
 
-export type AiModel = "gemini-2.0-flash" | "gemini-2.5-flash" | "gemini-2.5-pro";
+export type AiModel = "gemini-2.5-flash" | "gemini-2.5-flash" | "gemini-2.5-pro";
 
 interface GenerateOptions {
   model?: AiModel;
@@ -19,7 +19,7 @@ interface GenerateOptions {
 
 export async function generateAiResponse(options: GenerateOptions): Promise<string> {
   const {
-    model = "gemini-2.0-flash",
+    model = "gemini-2.5-flash",
     systemPrompt,
     userPrompt,
     maxTokens = 1024,
@@ -157,7 +157,7 @@ function extractJson<T>(raw: string): T {
 
 export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
   const {
-    model = "gemini-2.0-flash",
+    model = "gemini-2.5-flash",
     systemPrompt,
     userPrompt,
     maxTokens = 1024,
