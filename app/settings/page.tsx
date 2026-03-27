@@ -7,7 +7,14 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
 import { useIntegrations, useCrmDisconnect, useSyncHistory } from "@/lib/hooks/use-integrations";
-import { useSubscription, useCheckout, useCustomerPortal } from "@/lib/hooks/use-subscription";
+import {
+  useSubscription,
+  useCheckout,
+  useCustomerPortal,
+  useCancelSubscription,
+  useResumeSubscription,
+  useChangePlan,
+} from "@/lib/hooks/use-subscription";
 
 function Toggle({
   checked,
@@ -67,6 +74,32 @@ const PLAN_COLORS = {
   flow: { bg: "bg-violet-50", text: "text-violet-700" },
 } as const;
 
+function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const isUnlimited = limit === -1;
+  const pct = isUnlimited ? 0 : Math.min(100, Math.round((used / limit) * 100));
+  const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-slate-600">{label}</span>
+        <span className="text-xs text-slate-400">
+          {isUnlimited ? (
+            <span className="text-emerald-600 font-medium">Unlimited</span>
+          ) : (
+            <>{used} / {limit}</>
+          )}
+        </span>
+      </div>
+      {!isUnlimited && (
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SubscriptionSection() {
   const { t, locale } = useLanguage();
   const st = t.settings;
@@ -74,6 +107,10 @@ function SubscriptionSection() {
   const { data, isLoading } = useSubscription();
   const checkoutMutation = useCheckout();
   const portalMutation = useCustomerPortal();
+  const cancelMutation = useCancelSubscription();
+  const resumeMutation = useResumeSubscription();
+  const changePlanMutation = useChangePlan();
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const cardClass =
     "bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8";
@@ -104,6 +141,10 @@ function SubscriptionSection() {
         { year: "numeric", month: "long", day: "numeric" }
       )
     : null;
+
+  const anyMutationPending =
+    checkoutMutation.isPending || portalMutation.isPending ||
+    cancelMutation.isPending || resumeMutation.isPending || changePlanMutation.isPending;
 
   return (
     <div className={cardClass}>
@@ -139,11 +180,24 @@ function SubscriptionSection() {
             </div>
           )}
 
-          {/* Cancel notice */}
+          {/* Cancel notice with resume button */}
           {isCanceling && !isPastDue && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
               <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">schedule</span>
-              <p className="text-sm text-amber-700">{sub.cancelNotice as string}</p>
+              <div className="flex-1">
+                <p className="text-sm text-amber-700">{sub.cancelNotice as string}</p>
+                <button
+                  onClick={() => resumeMutation.mutate()}
+                  disabled={resumeMutation.isPending}
+                  className="mt-2 px-4 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-full hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {resumeMutation.isPending ? (
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : (
+                    sub.resumeSubscription as string
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -170,32 +224,101 @@ function SubscriptionSection() {
               </div>
 
               <div className="flex gap-2 self-start shrink-0">
-                {isPaid ? (
-                  <button
-                    onClick={() => portalMutation.mutate()}
-                    disabled={portalMutation.isPending}
-                    className="px-5 py-2.5 border-2 border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {portalMutation.isPending ? (
-                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      sub.manageBilling as string
+                {isPaid && (
+                  <>
+                    <button
+                      onClick={() => portalMutation.mutate()}
+                      disabled={anyMutationPending}
+                      className="px-4 py-2 border-2 border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {portalMutation.isPending ? (
+                        <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        sub.manageBilling as string
+                      )}
+                    </button>
+                    {!isCanceling && (
+                      <button
+                        onClick={() => setShowCancelConfirm(true)}
+                        disabled={anyMutationPending}
+                        className="px-4 py-2 border-2 border-red-200 rounded-full text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {sub.cancelSubscription as string}
+                      </button>
                     )}
-                  </button>
-                ) : (
+                  </>
+                )}
+                {!isPaid && (
                   <p className="text-sm text-slate-400">{sub.freePlan as string}</p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Upgrade options for non-Flow users */}
+          {/* Cancel confirmation dialog */}
+          {showCancelConfirm && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-4">
+              <h3 className="text-sm font-bold text-red-800 mb-1">{sub.cancelConfirmTitle as string}</h3>
+              <p className="text-sm text-red-600 mb-4">{sub.cancelConfirmBody as string}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    cancelMutation.mutate(undefined, {
+                      onSuccess: () => setShowCancelConfirm(false),
+                    });
+                  }}
+                  disabled={cancelMutation.isPending}
+                  className="px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-full hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {cancelMutation.isPending ? (
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : (
+                    sub.cancelConfirm as string
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="px-4 py-2 border-2 border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  {sub.cancelDismiss as string}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Monthly usage meters */}
+          {data?.usage && (
+            <div className="bg-slate-50 rounded-xl p-5 mb-4">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
+                {sub.usageTitle as string}
+              </h3>
+              <div className="space-y-3">
+                <UsageMeter
+                  label={sub.companySearches as string}
+                  used={data.usage.companySearches.used}
+                  limit={data.usage.companySearches.limit}
+                />
+                <UsageMeter
+                  label={sub.aiUsages as string}
+                  used={data.usage.aiUsages.used}
+                  limit={data.usage.aiUsages.limit}
+                />
+                <UsageMeter
+                  label={sub.exports as string}
+                  used={data.usage.exports.used}
+                  limit={data.usage.exports.limit}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Plan change options */}
           {plan !== "flow" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {plan === "free" && goPriceId && (
                 <button
-                  onClick={() => checkoutMutation.mutate(goPriceId)}
-                  disabled={checkoutMutation.isPending}
+                  onClick={() => changePlanMutation.mutate("go")}
+                  disabled={anyMutationPending}
                   className="flex items-center justify-between p-4 rounded-xl border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <div className="text-left">
@@ -210,14 +333,8 @@ function SubscriptionSection() {
               )}
               {flowPriceId && (
                 <button
-                  onClick={() => {
-                    if (isPaid) {
-                      portalMutation.mutate();
-                    } else {
-                      checkoutMutation.mutate(flowPriceId);
-                    }
-                  }}
-                  disabled={checkoutMutation.isPending || portalMutation.isPending}
+                  onClick={() => changePlanMutation.mutate("flow")}
+                  disabled={anyMutationPending}
                   className="flex items-center justify-between p-4 rounded-xl border-2 border-violet-200 hover:border-violet-400 hover:bg-violet-50/50 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <div className="text-left">
@@ -230,6 +347,37 @@ function SubscriptionSection() {
                   </div>
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Downgrade option for paid users */}
+          {plan === "go" && (
+            <div className="mt-3">
+              <button
+                onClick={() => changePlanMutation.mutate("free")}
+                disabled={anyMutationPending}
+                className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer disabled:opacity-50"
+              >
+                {sub.downgrade as string} → {planNames.free}
+              </button>
+            </div>
+          )}
+          {plan === "flow" && (
+            <div className="mt-3 flex gap-4">
+              <button
+                onClick={() => changePlanMutation.mutate("go")}
+                disabled={anyMutationPending}
+                className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer disabled:opacity-50"
+              >
+                {sub.downgrade as string} → {planNames.go}
+              </button>
+              <button
+                onClick={() => changePlanMutation.mutate("free")}
+                disabled={anyMutationPending}
+                className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer disabled:opacity-50"
+              >
+                {sub.downgrade as string} → {planNames.free}
+              </button>
             </div>
           )}
         </>

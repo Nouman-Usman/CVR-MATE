@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getUserPlan, getPlanLimits } from "@/lib/stripe/entitlements";
+import { getUserPlan, getPlanLimits, getUsageSummary } from "@/lib/stripe/entitlements";
 import { PLANS } from "@/lib/stripe/plans";
 
 export async function GET() {
@@ -14,6 +14,9 @@ export async function GET() {
     const { plan, status, subscription } = await getUserPlan(session.user.id);
     const limits = getPlanLimits(plan);
     const planDef = PLANS[plan];
+    const usage = await getUsageSummary(session.user.id);
+
+    const serializeInf = (v: number) => (isFinite(v) ? v : -1);
 
     return NextResponse.json({
       plan,
@@ -25,10 +28,13 @@ export async function GET() {
       cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
       limits: {
         ...limits,
-        // Serialize Infinity as -1 for JSON transport
-        savedCompanies: limits.savedCompanies === Infinity ? -1 : limits.savedCompanies,
-        triggers: limits.triggers === Infinity ? -1 : limits.triggers,
+        savedCompanies: serializeInf(limits.savedCompanies),
+        triggers: serializeInf(limits.triggers),
+        aiUsagesPerMonth: serializeInf(limits.aiUsagesPerMonth),
+        companySearchesPerMonth: serializeInf(limits.companySearchesPerMonth),
+        exportsPerMonth: serializeInf(limits.exportsPerMonth),
       },
+      usage,
     });
   } catch (error) {
     console.error("Failed to fetch subscription:", error);

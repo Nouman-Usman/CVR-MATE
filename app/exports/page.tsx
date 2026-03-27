@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
 import { useActiveConnections, useBulkPushToCrm } from "@/lib/hooks/use-integrations";
+import { useExportCheck } from "@/lib/hooks/use-subscription";
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 
@@ -88,6 +89,7 @@ export default function ExportsPage() {
   /* CRM integration */
   const activeConnections = useActiveConnections();
   const bulkPush = useBulkPushToCrm();
+  const exportCheck = useExportCheck();
   const ig = t.integrations;
 
   /* Map API data */
@@ -161,9 +163,16 @@ export default function ExportsPage() {
   }, [companies, selected, someSelected]);
 
   /* ── CSV Export ───────────────────────────────────────────────────────── */
-  const exportCsv = useCallback(() => {
+  const exportCsv = useCallback(async () => {
     const leads = getExportTargets();
     if (leads.length === 0) { showToast(ex.noData, "info"); return; }
+
+    try {
+      await exportCheck.mutateAsync();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Export not allowed", "info");
+      return;
+    }
 
     setExporting("csv");
     const headers = [
@@ -188,7 +197,7 @@ export default function ExportsPage() {
     URL.revokeObjectURL(url);
     showToast(`${leads.length} ${ex.exported}`);
     setExporting(null);
-  }, [getExportTargets, showToast, ex]);
+  }, [getExportTargets, showToast, ex, exportCheck]);
 
   /* ── Excel Export ────────────────────────────────────────────────────── */
   const exportExcel = useCallback(() => {
@@ -199,6 +208,13 @@ export default function ExportsPage() {
   const exportPdf = useCallback(async () => {
     const leads = getExportTargets();
     if (leads.length === 0) { showToast(ex.noData, "info"); return; }
+
+    try {
+      await exportCheck.mutateAsync();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Export not allowed", "info");
+      return;
+    }
 
     setExporting("pdf");
     try {
@@ -271,7 +287,7 @@ export default function ExportsPage() {
     } finally {
       setExporting(null);
     }
-  }, [getExportTargets, showToast, ex, locale]);
+  }, [getExportTargets, showToast, ex, locale, exportCheck]);
 
   /* ── Sort handler ────────────────────────────────────────────────────── */
   const handleSort = (key: SortKey) => {

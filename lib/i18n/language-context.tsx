@@ -40,13 +40,12 @@ const LanguageContext = createContext<LanguageContextValue>({
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("da");
-  const [mounted, setMounted] = useState(false);
+  const [locale, setLocaleState] = useState<Locale>(getSavedLocale);
+  const [hydrated, setHydrated] = useState(false);
 
-  // Hydrate from localStorage on mount
+  // Mark hydrated after first client render
   useEffect(() => {
-    setLocaleState(getSavedLocale());
-    setMounted(true);
+    setHydrated(true);
   }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
@@ -54,7 +53,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(STORAGE_KEY, newLocale);
     } catch {}
-    // Update html lang attribute
     document.documentElement.lang = newLocale;
   }, []);
 
@@ -62,12 +60,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLocale(locale === "da" ? "en" : "da");
   }, [locale, setLocale]);
 
-  // Sync html lang on mount
+  // Sync html lang attribute
   useEffect(() => {
-    if (mounted) {
+    if (hydrated) {
       document.documentElement.lang = locale;
     }
-  }, [locale, mounted]);
+  }, [locale, hydrated]);
+
+  // Prevent flash of wrong language — render nothing until hydrated
+  if (!hydrated) {
+    return null;
+  }
 
   return (
     <LanguageContext.Provider

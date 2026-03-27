@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { CRM_PROVIDERS, type CrmProvider } from "@/lib/crm/types";
+import { checkEntitlement } from "@/lib/stripe/entitlements";
 
 // GET /api/integrations/[provider]/connect — initiate OAuth flow
 export async function GET(
@@ -14,6 +15,14 @@ export async function GET(
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { allowed } = await checkEntitlement(session.user.id, "crm");
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "CRM integrations require a paid plan", upgrade: true },
+        { status: 403 }
+      );
     }
 
     const { provider } = await params;

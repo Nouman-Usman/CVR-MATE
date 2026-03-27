@@ -188,7 +188,7 @@ async function handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
     unpaid: "unpaid",
     incomplete: "incomplete",
     incomplete_expired: "canceled",
-    trialing: "active",
+    trialing: "incomplete",
     paused: "past_due",
   };
 

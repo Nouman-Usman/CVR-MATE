@@ -13,17 +13,25 @@ export async function GET(req: NextRequest) {
     const cached = await cacheGet<{ results: unknown[]; count: number; from: string }>(key);
     if (cached) return NextResponse.json(cached);
 
-    const fromDate = new Date(
-      Date.now() - safeDays * 24 * 60 * 60 * 1000
+    // Query each day individually — life_start is an exact-date filter,
+    // so a single call only returns companies founded on that one day.
+    const dates: string[] = [];
+    for (let i = 0; i < safeDays; i++) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      dates.push(d.toISOString().split("T")[0]);
+    }
+    const fromStr = dates[dates.length - 1];
+
+    const perDay = await Promise.all(
+      dates.map((date) =>
+        searchCompanies({
+          life_start: date,
+          companystatus_code: "20",
+        }).catch(() => [] as Awaited<ReturnType<typeof searchCompanies>>)
+      )
     );
-    const fromStr = fromDate.toISOString().split("T")[0];
 
-    const results = await searchCompanies({
-      life_start: fromStr,
-      companystatus_code: "20",
-    });
-
-    const companies = Array.isArray(results) ? results : [];
+    const companies = perDay.flat();
 
     // Sort newest first
     companies.sort((a, b) => {
