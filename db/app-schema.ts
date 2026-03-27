@@ -101,6 +101,7 @@ export const savedCompany = pgTable(
       .notNull()
       .references(() => company.id, { onDelete: "cascade" }),
     cvr: text("cvr").notNull(),
+    note: text("note"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -16,6 +16,7 @@ type NotificationChannel = "in_app" | "email";
 
 interface TriggerFilters {
   industry_code?: string;
+  branch_code?: string;
   city?: string;
   region?: string;
   company_type?: string;
@@ -431,6 +432,11 @@ export default function TriggersPage() {
                             {tr.industryCode}: {(trigger.filters as TriggerFilters).industry_code}
                           </span>
                         )}
+                        {(trigger.filters as TriggerFilters)?.branch_code && (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                            {tr.branchCode}: {(trigger.filters as TriggerFilters).branch_code}
+                          </span>
+                        )}
                         {(trigger.filters as TriggerFilters)?.city && (
                           <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
                             {tr.city}: {(trigger.filters as TriggerFilters).city}
@@ -713,6 +719,24 @@ export default function TriggersPage() {
                           </option>
                         ))}
                     </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-slate-400 px-1">
+                      {tr.branchCode}
+                    </label>
+                    <input
+                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                      value={filters.branch_code || ""}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        setFilters({
+                          ...filters,
+                          branch_code: val || undefined,
+                        });
+                      }}
+                      placeholder={tr.branchCodePlaceholder}
+                      inputMode="numeric"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs text-slate-400 px-1">

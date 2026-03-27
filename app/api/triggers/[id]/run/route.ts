@@ -14,7 +14,9 @@ function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParam
     companystatus_code: "20", // active companies only
   };
 
-  if (filters.industry_code)
+  if (filters.branch_code)
+    params.industry_primary_code = String(filters.branch_code);
+  else if (filters.industry_code)
     params.industry_primary_code = String(filters.industry_code);
   if (filters.city)
     params.address_city = String(filters.city);

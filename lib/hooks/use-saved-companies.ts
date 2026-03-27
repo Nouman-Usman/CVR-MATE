@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 interface SavedCompany {
   id: string;
   cvr: string;
+  note: string | null;
   savedAt: string;
   company: Record<string, unknown>;
 }
@@ -42,18 +43,56 @@ export function useSaveCompany() {
       vat,
       name,
       rawData,
+      note,
     }: {
       vat: string;
       name: string;
       rawData?: Record<string, unknown>;
+      note?: string;
     }) => {
       const res = await fetch("/api/cvr/saved", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vat, name, rawData }),
+        body: JSON.stringify({ vat, name, rawData, note }),
       });
       if (!res.ok) throw new Error("Failed to save company");
       return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-companies"] });
+    },
+  });
+}
+
+export function useUpdateSavedNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ cvr, note }: { cvr: string; note: string }) => {
+      const res = await fetch("/api/cvr/saved", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cvr, note }),
+      });
+      if (!res.ok) throw new Error("Failed to update note");
+      return res.json();
+    },
+    onMutate: async ({ cvr, note }) => {
+      await queryClient.cancelQueries({ queryKey: ["saved-companies"] });
+      const prev = queryClient.getQueryData<SavedResponse>(["saved-companies"]);
+      if (prev) {
+        queryClient.setQueryData<SavedResponse>(["saved-companies"], {
+          results: prev.results.map((s) =>
+            s.cvr === cvr ? { ...s, note: note.trim() || null } : s
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["saved-companies"], context.prev);
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-companies"] });

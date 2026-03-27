@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
-import { useSavedCompanies, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
+import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote } from "@/lib/hooks/use-saved-companies";
 import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
 
 interface SavedCompany {
   id: string;
   cvr: string;
+  note: string | null;
   savedAt: string;
   company: {
     id: string;
@@ -46,12 +47,37 @@ export default function SavedPage() {
 
   const { data, isLoading: loading } = useSavedCompanies();
   const unsaveMutation = useUnsaveCompany();
+  const updateNoteMutation = useUpdateSavedNote();
   const companies = (data?.results ?? []) as SavedCompany[];
 
   const handleRemove = (cvr: string) => {
     unsaveMutation.mutate(cvr);
   };
   const removing = unsaveMutation.isPending ? (unsaveMutation.variables ?? null) : null;
+
+  // Note editing state
+  const [editingNoteCvr, setEditingNoteCvr] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [noteToast, setNoteToast] = useState("");
+
+  const openNoteEditor = (cvr: string, currentNote: string | null) => {
+    setEditingNoteCvr(cvr);
+    setNoteText(currentNote ?? "");
+  };
+
+  const handleSaveNote = () => {
+    if (!editingNoteCvr) return;
+    updateNoteMutation.mutate(
+      { cvr: editingNoteCvr, note: noteText },
+      {
+        onSuccess: () => {
+          setEditingNoteCvr(null);
+          setNoteToast(sv.noteSaved);
+          setTimeout(() => setNoteToast(""), 3000);
+        },
+      }
+    );
+  };
 
   // AI Pipeline Analysis
   const pipelineMutation = usePipelineAnalysis();
@@ -90,6 +116,71 @@ export default function SavedPage() {
 
   return (
     <DashboardLayout>
+      {/* Note toast */}
+      {noteToast && (
+        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-fade-in-up">
+          <span className="material-symbols-outlined text-lg text-emerald-400">check_circle</span>
+          {noteToast}
+        </div>
+      )}
+
+      {/* Note edit modal */}
+      {editingNoteCvr && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setEditingNoteCvr(null)}
+          />
+          <div className="relative bg-white w-full sm:rounded-2xl rounded-t-2xl shadow-2xl sm:max-w-md flex flex-col">
+            <div className="px-5 pt-5 pb-0 sm:px-6 sm:pt-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-amber-600 text-xl">edit_note</span>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">{sv.editNote}</h3>
+                  <p className="text-xs text-slate-400">
+                    {companies.find((c) => c.cvr === editingNoteCvr)?.company.name}
+                  </p>
+                </div>
+              </div>
+              <textarea
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 outline-none resize-none transition-colors"
+                rows={3}
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder={sv.notePlaceholder}
+                maxLength={500}
+                autoFocus
+              />
+              <div className="flex justify-end mt-1 mb-1">
+                <span className="text-[10px] text-slate-300 tabular-nums">{noteText.length}/500</span>
+              </div>
+            </div>
+            <div className="px-5 pb-5 pt-2 sm:px-6 sm:pb-6 flex gap-2">
+              <button
+                onClick={() => setEditingNoteCvr(null)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                {sv.cancelNote}
+              </button>
+              <button
+                onClick={handleSaveNote}
+                disabled={updateNoteMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {updateNoteMutation.isPending ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-base">save</span>
+                )}
+                {updateNoteMutation.isPending ? "..." : sv.saveNote}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
@@ -328,7 +419,10 @@ export default function SavedPage() {
                   <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">
                     {sv.table.employees}
                   </th>
-                  <th className="w-20 px-3 py-3" />
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">
+                    {sv.note}
+                  </th>
+                  <th className="w-24 px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -406,10 +500,40 @@ export default function SavedPage() {
                           : "–"}
                       </td>
                       <td
+                        className="px-4 py-3.5 hidden md:table-cell max-w-[200px]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {s.note ? (
+                          <button
+                            onClick={() => openNoteEditor(s.cvr, s.note)}
+                            className="text-left group"
+                          >
+                            <p className="text-xs text-slate-500 line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer">
+                              {s.note}
+                            </p>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openNoteEditor(s.cvr, null)}
+                            className="inline-flex items-center gap-1 text-[10px] text-slate-300 hover:text-blue-500 transition-colors cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm">add</span>
+                            {sv.addNote}
+                          </button>
+                        )}
+                      </td>
+                      <td
                         className="px-3 py-3.5"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => openNoteEditor(s.cvr, s.note)}
+                            className="p-1.5 rounded-lg text-slate-300 hover:bg-amber-50 hover:text-amber-500 transition-colors cursor-pointer md:hidden"
+                            title={s.note ? sv.editNote : sv.addNote}
+                          >
+                            <span className="material-symbols-outlined text-lg">edit_note</span>
+                          </button>
                           <button
                             onClick={() => handleRemove(s.cvr)}
                             disabled={removing === s.cvr}

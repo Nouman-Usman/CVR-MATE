@@ -24,6 +24,7 @@ export async function GET() {
       results: saved.map((s) => ({
         id: s.id,
         cvr: s.cvr,
+        note: s.note,
         savedAt: s.createdAt,
         company: s.company,
       })),
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { vat, name, rawData } = body;
+    const { vat, name, rawData, note } = body;
 
     if (!vat || !name) {
       return NextResponse.json(
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       companyId,
       cvr: String(vat),
+      note: typeof note === "string" && note.trim() ? note.trim() : null,
     });
 
     return NextResponse.json({ saved: true }, { status: 201 });
@@ -155,6 +157,44 @@ export async function POST(req: NextRequest) {
     console.error("Failed to save company:", error);
     return NextResponse.json(
       { error: "Failed to save company" },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/cvr/saved — update note on a saved company
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { cvr, note } = body;
+
+    if (!cvr) {
+      return NextResponse.json(
+        { error: "cvr is required" },
+        { status: 400 }
+      );
+    }
+
+    await db
+      .update(savedCompany)
+      .set({ note: typeof note === "string" && note.trim() ? note.trim() : null })
+      .where(
+        and(
+          eq(savedCompany.userId, session.user.id),
+          eq(savedCompany.cvr, String(cvr))
+        )
+      );
+
+    return NextResponse.json({ updated: true });
+  } catch (error) {
+    console.error("Failed to update saved company note:", error);
+    return NextResponse.json(
+      { error: "Failed to update note" },
       { status: 500 }
     );
   }
