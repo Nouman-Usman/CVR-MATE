@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import {
   searchCompanies,
   type SearchCompanyParams,
   type CvrCompany,
 } from "@/lib/cvr-api";
+import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 // Extract latest financial summary from a company's accounting documents
 function getLatestSummary(c: CvrCompany) {
@@ -26,6 +29,19 @@ function getEmployeeCount(c: CvrCompany): number | null {
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const quota = await checkMonthlyQuota(session.user.id, "company_search");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `Search limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
+        { status: 403 }
+      );
+    }
+
     const params = req.nextUrl.searchParams;
     const searchParams: SearchCompanyParams = {};
 
@@ -145,6 +161,11 @@ export async function GET(req: NextRequest) {
     const pageSize = parseInt(params.get("limit") || "50", 10);
     const start = (page - 1) * pageSize;
     const paged = allResults.slice(start, start + pageSize);
+
+    // Only count as a usage on the first page to avoid double-counting paginated requests
+    if (page === 1) {
+      await recordUsage(session.user.id, "company_search");
+    }
 
     return NextResponse.json({
       results: paged,

@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { company, crmConnection, crmSyncMapping, crmSyncLog } from "@/db/schema";
 import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
+import { checkEntitlement } from "@/lib/stripe/entitlements";
 
 // POST /api/integrations/sync/bulk — push multiple companies to CRM
 export async function POST(req: NextRequest) {
@@ -13,6 +14,14 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { allowed } = await checkEntitlement(session.user.id, "crm");
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "CRM integrations require a paid plan", upgrade: true },
+        { status: 403 }
+      );
     }
 
     const { connectionId, companyIds } = await req.json();

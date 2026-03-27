@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand } from "@/lib/get-user-brand";
-import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 interface ParsedFilters {
   query: string;
@@ -38,6 +38,14 @@ export async function POST(req: NextRequest) {
     if (!allowed) {
       return NextResponse.json(
         { error: "AI features require a paid plan", upgrade: true },
+        { status: 403 }
+      );
+    }
+
+    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
         { status: 403 }
       );
     }
@@ -142,6 +150,7 @@ Respond with a JSON object:
       explanation: (raw.explanation ?? raw.Explanation ?? raw.summary ?? "") as string,
     };
 
+    await recordUsage(session.user.id, "ai_usage");
     return NextResponse.json(result);
   } catch (error) {
     console.error("AI parse-search error:", error);

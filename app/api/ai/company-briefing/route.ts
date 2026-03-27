@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
-import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 import { db } from "@/db";
 import { companyBriefing } from "@/db/schema";
 
@@ -26,6 +26,14 @@ export async function POST(req: NextRequest) {
     if (!allowed) {
       return NextResponse.json(
         { error: "AI features require a paid plan", upgrade: true },
+        { status: 403 }
+      );
+    }
+
+    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
         { status: 403 }
       );
     }
@@ -146,6 +154,7 @@ ${formatBrandContext(brand)}`;
       })
       .returning();
 
+    await recordUsage(session.user.id, "ai_usage");
     return NextResponse.json({ ...result, id: saved.id });
   } catch (error) {
     console.error("AI briefing error:", error instanceof Error ? error.stack : error);

@@ -11,6 +11,10 @@ export interface PlanLimits {
   exports: boolean;
   teamFeatures: boolean;
   prioritySupport: boolean;
+  // Monthly quotas (0 = disabled, Infinity = unlimited)
+  aiUsagesPerMonth: number;
+  companySearchesPerMonth: number;
+  exportsPerMonth: number;
 }
 
 export interface PlanDefinition {
@@ -31,6 +35,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     exports: false,
     teamFeatures: false,
     prioritySupport: false,
+    aiUsagesPerMonth: 0,
+    companySearchesPerMonth: 20,
+    exportsPerMonth: 0,
   },
   go: {
     savedCompanies: 100,
@@ -40,6 +47,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     exports: true,
     teamFeatures: false,
     prioritySupport: false,
+    aiUsagesPerMonth: 50,
+    companySearchesPerMonth: 500,
+    exportsPerMonth: 30,
   },
   flow: {
     savedCompanies: Infinity,
@@ -49,6 +59,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     exports: true,
     teamFeatures: true,
     prioritySupport: true,
+    aiUsagesPerMonth: Infinity,
+    companySearchesPerMonth: Infinity,
+    exportsPerMonth: Infinity,
   },
 };
 

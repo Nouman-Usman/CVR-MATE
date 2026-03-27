@@ -577,6 +577,23 @@ export const subscription = pgTable(
   ]
 );
 
+// ─── USAGE RECORDS (monthly quota tracking) ─────────────────────────────────
+
+export const usageRecord = pgTable(
+  "usage_record",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    feature: text("feature").notNull(), // 'ai_usage' | 'company_search' | 'export'
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("usage_record_user_feature_created_idx").on(table.userId, table.feature, table.createdAt),
+  ]
+);
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
@@ -688,6 +705,10 @@ export const subscriptionRelations = relations(subscription, ({ one }) => ({
   user: one(user, { fields: [subscription.userId], references: [user.id] }),
 }));
 
+export const usageRecordRelations = relations(usageRecord, ({ one }) => ({
+  user: one(user, { fields: [usageRecord.userId], references: [user.id] }),
+}));
+
 // Defined here (not in auth-schema.ts) to avoid circular imports
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -696,4 +717,5 @@ export const userRelations = relations(user, ({ many, one }) => ({
   subscription: one(subscription),
   crmConnections: many(crmConnection),
   activities: many(activity),
+  usageRecords: many(usageRecord),
 }));
