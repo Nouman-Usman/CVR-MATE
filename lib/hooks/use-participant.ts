@@ -8,11 +8,14 @@ interface ParticipantResponse {
   error?: string;
 }
 
-export function useParticipant(id: string | undefined) {
+export function useParticipant(id: string | undefined, fromVat?: string) {
   return useQuery<ParticipantResponse>({
-    queryKey: ["participant", id],
+    queryKey: ["participant", id, fromVat],
     queryFn: async () => {
-      const res = await fetch(`/api/cvr/participant?id=${id}`);
+      const params = new URLSearchParams();
+      params.set("id", id!);
+      if (fromVat) params.set("fromVat", fromVat);
+      const res = await fetch(`/api/cvr/participant?${params.toString()}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to load participant");

@@ -1186,7 +1186,7 @@ export default function CompanyDetailPage() {
                     const personLink = p.company && p.vat
                       ? `/company/${p.vat}`
                       : p.participantnumber
-                        ? `/person/${p.participantnumber}`
+                        ? `/person/${p.participantnumber}?fromVat=${vat}`
                         : null;
                     return (
                       <div

@@ -177,63 +177,92 @@ export async function searchCompanies(params: SearchCompanyParams): Promise<CvrC
 }
 
 // --- Participant ---
+// Matches the official CVR API v2 Participant schema (pages 25-26 of docs)
 
-export interface CvrParticipant {
+export interface CvrParticipantRaw {
   participantnumber: number;
-  life: {
-    name: string;
-    profession?: string | null;
-    deceased?: boolean;
-    adprotected?: boolean;
-  };
+  slug: string;
   address?: {
     street?: string | null;
+    streetcode?: number | null;
+    numberfrom?: string | null;
     zipcode?: number | null;
     cityname?: string | null;
     countrycode?: string | null;
     freetext?: string | null;
     municipalityname?: string | null;
+    unlisted?: boolean;
   };
-  participant?: boolean;
-  company?: boolean;
-  vat?: number;
-  slug?: string;
+  contact?: {
+    email?: string | null;
+    www?: string | null;
+    phone?: string | null;
+  };
+  attributes?: {
+    type: string; // "original_citizenship"
+    life: { value: string };
+  };
+  life: {
+    name: string;
+    profession?: string | null;
+    deceased?: boolean;
+  };
+}
+
+// Enriched participant data returned by our API route (participant + company relations)
+export interface CvrParticipant extends CvrParticipantRaw {
+  companies: CvrParticipation[];
+}
+
+// Matches the official CVR API v2 Participations schema (pages 46-47 of docs)
+export interface CvrParticipation {
+  vat: number;
+  slug: string;
   companyform?: {
+    code?: number | null;
     description: string | null;
-    longdescription: string | null;
+    longdescription?: string | null;
+    holding?: boolean;
   };
-  companystatus?: {
-    text: string | null;
+  companystatus?: { text: string | null; start?: string | null };
+  life: {
+    start?: string | null;
+    end?: string | null;
+    name: string;
+    adprotected?: boolean;
   };
-  companies?: {
-    vat: number;
-    slug: string;
-    life: { name: string; start?: string | null; end?: string | null };
-    companystatus?: { text: string | null };
-    companyform?: { description: string | null };
-    industry?: { primary?: { code: number | null; text: string | null } };
-    address?: { cityname?: string | null; zipcode?: number | null };
-    roles: {
-      type: string;
-      life: {
-        start?: string | null;
-        end?: string | null;
-        title?: string | null;
-        owner_percent?: number | null;
-        owner_voting_percent?: number | null;
-      };
-    }[];
+  roles: {
+    type: string; // accountant | board | branch_manager | daily_management | director | founder | fully_responsible_participant | liquidator | owner | real_owner | supervisory_board
+    life: {
+      start?: string | null;
+      end?: string | null;
+      title?: string | null;
+      election_format?: string | null;
+      owner_capital_classes?: string | null;
+      owner_percent?: number | null;
+      owner_voting_percent?: number | null;
+      special_ownership?: string | null;
+      special_ownership_description?: string | null;
+      substitute_member_for_id?: number | null;
+      substitute_member_for_name?: string | null;
+    };
   }[];
 }
 
-export async function getParticipantByNumber(participantnumber: number): Promise<CvrParticipant> {
+export async function getParticipantByNumber(participantnumber: number): Promise<CvrParticipantRaw> {
   const key = cacheKey.participant(participantnumber);
-  const cached = await cacheGet<CvrParticipant>(key);
+  const cached = await cacheGet<CvrParticipantRaw>(key);
   if (cached) return cached;
 
-  const data = await cvrFetch<CvrParticipant>(`/v2/dk/participant/${participantnumber}`);
+  const data = await cvrFetch<CvrParticipantRaw>(`/v2/dk/participant/${participantnumber}`);
   await cacheSet(key, data, CACHE_TTL.participant);
   return data;
+}
+
+// Fetch a full company to extract its participations for a given participant
+export async function getCompanyParticipations(vat: number): Promise<CvrParticipation[]> {
+  const company = await getCompanyByVat(vat);
+  return ((company as unknown as Record<string, unknown>).participations ?? []) as CvrParticipation[];
 }
 
 export async function suggestCompanies(name: string): Promise<CvrCompany[]> {
