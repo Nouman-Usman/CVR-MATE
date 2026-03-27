@@ -545,6 +545,38 @@ export const crmSyncLog = pgTable(
   ]
 );
 
+// ─── SUBSCRIPTION (Stripe billing) ──────────────────────────────────────────
+
+export const subscription = pgTable(
+  "subscription",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    stripePriceId: text("stripe_price_id"),
+    plan: text("plan").default("free").notNull(), // 'free' | 'go' | 'flow'
+    status: text("status").default("active").notNull(), // 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete'
+    currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("subscription_user_idx").on(table.userId),
+    uniqueIndex("subscription_stripe_customer_idx").on(table.stripeCustomerId),
+    uniqueIndex("subscription_stripe_sub_idx").on(table.stripeSubscriptionId),
+    index("subscription_plan_idx").on(table.plan),
+    index("subscription_status_idx").on(table.status),
+  ]
+);
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
@@ -652,11 +684,16 @@ export const crmSyncLogRelations = relations(crmSyncLog, ({ one }) => ({
   user: one(user, { fields: [crmSyncLog.userId], references: [user.id] }),
 }));
 
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+  user: one(user, { fields: [subscription.userId], references: [user.id] }),
+}));
+
 // Defined here (not in auth-schema.ts) to avoid circular imports
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   brand: one(userBrand),
+  subscription: one(subscription),
   crmConnections: many(crmConnection),
   activities: many(activity),
 }));
