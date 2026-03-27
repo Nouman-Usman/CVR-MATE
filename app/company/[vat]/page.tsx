@@ -1189,6 +1189,10 @@ export default function CompanyDetailPage() {
                               </span>
                             )}
                           </div>
+                          {/* Profession */}
+                          {p.life.profession && (
+                            <p className="text-xs text-slate-500 mt-0.5">{p.life.profession}</p>
+                          )}
                           {/* Roles */}
                           <div className="flex flex-wrap gap-1.5 mt-1">
                             {roles.map((role, ri) => (
@@ -1226,9 +1230,6 @@ export default function CompanyDetailPage() {
                                 {cd.roleStartDate} {formatDate(r.life.start, locale)}
                               </span>
                             ))}
-                            {p.life.profession && (
-                              <span className="text-xs text-slate-500">· {p.life.profession}</span>
-                            )}
                           </div>
                           {/* Company participant info */}
                           {p.company && p.companyform && (
