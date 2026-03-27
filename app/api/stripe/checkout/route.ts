@@ -93,7 +93,6 @@ export async function POST(req: NextRequest) {
         metadata: { userId },
       },
       allow_promotion_codes: true,
-      currency: "dkk",
     });
 
     if (!checkoutSession.url) {
