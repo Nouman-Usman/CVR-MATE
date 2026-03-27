@@ -176,6 +176,66 @@ export async function searchCompanies(params: SearchCompanyParams): Promise<CvrC
   return results;
 }
 
+// --- Participant ---
+
+export interface CvrParticipant {
+  participantnumber: number;
+  life: {
+    name: string;
+    profession?: string | null;
+    deceased?: boolean;
+    adprotected?: boolean;
+  };
+  address?: {
+    street?: string | null;
+    zipcode?: number | null;
+    cityname?: string | null;
+    countrycode?: string | null;
+    freetext?: string | null;
+    municipalityname?: string | null;
+  };
+  participant?: boolean;
+  company?: boolean;
+  vat?: number;
+  slug?: string;
+  companyform?: {
+    description: string | null;
+    longdescription: string | null;
+  };
+  companystatus?: {
+    text: string | null;
+  };
+  companies?: {
+    vat: number;
+    slug: string;
+    life: { name: string; start?: string | null; end?: string | null };
+    companystatus?: { text: string | null };
+    companyform?: { description: string | null };
+    industry?: { primary?: { code: number | null; text: string | null } };
+    address?: { cityname?: string | null; zipcode?: number | null };
+    roles: {
+      type: string;
+      life: {
+        start?: string | null;
+        end?: string | null;
+        title?: string | null;
+        owner_percent?: number | null;
+        owner_voting_percent?: number | null;
+      };
+    }[];
+  }[];
+}
+
+export async function getParticipantByNumber(participantnumber: number): Promise<CvrParticipant> {
+  const key = cacheKey.participant(participantnumber);
+  const cached = await cacheGet<CvrParticipant>(key);
+  if (cached) return cached;
+
+  const data = await cvrFetch<CvrParticipant>(`/v2/dk/participant/${participantnumber}`);
+  await cacheSet(key, data, CACHE_TTL.participant);
+  return data;
+}
+
 export async function suggestCompanies(name: string): Promise<CvrCompany[]> {
   if (!name || name.length < 2) return [];
 

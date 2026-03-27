@@ -1183,13 +1183,19 @@ export default function CompanyDetailPage() {
                       board: cd.boardMember,
                     };
                     const roles = Array.isArray(p.roles) ? p.roles : [];
+                    const personLink = p.company && p.vat
+                      ? `/company/${p.vat}`
+                      : p.participantnumber
+                        ? `/person/${p.participantnumber}`
+                        : null;
                     return (
                       <div
                         key={`${p.participantnumber || p.vat}-${idx}`}
-                        className="flex items-start gap-4 py-3.5"
+                        className={`flex items-start gap-4 py-3.5 ${personLink ? "cursor-pointer group" : ""}`}
+                        onClick={personLink ? () => router.push(personLink) : undefined}
                       >
                         <div
-                          className={`w-10 h-10 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5`}
+                          className={`w-10 h-10 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5 ${personLink ? "group-hover:scale-105 transition-transform" : ""}`}
                         >
                           {p.company ? (
                             <span className="material-symbols-outlined text-sm text-white">business</span>
@@ -1197,7 +1203,7 @@ export default function CompanyDetailPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className={`text-sm font-semibold text-slate-900 ${personLink ? "group-hover:text-blue-600 transition-colors" : ""}`}>
                               {p.life.name}
                             </p>
                             {p.life.deceased && (
@@ -1264,6 +1270,11 @@ export default function CompanyDetailPage() {
                             </p>
                           )}
                         </div>
+                        {personLink && (
+                          <span className="material-symbols-outlined text-lg text-slate-300 group-hover:text-blue-500 transition-colors shrink-0 mt-1">
+                            open_in_new
+                          </span>
+                        )}
                       </div>
                     );
                   })}

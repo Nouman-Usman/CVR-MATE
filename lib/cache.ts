@@ -5,6 +5,7 @@ export const CACHE_TTL = {
   search: 300,     // 5 minutes
   company: 3600,   // 1 hour
   suggest: 600,    // 10 minutes
+  participant: 3600, // 1 hour
   recent: 86400,   // 24 hours
   aiBriefing: 86400,  // 24 hours
   aiOutreach: 3600,   // 1 hour
@@ -31,6 +32,8 @@ export const cacheKey = {
 
   suggest: (query: string) =>
     `suggest:${query.toLowerCase().trim()}`,
+
+  participant: (id: number | string) => `participant:${id}`,
 
   recent: (days: number) => `recent:${days}`,
 
