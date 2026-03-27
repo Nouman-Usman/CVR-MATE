@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
         searchCompanies({
           life_start: date,
           companystatus_code: "20",
+          limit: "100",
         }).catch(() => [] as Awaited<ReturnType<typeof searchCompanies>>)
       )
     );

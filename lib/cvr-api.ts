@@ -146,6 +146,8 @@ export interface SearchCompanyParams {
   employment_interval_low?: string;
   info_ean_id?: string;
   info_lei_id?: string;
+  limit?: string;
+  page?: string;
 }
 
 export async function searchCompanies(params: SearchCompanyParams): Promise<CvrCompany[]> {
