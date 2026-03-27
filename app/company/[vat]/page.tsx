@@ -13,14 +13,128 @@ import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
 
+interface AccountingSummary {
+  revenue?: number | null;
+  grossprofitloss?: number | null;
+  profitloss?: number | null;
+  equity?: number | null;
+  assets?: number | null;
+  averagenumberofemployees?: number | null;
+  employeebenefitsexpense?: number | null;
+  contributedcapital?: number | null;
+  currentassets?: number | null;
+  noncurrentassets?: number | null;
+  liabilitiesotherthanprovisions?: number | null;
+  retainedearnings?: number | null;
+  liabilitiesandequity?: number | null;
+  propertyplantandequipment?: number | null;
+  shorttermliabilitiesotherthanprovisions?: number | null;
+  longtermliabilitiesotherthanprovisions?: number | null;
+  coverage?: number | null;
+  operatingmargin?: number | null;
+  roi?: number | null;
+  liquidityratio?: number | null;
+  solvencyratio?: number | null;
+  equityreturn?: number | null;
+  [key: string]: number | null | undefined;
+}
+
+interface AccountingDocument {
+  url: string;
+  type: string;
+  start: string;
+  end: string;
+  publicdate: string | null;
+  updated: string | null;
+  currency: string | null;
+  summary: AccountingSummary | [];
+}
+
+interface TaxRecord {
+  year: number;
+  tradeid: number;
+  managementvat: number | null;
+  companytype: string | null;
+  taxlaw: string | null;
+  taxableincome: number | null;
+  deficit: number | null;
+  paidtax: number | null;
+  tonnageorcarbon: string | null;
+}
+
+interface ParticipantRole {
+  type: string;
+  life: {
+    start?: string | null;
+    end?: string | null;
+    title?: string | null;
+    owner_percent?: number | null;
+    owner_voting_percent?: number | null;
+  };
+}
+
+interface Participant {
+  participantnumber?: number;
+  vat?: number;
+  slug?: string;
+  address?: {
+    street?: string | null;
+    zipcode?: number | null;
+    cityname?: string | null;
+    countrycode?: string | null;
+    freetext?: string | null;
+  };
+  life: {
+    name: string;
+    profession?: string | null;
+    deceased?: boolean;
+    adprotected?: boolean;
+  };
+  participant?: boolean;
+  company?: boolean;
+  roles: ParticipantRole[];
+  companyform?: { description: string | null; longdescription: string | null };
+}
+
+interface Subsidiary {
+  subsidiarynumber: number;
+  vat: number;
+  slug: string;
+  address: {
+    street: string | null;
+    numberfrom: number | null;
+    floor: string | null;
+    door: string | null;
+    zipcode: number | null;
+    cityname: string | null;
+    municipalityname: string | null;
+  };
+  life: {
+    start: string | null;
+    end: string | null;
+    name: string;
+    adprotected: boolean;
+    main: boolean;
+  };
+}
+
 interface CompanyData {
   vat: number;
   slug: string;
   address: {
     street: string | null;
+    numberfrom: number | null;
+    numberto: number | null;
+    letterfrom: string | null;
+    floor: string | null;
+    door: string | null;
     zipcode: number | null;
     cityname: string | null;
+    countrycode: string | null;
     municipalityname: string | null;
+    coname: string | null;
+    longitude: number | null;
+    latitude: number | null;
   };
   companyform: {
     code: number | null;
@@ -30,7 +144,7 @@ interface CompanyData {
   };
   companystatus: { text: string | null; start: string | null };
   contact: { email: string | null; www: string | null; phone: string | null };
-  status: { code: number | null; bankrupt: boolean };
+  status: { code: number | null; creditcode: number | null; start: string | null; end: string | null; bankrupt: boolean };
   industry: {
     primary: { code: number | null; text: string | null };
     secondary: { sequence: number; code: number; text: string }[];
@@ -42,22 +156,22 @@ interface CompanyData {
     adprotected: boolean;
   };
   accounting?: {
-    documents?: {
-      summary?: {
-        revenue: number | null;
-        grossprofitloss: number | null;
-        profitloss: number | null;
-        equity: number | null;
-        assets: number | null;
-        averagenumberofemployees: number | null;
-      };
-    }[];
+    period_start?: string | null;
+    period_end?: string | null;
+    first_period_start?: string | null;
+    first_period_end?: string | null;
+    revision?: boolean;
+    documents?: AccountingDocument[];
+    tax?: TaxRecord[];
   };
   employment?: {
     months?: {
       amount: number | null;
+      amount_fte: number | null;
       interval_low: number | null;
       interval_high: number | null;
+      interval_low_fte: number | null;
+      interval_high_fte: number | null;
       year: number;
       month: number;
     }[];
@@ -65,13 +179,25 @@ interface CompanyData {
   info?: {
     capital_amount: number | null;
     capital_currency: string | null;
+    capital_partial: boolean;
+    capital_classes: boolean;
+    capital_ipo: boolean;
+    shareholder_below_5_percent: boolean;
+    shareholder_public: boolean;
+    articles_of_association: string | null;
     purpose: string | null;
+    bind: string | null;
+    modes_legislation_money_laundering: boolean;
+    modes_social_economic: boolean;
+    modes_government: boolean;
+    demerges: unknown[];
+    merges: unknown[];
+    ean: unknown[];
   };
-  participants?: {
-    participantnumber: number;
-    life: { name: string; profession: string | null };
-    roles: { type: string; life: { title: string } };
-  }[];
+  secondarynames?: string[];
+  subsidiaries?: Subsidiary[];
+  participants?: Participant[];
+  participations?: unknown[];
 }
 
 function formatDKK(value: number | null | undefined, locale: string): string {
@@ -208,6 +334,7 @@ export default function CompanyDetailPage() {
   const [viewingHistoryItem, setViewingHistoryItem] = useState<string | null>(null);
   const [showTodoSuggestions, setShowTodoSuggestions] = useState(false);
   const [addedTodos, setAddedTodos] = useState<Set<number>>(new Set());
+  const [selectedFinancialYear, setSelectedFinancialYear] = useState(0);
 
   // Saved outreach messages
   const outreachMessages = useOutreachMessages(validVat);
@@ -245,8 +372,13 @@ export default function CompanyDetailPage() {
     { key: "ai-briefing" as const, label: ai.briefing.tab, icon: "auto_awesome" },
   ];
 
-  // Financial data
-  const accounting = company?.accounting?.documents?.[0]?.summary;
+  // Financial data - filter documents that have actual summary data (not empty arrays)
+  const financialDocs = (company?.accounting?.documents ?? []).filter(
+    (d): d is AccountingDocument & { summary: AccountingSummary } =>
+      d.summary != null && !Array.isArray(d.summary)
+  );
+  const selectedDoc = financialDocs[selectedFinancialYear];
+  const accounting = selectedDoc?.summary;
   const empData = company?.employment?.months?.[0];
   const statusColor = company?.status?.bankrupt
     ? "bg-red-50 text-red-700"
@@ -583,8 +715,13 @@ export default function CompanyDetailPage() {
                 </h2>
                 <InfoRow
                   icon="home"
-                  label={cd.address}
-                  value={company.address?.street}
+                  label={cd.fullAddress}
+                  value={[
+                    company.address?.street,
+                    company.address?.numberfrom != null ? String(company.address.numberfrom) : null,
+                    company.address?.floor ? `${cd.floor.toLowerCase()} ${company.address.floor}` : null,
+                    company.address?.door ? `${cd.door.toLowerCase()} ${company.address.door}` : null,
+                  ].filter(Boolean).join(" ") || null}
                 />
                 <InfoRow
                   icon="pin_drop"
@@ -605,6 +742,11 @@ export default function CompanyDetailPage() {
                   label={cd.municipality}
                   value={company.address?.municipalityname}
                 />
+                <InfoRow
+                  icon="public"
+                  label={cd.country}
+                  value={company.address?.countrycode}
+                />
                 {company.info?.purpose && (
                   <div className="mt-4 pt-4 border-t border-slate-100">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
@@ -614,6 +756,25 @@ export default function CompanyDetailPage() {
                       {company.info.purpose}
                     </p>
                   </div>
+                )}
+
+                {company.info?.bind && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                      {cd.signingRules}
+                    </p>
+                    <p className="text-sm text-slate-700 leading-relaxed">
+                      {company.info.bind}
+                    </p>
+                  </div>
+                )}
+
+                {company.info?.articles_of_association && (
+                  <InfoRow
+                    icon="description"
+                    label={cd.articlesOfAssociation}
+                    value={formatDate(company.info.articles_of_association, locale)}
+                  />
                 )}
 
                 {/* Secondary industries */}
@@ -636,90 +797,282 @@ export default function CompanyDetailPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Secondary names */}
+                {company.secondarynames && company.secondarynames.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                      {cd.secondaryNames}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {company.secondarynames.map((name, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-600 border border-slate-100"
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Subsidiaries - shown below overview */}
+          {activeTab === "overview" && company.subsidiaries && company.subsidiaries.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6 mt-6">
+              <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg text-blue-600">
+                  store
+                </span>
+                {cd.subsidiaries}
+              </h2>
+              <div className="divide-y divide-slate-50">
+                {company.subsidiaries.map((sub) => (
+                  <div key={sub.subsidiarynumber} className="flex items-start gap-3 py-3">
+                    <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-slate-400 text-lg">
+                        {sub.life.main ? "domain" : "apartment"}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {sub.life.name}
+                        </p>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          sub.life.main ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-500"
+                        }`}>
+                          {sub.life.main ? cd.mainBranch : cd.branch}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {[
+                          sub.address?.street,
+                          sub.address?.numberfrom != null ? String(sub.address.numberfrom) : null,
+                        ].filter(Boolean).join(" ")}
+                        {sub.address?.zipcode ? `, ${sub.address.zipcode} ${sub.address.cityname || ""}` : ""}
+                      </p>
+                      {sub.address?.municipalityname && (
+                        <p className="text-xs text-slate-400">{sub.address.municipalityname}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
           {activeTab === "financials" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
-              <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg text-blue-600">
-                  bar_chart
-                </span>
-                {cd.financials}
-              </h2>
-              {accounting ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[
-                    {
-                      label: cd.revenue,
-                      value: accounting.revenue,
-                      icon: "trending_up",
-                    },
-                    {
-                      label: cd.grossProfit,
-                      value: accounting.grossprofitloss,
-                      icon: "savings",
-                    },
-                    {
-                      label: cd.profitLoss,
-                      value: accounting.profitloss,
-                      icon: "account_balance_wallet",
-                    },
-                    {
-                      label: cd.equity,
-                      value: accounting.equity,
-                      icon: "account_balance",
-                    },
-                    {
-                      label: cd.assets,
-                      value: accounting.assets,
-                      icon: "domain",
-                    },
-                    {
-                      label: cd.employees,
-                      value: accounting.averagenumberofemployees,
-                      icon: "groups",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-xl border border-slate-100 p-4"
+            <div className="space-y-6">
+              {/* Year selector */}
+              {financialDocs.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {financialDocs.map((doc, idx) => (
+                    <button
+                      key={`${doc.start}-${doc.end}`}
+                      onClick={() => setSelectedFinancialYear(idx)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        selectedFinancialYear === idx
+                          ? "bg-blue-600 text-white"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-lg text-slate-400">
-                          {item.icon}
-                        </span>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                          {item.label}
-                        </p>
-                      </div>
-                      <p
-                        className={`text-xl font-bold tabular-nums ${
-                          item.value != null && item.value < 0
-                            ? "text-red-600"
-                            : "text-slate-900"
-                        }`}
-                      >
-                        {item.label === cd.employees
-                          ? item.value != null
-                            ? item.value.toLocaleString(
-                                locale === "da" ? "da-DK" : "en-US"
-                              )
-                            : "–"
-                          : formatDKK(item.value, locale)}
-                      </p>
-                    </div>
+                      {doc.start?.slice(0, 4)}–{doc.end?.slice(0, 4)}
+                    </button>
                   ))}
                 </div>
-              ) : (
-                <div className="py-12 text-center">
-                  <span className="material-symbols-outlined text-4xl text-slate-200 mb-2 block">
-                    bar_chart
-                  </span>
-                  <p className="text-slate-400 font-medium">
-                    {cd.noFinancials}
-                  </p>
+              )}
+
+              {/* Key financial metrics */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-blue-600">bar_chart</span>
+                    {cd.financials}
+                    {selectedDoc && (
+                      <span className="text-xs font-normal text-slate-400 ml-1">
+                        ({selectedDoc.start?.slice(0, 4)}–{selectedDoc.end?.slice(0, 4)})
+                      </span>
+                    )}
+                  </h2>
+                  {selectedDoc?.url && (
+                    <a
+                      href={selectedDoc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                      {cd.annualReport}
+                    </a>
+                  )}
+                </div>
+                {accounting ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                      { label: cd.revenue, value: accounting.revenue, icon: "trending_up" },
+                      { label: cd.grossProfit, value: accounting.grossprofitloss, icon: "savings" },
+                      { label: cd.profitLoss, value: accounting.profitloss, icon: "account_balance_wallet" },
+                      { label: cd.equity, value: accounting.equity, icon: "account_balance" },
+                      { label: cd.assets, value: accounting.assets, icon: "domain" },
+                      { label: cd.employees, value: accounting.averagenumberofemployees, icon: "groups", isCount: true },
+                      { label: cd.capital, value: accounting.contributedcapital, icon: "monetization_on" },
+                      { label: locale === "da" ? "Omsætningsaktiver" : "Current assets", value: accounting.currentassets, icon: "wallet" },
+                      { label: locale === "da" ? "Anlægsaktiver" : "Non-current assets", value: accounting.noncurrentassets, icon: "real_estate_agent" },
+                      { label: locale === "da" ? "Gældsforpligtelser" : "Liabilities", value: accounting.liabilitiesotherthanprovisions, icon: "credit_card" },
+                      { label: locale === "da" ? "Overført resultat" : "Retained earnings", value: accounting.retainedearnings, icon: "savings" },
+                      { label: locale === "da" ? "Personaleomkostninger" : "Employee costs", value: accounting.employeebenefitsexpense, icon: "payments" },
+                    ].filter(item => item.value != null).map((item) => (
+                      <div key={item.label} className="rounded-xl border border-slate-100 p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="material-symbols-outlined text-lg text-slate-400">{item.icon}</span>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</p>
+                        </div>
+                        <p className={`text-xl font-bold tabular-nums ${item.value != null && item.value < 0 ? "text-red-600" : "text-slate-900"}`}>
+                          {"isCount" in item && item.isCount
+                            ? (item.value?.toLocaleString(locale === "da" ? "da-DK" : "en-US") ?? "–")
+                            : formatDKK(item.value, locale)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center">
+                    <span className="material-symbols-outlined text-4xl text-slate-200 mb-2 block">bar_chart</span>
+                    <p className="text-slate-400 font-medium">{cd.noFinancials}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Financial Ratios */}
+              {accounting && (accounting.operatingmargin != null || accounting.roi != null || accounting.liquidityratio != null || accounting.solvencyratio != null || accounting.equityreturn != null) && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                  <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-blue-600">analytics</span>
+                    {cd.financialRatios}
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {[
+                      { label: cd.operatingMargin, value: accounting.operatingmargin, suffix: "%" },
+                      { label: cd.roi, value: accounting.roi, suffix: "%" },
+                      { label: cd.liquidityRatio, value: accounting.liquidityratio, suffix: "%" },
+                      { label: cd.solvencyRatio, value: accounting.solvencyratio, suffix: "%" },
+                      { label: cd.equityReturn, value: accounting.equityreturn, suffix: "%" },
+                    ].filter(item => item.value != null).map((item) => (
+                      <div key={item.label} className="rounded-xl border border-slate-100 p-3 text-center">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{item.label}</p>
+                        <p className={`text-lg font-bold tabular-nums ${item.value != null && item.value < 0 ? "text-red-600" : "text-slate-900"}`}>
+                          {item.value != null ? `${item.value.toFixed(1)}${item.suffix}` : "–"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Accounting period info */}
+              {company.accounting && (company.accounting.period_start || company.accounting.revision != null) && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                  <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-blue-600">event</span>
+                    {cd.accountingPeriod}
+                  </h2>
+                  {company.accounting.period_start && company.accounting.period_end && (
+                    <InfoRow
+                      icon="date_range"
+                      label={cd.accountingPeriod}
+                      value={`${company.accounting.period_start.replace("--", "")} → ${company.accounting.period_end.replace("--", "")}`}
+                    />
+                  )}
+                  {company.accounting.revision != null && (
+                    <InfoRow
+                      icon="verified"
+                      label={cd.audited}
+                      value={company.accounting.revision ? (locale === "da" ? "Ja" : "Yes") : (locale === "da" ? "Nej" : "No")}
+                      badge={company.accounting.revision ? { text: "✓", color: "bg-emerald-50 text-emerald-700" } : null}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Annual Reports List */}
+              {financialDocs.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                  <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-blue-600">folder_open</span>
+                    {cd.annualReports}
+                  </h2>
+                  <div className="divide-y divide-slate-50">
+                    {financialDocs.map((doc) => (
+                      <div key={`${doc.start}-${doc.end}`} className="flex items-center justify-between py-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="material-symbols-outlined text-lg text-red-400">picture_as_pdf</span>
+                          <div>
+                            <p className="text-sm font-medium text-slate-700">
+                              {doc.type === "AARSRAPPORT" ? cd.annualReport : doc.type} {doc.start?.slice(0, 4)}–{doc.end?.slice(0, 4)}
+                            </p>
+                            {doc.publicdate && (
+                              <p className="text-xs text-slate-400">
+                                {locale === "da" ? "Offentliggjort" : "Published"}: {formatDate(doc.publicdate, locale)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
+                        >
+                          <span className="material-symbols-outlined text-sm">download</span>
+                          PDF
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tax Information */}
+              {company.accounting?.tax && company.accounting.tax.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                  <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg text-blue-600">receipt_long</span>
+                    {cd.taxInfo}
+                  </h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 py-2 pr-4">
+                            {locale === "da" ? "År" : "Year"}
+                          </th>
+                          <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400 py-2 px-4">
+                            {cd.taxableIncome}
+                          </th>
+                          <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400 py-2 px-4">
+                            {cd.paidTax}
+                          </th>
+                          <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400 py-2 pl-4">
+                            {cd.companyType}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...company.accounting.tax].sort((a, b) => b.year - a.year).map((tax) => (
+                          <tr key={tax.year} className="border-b border-slate-50 last:border-0">
+                            <td className="py-2.5 pr-4 font-medium text-slate-700 tabular-nums">{tax.year}</td>
+                            <td className="py-2.5 px-4 text-right tabular-nums text-slate-700">{formatDKK(tax.taxableincome, locale)}</td>
+                            <td className="py-2.5 px-4 text-right tabular-nums text-slate-700">{formatDKK(tax.paidtax, locale)}</td>
+                            <td className="py-2.5 pl-4 text-slate-500 text-xs">{tax.companytype || "–"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -805,24 +1158,95 @@ export default function CompanyDetailPage() {
                       .join("")
                       .slice(0, 2)
                       .toUpperCase();
+                    const roleLabels: Record<string, string> = {
+                      founder: cd.founder,
+                      director: cd.director,
+                      owner: cd.owner,
+                      accountant: cd.accountant,
+                      board_member: cd.boardMember,
+                    };
+                    const roles = Array.isArray(p.roles) ? p.roles : [];
                     return (
                       <div
-                        key={`${p.participantnumber}-${idx}`}
-                        className="flex items-center gap-4 py-3.5"
+                        key={`${p.participantnumber || p.vat}-${idx}`}
+                        className="flex items-start gap-4 py-3.5"
                       >
                         <div
-                          className={`w-10 h-10 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold shrink-0`}
+                          className={`w-10 h-10 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5`}
                         >
-                          {initials}
+                          {p.company ? (
+                            <span className="material-symbols-outlined text-sm text-white">business</span>
+                          ) : initials}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {p.life.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {p.roles?.life?.title || p.roles?.type || "–"}
-                            {p.life.profession && ` · ${p.life.profession}`}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {p.life.name}
+                            </p>
+                            {p.life.deceased && (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-500">
+                                {cd.deceased}
+                              </span>
+                            )}
+                          </div>
+                          {/* Roles */}
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {roles.map((role, ri) => (
+                              <span
+                                key={ri}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  role.type === "owner" ? "bg-amber-50 text-amber-700" :
+                                  role.type === "director" ? "bg-blue-50 text-blue-700" :
+                                  role.type === "founder" ? "bg-violet-50 text-violet-700" :
+                                  role.type === "accountant" ? "bg-emerald-50 text-emerald-700" :
+                                  "bg-slate-50 text-slate-600"
+                                }`}
+                              >
+                                {role.life?.title || roleLabels[role.type] || role.type}
+                              </span>
+                            ))}
+                          </div>
+                          {/* Ownership info */}
+                          {roles.some(r => r.life?.owner_percent != null) && (
+                            <div className="flex gap-3 mt-1.5 text-xs text-slate-500">
+                              {roles.filter(r => r.life?.owner_percent != null).map((r, ri) => (
+                                <span key={ri}>
+                                  {cd.ownershipPercent}: <span className="font-semibold text-slate-700">{r.life.owner_percent}%</span>
+                                  {r.life.owner_voting_percent != null && (
+                                    <> · {cd.votingPercent}: <span className="font-semibold text-slate-700">{r.life.owner_voting_percent}%</span></>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {/* Role dates and details */}
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                            {roles.filter(r => r.life?.start).map((r, ri) => (
+                              <span key={ri} className="text-xs text-slate-400">
+                                {cd.roleStartDate} {formatDate(r.life.start, locale)}
+                              </span>
+                            ))}
+                            {p.life.profession && (
+                              <span className="text-xs text-slate-500">· {p.life.profession}</span>
+                            )}
+                          </div>
+                          {/* Company participant info */}
+                          {p.company && p.companyform && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {p.companyform.longdescription || p.companyform.description}
+                            </p>
+                          )}
+                          {/* Address for participants who have one */}
+                          {p.address?.cityname && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {[p.address.cityname, p.address.countrycode].filter(Boolean).join(", ")}
+                            </p>
+                          )}
+                          {p.address?.freetext && !p.address?.cityname && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {p.address.freetext.replace(/\n/g, ", ")}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
