@@ -1164,6 +1164,7 @@ export default function CompanyDetailPage() {
                       owner: cd.owner,
                       accountant: cd.accountant,
                       board_member: cd.boardMember,
+                      board: cd.boardMember,
                     };
                     const roles = Array.isArray(p.roles) ? p.roles : [];
                     return (
@@ -1193,42 +1194,40 @@ export default function CompanyDetailPage() {
                           {p.life.profession && (
                             <p className="text-xs text-slate-500 mt-0.5">{p.life.profession}</p>
                           )}
-                          {/* Roles */}
-                          <div className="flex flex-wrap gap-1.5 mt-1">
+                          {/* Roles with type, title, and dates */}
+                          <div className="space-y-1.5 mt-1.5">
                             {roles.map((role, ri) => (
-                              <span
-                                key={ri}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                  role.type === "owner" ? "bg-amber-50 text-amber-700" :
-                                  role.type === "director" ? "bg-blue-50 text-blue-700" :
-                                  role.type === "founder" ? "bg-violet-50 text-violet-700" :
-                                  role.type === "accountant" ? "bg-emerald-50 text-emerald-700" :
-                                  "bg-slate-50 text-slate-600"
-                                }`}
-                              >
-                                {role.life?.title || roleLabels[role.type] || role.type}
-                              </span>
-                            ))}
-                          </div>
-                          {/* Ownership info */}
-                          {roles.some(r => r.life?.owner_percent != null) && (
-                            <div className="flex gap-3 mt-1.5 text-xs text-slate-500">
-                              {roles.filter(r => r.life?.owner_percent != null).map((r, ri) => (
-                                <span key={ri}>
-                                  {cd.ownershipPercent}: <span className="font-semibold text-slate-700">{r.life.owner_percent}%</span>
-                                  {r.life.owner_voting_percent != null && (
-                                    <> · {cd.votingPercent}: <span className="font-semibold text-slate-700">{r.life.owner_voting_percent}%</span></>
-                                  )}
+                              <div key={ri} className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    role.type === "owner" ? "bg-amber-50 text-amber-700" :
+                                    role.type === "director" ? "bg-blue-50 text-blue-700" :
+                                    role.type === "founder" ? "bg-violet-50 text-violet-700" :
+                                    role.type === "accountant" ? "bg-emerald-50 text-emerald-700" :
+                                    role.type === "board" ? "bg-cyan-50 text-cyan-700" :
+                                    "bg-slate-50 text-slate-600"
+                                  }`}
+                                >
+                                  {roleLabels[role.type] || role.type}
                                 </span>
-                              ))}
-                            </div>
-                          )}
-                          {/* Role dates and details */}
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                            {roles.filter(r => r.life?.start).map((r, ri) => (
-                              <span key={ri} className="text-xs text-slate-400">
-                                {cd.roleStartDate} {formatDate(r.life.start, locale)}
-                              </span>
+                                {role.life?.title && role.life.title !== (roleLabels[role.type] || role.type) && (
+                                  <span className="text-xs font-medium text-slate-600">{role.life.title}</span>
+                                )}
+                                {role.life?.start && (
+                                  <span className="text-xs text-slate-400">
+                                    {formatDate(role.life.start, locale)}
+                                    {role.life.end ? ` → ${formatDate(role.life.end, locale)}` : ` → ${locale === "da" ? "nu" : "present"}`}
+                                  </span>
+                                )}
+                                {role.life?.owner_percent != null && (
+                                  <span className="text-xs text-slate-500">
+                                    · {cd.ownershipPercent}: <span className="font-semibold text-slate-700">{role.life.owner_percent}%</span>
+                                    {role.life.owner_voting_percent != null && (
+                                      <> · {cd.votingPercent}: <span className="font-semibold text-slate-700">{role.life.owner_voting_percent}%</span></>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
                             ))}
                           </div>
                           {/* Company participant info */}
