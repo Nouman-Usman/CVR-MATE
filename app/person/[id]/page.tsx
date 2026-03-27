@@ -215,7 +215,7 @@ function PersonDetailContent() {
                       </span>
                     )}
                     {person.address?.unlisted && (
-                      <span className="mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-600">
+                      <span className="mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
                         <span className="material-symbols-outlined text-[11px]">shield</span>
                         {pd.adProtected}
                       </span>
