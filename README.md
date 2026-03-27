@@ -83,3 +83,8 @@ pnpm install
 pnpm db:push       # push schema to database
 pnpm dev            # start dev server at localhost:3000
 ```
+
+
+```
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```
