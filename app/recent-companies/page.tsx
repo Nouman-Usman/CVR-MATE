@@ -6,6 +6,31 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useRecentCompanies } from "@/lib/hooks/use-recent-companies";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
+import { companyColors } from "@/lib/constants/colors";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Search,
+  X,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  Building2,
+  Heart,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 const PAGE_SIZE = 20;
 
@@ -38,16 +63,9 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
     industry: comp.industry?.primary?.text ?? "",
     status: comp.companystatus?.text ?? "",
     founded: comp.life?.start ?? "",
-    employees: latestEmployment != null ? String(latestEmployment) : "–",
+    employees: latestEmployment != null ? String(latestEmployment) : "\u2013",
   };
 }
-
-const companyColors = [
-  { bg: "bg-blue-100", text: "text-blue-600" },
-  { bg: "bg-amber-100", text: "text-amber-600" },
-  { bg: "bg-violet-100", text: "text-violet-600" },
-  { bg: "bg-cyan-100", text: "text-cyan-600" },
-];
 
 export default function RecentCompaniesPage() {
   const { t, locale } = useLanguage();
@@ -57,11 +75,9 @@ export default function RecentCompaniesPage() {
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
 
-  // Fetch recent companies (last 7 days, cached 24h server-side via Redis)
   const { data, isLoading, error: fetchError, forceRefresh, isFetching } = useRecentCompanies(7);
   const rawResults = data?.results ?? [];
 
-  // Map and filter
   const allCompanies = useMemo(() => rawResults.map(r => mapCvrCompany(r as unknown as Record<string, unknown>)), [rawResults]);
 
   const filtered = useMemo(() => {
@@ -87,7 +103,6 @@ export default function RecentCompaniesPage() {
     return pages;
   }, [page, totalPages]);
 
-  // Saved companies integration
   const savedCvrs = useSavedCvrSet();
   const saveCompanyMutation = useSaveCompany();
   const unsaveCompanyMutation = useUnsaveCompany();
@@ -115,104 +130,107 @@ export default function RecentCompaniesPage() {
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {r.title}
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {r.subtitle} · {filtered.length} {r.found}
           </p>
         </div>
-        <button
+        <Button
+          variant="outline"
+          className="self-start rounded-full shadow-sm"
           onClick={() => forceRefresh()}
           disabled={isFetching}
-          className="self-start flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
         >
-          <span className={`material-symbols-outlined text-lg ${isFetching ? "animate-spin" : ""}`}>
-            refresh
-          </span>
+          <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
           {r.refresh}
-        </button>
+        </Button>
       </div>
 
       {/* Filter */}
       <div className="mb-4 relative max-w-md">
-        <span className="material-symbols-outlined text-slate-400 text-lg absolute left-3 top-1/2 -translate-y-1/2">
-          search
-        </span>
-        <input
-          className="w-full bg-white border border-slate-200 rounded-full py-2.5 pl-10 pr-9 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+        <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+        <Input
+          className="rounded-full pl-10 pr-9"
           placeholder={r.filterPlaceholder}
           value={filter}
           onChange={(e) => handleFilterChange(e.target.value)}
         />
         {filter && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => handleFilterChange("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
-          </button>
+            <X className="size-4" />
+          </Button>
         )}
       </div>
 
       {/* Loading */}
       {isLoading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-slate-400 font-medium">...</p>
-        </div>
+        <Card className="py-16">
+          <CardContent className="text-center">
+            <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">...</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Error */}
       {!isLoading && fetchError && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">error</span>
-          <p className="text-slate-400 font-medium">{r.fetchError}</p>
-        </div>
+        <Card className="py-16">
+          <CardContent className="text-center">
+            <AlertCircle className="size-12 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">{r.fetchError}</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Empty / No filter match */}
       {!isLoading && !fetchError && companies.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">
-            apartment
-          </span>
-          <p className="text-slate-400 font-medium">
-            {filter ? r.noFilter : r.noCompanies}
-          </p>
-        </div>
+        <Card className="py-16">
+          <CardContent className="text-center">
+            <Building2 className="size-12 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">
+              {filter ? r.noFilter : r.noCompanies}
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Table */}
       {!isLoading && !fetchError && companies.length > 0 && (
         <>
-          <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden">
+          <Card className="overflow-hidden hover:shadow-md transition-shadow duration-300 py-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[700px]">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="px-4 sm:px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="px-4 sm:px-6 text-[10px] font-bold uppercase tracking-widest">
                       {r.table.company}
-                    </th>
-                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    </TableHead>
+                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest">
                       {r.table.cvr}
-                    </th>
-                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">
+                    </TableHead>
+                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">
                       {r.table.city}
-                    </th>
-                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">
+                    </TableHead>
+                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">
                       {r.table.industry}
-                    </th>
-                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">
+                    </TableHead>
+                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">
                       {r.table.status}
-                    </th>
-                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">
+                    </TableHead>
+                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">
                       {r.table.founded}
-                    </th>
-                    <th className="w-12 px-3 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
+                    </TableHead>
+                    <TableHead className="w-12 px-3" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {companies.map((c, idx) => {
                     const color = companyColors[idx % companyColors.length];
                     const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -221,119 +239,111 @@ export default function RecentCompaniesPage() {
                       r => (r as unknown as { vat: number }).vat === Number(c.cvr)
                     ) as unknown as Record<string, unknown> | undefined;
                     return (
-                      <tr
+                      <TableRow
                         key={c.cvr}
-                        className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                        className="hover:bg-muted/50 transition-colors cursor-pointer"
                         onClick={() => router.push(`/company/${c.cvr}`)}
                       >
-                        <td className="px-4 sm:px-6 py-3.5">
+                        <TableCell className="px-4 sm:px-6 py-3.5">
                           <div className="flex items-center gap-3">
                             <div className={`w-9 h-9 rounded-full ${color.bg} flex items-center justify-center shrink-0`}>
                               <span className={`text-xs font-bold ${color.text}`}>{initials}</span>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">
+                              <p className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors">
                                 {c.name}
                               </p>
-                              <p className="text-[10px] text-slate-400 md:hidden">
+                              <p className="text-[10px] text-muted-foreground md:hidden">
                                 {c.city} · {c.cvr}
                               </p>
                             </div>
                           </div>
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-slate-500 tabular-nums">
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums">
                           {c.cvr}
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-slate-500 hidden md:table-cell">
-                          {c.city || "–"}
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-slate-500 hidden lg:table-cell truncate max-w-[180px]">
-                          {c.industry || "–"}
-                        </td>
-                        <td className="px-4 py-3.5 hidden md:table-cell">
-                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden md:table-cell">
+                          {c.city || "\u2013"}
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden lg:table-cell truncate max-w-[180px]">
+                          {c.industry || "\u2013"}
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 hidden md:table-cell">
+                          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
                             {c.status || r.statusActive}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-sm text-slate-400 tabular-nums hidden lg:table-cell">
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums hidden lg:table-cell">
                           {c.founded
                             ? new Date(c.founded).toLocaleDateString(
                                 locale === "da" ? "da-DK" : "en-US"
                               )
-                            : "–"}
-                        </td>
-                        <td
+                            : "\u2013"}
+                        </TableCell>
+                        <TableCell
                           className="px-3 py-3.5"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => rawResult && handleSaveToggle(c, rawResult)}
                             disabled={savingCvr === c.cvr}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
                           >
-                            <span
-                              className={`material-symbols-outlined text-lg ${
+                            <Heart
+                              className={`size-4 ${
                                 isSaved
-                                  ? "text-red-500"
-                                  : "text-slate-300"
+                                  ? "text-red-500 fill-red-500"
+                                  : "text-muted-foreground/40"
                               }`}
-                              style={
-                                isSaved
-                                  ? { fontVariationSettings: "'FILL' 1" }
-                                  : undefined
-                              }
-                            >
-                              favorite
-                            </span>
-                          </button>
-                        </td>
-                      </tr>
+                            />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          </Card>
 
           {/* Pagination */}
           <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-3">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted-foreground">
               {r.showing} {(page - 1) * PAGE_SIZE + 1}–
               {Math.min(page * PAGE_SIZE, filtered.length)} {r.of}{" "}
               {filtered.length}
             </p>
             <div className="flex items-center gap-1">
-              <button
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
-                className="p-2 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <span className="material-symbols-outlined text-lg">
-                  chevron_left
-                </span>
-              </button>
+                <ChevronLeft className="size-4" />
+              </Button>
               {pageNumbers.map((p) => (
-                <button
+                <Button
                   key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="icon"
+                  className="rounded-full w-9 h-9"
                   onClick={() => setPage(p)}
-                  className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
-                    p === page
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
                 >
                   {p}
-                </button>
+                </Button>
               ))}
-              <button
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
-                className="p-2 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <span className="material-symbols-outlined text-lg">
-                  chevron_right
-                </span>
-              </button>
+                <ChevronRight className="size-4" />
+              </Button>
             </div>
           </div>
         </>

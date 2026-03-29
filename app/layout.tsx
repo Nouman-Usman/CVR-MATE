@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Manrope, Geist } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n/language-context";
 import { QueryProvider } from "@/lib/query-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -37,10 +39,15 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white text-slate-900" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
         <LanguageProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <TooltipProvider>
+              {children}
+            </TooltipProvider>
+          </QueryProvider>
         </LanguageProvider>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

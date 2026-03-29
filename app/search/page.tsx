@@ -9,6 +9,51 @@ import { useSearchCompanies } from "@/lib/hooks/use-search";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 import { useSaveSearch } from "@/lib/hooks/use-saved-searches";
 import { useMutation } from "@tanstack/react-query";
+import { companyColors } from "@/lib/constants/colors";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Search,
+  Sparkles,
+  ChevronDown,
+  X,
+  Heart,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+  Building2,
+  SearchX,
+  Bookmark,
+  Download,
+  SlidersHorizontal,
+  ChevronRight,
+  RotateCcw,
+} from "lucide-react";
 
 interface Company {
   cvr: string;
@@ -43,17 +88,12 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
     industryCode: String(comp.industry?.primary?.code ?? ""),
     status: comp.companystatus?.text ?? "",
     founded: comp.life?.start ?? "",
-    employees: latestEmployment != null ? String(latestEmployment) : "–",
+    employees: latestEmployment != null ? String(latestEmployment) : "\u2013",
     form: comp.companyform?.description ?? "",
   };
 }
 
-const companyColors = [
-  { bg: "bg-blue-100", text: "text-blue-600" },
-  { bg: "bg-amber-100", text: "text-amber-600" },
-  { bg: "bg-violet-100", text: "text-violet-600" },
-  { bg: "bg-cyan-100", text: "text-cyan-600" },
-];
+// ── Range slider (custom — no shadcn equivalent) ────────────────────
 
 function RangeSlider({
   label,
@@ -78,12 +118,17 @@ function RangeSlider({
   const rightPercent = ((maxVal - min) / (max - min)) * 100;
 
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-slate-600">{label}</label>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</Label>
+        <span className="text-xs font-bold text-foreground tabular-nums">
+          {minVal.toLocaleString()} – {maxVal >= max ? formatMax : maxVal.toLocaleString()}
+        </span>
+      </div>
       <div className="relative h-6 flex items-center">
-        <div className="absolute h-1 w-full bg-slate-200 rounded-full" />
+        <div className="absolute h-1.5 w-full bg-slate-100 rounded-full" />
         <div
-          className="absolute h-1 bg-blue-600 rounded-full"
+          className="absolute h-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
           style={{ left: `${leftPercent}%`, width: `${rightPercent - leftPercent}%` }}
         />
         <input
@@ -92,7 +137,7 @@ function RangeSlider({
           max={max}
           value={minVal}
           onChange={(e) => onMinChange(Math.min(Number(e.target.value), maxVal - 1))}
-          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-600 [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10"
+          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
         />
         <input
           type="range"
@@ -100,10 +145,10 @@ function RangeSlider({
           max={max}
           value={maxVal}
           onChange={(e) => onMaxChange(Math.max(Number(e.target.value), minVal + 1))}
-          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-600 [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10"
+          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
         />
       </div>
-      <div className="flex justify-between text-[11px] text-slate-400 tabular-nums">
+      <div className="flex justify-between text-[10px] text-muted-foreground/50 tabular-nums font-medium">
         <span>{min.toLocaleString()}</span>
         <span>{formatMax}</span>
       </div>
@@ -111,7 +156,8 @@ function RangeSlider({
   );
 }
 
-// Maps 2-digit industry group codes → Danish search terms for CVR API industry_primary_text.
+// ── Lookup tables ───────────────────────────────────────────────────
+
 const industryCodeToText: Record<string, string> = {
   "46": "Engroshandel",
   "47": "Detailhandel",
@@ -156,6 +202,30 @@ function sizeToEmploymentRange(s: string): { low?: string } {
   return { low: lo };
 }
 
+// ── Select wrapper (styled native select) ───────────────────────────
+
+function FilterSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:ring-2 focus:ring-ring/20 focus:border-ring outline-none appearance-none transition-colors"
+    >
+      {children}
+    </select>
+  );
+}
+
+// ── Main page ───────────────────────────────────────────────────────
+
 export default function SearchPageWrapper() {
   return (
     <Suspense>
@@ -170,7 +240,6 @@ function SearchPage() {
   const urlParams = useSearchParams();
   const s = t.search;
 
-  // ─── Zustand store (persisted across navigation) ───
   const store = useSearchStore();
   const {
     query, industryText, industryCode, companyForm, size,
@@ -181,7 +250,6 @@ function SearchPage() {
     toggleSelect, selectAll, clearSelected, resetAll,
   } = store;
 
-  // ─── Committed search params (only updated on Search click, not on filter change) ───
   const [committedParams, setCommittedParams] = useState<URLSearchParams | null>(null);
 
   const buildSearchParams = useCallback(() => {
@@ -204,26 +272,20 @@ function SearchPage() {
     }
     const lifeStart = foundedToDate(foundedPeriod);
     if (lifeStart) params.set("life_start", lifeStart);
-
-    // Employees: slider takes priority over dropdown
     if (employeesMin > 0) {
       params.set("employment_interval_low", String(employeesMin));
     } else {
       const empRange = sizeToEmploymentRange(size);
       if (empRange.low) params.set("employment_interval_low", empRange.low);
     }
-
-    // Segmentation post-filters (applied server-side after CVR API results)
     if (employeesMax < 5000) params.set("seg_employees_max", String(employeesMax));
     if (revenueMin > 0) params.set("seg_revenue_min", String(revenueMin));
     if (revenueMax < 1000) params.set("seg_revenue_max", String(revenueMax));
     if (profitMin > 0) params.set("seg_profit_min", String(profitMin));
     if (profitMax < 1000) params.set("seg_profit_max", String(profitMax));
-
     return params.toString() ? params : null;
   }, [query, industryText, industryCode, companyForm, zipcode, region, foundedPeriod, size, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
 
-  // ─── TanStack Query for search results (cached, survives navigation) ───
   const {
     data: searchData,
     isLoading,
@@ -236,18 +298,15 @@ function SearchPage() {
   const totalResults = searchData?.total ?? 0;
   const hasMore = searchData?.hasMore ?? false;
 
-  // ─── Saved companies (TanStack Query — shared with /saved page) ───
   const savedCvrs = useSavedCvrSet();
   const saveCompanyMutation = useSaveCompany();
   const unsaveCompanyMutation = useUnsaveCompany();
 
-  // ─── Save search mutation ───
   const saveSearchMutation = useSaveSearch();
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveSearchName, setSaveSearchName] = useState("");
   const [localError, setLocalError] = useState("");
 
-  // ─── AI Search ───
   const [aiExplanation, setAiExplanation] = useState("");
   const aiSearchMutation = useMutation({
     mutationFn: async (nlQuery: string) => {
@@ -262,8 +321,6 @@ function SearchPage() {
     },
     onSuccess: (data) => {
       const f = data.filters;
-      // Update the main input bar: use AI-extracted query, or clear it
-      // since the natural language has been parsed into structured filters
       setFilter("query", f.query || "");
       if (f.industryText) setFilter("industryText", f.industryText);
       if (f.industryCode && f.industryCode !== "all") setFilter("industryCode", f.industryCode);
@@ -281,7 +338,6 @@ function SearchPage() {
     },
   });
 
-  // ─── Hydrate from URL params (e.g. saved search link) ───
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
@@ -309,7 +365,6 @@ function SearchPage() {
     if (hasParams) {
       setHasSearched(true);
       setPage(1);
-      // Defer commit so filter state settles first
       setTimeout(() => {
         setCommittedParams(buildSearchParams());
       }, 0);
@@ -317,7 +372,6 @@ function SearchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Scroll restoration ───
   useEffect(() => {
     if (hasSearched && results.length > 0 && scrollY > 0 && !isLoading) {
       window.scrollTo(0, scrollY);
@@ -326,13 +380,10 @@ function SearchPage() {
   }, [results.length]);
 
   useEffect(() => {
-    return () => {
-      setScrollY(window.scrollY);
-    };
+    return () => { setScrollY(window.scrollY); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Handlers ───
   const handleSearch = useCallback(() => {
     setLocalError("");
     clearSelected();
@@ -346,9 +397,7 @@ function SearchPage() {
     setCommittedParams(params);
   }, [buildSearchParams, s, setPage, setHasSearched, clearSelected]);
 
-  const handleLoadMore = useCallback(() => {
-    setPage(page + 1);
-  }, [page, setPage]);
+  const handleLoadMore = useCallback(() => { setPage(page + 1); }, [page, setPage]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -408,405 +457,470 @@ function SearchPage() {
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const savingCvr = saveCompanyMutation.isPending ? (saveCompanyMutation.variables?.vat ?? null) : (unsaveCompanyMutation.isPending ? unsaveCompanyMutation.variables ?? null : null);
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (industryText) count++;
+    if (industryCode !== "all") count++;
+    if (companyForm !== "all") count++;
+    if (size !== "all") count++;
+    if (zipcode) count++;
+    if (region !== "all") count++;
+    if (foundedPeriod !== "all") count++;
+    if (employeesMin > 0 || employeesMax < 5000) count++;
+    if (revenueMin > 0 || revenueMax < 1000) count++;
+    if (profitMin > 0 || profitMax < 1000) count++;
+    return count;
+  }, [industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
+
   return (
     <DashboardLayout>
-      {/* Header */}
+      {/* ── Header ───────────────────────────────────────────── */}
       <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
           {s.title}
         </h1>
-        <p className="text-sm text-slate-400 mt-1">{s.subtitle}</p>
+        <p className="text-sm text-muted-foreground mt-1">{s.subtitle}</p>
       </div>
 
-      {/* Search card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 mb-6">
-        {/* Search bar */}
-        <div className="flex gap-3 items-center">
-          <div className="relative flex-1">
-            <span className="material-symbols-outlined text-slate-400 text-xl absolute left-4 top-1/2 -translate-y-1/2">
-              search
-            </span>
-            <input
-              className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
-              placeholder={query.length > 0 ? s.searchPlaceholder : t.ai.search.placeholder}
-              value={query}
-              onChange={(e) => setFilter("query", e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            />
-          </div>
-          <button
-            onClick={() => {
-              if (query.trim().length >= 10) {
-                aiSearchMutation.mutate(query.trim());
-              }
-            }}
-            disabled={query.trim().length < 10 || aiSearchMutation.isPending}
-            className="flex items-center gap-2 px-4 py-3.5 bg-violet-50 text-violet-600 font-bold text-sm rounded-xl hover:bg-violet-100 border border-violet-200 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            title={t.ai.search.interpret}
-          >
-            {aiSearchMutation.isPending ? (
-              <div className="w-5 h-5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <span className="material-symbols-outlined text-lg">auto_awesome</span>
-            )}
-            <span className="hidden sm:inline">{aiSearchMutation.isPending ? t.ai.search.interpreting : "AI"}</span>
-          </button>
-          <button
-            onClick={handleSearch}
-            disabled={isLoading || isFetching}
-            className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {(isLoading || isFetching) ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <span className="material-symbols-outlined text-lg">search</span>
-            )}
-            {s.searchButton}
-          </button>
-        </div>
-
-        {/* AI interpretation result */}
-        {aiExplanation && (
-          <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-100 animate-fade-in-up">
-            <span className="material-symbols-outlined text-violet-500 text-lg mt-0.5 shrink-0">auto_awesome</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-violet-700 font-medium">
-                <span className="font-bold">{t.ai.search.understood}:</span> {aiExplanation}
-              </p>
+      {/* ── Search card ──────────────────────────────────────── */}
+      <Card className="mb-6 border-0 shadow-sm py-0 overflow-visible">
+        <CardContent className="p-5 sm:p-6">
+          {/* Search bar row */}
+          <div className="flex gap-2 sm:gap-3 items-center">
+            <div className="relative flex-1">
+              <Search className="size-5 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Input
+                className="h-12 pl-12 pr-4 text-sm rounded-xl border-border/60 bg-muted/30 focus:bg-background transition-colors"
+                placeholder={query.length > 0 ? s.searchPlaceholder : t.ai.search.placeholder}
+                value={query}
+                onChange={(e) => setFilter("query", e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              />
             </div>
-            <button
-              onClick={() => setAiExplanation("")}
-              className="shrink-0 text-violet-400 hover:text-violet-600 cursor-pointer"
+
+            {/* AI button */}
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12 px-4 rounded-xl border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 hover:text-violet-700 shrink-0 gap-2 font-bold"
+              onClick={() => {
+                if (query.trim().length >= 10) {
+                  aiSearchMutation.mutate(query.trim());
+                }
+              }}
+              disabled={query.trim().length < 10 || aiSearchMutation.isPending}
+              title={t.ai.search.interpret}
             >
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
+              {aiSearchMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              <span className="hidden sm:inline">{aiSearchMutation.isPending ? t.ai.search.interpreting : "AI"}</span>
+            </Button>
+
+            {/* Search button */}
+            <Button
+              variant="gradient"
+              size="lg"
+              className="h-12 px-6 rounded-xl shrink-0 gap-2 font-bold"
+              onClick={handleSearch}
+              disabled={isLoading || isFetching}
+            >
+              {(isLoading || isFetching) ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Search className="size-4" />
+              )}
+              {s.searchButton}
+            </Button>
           </div>
-        )}
 
-        {aiSearchMutation.isError && (
-          <p className="mt-3 text-sm text-red-500">{t.ai.search.error}</p>
-        )}
-
-        {/* Filter toggle */}
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 cursor-pointer group"
-        >
-          <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${showFilters ? "rotate-180" : "rotate-0"}`}>
-            expand_more
-          </span>
-          {s.filters.title}
-        </button>
-
-        {/* Filters panel */}
-        {showFilters && (
-          <div className="mt-4 pt-4 border-t border-slate-100 animate-slide-down">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.industry}</label>
-                <input
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
-                  placeholder={s.filters.industryPlaceholder}
-                  value={industryText}
-                  onChange={(e) => setFilter("industryText", e.target.value)}
-                />
+          {/* AI explanation */}
+          {aiExplanation && (
+            <div className="mt-3 flex items-start gap-3 p-3.5 rounded-xl bg-violet-50/80 border border-violet-100 animate-fade-in-up">
+              <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                <Sparkles className="size-3.5 text-violet-500" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.industryCode}</label>
-                <select
-                  value={industryCode}
-                  onChange={(e) => setFilter("industryCode", e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
-                >
-                  <option value="all">{s.filters.industryCodePlaceholder}</option>
-                  {s.industries.filter((i) => i.code !== "all").map((ind) => (
-                    <option key={ind.code} value={ind.code}>{ind.label}</option>
-                  ))}
-                </select>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-violet-700">
+                  <span className="font-bold">{t.ai.search.understood}:</span> {aiExplanation}
+                </p>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.companyForm}</label>
-                <select
-                  value={companyForm}
-                  onChange={(e) => setFilter("companyForm", e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
-                >
-                  <option value="all">{s.filters.companyFormPlaceholder}</option>
-                  {s.companyForms.filter((f) => f.code !== "all").map((f) => (
-                    <option key={f.code} value={f.code}>{f.label}</option>
-                  ))}
-                </select>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setAiExplanation("")}
+                className="shrink-0 text-violet-400 hover:text-violet-600"
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          )}
+
+          {aiSearchMutation.isError && (
+            <p className="mt-3 text-sm text-destructive">{t.ai.search.error}</p>
+          )}
+
+          {/* Filter toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="mt-4 flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer group transition-colors"
+          >
+            <SlidersHorizontal className="size-4" />
+            {s.filters.title}
+            {activeFilterCount > 0 && (
+              <Badge className="bg-primary/10 text-primary border-0 text-[10px] font-bold h-5 px-1.5">
+                {activeFilterCount}
+              </Badge>
+            )}
+            <ChevronDown className={cn(
+              "size-4 transition-transform duration-300",
+              showFilters && "rotate-180"
+            )} />
+          </button>
+
+          {/* ── Filters panel ─────────────────────────────────── */}
+          {showFilters && (
+            <div className="mt-4 pt-5 border-t border-border/40 animate-slide-down">
+              {/* Row 1 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.industry}</Label>
+                  <Input
+                    className="h-10"
+                    placeholder={s.filters.industryPlaceholder}
+                    value={industryText}
+                    onChange={(e) => setFilter("industryText", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.industryCode}</Label>
+                  <FilterSelect value={industryCode} onChange={(v) => setFilter("industryCode", v)}>
+                    <option value="all">{s.filters.industryCodePlaceholder}</option>
+                    {s.industries.filter((i) => i.code !== "all").map((ind) => (
+                      <option key={ind.code} value={ind.code}>{ind.label}</option>
+                    ))}
+                  </FilterSelect>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.companyForm}</Label>
+                  <FilterSelect value={companyForm} onChange={(v) => setFilter("companyForm", v)}>
+                    <option value="all">{s.filters.companyFormPlaceholder}</option>
+                    {s.companyForms.filter((f) => f.code !== "all").map((f) => (
+                      <option key={f.code} value={f.code}>{f.label}</option>
+                    ))}
+                  </FilterSelect>
+                </div>
+              </div>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.size}</Label>
+                  <FilterSelect value={size} onChange={(v) => setFilter("size", v)}>
+                    <option value="all">{s.filters.sizePlaceholder}</option>
+                    {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
+                      <option key={sz.code} value={sz.code}>{sz.label}</option>
+                    ))}
+                  </FilterSelect>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.zipcode}</Label>
+                  <Input
+                    className="h-10"
+                    placeholder={s.filters.zipcodePlaceholder}
+                    value={zipcode}
+                    onChange={(e) => setFilter("zipcode", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.region}</Label>
+                  <FilterSelect value={region} onChange={(v) => setFilter("region", v)}>
+                    <option value="all">{s.filters.regionPlaceholder}</option>
+                    {s.regions.filter((r) => r.code !== "all").map((reg) => (
+                      <option key={reg.code} value={reg.code}>{reg.label}</option>
+                    ))}
+                  </FilterSelect>
+                </div>
+              </div>
+
+              {/* Row 3 — founded */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.foundedDate}</Label>
+                  <FilterSelect value={foundedPeriod} onChange={(v) => setFilter("foundedPeriod", v)}>
+                    {foundedOptions.map((o) => (
+                      <option key={o.code} value={o.code}>{o.label}</option>
+                    ))}
+                  </FilterSelect>
+                </div>
+              </div>
+
+              {/* Segmentation sliders */}
+              <div className="pt-5 border-t border-border/40">
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                    <SlidersHorizontal className="size-3.5 text-amber-500" />
+                  </div>
+                  <h3 className="text-sm font-bold text-foreground">{s.filters.segmentation}</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+                  <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" />
+                  <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" />
+                  <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" />
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-5">
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground gap-1.5">
+                  <RotateCcw className="size-3.5" />
+                  {s.filters.clearFilters}
+                </Button>
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.size}</label>
-                <select
-                  value={size}
-                  onChange={(e) => setFilter("size", e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
-                >
-                  <option value="all">{s.filters.sizePlaceholder}</option>
-                  {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
-                    <option key={sz.code} value={sz.code}>{sz.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.zipcode}</label>
-                <input
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
-                  placeholder={s.filters.zipcodePlaceholder}
-                  value={zipcode}
-                  onChange={(e) => setFilter("zipcode", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.region}</label>
-                <select
-                  value={region}
-                  onChange={(e) => setFilter("region", e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
-                >
-                  <option value="all">{s.filters.regionPlaceholder}</option>
-                  {s.regions.filter((r) => r.code !== "all").map((reg) => (
-                    <option key={reg.code} value={reg.code}>{reg.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-600">{s.filters.foundedDate}</label>
-                <select
-                  value={foundedPeriod}
-                  onChange={(e) => setFilter("foundedPeriod", e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none appearance-none"
-                >
-                  {foundedOptions.map((o) => (
-                    <option key={o.code} value={o.code}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Segmentation */}
-            <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900 mb-4">{s.filters.segmentation}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" />
-                <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" />
-                <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" />
-              </div>
-            </div>
-
-            <div className="flex justify-end mt-4">
-              <button onClick={clearFilters} className="text-xs font-medium text-slate-400 hover:text-slate-600 flex items-center gap-1 cursor-pointer">
-                <span className="material-symbols-outlined text-sm">close</span>
-                {s.filters.clearFilters}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Error */}
+      {/* ── Error alert ──────────────────────────────────────── */}
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 animate-fade-in-up">
-          <span className="material-symbols-outlined text-red-500 text-lg">error</span>
-          <p className="text-sm font-medium text-red-700">{error}</p>
-        </div>
+        <Alert variant="destructive" className="mb-4 animate-fade-in-up">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {/* Selected actions */}
+      {/* ── Selected actions bar ──────────────────────────────── */}
       {selected.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 flex items-center justify-between animate-fade-in-up">
-          <p className="text-sm font-medium text-blue-700">{selected.length} {s.selected}</p>
-          <button className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-full hover:bg-blue-700 transition-colors">
-            <span className="material-symbols-outlined text-lg">download</span>
+        <div className="bg-primary/5 border border-primary/10 rounded-xl px-5 py-3.5 mb-4 flex items-center justify-between animate-fade-in-up">
+          <p className="text-sm font-semibold text-primary">
+            {selected.length} {s.selected}
+          </p>
+          <Button size="sm" className="rounded-full gap-2">
+            <Download className="size-3.5" />
             {s.export}
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Loading */}
+      {/* ── Loading state ────────────────────────────────────── */}
       {isLoading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-slate-400 font-medium">{s.searchButton}...</p>
-        </div>
+        <Card className="py-16 border-0 shadow-sm">
+          <CardContent className="text-center">
+            <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">{s.searchButton}...</p>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Results */}
+      {/* ── Results ──────────────────────────────────────────── */}
       {!isLoading && hasSearched && results.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              <span className="font-bold text-slate-900">{results.length}</span>
-              {totalResults > results.length && (
-                <span className="text-slate-400"> / {totalResults}</span>
-              )}{" "}
-              {s.results}
-            </p>
-            <button
+        <Card className="overflow-hidden border-0 shadow-sm py-0">
+          {/* Results header */}
+          <div className="px-5 sm:px-6 py-4 border-b border-border/40 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-bold text-foreground">{results.length}</span>
+                {totalResults > results.length && (
+                  <span className="text-muted-foreground/60"> / {totalResults}</span>
+                )}{" "}
+                {s.results}
+              </p>
+              {isFetching && <Loader2 className="size-3.5 text-primary animate-spin" />}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowSaveModal(true)}
-              className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+              className="gap-1.5 text-muted-foreground hover:text-primary"
             >
-              <span className="material-symbols-outlined text-lg">bookmark</span>
+              <Bookmark className="size-4" />
               {s.saveSearch}
-            </button>
+            </Button>
           </div>
+
+          {/* Results table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[700px]">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-4 sm:px-6 py-3 w-10">
-                    <input type="checkbox" checked={selectedSet.size === results.length && results.length > 0} onChange={toggleAll} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">{s.table.company}</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">{s.table.cvr}</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.city}</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">{s.table.industry}</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.employees}</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">{s.table.status}</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">{s.table.founded}</th>
-                  <th className="w-10 px-2 py-3" />
-                  <th className="w-10 px-2 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 animate-stagger">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="px-4 sm:px-6 w-10">
+                    <Checkbox
+                      checked={selectedSet.size === results.length && results.length > 0}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest">{s.table.company}</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest">{s.table.cvr}</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">{s.table.city}</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">{s.table.industry}</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">{s.table.employees}</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">{s.table.status}</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">{s.table.founded}</TableHead>
+                  <TableHead className="w-10 px-2" />
+                  <TableHead className="w-10 px-2" />
+                </TableRow>
+              </TableHeader>
+              <TableBody className="animate-stagger">
                 {results.map((c, idx) => {
                   const color = companyColors[idx % companyColors.length];
                   const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
                   const isSaved = savedCvrs.has(c.cvr);
                   const isSaving = savingCvr === c.cvr;
                   return (
-                    <tr key={c.cvr} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => router.push(`/company/${c.cvr}`)}>
-                      <td className="px-4 sm:px-6 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={selectedSet.has(c.cvr)} onChange={() => toggleSelect(c.cvr)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" />
-                      </td>
-                      <td className="px-4 py-3.5">
+                    <TableRow
+                      key={c.cvr}
+                      className="group hover:bg-muted/40 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/company/${c.cvr}`)}
+                    >
+                      <TableCell className="px-4 sm:px-6" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedSet.has(c.cvr)}
+                          onCheckedChange={() => toggleSelect(c.cvr)}
+                        />
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full ${color.bg} flex items-center justify-center shrink-0`}>
-                            <span className={`text-xs font-bold ${color.text}`}>{initials}</span>
+                          <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm", color.bg)}>
+                            <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">{c.name}</p>
-                            <p className="text-[10px] text-slate-400 md:hidden">{c.city} · {c.employees}</p>
+                            <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{c.name}</p>
+                            <p className="text-[10px] text-muted-foreground md:hidden">{c.city} · {c.employees}</p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 tabular-nums">{c.cvr}</td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 hidden md:table-cell">{c.city}</td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 hidden lg:table-cell truncate max-w-[160px]">{c.industry}</td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 tabular-nums hidden md:table-cell">{c.employees}</td>
-                      <td className="px-4 py-3.5 hidden md:table-cell">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">{c.status}</span>
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-400 tabular-nums hidden lg:table-cell">
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums">{c.cvr}</TableCell>
+                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden md:table-cell">{c.city}</TableCell>
+                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden lg:table-cell truncate max-w-[160px]">{c.industry}</TableCell>
+                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums hidden md:table-cell">{c.employees}</TableCell>
+                      <TableCell className="px-4 py-3.5 hidden md:table-cell">
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-0 text-[10px] font-bold uppercase tracking-wider">
+                          {c.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums hidden lg:table-cell">
                         {new Date(c.founded).toLocaleDateString(locale === "da" ? "da-DK" : "en-US")}
-                      </td>
-                      <td className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <button
+                      </TableCell>
+                      <TableCell className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleSaveCompany(c, rawResults[idx] || {})}
                           disabled={isSaving}
-                          className="group p-1 rounded-full hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
+                          className="rounded-full"
                           title={isSaved ? t.companyDetail.unsave : t.companyDetail.save}
                         >
-                          <span
-                            className={`material-symbols-outlined text-lg transition-all duration-200 ${isSaved ? "text-red-500 animate-check-pop" : "text-slate-300 group-hover:text-red-400 group-hover:scale-110"}`}
-                            style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                          >
-                            favorite
-                          </span>
-                        </button>
-                      </td>
-                      <td className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <span className="material-symbols-outlined text-slate-300 hover:text-blue-600 text-lg transition-colors cursor-pointer">open_in_new</span>
-                      </td>
-                    </tr>
+                          <Heart className={cn(
+                            "size-4 transition-all duration-200",
+                            isSaved ? "text-red-500 fill-red-500" : "text-muted-foreground/30 hover:text-red-400"
+                          )} />
+                        </Button>
+                      </TableCell>
+                      <TableCell className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="rounded-full text-muted-foreground/30 hover:text-primary"
+                          onClick={() => router.push(`/company/${c.cvr}`)}
+                        >
+                          <ExternalLink className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
+          {/* Load more */}
           {hasMore && (
-            <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex justify-center">
-              <button
+            <div className="px-5 sm:px-6 py-4 border-t border-border/40 flex justify-center">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="rounded-xl gap-2"
                 onClick={handleLoadMore}
                 disabled={isFetching}
-                className="flex items-center gap-2 px-6 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-sm rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isFetching ? (
-                  <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <span className="material-symbols-outlined text-lg">expand_more</span>
+                  <ChevronDown className="size-4" />
                 )}
                 {isFetching ? s.loadingMore : s.loadMore}
-              </button>
+              </Button>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* Empty states */}
+      {/* ── Empty states ─────────────────────────────────────── */}
       {!hasSearched && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center">
-          <span className="material-symbols-outlined text-6xl text-slate-200 mb-4 block">manage_search</span>
-          <p className="text-slate-400 font-medium text-lg mb-1">{s.title}</p>
-          <p className="text-slate-300 text-sm">{s.subtitle}</p>
-        </div>
+        <Card className="py-20 border-0 shadow-sm">
+          <CardContent className="text-center">
+            <div className="w-20 h-20 rounded-2xl bg-primary/5 flex items-center justify-center mx-auto mb-5">
+              <Search className="size-9 text-primary/30" />
+            </div>
+            <p className="text-foreground font-semibold text-lg mb-1.5">{s.title}</p>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto">{s.subtitle}</p>
+          </CardContent>
+        </Card>
       )}
 
       {!isLoading && hasSearched && results.length === 0 && !error && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">apartment</span>
-          <p className="text-slate-400 font-medium">{s.noResults}</p>
-        </div>
+        <Card className="py-16 border-0 shadow-sm">
+          <CardContent className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <SearchX className="size-7 text-muted-foreground/40" />
+            </div>
+            <p className="text-foreground font-semibold mb-1">{locale === "da" ? "Ingen resultater" : "No results"}</p>
+            <p className="text-muted-foreground text-sm">{s.noResults}</p>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Save search modal */}
-      {showSaveModal && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-50 animate-overlay" onClick={() => setShowSaveModal(false)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md p-6 animate-modal" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">{t.savedSearches.namePrompt}</h3>
-              <p className="text-sm text-slate-400 mb-4">{t.savedSearches.subtitle}</p>
-              <input
-                className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none mb-4"
-                placeholder={t.savedSearches.namePlaceholder}
-                value={saveSearchName}
-                onChange={(e) => setSaveSearchName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSaveSearch()}
-                autoFocus
-              />
-              <div className="flex flex-wrap gap-1.5 mb-5">
-                {Object.entries(getCurrentFilters()).map(([key, value]) => (
-                  <span key={key} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-600 border border-slate-100">
-                    <span className="text-slate-400">{key}:</span>{value}
-                  </span>
-                ))}
-              </div>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => { setShowSaveModal(false); setSaveSearchName(""); }} className="px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer">
-                  {t.savedSearches.cancelButton}
-                </button>
-                <button
-                  onClick={handleSaveSearch}
-                  disabled={!saveSearchName.trim() || saveSearchMutation.isPending}
-                  className="px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {saveSearchMutation.isPending ? "..." : t.savedSearches.saveButton}
-                </button>
-              </div>
+      {/* ── Save search dialog ───────────────────────────────── */}
+      <Dialog open={showSaveModal} onOpenChange={setShowSaveModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.savedSearches.namePrompt}</DialogTitle>
+            <DialogDescription>{t.savedSearches.subtitle}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder={t.savedSearches.namePlaceholder}
+              value={saveSearchName}
+              onChange={(e) => setSaveSearchName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveSearch()}
+              autoFocus
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(getCurrentFilters()).map(([key, value]) => (
+                <Badge key={key} variant="secondary" className="text-xs font-medium">
+                  <span className="text-muted-foreground mr-1">{key}:</span>{value}
+                </Badge>
+              ))}
             </div>
           </div>
-        </>
-      )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose>
+              <Button variant="ghost" onClick={() => setSaveSearchName("")}>
+                {t.savedSearches.cancelButton}
+              </Button>
+            </DialogClose>
+            <Button
+              onClick={handleSaveSearch}
+              disabled={!saveSearchName.trim() || saveSearchMutation.isPending}
+            >
+              {saveSearchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+              {saveSearchMutation.isPending ? "..." : t.savedSearches.saveButton}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

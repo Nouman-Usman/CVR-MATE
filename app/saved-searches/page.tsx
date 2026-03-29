@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useSavedSearches, useDeleteSearch } from "@/lib/hooks/use-saved-searches";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SearchCheck, Play, Trash2, Loader2, Search } from "lucide-react";
 
 interface SavedSearchItem {
   id: string;
@@ -49,37 +54,38 @@ export default function SavedSearchesPage() {
     <DashboardLayout>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
           {ss.title}
         </h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {ss.subtitle} · {searches.length} {ss.count}
         </p>
       </div>
 
       {/* Loading */}
       {loading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-slate-400 font-medium">...</p>
-        </div>
+        <Card className="py-16">
+          <CardContent className="text-center">
+            <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">...</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Empty state */}
       {!loading && searches.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center">
-          <span className="material-symbols-outlined text-6xl text-slate-200 mb-4 block">
-            saved_search
-          </span>
-          <p className="text-slate-400 font-medium mb-6">{ss.noSearches}</p>
-          <Link
-            href="/search"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-lg">search</span>
-            {ss.goToSearch}
-          </Link>
-        </div>
+        <Card className="py-20">
+          <CardContent className="text-center">
+            <SearchCheck className="size-16 text-muted-foreground/20 mx-auto mb-4" />
+            <p className="text-muted-foreground font-medium mb-6">{ss.noSearches}</p>
+            <Link href="/search">
+              <Button variant="outline" className="rounded-full">
+                <Search className="size-4" />
+                {ss.goToSearch}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       )}
 
       {/* Saved searches list */}
@@ -90,77 +96,67 @@ export default function SavedSearchesPage() {
               ([, v]) => v && v !== "all"
             );
             return (
-              <div
-                key={search.id}
-                className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 p-5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-blue-600 text-xl">
-                          saved_search
-                        </span>
+              <Card key={search.id} className="hover:shadow-md transition-shadow duration-300 py-0">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                          <SearchCheck className="size-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground">
+                            {search.name}
+                          </h3>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(search.createdAt).toLocaleDateString(
+                              locale === "da" ? "da-DK" : "en-US",
+                              { year: "numeric", month: "short", day: "numeric" }
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          {search.name}
-                        </h3>
-                        <p className="text-[11px] text-slate-400">
-                          {new Date(search.createdAt).toLocaleDateString(
-                            locale === "da" ? "da-DK" : "en-US",
-                            {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            }
-                          )}
-                        </p>
+
+                      {/* Filter pills */}
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {filterEntries.map(([key, value]) => (
+                          <Badge key={key} variant="secondary" className="font-medium text-xs">
+                            <span className="text-muted-foreground">
+                              {filterLabelMap[key] || key}:
+                            </span>
+                            {value}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Filter pills */}
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {filterEntries.map(([key, value]) => (
-                        <span
-                          key={key}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-50 text-slate-600 border border-slate-100"
-                        >
-                          <span className="text-slate-400">
-                            {filterLabelMap[key] || key}:
-                          </span>
-                          {value}
-                        </span>
-                      ))}
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={() => handleRunSearch(search.filters)}
+                      >
+                        <Play className="size-3.5" />
+                        {ss.runSearch}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemove(search.id)}
+                        disabled={removing === search.id}
+                        className="text-muted-foreground hover:bg-red-50 hover:text-destructive"
+                        title={ss.removed}
+                      >
+                        {removing === search.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-4" />
+                        )}
+                      </Button>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => handleRunSearch(search.filters)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        play_arrow
-                      </span>
-                      {ss.runSearch}
-                    </button>
-                    <button
-                      onClick={() => handleRemove(search.id)}
-                      disabled={removing === search.id}
-                      className="p-2 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
-                      title={ss.removed}
-                    >
-                      <span className="material-symbols-outlined text-lg">
-                        {removing === search.id
-                          ? "progress_activity"
-                          : "delete"}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
