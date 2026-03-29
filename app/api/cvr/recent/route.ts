@@ -50,7 +50,15 @@ export async function GET(req: NextRequest) {
 
     const perDay = await Promise.all(dates.map(fetchAllForDate));
 
-    const companies = perDay.flat();
+    // Strict filter: only keep companies founded within the last N days
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - safeDays * 24 * 60 * 60 * 1000);
+
+    const companies = perDay.flat().filter((c) => {
+      if (!c.life?.start) return false;
+      const startDate = new Date(c.life.start);
+      return startDate >= cutoff && startDate <= now;
+    });
 
     // Sort newest first
     companies.sort((a, b) => {
