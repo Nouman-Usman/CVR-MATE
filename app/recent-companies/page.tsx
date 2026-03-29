@@ -2,24 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useRecentCompanies } from "@/lib/hooks/use-recent-companies";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 import { companyColors } from "@/lib/constants/colors";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Search,
   X,
@@ -30,6 +24,12 @@ import {
   Heart,
   ChevronLeft,
   ChevronRight,
+  ArrowRight,
+  Calendar,
+  MapPin,
+  Users,
+  Sparkles,
+  TrendingUp,
 } from "lucide-react";
 
 const PAGE_SIZE = 20;
@@ -127,198 +127,294 @@ export default function RecentCompaniesPage() {
 
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* ── Header ────────────────────────────────────────────── */}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {r.title}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {r.subtitle} · {filtered.length} {r.found}
+          <p className="text-sm text-muted-foreground mt-1.5">
+            {r.subtitle}
           </p>
         </div>
         <Button
           variant="outline"
-          className="self-start rounded-full shadow-sm"
+          className="self-start rounded-xl shadow-sm gap-2"
           onClick={() => forceRefresh()}
           disabled={isFetching}
         >
-          <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+          <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
           {r.refresh}
         </Button>
       </div>
 
-      {/* Filter */}
-      <div className="mb-4 relative max-w-md">
-        <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-        <Input
-          className="rounded-full pl-10 pr-9"
-          placeholder={r.filterPlaceholder}
-          value={filter}
-          onChange={(e) => handleFilterChange(e.target.value)}
-        />
-        {filter && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => handleFilterChange("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-          >
-            <X className="size-4" />
-          </Button>
+      {/* ── Stats row ─────────────────────────────────────────── */}
+      {!isLoading && !fetchError && allCompanies.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                <Building2 className="size-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {allCompanies.length}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Virksomheder" : "Companies"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <TrendingUp className="size-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {new Set(allCompanies.map(c => c.city).filter(Boolean)).size}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Byer" : "Cities"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                <Sparkles className="size-5 text-violet-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {new Set(allCompanies.map(c => c.industry).filter(Boolean)).size}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Brancher" : "Industries"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Heart className="size-5 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {allCompanies.filter(c => savedCvrs.has(c.cvr)).length}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Gemt" : "Saved"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Search + count bar ────────────────────────────────── */}
+      <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="size-4 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
+          <Input
+            className="h-11 rounded-xl pl-11 pr-9 border-border/60 bg-muted/30 focus:bg-background transition-colors"
+            placeholder={r.filterPlaceholder}
+            value={filter}
+            onChange={(e) => handleFilterChange(e.target.value)}
+          />
+          {filter && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => handleFilterChange("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            >
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
+        {!isLoading && !fetchError && filtered.length > 0 && (
+          <Badge variant="secondary" className="border-0 text-xs font-semibold h-7 px-3 shrink-0">
+            {filtered.length} {r.found}
+          </Badge>
         )}
       </div>
 
-      {/* Loading */}
+      {/* ── Loading skeleton ──────────────────────────────────── */}
       {isLoading && (
-        <Card className="py-16">
-          <CardContent className="text-center">
-            <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">...</p>
+        <Card className="border-0 shadow-sm py-0">
+          <CardContent className="p-0">
+            <div className="p-5 space-y-0 divide-y divide-border/30">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+                  <Skeleton className="w-11 h-11 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/5" />
+                    <Skeleton className="h-3 w-1/4" />
+                  </div>
+                  <Skeleton className="h-5 w-16 rounded-full hidden sm:block" />
+                  <Skeleton className="h-3 w-20 hidden md:block" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Error */}
+      {/* ── Error ─────────────────────────────────────────────── */}
       {!isLoading && fetchError && (
-        <Card className="py-16">
+        <Card className="py-16 border-0 shadow-sm">
           <CardContent className="text-center">
-            <AlertCircle className="size-12 text-muted-foreground/20 mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">{r.fetchError}</p>
+            <div className="w-16 h-16 rounded-2xl bg-destructive/5 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="size-7 text-destructive/40" />
+            </div>
+            <p className="text-foreground font-semibold mb-1">{locale === "da" ? "Noget gik galt" : "Something went wrong"}</p>
+            <p className="text-muted-foreground text-sm mb-5">{r.fetchError}</p>
+            <Button variant="outline" onClick={() => forceRefresh()} className="rounded-xl gap-2">
+              <RefreshCw className="size-4" />
+              {locale === "da" ? "Prøv igen" : "Try again"}
+            </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Empty / No filter match */}
+      {/* ── Empty / No filter match ───────────────────────────── */}
       {!isLoading && !fetchError && companies.length === 0 && (
-        <Card className="py-16">
+        <Card className="py-16 border-0 shadow-sm">
           <CardContent className="text-center">
-            <Building2 className="size-12 text-muted-foreground/20 mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              {filter ? (
+                <Search className="size-7 text-muted-foreground/30" />
+              ) : (
+                <Building2 className="size-7 text-muted-foreground/30" />
+              )}
+            </div>
+            <p className="text-foreground font-semibold mb-1">
+              {filter
+                ? (locale === "da" ? "Ingen match" : "No matches")
+                : (locale === "da" ? "Ingen virksomheder endnu" : "No companies yet")}
+            </p>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto">
               {filter ? r.noFilter : r.noCompanies}
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Table */}
+      {/* ── Company list (card-based rows) ────────────────────── */}
       {!isLoading && !fetchError && companies.length > 0 && (
         <>
-          <Card className="overflow-hidden hover:shadow-md transition-shadow duration-300 py-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="px-4 sm:px-6 text-[10px] font-bold uppercase tracking-widest">
-                      {r.table.company}
-                    </TableHead>
-                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest">
-                      {r.table.cvr}
-                    </TableHead>
-                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">
-                      {r.table.city}
-                    </TableHead>
-                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">
-                      {r.table.industry}
-                    </TableHead>
-                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">
-                      {r.table.status}
-                    </TableHead>
-                    <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">
-                      {r.table.founded}
-                    </TableHead>
-                    <TableHead className="w-12 px-3" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {companies.map((c, idx) => {
-                    const color = companyColors[idx % companyColors.length];
-                    const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-                    const isSaved = savedCvrs.has(c.cvr);
-                    const rawResult = rawResults.find(
-                      r => (r as unknown as { vat: number }).vat === Number(c.cvr)
-                    ) as unknown as Record<string, unknown> | undefined;
-                    return (
-                      <TableRow
-                        key={c.cvr}
-                        className="hover:bg-muted/50 transition-colors cursor-pointer"
-                        onClick={() => router.push(`/company/${c.cvr}`)}
+          <Card className="overflow-hidden border-0 shadow-sm py-0">
+            <div className="divide-y divide-border/30">
+              {companies.map((c, idx) => {
+                const color = companyColors[idx % companyColors.length];
+                const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+                const isSaved = savedCvrs.has(c.cvr);
+                const rawResult = rawResults.find(
+                  r => (r as unknown as { vat: number }).vat === Number(c.cvr)
+                ) as unknown as Record<string, unknown> | undefined;
+
+                return (
+                  <div
+                    key={c.cvr}
+                    className="group flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => router.push(`/company/${c.cvr}`)}
+                  >
+                    {/* Avatar */}
+                    <div className={cn(
+                      "w-11 h-11 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm transition-shadow group-hover:shadow-md",
+                      color.bg
+                    )}>
+                      <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
+                    </div>
+
+                    {/* Main info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {c.name}
+                        </p>
+                        <Badge variant="secondary" className="hidden sm:flex bg-emerald-50 text-emerald-700 border-0 text-[9px] font-bold uppercase tracking-wider h-5 shrink-0">
+                          {c.status || r.statusActive}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span className="tabular-nums">{c.cvr}</span>
+                        {c.city && (
+                          <span className="hidden sm:flex items-center gap-1">
+                            <MapPin className="size-3" />
+                            {c.city}
+                          </span>
+                        )}
+                        {c.employees !== "\u2013" && (
+                          <span className="hidden md:flex items-center gap-1">
+                            <Users className="size-3" />
+                            {c.employees}
+                          </span>
+                        )}
+                        {c.founded && (
+                          <span className="hidden lg:flex items-center gap-1">
+                            <Calendar className="size-3" />
+                            {new Date(c.founded).toLocaleDateString(
+                              locale === "da" ? "da-DK" : "en-US",
+                              { year: "numeric", month: "short" }
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Industry badge */}
+                    {c.industry && (
+                      <Badge variant="secondary" className="hidden lg:flex border-0 text-[10px] font-medium max-w-[180px] truncate shrink-0 h-6">
+                        {c.industry}
+                      </Badge>
+                    )}
+
+                    {/* Save button */}
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-full"
+                        onClick={() => rawResult && handleSaveToggle(c, rawResult)}
+                        disabled={savingCvr === c.cvr}
                       >
-                        <TableCell className="px-4 sm:px-6 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full ${color.bg} flex items-center justify-center shrink-0`}>
-                              <span className={`text-xs font-bold ${color.text}`}>{initials}</span>
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors">
-                                {c.name}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground md:hidden">
-                                {c.city} · {c.cvr}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums">
-                          {c.cvr}
-                        </TableCell>
-                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden md:table-cell">
-                          {c.city || "\u2013"}
-                        </TableCell>
-                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden lg:table-cell truncate max-w-[180px]">
-                          {c.industry || "\u2013"}
-                        </TableCell>
-                        <TableCell className="px-4 py-3.5 hidden md:table-cell">
-                          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
-                            {c.status || r.statusActive}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums hidden lg:table-cell">
-                          {c.founded
-                            ? new Date(c.founded).toLocaleDateString(
-                                locale === "da" ? "da-DK" : "en-US"
-                              )
-                            : "\u2013"}
-                        </TableCell>
-                        <TableCell
-                          className="px-3 py-3.5"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => rawResult && handleSaveToggle(c, rawResult)}
-                            disabled={savingCvr === c.cvr}
-                          >
-                            <Heart
-                              className={`size-4 ${
-                                isSaved
-                                  ? "text-red-500 fill-red-500"
-                                  : "text-muted-foreground/40"
-                              }`}
-                            />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                        <Heart className={cn(
+                          "size-4 transition-all duration-200",
+                          isSaved
+                            ? "text-red-500 fill-red-500"
+                            : "text-muted-foreground/30 group-hover:text-red-300"
+                        )} />
+                      </Button>
+                    </div>
+
+                    {/* Arrow */}
+                    <ArrowRight className="size-4 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-all shrink-0" />
+                  </div>
+                );
+              })}
             </div>
           </Card>
 
-          {/* Pagination */}
-          <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-3">
+          {/* ── Pagination ──────────────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row items-center justify-between mt-5 gap-3">
             <p className="text-sm text-muted-foreground">
-              {r.showing} {(page - 1) * PAGE_SIZE + 1}–
-              {Math.min(page * PAGE_SIZE, filtered.length)} {r.of}{" "}
-              {filtered.length}
+              {r.showing}{" "}
+              <span className="font-semibold text-foreground">{(page - 1) * PAGE_SIZE + 1}</span>
+              –
+              <span className="font-semibold text-foreground">{Math.min(page * PAGE_SIZE, filtered.length)}</span>
+              {" "}{r.of}{" "}
+              <span className="font-semibold text-foreground">{filtered.length}</span>
             </p>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full"
+                className="rounded-full w-9 h-9"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -327,9 +423,12 @@ export default function RecentCompaniesPage() {
               {pageNumbers.map((p) => (
                 <Button
                   key={p}
-                  variant={p === page ? "default" : "outline"}
+                  variant={p === page ? "default" : "ghost"}
                   size="icon"
-                  className="rounded-full w-9 h-9"
+                  className={cn(
+                    "rounded-full w-9 h-9 text-sm font-semibold",
+                    p === page && "shadow-sm"
+                  )}
                   onClick={() => setPage(p)}
                 >
                   {p}
@@ -338,7 +437,7 @@ export default function RecentCompaniesPage() {
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full"
+                className="rounded-full w-9 h-9"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >
