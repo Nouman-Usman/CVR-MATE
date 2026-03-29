@@ -22,15 +22,29 @@ export async function GET(req: NextRequest) {
     }
     const fromStr = dates[dates.length - 1];
 
-    const perDay = await Promise.all(
-      dates.map((date) =>
-        searchCompanies({
+    // Fetch ALL companies per day by paginating through results
+    const PAGE_LIMIT = 100;
+
+    async function fetchAllForDate(date: string) {
+      const all: Awaited<ReturnType<typeof searchCompanies>> = [];
+      let page = 1;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const batch = await searchCompanies({
           life_start: date,
           companystatus_code: "20",
-          limit: "100",
-        }).catch(() => [] as Awaited<ReturnType<typeof searchCompanies>>)
-      )
-    );
+          limit: String(PAGE_LIMIT),
+          page: String(page),
+        }).catch(() => [] as Awaited<ReturnType<typeof searchCompanies>>);
+        all.push(...batch);
+        // If we got fewer than the limit, we've reached the last page
+        if (batch.length < PAGE_LIMIT) break;
+        page++;
+      }
+      return all;
+    }
+
+    const perDay = await Promise.all(dates.map(fetchAllForDate));
 
     const companies = perDay.flat();
 
