@@ -717,8 +717,8 @@ export default function TriggersPage() {
 
           {/* Footer */}
           <DialogFooter className="px-6 py-4 border-t border-border/40 gap-2 sm:gap-0 shrink-0">
-            <DialogClose>
-              <Button variant="outline" className="rounded-xl">{tr.cancel}</Button>
+            <DialogClose render={<Button variant="outline" className="rounded-xl" />}>
+              {tr.cancel}
             </DialogClose>
             <Button
               variant="gradient"

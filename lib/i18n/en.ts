@@ -533,7 +533,7 @@ const en: Dictionary = {
     noSavedDesc: "Save companies from search results to export them here.",
     searchCompanies: "Search companies",
     exported: "companies exported",
-    excelNote: "Excel export coming soon. Use CSV in the meantime.",
+    excelNote: "Excel file downloaded",
     pdfExported: "PDF downloaded successfully",
     selected: "selected",
     allLeads: "All leads included",
