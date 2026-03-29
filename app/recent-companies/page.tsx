@@ -58,7 +58,7 @@ export default function RecentCompaniesPage() {
   const [page, setPage] = useState(1);
 
   // Fetch recent companies (last 7 days, cached 24h server-side via Redis)
-  const { data, isLoading, error: fetchError, refetch, isFetching } = useRecentCompanies(7);
+  const { data, isLoading, error: fetchError, forceRefresh, isFetching } = useRecentCompanies(7);
   const rawResults = data?.results ?? [];
 
   // Map and filter
@@ -123,7 +123,7 @@ export default function RecentCompaniesPage() {
           </p>
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={() => forceRefresh()}
           disabled={isFetching}
           className="self-start flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
         >

@@ -8,10 +8,14 @@ export async function GET(req: NextRequest) {
     const days = Number(req.nextUrl.searchParams.get("days") || "7");
     const safeDays = Math.min(Math.max(days, 1), 7); // max 1 week
 
-    // Check Redis cache first (24h TTL)
+    const force = req.nextUrl.searchParams.get("force") === "1";
+
+    // Check Redis cache first (skip if force refresh)
     const key = cacheKey.recent(safeDays);
-    const cached = await cacheGet<{ results: unknown[]; count: number; from: string }>(key);
-    if (cached) return NextResponse.json(cached);
+    if (!force) {
+      const cached = await cacheGet<{ results: unknown[]; count: number; from: string }>(key);
+      if (cached) return NextResponse.json(cached);
+    }
 
     // Query each day individually — life_start is an exact-date filter,
     // so a single call only returns companies founded on that one day.

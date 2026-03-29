@@ -6,7 +6,7 @@ export const CACHE_TTL = {
   company: 3600,   // 1 hour
   suggest: 600,    // 10 minutes
   participant: 3600, // 1 hour
-  recent: 86400,   // 24 hours
+  recent: 14400,   // 4 hours (key is date-scoped, refreshes daily)
   aiBriefing: 86400,  // 24 hours
   aiOutreach: 3600,   // 1 hour
   aiPipeline: 1800,   // 30 minutes
@@ -35,7 +35,10 @@ export const cacheKey = {
 
   participant: (id: number | string) => `participant:${id}`,
 
-  recent: (days: number) => `recent:${days}`,
+  recent: (days: number) => {
+    const today = new Date().toISOString().split("T")[0];
+    return `recent:${days}:${today}`;
+  },
 
   aiBriefing: (vat: string, locale: string) => `ai:briefing:${vat}:${locale}`,
   aiOutreach: (vat: string, type: string, tone: string) =>
