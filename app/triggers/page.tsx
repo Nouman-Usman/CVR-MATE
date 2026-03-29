@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import {
@@ -11,6 +12,46 @@ import {
   useRunTrigger,
   type Trigger,
 } from "@/lib/hooks/use-triggers";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Zap,
+  Plus,
+  Play,
+  Pencil,
+  Trash2,
+  ChevronDown,
+  Clock,
+  Bell,
+  Mail,
+  RefreshCw,
+  Loader2,
+  Calendar,
+  MapPin,
+  Building2,
+  Users,
+  Filter,
+  ArrowRight,
+  Pause,
+  CheckCircle2,
+} from "lucide-react";
+import { toast } from "sonner";
 
 type NotificationChannel = "in_app" | "email";
 
@@ -26,32 +67,49 @@ interface TriggerFilters {
 }
 
 const emptyFilters: TriggerFilters = {};
-
 const DAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
+// ── Styled select wrapper ───────────────────────────────────────────
+
+function FormSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full h-10 rounded-lg border border-border bg-muted/30 px-3 text-sm text-foreground focus:ring-2 focus:ring-ring/20 focus:border-ring outline-none appearance-none transition-colors cursor-pointer"
+    >
+      {children}
+    </select>
+  );
+}
+
 export default function TriggersPage() {
   const { t, locale } = useLanguage();
   const tr = t.triggers;
 
-  // Data
   const { data, isLoading } = useTriggers();
   const triggers = (data?.triggers ?? []) as Trigger[];
 
-  // Mutations
   const createMutation = useCreateTrigger();
   const updateMutation = useUpdateTrigger();
   const deleteMutation = useDeleteTrigger();
   const runMutation = useRunTrigger();
 
-  // UI state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Trigger | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
 
   // Form state
   const [name, setName] = useState("");
@@ -60,12 +118,7 @@ export default function TriggersPage() {
   const [channels, setChannels] = useState<NotificationChannel[]>(["in_app"]);
   const [scheduledHour, setScheduledHour] = useState(8);
   const [scheduledMinute, setScheduledMinute] = useState(0);
-  const [scheduledDayOfWeek, setScheduledDayOfWeek] = useState(1); // Monday
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
+  const [scheduledDayOfWeek, setScheduledDayOfWeek] = useState(1);
 
   const openCreate = () => {
     setEditing(null);
@@ -103,7 +156,6 @@ export default function TriggersPage() {
 
   const handleSave = () => {
     if (!name.trim()) return;
-
     const payload = {
       name: name.trim(),
       frequency,
@@ -113,25 +165,15 @@ export default function TriggersPage() {
       scheduledMinute,
       scheduledDayOfWeek: frequency === "weekly" ? scheduledDayOfWeek : null,
     };
-
     if (editing) {
-      updateMutation.mutate(
-        { id: editing.id, ...payload },
-        {
-          onSuccess: () => {
-            setDialogOpen(false);
-            showToast(tr.updated);
-          },
-          onError: () => showToast(tr.runError),
-        }
-      );
+      updateMutation.mutate({ id: editing.id, ...payload }, {
+        onSuccess: () => { setDialogOpen(false); toast.success(tr.updated); },
+        onError: () => toast.error(tr.runError),
+      });
     } else {
       createMutation.mutate(payload, {
-        onSuccess: () => {
-          setDialogOpen(false);
-          showToast(tr.created);
-        },
-        onError: () => showToast(tr.runError),
+        onSuccess: () => { setDialogOpen(false); toast.success(tr.created); },
+        onError: () => toast.error(tr.runError),
       });
     }
   };
@@ -142,18 +184,16 @@ export default function TriggersPage() {
 
   const handleDelete = (id: string) => {
     if (!window.confirm(tr.deleteConfirm)) return;
-    deleteMutation.mutate(id, {
-      onSuccess: () => showToast(tr.deleted),
-    });
+    deleteMutation.mutate(id, { onSuccess: () => toast.success(tr.deleted) });
   };
 
   const handleRun = (id: string) => {
     runMutation.mutate(id, {
       onSuccess: (data) => {
         const count = data?.result?.matchCount ?? 0;
-        showToast(`${tr.runSuccess} — ${count} ${tr.runResults}`);
+        toast.success(`${tr.runSuccess} — ${count} ${tr.runResults}`);
       },
-      onError: () => showToast(tr.runError),
+      onError: () => toast.error(tr.runError),
     });
   };
 
@@ -184,293 +224,275 @@ export default function TriggersPage() {
     const now = new Date();
     const diffMs = d.getTime() - now.getTime();
     const diffH = Math.round(diffMs / 3600000);
-
     const dateStr = d.toLocaleDateString(locale === "da" ? "da-DK" : "en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
     });
-
-    if (diffH > 0 && diffH < 24) {
-      return `${dateStr} (${diffH}h)`;
-    }
+    if (diffH > 0 && diffH < 24) return `${dateStr} (${diffH}h)`;
     return dateStr;
   };
 
-  // Hours & minutes for selectors
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const minutes = [0, 15, 30, 45];
 
+  const activeCount = triggers.filter(t => t.isActive).length;
+
   return (
     <DashboardLayout>
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-fade-in-up">
-          <span className="material-symbols-outlined text-lg text-emerald-400">check_circle</span>
-          {toast}
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {tr.title}
           </h1>
-          <p className="text-sm text-slate-400 mt-1">{tr.subtitle}</p>
+          <p className="text-sm text-muted-foreground mt-1.5">{tr.subtitle}</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="self-start flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
+        <Button variant="gradient" size="lg" className="self-start rounded-xl gap-2" onClick={openCreate}>
+          <Plus className="size-4" />
           {tr.newTrigger}
-        </button>
+        </Button>
       </div>
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-slate-400 font-medium">...</p>
+      {/* ── Stats ────────────────────────────────────────────── */}
+      {!isLoading && triggers.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                <Zap className="size-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">{triggers.length}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{locale === "da" ? "Triggers i alt" : "Total triggers"}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="size-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">{activeCount}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{locale === "da" ? "Aktive" : "Active"}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Pause className="size-5 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">{triggers.length - activeCount}</p>
+                <p className="text-[11px] text-muted-foreground font-medium">{tr.paused}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* Empty state */}
-      {!isLoading && triggers.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center animate-fade-in-up">
-          <span className="material-symbols-outlined text-6xl text-slate-200 mb-4 block">
-            bolt
-          </span>
-          <p className="text-slate-400 font-medium mb-6">{tr.noTriggers}</p>
-          <button
-            onClick={openCreate}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all cursor-pointer"
-          >
-            {tr.createFirst}
-          </button>
-        </div>
-      ) : !isLoading && (
+      {/* ── Loading ──────────────────────────────────────────── */}
+      {isLoading && (
+        <Card className="border-0 shadow-sm py-0">
+          <CardContent className="p-0 divide-y divide-border/30">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-5">
+                <Skeleton className="w-11 h-6 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Empty state ──────────────────────────────────────── */}
+      {!isLoading && triggers.length === 0 && (
+        <Card className="py-20 border-0 shadow-sm">
+          <CardContent className="text-center animate-fade-in-up">
+            <div className="w-20 h-20 rounded-2xl bg-amber-500/5 flex items-center justify-center mx-auto mb-5">
+              <Zap className="size-9 text-amber-500/40" />
+            </div>
+            <p className="text-foreground font-semibold text-lg mb-1.5">{locale === "da" ? "Ingen triggers endnu" : "No triggers yet"}</p>
+            <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">{tr.noTriggers}</p>
+            <Button variant="gradient" size="lg" className="rounded-xl gap-2" onClick={openCreate}>
+              <Plus className="size-4" />
+              {tr.createFirst}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Trigger list ─────────────────────────────────────── */}
+      {!isLoading && triggers.length > 0 && (
         <div className="space-y-3 animate-stagger">
           {triggers.map((trigger) => {
             const latestResult = getLatestResult(trigger);
             const nextRun = formatNextRun(trigger);
+            const fCount = filterCount((trigger.filters ?? {}) as TriggerFilters);
+            const isExpanded = expandedId === trigger.id;
+
             return (
-              <div
-                key={trigger.id}
-                className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden"
-              >
-                {/* Trigger row */}
-                <div className="p-4 sm:p-6 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                    {/* Toggle */}
-                    <button
-                      onClick={() => handleToggle(trigger)}
-                      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${
-                        trigger.isActive ? "bg-blue-600" : "bg-slate-200"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                          trigger.isActive ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
+              <Card key={trigger.id} className={cn(
+                "border-0 shadow-sm overflow-hidden transition-all duration-300 py-0",
+                isExpanded && "shadow-md"
+              )}>
+                {/* ── Main row ─────────────────────────────── */}
+                <div className="p-4 sm:p-5 flex items-center gap-4">
+                  {/* Toggle switch */}
+                  <Switch
+                    checked={trigger.isActive}
+                    onCheckedChange={() => handleToggle(trigger)}
+                    className="shrink-0"
+                  />
 
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm text-slate-900 truncate">
-                        {trigger.name}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
-                        {/* Schedule badge */}
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium border border-blue-100">
-                          <span className="material-symbols-outlined text-[11px]">schedule</span>
-                          {formatSchedule(trigger)}
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold text-sm text-foreground truncate">{trigger.name}</p>
+                      {!trigger.isActive && (
+                        <Badge variant="secondary" className="bg-amber-50 text-amber-600 border-0 text-[9px] font-bold uppercase h-5">
+                          {tr.paused}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                      <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-600 gap-1 font-medium h-5.5 text-[10px]">
+                        <Clock className="size-2.5" />
+                        {formatSchedule(trigger)}
+                      </Badge>
+                      {fCount > 0 && (
+                        <Badge variant="secondary" className="border-0 gap-1 font-medium h-5.5 text-[10px]">
+                          <Filter className="size-2.5" />
+                          {fCount} {tr.filters}
+                        </Badge>
+                      )}
+                      <span className="flex items-center gap-1 text-muted-foreground/60">
+                        {(trigger.notificationChannels ?? []).includes("in_app") && <Bell className="size-3" />}
+                        {(trigger.notificationChannels ?? []).includes("email") && <Mail className="size-3" />}
+                      </span>
+                      {trigger.isActive && nextRun && (
+                        <span className="hidden sm:flex items-center gap-1 text-emerald-600">
+                          <RefreshCw className="size-2.5" />
+                          {tr.nextRun}: {nextRun}
                         </span>
-
-                        <span>·</span>
-                        <span>
-                          {filterCount((trigger.filters ?? {}) as TriggerFilters)} {tr.filters}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          {(trigger.notificationChannels ?? []).includes("in_app") && (
-                            <span className="material-symbols-outlined text-xs">
-                              notifications
-                            </span>
-                          )}
-                          {(trigger.notificationChannels ?? []).includes("email") && (
-                            <span className="material-symbols-outlined text-xs">
-                              mail
-                            </span>
-                          )}
-                        </span>
-
-                        {/* Next run */}
-                        {trigger.isActive && nextRun && (
-                          <>
-                            <span>·</span>
-                            <span className="inline-flex items-center gap-1 text-emerald-600">
-                              <span className="material-symbols-outlined text-xs">update</span>
-                              {tr.nextRun}: {nextRun}
-                            </span>
-                          </>
-                        )}
-
-                        {/* Last run */}
-                        {trigger.lastRunAt && (
-                          <>
-                            <span>·</span>
-                            <span>
-                              {tr.lastRun}{" "}
-                              {new Date(trigger.lastRunAt).toLocaleDateString(
-                                locale === "da" ? "da-DK" : "en-US",
-                                {
-                                  day: "numeric",
-                                  month: "short",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }
-                              )}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <button
-                      onClick={() =>
-                        setExpandedId(expandedId === trigger.id ? null : trigger.id)
-                      }
-                      className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
-                      title={tr.showResults}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setExpandedId(isExpanded ? null : trigger.id)}
+                      className="text-muted-foreground"
                     >
-                      <span className={`material-symbols-outlined text-lg transition-transform duration-300 ${expandedId === trigger.id ? "rotate-180" : ""}`}>
-                        expand_more
-                      </span>
-                    </button>
-                    <button
+                      <ChevronDown className={cn("size-4 transition-transform duration-300", isExpanded && "rotate-180")} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleRun(trigger.id)}
                       disabled={runningId === trigger.id}
-                      className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-blue-600 transition-colors disabled:opacity-40 cursor-pointer"
+                      className="text-muted-foreground hover:text-primary"
                       title={tr.runNow}
                     >
-                      <span
-                        className={`material-symbols-outlined text-lg ${
-                          runningId === trigger.id ? "animate-spin" : ""
-                        }`}
-                      >
-                        {runningId === trigger.id
-                          ? "progress_activity"
-                          : "play_arrow"}
-                      </span>
-                    </button>
-                    <button
+                      {runningId === trigger.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Play className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => openEdit(trigger)}
-                      className="p-2 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer"
+                      className="text-muted-foreground"
                     >
-                      <span className="material-symbols-outlined text-lg">
-                        edit
-                      </span>
-                    </button>
-                    <button
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => handleDelete(trigger.id)}
-                      className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"
+                      className="text-muted-foreground hover:text-destructive"
                     >
-                      <span className="material-symbols-outlined text-lg">
-                        delete
-                      </span>
-                    </button>
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
                 </div>
 
-                {/* Expanded details */}
-                {expandedId === trigger.id && (
-                  <div className="px-4 sm:px-6 pb-5 border-t border-slate-100 pt-4 space-y-4 animate-slide-down">
-                    {/* Schedule info */}
+                {/* ── Expanded details ─────────────────────── */}
+                {isExpanded && (
+                  <div className="px-5 pb-5 border-t border-border/30 pt-4 space-y-5 animate-slide-down">
+                    {/* Schedule section */}
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+                        <Clock className="size-3" />
                         {tr.schedule}
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        <span className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm">schedule</span>
+                        <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 gap-1.5 font-medium py-1.5 px-3 text-xs">
+                          <Clock className="size-3" />
                           {formatSchedule(trigger)}
-                        </span>
+                        </Badge>
                         {trigger.cronExpression && (
-                          <span className="px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-mono">
+                          <Badge variant="secondary" className="border-0 font-mono text-xs py-1.5 px-3">
                             {trigger.cronExpression}
-                          </span>
+                          </Badge>
                         )}
                         {trigger.isActive && nextRun && (
-                          <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-sm">update</span>
+                          <Badge variant="secondary" className="border-0 bg-emerald-50 text-emerald-700 gap-1.5 font-medium py-1.5 px-3 text-xs">
+                            <RefreshCw className="size-3" />
                             {tr.nextRun}: {nextRun}
-                          </span>
+                          </Badge>
                         )}
                         {!trigger.isActive && (
-                          <span className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium">
+                          <Badge variant="secondary" className="border-0 bg-amber-50 text-amber-700 font-medium py-1.5 px-3 text-xs">
                             {tr.paused}
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </div>
 
-                    {/* Filters */}
+                    {/* Filters section */}
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+                        <Filter className="size-3" />
                         {tr.filtersLabel}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {(trigger.filters as TriggerFilters)?.industry_code && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.industryCode}: {(trigger.filters as TriggerFilters).industry_code}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs">{tr.industryCode}: {(trigger.filters as TriggerFilters).industry_code}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.branch_code && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.branchCode}: {(trigger.filters as TriggerFilters).branch_code}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs">{tr.branchCode}: {(trigger.filters as TriggerFilters).branch_code}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.city && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.city}: {(trigger.filters as TriggerFilters).city}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><MapPin className="size-2.5" />{(trigger.filters as TriggerFilters).city}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.region && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.region}: {(trigger.filters as TriggerFilters).region}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs">{tr.region}: {(trigger.filters as TriggerFilters).region}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.company_type && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.companyType}: {(trigger.filters as TriggerFilters).company_type}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs">{(trigger.filters as TriggerFilters).company_type}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.min_employees !== undefined && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.minEmployees}: {(trigger.filters as TriggerFilters).min_employees}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><Users className="size-2.5" />{tr.minEmployees}: {(trigger.filters as TriggerFilters).min_employees}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.max_employees !== undefined && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.maxEmployees}: {(trigger.filters as TriggerFilters).max_employees}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><Users className="size-2.5" />{tr.maxEmployees}: {(trigger.filters as TriggerFilters).max_employees}</Badge>
                         )}
                         {(trigger.filters as TriggerFilters)?.founded_after && (
-                          <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-                            {tr.foundedAfter}: {(trigger.filters as TriggerFilters).founded_after}
-                          </span>
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><Calendar className="size-2.5" />{tr.foundedAfter}: {(trigger.filters as TriggerFilters).founded_after}</Badge>
                         )}
-                        {filterCount((trigger.filters ?? {}) as TriggerFilters) === 0 && (
-                          <span className="text-xs text-slate-400">
-                            {tr.all} {tr.allDenmark}
-                          </span>
+                        {fCount === 0 && (
+                          <span className="text-xs text-muted-foreground">{tr.all} {tr.allDenmark}</span>
                         )}
                       </div>
                     </div>
@@ -478,411 +500,238 @@ export default function TriggersPage() {
                     {/* Latest results */}
                     {latestResult && (
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+                          <Building2 className="size-3" />
                           {tr.showResults} — {latestResult.matchCount} {tr.runResults}
                         </p>
                         {latestResult.companies && latestResult.companies.length > 0 ? (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {latestResult.companies.slice(0, 10).map((c: { vat: number; name: string; city: string; industry: string }) => (
-                              <a
+                              <Link
                                 key={c.vat}
                                 href={`/company/${c.vat}`}
-                                className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors"
+                                className="group flex items-center gap-3 p-3 rounded-xl border border-border/40 hover:border-primary/20 hover:bg-accent/50 transition-all"
                               >
-                                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                                <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm">
                                   <span className="text-[10px] font-bold text-blue-600">
                                     {c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                                   </span>
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-slate-800 truncate">{c.name}</p>
-                                  <p className="text-[10px] text-slate-400 truncate">
+                                  <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{c.name}</p>
+                                  <p className="text-[10px] text-muted-foreground truncate">
                                     {c.city}{c.industry ? ` · ${c.industry}` : ""}
                                   </p>
                                 </div>
-                              </a>
+                                <ArrowRight className="size-3.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-all shrink-0" />
+                              </Link>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-400">{tr.noTriggers}</p>
+                          <p className="text-xs text-muted-foreground">{tr.noTriggers}</p>
                         )}
                         {latestResult.matchCount > 10 && (
-                          <p className="text-xs text-slate-400 mt-2">
-                            +{latestResult.matchCount - 10} more
+                          <p className="text-xs text-muted-foreground mt-2">
+                            +{latestResult.matchCount - 10} {locale === "da" ? "flere" : "more"}
                           </p>
                         )}
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
-      {dialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-overlay"
-            onClick={() => setDialogOpen(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col animate-modal">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 shrink-0">
-              <h2 className="text-lg font-extrabold text-slate-900 font-[family-name:var(--font-manrope)]">
-                {editing ? tr.editTrigger : tr.createTrigger}
-              </h2>
+      {/* ── Create / Edit Dialog ──────────────────────────────── */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b border-border/40 shrink-0">
+            <DialogTitle className="font-[family-name:var(--font-manrope)]">
+              {editing ? tr.editTrigger : tr.createTrigger}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+            {/* Name */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr.name}</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={tr.namePlaceholder}
+                className="bg-muted/30"
+              />
             </div>
 
-            {/* Body */}
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-              {/* Name */}
+            {/* Schedule */}
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr.schedule}</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{tr.frequency}</Label>
+                  <FormSelect value={frequency} onChange={setFrequency}>
+                    <option value="daily">{tr.dailyTime}</option>
+                    <option value="weekly">{tr.weeklyTime}</option>
+                  </FormSelect>
+                </div>
+                {frequency === "weekly" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">{tr.dayOfWeek}</Label>
+                    <FormSelect value={String(scheduledDayOfWeek)} onChange={(v) => setScheduledDayOfWeek(Number(v))}>
+                      {DAY_KEYS.map((key, idx) => (
+                        <option key={idx} value={idx}>{tr[key as keyof typeof tr]}</option>
+                      ))}
+                    </FormSelect>
+                  </div>
+                )}
+              </div>
+
+              {/* Time picker */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                  {tr.name}
-                </label>
-                <input
-                  className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={tr.namePlaceholder}
-                />
+                <Label className="text-xs text-muted-foreground">{tr.timeOfDay}</Label>
+                <div className="flex items-center gap-2">
+                  <FormSelect value={String(scheduledHour)} onChange={(v) => setScheduledHour(Number(v))}>
+                    {hours.map((h) => (<option key={h} value={h}>{pad2(h)}</option>))}
+                  </FormSelect>
+                  <span className="text-muted-foreground font-bold">:</span>
+                  <FormSelect value={String(scheduledMinute)} onChange={(v) => setScheduledMinute(Number(v))}>
+                    {minutes.map((m) => (<option key={m} value={m}>{pad2(m)}</option>))}
+                  </FormSelect>
+                  <span className="text-xs text-muted-foreground ml-1 shrink-0">(CET)</span>
+                </div>
               </div>
 
-              {/* Schedule section */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                  {tr.schedule}
-                </label>
+              {/* Schedule preview */}
+              <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-blue-50/50 border border-blue-100">
+                <Clock className="size-4 text-blue-500 shrink-0" />
+                <div className="text-sm">
+                  <span className="font-medium text-blue-700">
+                    {frequency === "weekly"
+                      ? `${tr.everyWeekOn} ${tr[DAY_KEYS[scheduledDayOfWeek] as keyof typeof tr]} ${tr.at} ${pad2(scheduledHour)}:${pad2(scheduledMinute)}`
+                      : `${tr.everyDayAt} ${pad2(scheduledHour)}:${pad2(scheduledMinute)}`}
+                  </span>
+                  <span className="text-blue-400 ml-2 font-mono text-xs">
+                    {frequency === "weekly"
+                      ? `${scheduledMinute} ${scheduledHour} * * ${scheduledDayOfWeek}`
+                      : `${scheduledMinute} ${scheduledHour} * * *`}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-                {/* Frequency + Day of week */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">{tr.frequency}</label>
-                    <select
-                      value={frequency}
-                      onChange={(e) => setFrequency(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer"
-                    >
-                      <option value="daily">{tr.dailyTime}</option>
-                      <option value="weekly">{tr.weeklyTime}</option>
-                    </select>
-                  </div>
-
-                  {frequency === "weekly" && (
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-slate-400 px-1">{tr.dayOfWeek}</label>
-                      <select
-                        value={scheduledDayOfWeek}
-                        onChange={(e) => setScheduledDayOfWeek(Number(e.target.value))}
-                        className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer"
-                      >
-                        {DAY_KEYS.map((key, idx) => (
-                          <option key={idx} value={idx}>
-                            {tr[key as keyof typeof tr]}
-                          </option>
-                        ))}
-                      </select>
+            {/* Notification channels */}
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr.notifications}</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {([
+                  { value: "in_app" as NotificationChannel, icon: Bell, label: tr.inApp, desc: tr.inAppDesc },
+                  { value: "email" as NotificationChannel, icon: Mail, label: tr.emailLabel, desc: tr.emailDesc },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleChannel(opt.value)}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer",
+                      channels.includes(opt.value)
+                        ? "border-primary/30 bg-accent/50 shadow-sm"
+                        : "border-border/40 hover:border-border"
+                    )}
+                  >
+                    <Checkbox checked={channels.includes(opt.value)} className="pointer-events-none" />
+                    <opt.icon className="size-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{opt.label}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{opt.desc}</p>
                     </div>
-                  )}
-                </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                {/* Time picker */}
+            {/* Filters */}
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{tr.filtersLabel}</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs text-slate-400 px-1">{tr.timeOfDay}</label>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={scheduledHour}
-                      onChange={(e) => setScheduledHour(Number(e.target.value))}
-                      className="bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer tabular-nums"
-                    >
-                      {hours.map((h) => (
-                        <option key={h} value={h}>{pad2(h)}</option>
-                      ))}
-                    </select>
-                    <span className="text-slate-400 font-bold">:</span>
-                    <select
-                      value={scheduledMinute}
-                      onChange={(e) => setScheduledMinute(Number(e.target.value))}
-                      className="bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none cursor-pointer tabular-nums"
-                    >
-                      {minutes.map((m) => (
-                        <option key={m} value={m}>{pad2(m)}</option>
-                      ))}
-                    </select>
-                    <span className="text-xs text-slate-400 ml-2">(Europe/Copenhagen)</span>
-                  </div>
-                </div>
-
-                {/* Preview badge */}
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
-                  <span className="material-symbols-outlined text-blue-500 text-lg">schedule</span>
-                  <div className="text-sm">
-                    <span className="font-medium text-blue-700">
-                      {frequency === "weekly"
-                        ? `${tr.everyWeekOn} ${tr[DAY_KEYS[scheduledDayOfWeek] as keyof typeof tr]} ${tr.at} ${pad2(scheduledHour)}:${pad2(scheduledMinute)}`
-                        : `${tr.everyDayAt} ${pad2(scheduledHour)}:${pad2(scheduledMinute)}`}
-                    </span>
-                    <span className="text-blue-400 ml-2 font-mono text-xs">
-                      {frequency === "weekly"
-                        ? `${scheduledMinute} ${scheduledHour} * * ${scheduledDayOfWeek}`
-                        : `${scheduledMinute} ${scheduledHour} * * *`}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notification channels */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                  {tr.notifications}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(
-                    [
-                      {
-                        value: "in_app" as NotificationChannel,
-                        icon: "notifications",
-                        label: tr.inApp,
-                        desc: tr.inAppDesc,
-                      },
-                      {
-                        value: "email" as NotificationChannel,
-                        icon: "mail",
-                        label: tr.emailLabel,
-                        desc: tr.emailDesc,
-                      },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => toggleChannel(opt.value)}
-                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        channels.includes(opt.value)
-                          ? "border-blue-300 bg-blue-50/50 shadow-sm"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={channels.includes(opt.value)}
-                        readOnly
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 pointer-events-none"
-                      />
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="material-symbols-outlined text-slate-500 text-lg">
-                          {opt.icon}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-700 truncate">
-                            {opt.label}
-                          </p>
-                          <p className="text-[10px] text-slate-400 truncate">
-                            {opt.desc}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Filters */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                  {tr.filtersLabel}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.industryCode}
-                    </label>
-                    <select
-                      value={filters.industry_code || ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          industry_code: e.target.value || undefined,
-                        })
-                      }
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    >
-                      <option value="">{tr.selectIndustry}</option>
-                      {t.search.industries
-                        .filter((i) => i.code !== "all")
-                        .map((ind) => (
-                          <option key={ind.code} value={ind.code}>
-                            {ind.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.branchCode}
-                    </label>
-                    <input
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                      value={filters.branch_code || ""}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                        setFilters({
-                          ...filters,
-                          branch_code: val || undefined,
-                        });
-                      }}
-                      placeholder={tr.branchCodePlaceholder}
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.city}
-                    </label>
-                    <input
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                      value={filters.city || ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          city: e.target.value || undefined,
-                        })
-                      }
-                      placeholder={tr.cityPlaceholder}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.region}
-                    </label>
-                    <select
-                      value={filters.region || ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          region: e.target.value || undefined,
-                        })
-                      }
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    >
-                      <option value="">{tr.selectRegion}</option>
-                      {t.search.regions
-                        .filter((r) => r.code !== "all")
-                        .map((reg) => (
-                          <option key={reg.code} value={reg.code}>
-                            {reg.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.companyType}
-                    </label>
-                    <select
-                      value={filters.company_type || ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          company_type: e.target.value || undefined,
-                        })
-                      }
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    >
-                      <option value="">{tr.select}</option>
-                      <option value="ApS">ApS</option>
-                      <option value="A/S">A/S</option>
-                      <option value="I/S">I/S</option>
-                      <option value="K/S">K/S</option>
-                      <option value="Enkeltmandsvirksomhed">
-                        Enkeltmandsvirksomhed
-                      </option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.minEmployees}
-                    </label>
-                    <input
-                      type="number"
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                      value={filters.min_employees ?? ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          min_employees: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
-                        })
-                      }
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-400 px-1">
-                      {tr.maxEmployees}
-                    </label>
-                    <input
-                      type="number"
-                      className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                      value={filters.max_employees ?? ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          max_employees: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
-                        })
-                      }
-                      placeholder="1000"
-                    />
-                  </div>
+                  <Label className="text-xs text-muted-foreground">{tr.industryCode}</Label>
+                  <FormSelect value={filters.industry_code || ""} onChange={(v) => setFilters({ ...filters, industry_code: v || undefined })}>
+                    <option value="">{tr.selectIndustry}</option>
+                    {t.search.industries.filter((i) => i.code !== "all").map((ind) => (
+                      <option key={ind.code} value={ind.code}>{ind.label}</option>
+                    ))}
+                  </FormSelect>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs text-slate-400 px-1">
-                    {tr.foundedAfter}
-                  </label>
-                  <input
-                    type="date"
-                    className="w-full bg-slate-50 border-none rounded-lg py-2.5 px-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    value={filters.founded_after ?? ""}
-                    onChange={(e) =>
-                      setFilters({
-                        ...filters,
-                        founded_after: e.target.value || undefined,
-                      })
-                    }
+                  <Label className="text-xs text-muted-foreground">{tr.branchCode}</Label>
+                  <Input
+                    className="bg-muted/30"
+                    value={filters.branch_code || ""}
+                    onChange={(e) => setFilters({ ...filters, branch_code: e.target.value.replace(/\D/g, "").slice(0, 6) || undefined })}
+                    placeholder={tr.branchCodePlaceholder}
+                    inputMode="numeric"
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{tr.city}</Label>
+                  <Input className="bg-muted/30" value={filters.city || ""} onChange={(e) => setFilters({ ...filters, city: e.target.value || undefined })} placeholder={tr.cityPlaceholder} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{tr.region}</Label>
+                  <FormSelect value={filters.region || ""} onChange={(v) => setFilters({ ...filters, region: v || undefined })}>
+                    <option value="">{tr.selectRegion}</option>
+                    {t.search.regions.filter((r) => r.code !== "all").map((reg) => (
+                      <option key={reg.code} value={reg.code}>{reg.label}</option>
+                    ))}
+                  </FormSelect>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{tr.companyType}</Label>
+                  <FormSelect value={filters.company_type || ""} onChange={(v) => setFilters({ ...filters, company_type: v || undefined })}>
+                    <option value="">{tr.select}</option>
+                    <option value="ApS">ApS</option>
+                    <option value="A/S">A/S</option>
+                    <option value="I/S">I/S</option>
+                    <option value="K/S">K/S</option>
+                    <option value="Enkeltmandsvirksomhed">Enkeltmandsvirksomhed</option>
+                  </FormSelect>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{tr.minEmployees}</Label>
+                  <Input type="number" className="bg-muted/30" value={filters.min_employees ?? ""} onChange={(e) => setFilters({ ...filters, min_employees: e.target.value ? Number(e.target.value) : undefined })} placeholder="0" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">{tr.maxEmployees}</Label>
+                  <Input type="number" className="bg-muted/30" value={filters.max_employees ?? ""} onChange={(e) => setFilters({ ...filters, max_employees: e.target.value ? Number(e.target.value) : undefined })} placeholder="1000" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">{tr.foundedAfter}</Label>
+                <Input type="date" className="bg-muted/30" value={filters.founded_after ?? ""} onChange={(e) => setFilters({ ...filters, founded_after: e.target.value || undefined })} />
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row gap-2 sm:justify-end shrink-0">
-              <button
-                onClick={() => setDialogOpen(false)}
-                className="px-5 py-2.5 border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                {tr.cancel}
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving || !name.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {saving
-                  ? tr.saving
-                  : editing
-                    ? tr.update
-                    : tr.create}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+
+          {/* Footer */}
+          <DialogFooter className="px-6 py-4 border-t border-border/40 gap-2 sm:gap-0 shrink-0">
+            <DialogClose>
+              <Button variant="outline" className="rounded-xl">{tr.cancel}</Button>
+            </DialogClose>
+            <Button
+              variant="gradient"
+              className="rounded-xl"
+              onClick={handleSave}
+              disabled={saving || !name.trim()}
+            >
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              {saving ? tr.saving : editing ? tr.update : tr.create}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
