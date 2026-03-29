@@ -7,6 +7,13 @@ import { signIn } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { GoogleIcon } from "@/components/google-icon";
 import { LogoFull } from "@/components/logo";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowRight, Eye, EyeOff, Globe, Star, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   return (
@@ -69,13 +76,7 @@ function LoginForm() {
         <div className="relative z-10 mt-auto">
           <div className="flex gap-1 mb-4 text-cyan-400">
             {[...Array(5)].map((_, i) => (
-              <span
-                key={i}
-                className="material-symbols-outlined"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                star
-              </span>
+              <Star key={i} className="size-5 fill-current" />
             ))}
           </div>
           <blockquote className="text-white text-lg font-[family-name:var(--font-manrope)] font-semibold leading-relaxed italic">
@@ -99,13 +100,10 @@ function LoginForm() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-between mb-12">
             <LogoFull size="small" />
-            <button
-              onClick={toggleLocale}
-              className="text-slate-500 hover:bg-slate-50 p-2 rounded-lg flex items-center gap-1 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">language</span>
+            <Button variant="ghost" size="sm" onClick={toggleLocale}>
+              <Globe className="size-4" />
               <span className="text-xs font-bold">{locale === "da" ? "EN" : "DA"}</span>
-            </button>
+            </Button>
           </div>
 
           <header className="mb-10">
@@ -114,116 +112,112 @@ function LoginForm() {
                 <h2 className="font-[family-name:var(--font-manrope)] font-extrabold text-3xl text-slate-900 tracking-tight mb-2">
                   {a.title}
                 </h2>
-                <p className="text-slate-500 font-medium">{a.subtitle}</p>
+                <p className="text-muted-foreground font-medium">{a.subtitle}</p>
               </div>
-              <button
-                onClick={toggleLocale}
-                className="hidden lg:flex text-slate-500 hover:bg-slate-50 p-2 rounded-lg items-center gap-1 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg">language</span>
+              <Button variant="ghost" size="sm" onClick={toggleLocale} className="hidden lg:flex">
+                <Globe className="size-4" />
                 <span className="text-xs font-bold">{locale === "da" ? "EN" : "DA"}</span>
-              </button>
+              </Button>
             </div>
           </header>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-semibold text-slate-500 ml-1" htmlFor="email">
+              <Label htmlFor="email" className="ml-1 text-muted-foreground font-semibold">
                 {a.email}
-              </label>
-              <input
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+              </Label>
+              <Input
                 id="email"
                 type="email"
                 placeholder={a.emailPlaceholder}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="px-4 py-3 h-auto bg-slate-50"
               />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex justify-between items-center ml-1">
-                <label className="block text-sm font-semibold text-slate-500" htmlFor="password">
+                <Label htmlFor="password" className="text-muted-foreground font-semibold">
                   {a.password}
-                </label>
-                <a className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors" href="#">
+                </Label>
+                <a className="text-xs font-bold text-primary hover:text-primary/80 transition-colors" href="#">
                   {a.forgotPassword}
                 </a>
               </div>
               <div className="relative">
-                <input
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder={a.passwordPlaceholder}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="px-4 py-3 h-auto bg-slate-50 pr-12"
                 />
-                <button
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1 cursor-pointer"
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  <span className="material-symbols-outlined text-xl">
-                    {showPassword ? "visibility_off" : "visibility"}
-                  </span>
-                </button>
+                  {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                </Button>
               </div>
             </div>
 
             <div className="flex items-center gap-2 ml-1">
-              <input
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-                id="remember"
-                type="checkbox"
-              />
-              <label className="text-xs font-medium text-slate-500 cursor-pointer select-none" htmlFor="remember">
+              <Checkbox id="remember" />
+              <Label htmlFor="remember" className="text-xs font-medium text-muted-foreground cursor-pointer select-none">
                 {a.rememberMe}
-              </label>
+              </Label>
             </div>
 
-            <button
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-lg shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            <Button
+              variant="gradient"
+              size="lg"
+              className="w-full py-3.5 h-auto font-bold text-base"
               type="submit"
               disabled={loading}
             >
               <span>{loading ? "..." : a.submit}</span>
-              {!loading && (
-                <span className="material-symbols-outlined text-lg">arrow_forward</span>
-              )}
-            </button>
+              {!loading && <ArrowRight className="size-4" />}
+            </Button>
 
             <div className="relative py-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <div className="relative flex justify-center text-xs font-bold uppercase tracking-widest text-slate-400 bg-white px-4">
-                {a.or}
+              <Separator />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="bg-white px-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  {a.or}
+                </span>
               </div>
             </div>
 
-            <button
-              className="w-full py-3 px-4 bg-white border border-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-3"
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full py-3 h-auto font-semibold"
               type="button"
               onClick={handleGoogleLogin}
             >
               <GoogleIcon />
               <span>{a.google}</span>
-            </button>
+            </Button>
           </form>
 
           <footer className="mt-10 text-center">
-            <p className="text-sm font-medium text-slate-500">
+            <p className="text-sm font-medium text-muted-foreground">
               {a.noAccount}
-              <Link className="text-blue-600 font-bold hover:underline ml-1" href="/signup">
+              <Link className="text-primary font-bold hover:underline ml-1" href="/signup">
                 {a.createAccount}
               </Link>
             </p>
