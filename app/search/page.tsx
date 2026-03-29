@@ -906,10 +906,8 @@ function SearchPage() {
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <DialogClose>
-              <Button variant="ghost" onClick={() => setSaveSearchName("")}>
-                {t.savedSearches.cancelButton}
-              </Button>
+            <DialogClose render={<Button variant="ghost" onClick={() => setSaveSearchName("")} />}>
+              {t.savedSearches.cancelButton}
             </DialogClose>
             <Button
               onClick={handleSaveSearch}

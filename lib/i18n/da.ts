@@ -531,7 +531,7 @@ const da = {
     noSavedDesc: "Gem virksomheder fra søgeresultater for at eksportere dem her.",
     searchCompanies: "Søg virksomheder",
     exported: "virksomheder eksporteret",
-    excelNote: "Excel-eksport kommer snart. Brug CSV i mellemtiden.",
+    excelNote: "Excel-fil downloadet",
     pdfExported: "PDF downloadet succesfuldt",
     selected: "valgt",
     allLeads: "Alle leads inkluderet",

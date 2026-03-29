@@ -1,12 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote } from "@/lib/hooks/use-saved-companies";
 import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
+import { companyColors } from "@/lib/constants/colors";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Search,
+  X,
+  Heart,
+  Trash2,
+  StickyNote,
+  Plus,
+  ArrowRight,
+  Factory,
+  Sparkles,
+  Loader2,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle,
+  AlertCircle,
+  Target,
+  BarChart3,
+  Zap,
+  Building2,
+} from "lucide-react";
 
 interface SavedCompany {
   id: string;
@@ -26,17 +72,10 @@ interface SavedCompany {
   };
 }
 
-const companyColors = [
-  { bg: "bg-blue-100", text: "text-blue-600" },
-  { bg: "bg-amber-100", text: "text-amber-600" },
-  { bg: "bg-violet-100", text: "text-violet-600" },
-  { bg: "bg-cyan-100", text: "text-cyan-600" },
-];
-
 const priorityConfig = {
-  high: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-200" },
-  medium: { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
-  low: { bg: "bg-slate-50", text: "text-slate-500", border: "border-slate-200" },
+  high: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/60", dot: "bg-emerald-500" },
+  medium: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200/60", dot: "bg-amber-500" },
+  low: { bg: "bg-muted", text: "text-muted-foreground", border: "border-border/60", dot: "bg-muted-foreground/50" },
 } as const;
 
 export default function SavedPage() {
@@ -49,6 +88,20 @@ export default function SavedPage() {
   const unsaveMutation = useUnsaveCompany();
   const updateNoteMutation = useUpdateSavedNote();
   const companies = (data?.results ?? []) as SavedCompany[];
+
+  const [filter, setFilter] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!filter.trim()) return companies;
+    const q = filter.toLowerCase();
+    return companies.filter(
+      (s) =>
+        s.company.name.toLowerCase().includes(q) ||
+        s.cvr.includes(q) ||
+        (s.company.city ?? "").toLowerCase().includes(q) ||
+        (s.company.industryName ?? "").toLowerCase().includes(q)
+    );
+  }, [filter, companies]);
 
   const handleRemove = (cvr: string) => {
     unsaveMutation.mutate(cvr);
@@ -109,455 +162,572 @@ export default function SavedPage() {
   const nextActions = analysisData?.nextActions ?? [];
   const prioritized = analysisData?.prioritized ?? [];
 
-  // Count priorities for the summary
   const highCount = prioritized.filter(p => p.score === "high").length;
   const mediumCount = prioritized.filter(p => p.score === "medium").length;
   const lowCount = prioritized.filter(p => p.score === "low").length;
+
+  const handleFilterChange = (val: string) => {
+    setFilter(val);
+  };
+
+  const notesCount = companies.filter(c => c.note).length;
+  const activeCount = companies.filter(c => c.company.companyStatus).length;
 
   return (
     <DashboardLayout>
       {/* Note toast */}
       {noteToast && (
-        <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-fade-in-up">
-          <span className="material-symbols-outlined text-lg text-emerald-400">check_circle</span>
+        <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircle className="size-4 text-emerald-400" />
           {noteToast}
         </div>
       )}
 
-      {/* Note edit modal */}
-      {editingNoteCvr && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setEditingNoteCvr(null)}
-          />
-          <div className="relative bg-white w-full sm:rounded-2xl rounded-t-2xl shadow-2xl sm:max-w-md flex flex-col">
-            <div className="px-5 pt-5 pb-0 sm:px-6 sm:pt-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-amber-600 text-xl">edit_note</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">{sv.editNote}</h3>
-                  <p className="text-xs text-slate-400">
-                    {companies.find((c) => c.cvr === editingNoteCvr)?.company.name}
-                  </p>
-                </div>
-              </div>
-              <textarea
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 outline-none resize-none transition-colors"
-                rows={3}
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder={sv.notePlaceholder}
-                maxLength={500}
-                autoFocus
-              />
-              <div className="flex justify-end mt-1 mb-1">
-                <span className="text-[10px] text-slate-300 tabular-nums">{noteText.length}/500</span>
-              </div>
-            </div>
-            <div className="px-5 pb-5 pt-2 sm:px-6 sm:pb-6 flex gap-2">
-              <button
-                onClick={() => setEditingNoteCvr(null)}
-                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                {sv.cancelNote}
-              </button>
-              <button
-                onClick={handleSaveNote}
-                disabled={updateNoteMutation.isPending}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
-              >
-                {updateNoteMutation.isPending ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span className="material-symbols-outlined text-base">save</span>
-                )}
-                {updateNoteMutation.isPending ? "..." : sv.saveNote}
-              </button>
-            </div>
+      {/* Note edit dialog */}
+      <Dialog
+        open={editingNoteCvr !== null}
+        onOpenChange={(open) => { if (!open) setEditingNoteCvr(null); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{sv.editNote}</DialogTitle>
+            <DialogDescription>
+              {companies.find((c) => c.cvr === editingNoteCvr)?.company.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder={sv.notePlaceholder}
+              maxLength={500}
+              rows={3}
+              autoFocus
+            />
+            <p className="text-[11px] text-muted-foreground text-right tabular-nums">
+              {noteText.length}/500
+            </p>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" className="rounded-xl" />}>
+              {sv.cancelNote}
+            </DialogClose>
+            <Button
+              className="rounded-xl"
+              onClick={handleSaveNote}
+              disabled={updateNoteMutation.isPending}
+            >
+              {updateNoteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              {sv.saveNote}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4">
+      {/* ── Header ────────────────────────────────────────────── */}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {sv.title}
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1.5">
             {sv.subtitle} · {companies.length} {sv.count}
           </p>
         </div>
         {companies.length > 0 && (
-          <button
+          <Button
+            variant="gradient"
+            className="self-start rounded-xl shadow-sm gap-2"
             onClick={handleAnalyze}
             disabled={pipelineMutation.isPending}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer disabled:opacity-60 shrink-0"
           >
             {pipelineMutation.isPending ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <Loader2 className="size-4 animate-spin" />
             ) : (
-              <span className="material-symbols-outlined text-lg">auto_awesome</span>
+              <Sparkles className="size-4" />
             )}
             {pipelineMutation.isPending ? ai.pipeline.analyzing : ai.pipeline.analyze}
-          </button>
+          </Button>
         )}
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-16 text-center">
-          <div className="inline-block w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-slate-400 font-medium">...</p>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && companies.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 py-20 text-center">
-          <span
-            className="material-symbols-outlined text-6xl text-slate-200 mb-4 block"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            favorite
-          </span>
-          <p className="text-slate-400 font-medium mb-6">{sv.noCompanies}</p>
-          <Link
-            href="/search"
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <span className="material-symbols-outlined text-lg">search</span>
-            {sv.searchCompanies}
-          </Link>
-        </div>
-      )}
-
-      {/* AI Pipeline Analysis — Loading */}
-      {showAnalysis && pipelineMutation.isPending && (
-        <div className="bg-white rounded-2xl shadow-sm border border-violet-100/60 p-8 text-center mb-6">
-          <div className="w-10 h-10 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 font-medium">{ai.pipeline.analyzing}</p>
-          <p className="text-xs text-slate-400 mt-1">
-            {locale === "da" ? "Dette kan tage et øjeblik..." : "This may take a moment..."}
-          </p>
-        </div>
-      )}
-
-      {/* AI Pipeline Analysis — Error */}
-      {showAnalysis && pipelineMutation.isError && (
-        <div className="bg-red-50 rounded-2xl border border-red-100 p-5 mb-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-red-400 text-lg mt-0.5 shrink-0">error</span>
+      {/* ── Stats row ─────────────────────────────────────────── */}
+      {!loading && companies.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+                <Heart className="size-5 text-blue-500" />
+              </div>
               <div>
-                <p className="text-sm font-semibold text-red-700">
-                  {ai.pipeline.error}
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {companies.length}
                 </p>
-                <p className="text-xs text-red-500 mt-1">
-                  {pipelineMutation.error?.message}
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {sv.count}
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleAnalyze}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">refresh</span>
-                {locale === "da" ? "Prøv igen" : "Retry"}
-              </button>
-              <button
-                onClick={handleDismissAnalysis}
-                className="p-1.5 rounded-lg text-red-400 hover:bg-red-100 transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Building2 className="size-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {activeCount}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Aktive" : "Active"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                <Factory className="size-5 text-violet-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {new Set(companies.map(c => c.company.industryName).filter(Boolean)).size}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Brancher" : "Industries"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                <StickyNote className="size-5 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
+                  {notesCount}
+                </p>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  {locale === "da" ? "Med noter" : "With notes"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* AI Pipeline Analysis — Results */}
-      {showAnalysis && analysisData && !pipelineMutation.isPending && (
-        <div className="space-y-4 mb-6">
-          {/* Header with dismiss */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg text-violet-600">auto_awesome</span>
-                {ai.pipeline.priority}
-              </h3>
-              <button
-                onClick={handleDismissAnalysis}
-                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
-                title={locale === "da" ? "Luk" : "Close"}
+      {/* ── Search + count bar ────────────────────────────────── */}
+      {!loading && companies.length > 0 && (
+        <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="size-4 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
+            <Input
+              className="h-11 rounded-xl pl-11 pr-9 border-border/60 bg-muted/30 focus:bg-background transition-colors"
+              placeholder={locale === "da" ? "Filtrer efter navn, CVR, by eller branche..." : "Filter by name, CVR, city or industry..."}
+              value={filter}
+              onChange={(e) => handleFilterChange(e.target.value)}
+            />
+            {filter && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => handleFilterChange("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            </div>
-            {/* Summary counts */}
-            {prioritized.length > 0 ? (
-              <div className="flex items-center gap-4 flex-wrap">
-                {highCount > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex w-3 h-3 rounded-full bg-emerald-500" />
-                    <span className="text-sm text-slate-600">
-                      <span className="font-bold text-emerald-600">{highCount}</span>{" "}
-                      {ai.pipeline.high}
-                    </span>
-                  </div>
-                )}
-                {mediumCount > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex w-3 h-3 rounded-full bg-amber-500" />
-                    <span className="text-sm text-slate-600">
-                      <span className="font-bold text-amber-600">{mediumCount}</span>{" "}
-                      {ai.pipeline.medium}
-                    </span>
-                  </div>
-                )}
-                {lowCount > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex w-3 h-3 rounded-full bg-slate-400" />
-                    <span className="text-sm text-slate-600">
-                      <span className="font-bold text-slate-500">{lowCount}</span>{" "}
-                      {ai.pipeline.low}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">
-                {locale === "da" ? "Ingen prioriteringer fundet." : "No prioritization data returned."}
-              </p>
+                <X className="size-4" />
+              </Button>
             )}
           </div>
+          {filtered.length > 0 && (
+            <Badge variant="secondary" className="border-0 text-xs font-semibold h-7 px-3 shrink-0">
+              {filtered.length} {sv.count}
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* ── Loading skeleton ──────────────────────────────────── */}
+      {loading && (
+        <Card className="border-0 shadow-sm py-0">
+          <CardContent className="p-0">
+            <div className="p-5 space-y-0 divide-y divide-border/30">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+                  <Skeleton className="w-11 h-11 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/5" />
+                    <Skeleton className="h-3 w-1/4" />
+                  </div>
+                  <Skeleton className="h-5 w-16 rounded-full hidden sm:block" />
+                  <Skeleton className="h-3 w-20 hidden md:block" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Empty state ───────────────────────────────────────── */}
+      {!loading && companies.length === 0 && (
+        <Card className="py-16 border-0 shadow-sm">
+          <CardContent className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <Heart className="size-7 text-muted-foreground/30" />
+            </div>
+            <p className="text-foreground font-semibold mb-1">
+              {sv.noCompanies}
+            </p>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-5">
+              {locale === "da" ? "Søg efter virksomheder og gem dem her." : "Search for companies and save them here."}
+            </p>
+            <Link
+              href="/search"
+              className={cn(buttonVariants({ variant: "outline" }), "rounded-xl gap-2")}
+            >
+              <Search className="size-4" />
+              {sv.searchCompanies}
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── AI Pipeline Analysis — Loading ─────────────────────── */}
+      {showAnalysis && pipelineMutation.isPending && (
+        <Card className="border-0 shadow-sm border-violet-100/60 mb-6">
+          <CardContent className="py-10 text-center">
+            <Loader2 className="size-8 text-violet-500 animate-spin mx-auto mb-4" />
+            <p className="text-foreground font-medium">{ai.pipeline.analyzing}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {locale === "da" ? "Dette kan tage et øjeblik..." : "This may take a moment..."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── AI Pipeline Analysis — Error ───────────────────────── */}
+      {showAnalysis && pipelineMutation.isError && (
+        <Card className="border-0 shadow-sm bg-destructive/5 mb-6">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                  <AlertCircle className="size-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{ai.pipeline.error}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{pipelineMutation.error?.message}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={handleAnalyze}>
+                  <RefreshCw className="size-3.5" />
+                  {locale === "da" ? "Prøv igen" : "Retry"}
+                </Button>
+                <Button variant="ghost" size="icon-sm" className="rounded-xl" onClick={handleDismissAnalysis}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── AI Pipeline Analysis — Results ─────────────────────── */}
+      {showAnalysis && analysisData && !pipelineMutation.isPending && (
+        <div className="space-y-3 mb-6">
+          {/* Priority summary */}
+          <Card className="border-0 shadow-sm py-0">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Target className="size-4 text-violet-500" />
+                  {ai.pipeline.priority}
+                </h3>
+                <Button variant="ghost" size="icon-sm" className="rounded-xl" onClick={handleDismissAnalysis}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+              {prioritized.length > 0 ? (
+                <div className="flex items-center gap-4 flex-wrap">
+                  {highCount > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-sm text-muted-foreground">
+                        <span className="font-bold text-emerald-600">{highCount}</span> {ai.pipeline.high}
+                      </span>
+                    </div>
+                  )}
+                  {mediumCount > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex w-2.5 h-2.5 rounded-full bg-amber-500" />
+                      <span className="text-sm text-muted-foreground">
+                        <span className="font-bold text-amber-600">{mediumCount}</span> {ai.pipeline.medium}
+                      </span>
+                    </div>
+                  )}
+                  {lowCount > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex w-2.5 h-2.5 rounded-full bg-muted-foreground/40" />
+                      <span className="text-sm text-muted-foreground">
+                        <span className="font-semibold">{lowCount}</span> {ai.pipeline.low}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {locale === "da" ? "Ingen prioriteringer fundet." : "No prioritization data returned."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Segments */}
           {segments.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5">
-              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg text-violet-600">category</span>
-                {ai.pipeline.segments}
-              </h3>
-              <div className="space-y-2">
-                {segments.map((seg, i) => (
-                  <div key={i} className="rounded-xl border border-slate-100 overflow-hidden">
-                    <button
-                      onClick={() => setExpandedSegment(expandedSegment === i ? null : i)}
-                      className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-50/50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-600">
-                          {seg.vats?.length ?? 0}
-                        </span>
-                        <span className="text-sm font-semibold text-slate-800">{seg.name}</span>
-                      </div>
-                      <span className="material-symbols-outlined text-slate-400 text-lg">
-                        {expandedSegment === i ? "expand_less" : "expand_more"}
-                      </span>
-                    </button>
-                    {expandedSegment === i && (
-                      <div className="px-3 pb-3">
-                        <p className="text-sm text-slate-600">{seg.insight}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Card className="border-0 shadow-sm py-0">
+              <CardContent className="p-5">
+                <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                  <BarChart3 className="size-4 text-violet-500" />
+                  {ai.pipeline.segments}
+                </h3>
+                <div className="space-y-2">
+                  {segments.map((seg, i) => (
+                    <div key={i} className="rounded-xl border border-border/40 overflow-hidden">
+                      <button
+                        onClick={() => setExpandedSegment(expandedSegment === i ? null : i)}
+                        className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/30 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="border-0 text-[10px] font-bold h-5 px-2 bg-violet-50 text-violet-600">
+                            {seg.vats?.length ?? 0}
+                          </Badge>
+                          <span className="text-sm font-semibold text-foreground">{seg.name}</span>
+                        </div>
+                        {expandedSegment === i ? (
+                          <ChevronUp className="size-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="size-4 text-muted-foreground" />
+                        )}
+                      </button>
+                      {expandedSegment === i && (
+                        <div className="px-3 pb-3">
+                          <p className="text-sm text-muted-foreground">{seg.insight}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Next Actions */}
           {nextActions.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5">
-              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg text-emerald-500">task_alt</span>
-                {ai.pipeline.nextActions}
-              </h3>
-              <div className="space-y-2">
-                {nextActions.map((na, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
-                    <span className="material-symbols-outlined text-emerald-500 text-lg mt-0.5 shrink-0">arrow_right</span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">{na.name}</p>
-                      <p className="text-sm text-slate-600">{na.action}</p>
+            <Card className="border-0 shadow-sm py-0">
+              <CardContent className="p-5">
+                <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                  <Zap className="size-4 text-emerald-500" />
+                  {ai.pipeline.nextActions}
+                </h3>
+                <div className="space-y-2">
+                  {nextActions.map((na, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/60">
+                      <ArrowRight className="size-4 text-emerald-500 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">{na.name}</p>
+                        <p className="text-sm text-muted-foreground">{na.action}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
 
-      {/* Results table */}
-      {!loading && companies.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-slate-100/60 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[600px]">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-4 sm:px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    {sv.table.company}
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    {sv.table.cvr}
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">
-                    {sv.table.city}
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">
-                    {sv.table.industry}
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">
-                    {sv.table.status}
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden lg:table-cell">
-                    {sv.table.employees}
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hidden md:table-cell">
-                    {sv.note}
-                  </th>
-                  <th className="w-24 px-3 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {companies.map((s, idx) => {
-                  const c = s.company;
-                  const color = companyColors[idx % companyColors.length];
-                  const initials = c.name
-                    .split(" ")
-                    .filter(w => w.length > 0)
-                    .map((w) => w[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase();
-                  const priority = priorityMap.get(s.cvr);
-                  const pConfig = priority ? priorityConfig[priority.score as keyof typeof priorityConfig] : null;
-                  return (
-                    <tr
-                      key={s.id}
-                      className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/company/${c.vat}`)}
+      {/* ── No filter match ────────────────────────────────────── */}
+      {!loading && companies.length > 0 && filtered.length === 0 && filter && (
+        <Card className="py-16 border-0 shadow-sm">
+          <CardContent className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <Search className="size-7 text-muted-foreground/30" />
+            </div>
+            <p className="text-foreground font-semibold mb-1">
+              {locale === "da" ? "Ingen match" : "No matches"}
+            </p>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+              {locale === "da" ? "Ingen gemte virksomheder matcher dit filter." : "No saved companies match your filter."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Company table ─────────────────────────────────────── */}
+      {!loading && filtered.length > 0 && (
+        <Card className="overflow-hidden border-0 shadow-sm py-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-border/40">
+                <TableHead className="pl-5 sm:pl-6 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {sv.table.company}
+                </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {sv.table.cvr}
+                </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
+                  {sv.table.city}
+                </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell">
+                  {sv.table.industry}
+                </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
+                  {sv.table.status}
+                </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell">
+                  {sv.table.employees}
+                </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
+                  {sv.note}
+                </TableHead>
+                <TableHead className="w-24" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((s, idx) => {
+                const c = s.company;
+                const color = companyColors[idx % companyColors.length];
+                const initials = c.name
+                  .split(" ")
+                  .filter(w => w.length > 0)
+                  .map((w) => w[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase();
+                const priority = priorityMap.get(s.cvr);
+                const pConfig = priority ? priorityConfig[priority.score as keyof typeof priorityConfig] : null;
+
+                return (
+                  <TableRow
+                    key={s.id}
+                    className="group cursor-pointer border-border/30"
+                    onClick={() => router.push(`/company/${c.vat}`)}
+                  >
+                    <TableCell className="pl-5 sm:pl-6 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm",
+                          color.bg
+                        )}>
+                          <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                              {c.name}
+                            </p>
+                            {priority && pConfig && (
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  "hidden sm:inline-flex border text-[9px] font-bold uppercase tracking-wider h-5 shrink-0",
+                                  pConfig.bg, pConfig.text, pConfig.border
+                                )}
+                                title={priority.reason}
+                              >
+                                <span className={cn("w-1.5 h-1.5 rounded-full mr-1", pConfig.dot)} />
+                                {priority.score}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {c.address && `${c.address}, `}{c.zipcode} {c.city}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3.5 text-sm text-muted-foreground tabular-nums">
+                      {c.vat}
+                    </TableCell>
+                    <TableCell className="py-3.5 text-sm text-muted-foreground hidden md:table-cell">
+                      {c.city || "–"}
+                    </TableCell>
+                    <TableCell className="py-3.5 text-sm text-muted-foreground hidden lg:table-cell max-w-[160px] truncate">
+                      {c.industryName || "–"}
+                    </TableCell>
+                    <TableCell className="py-3.5 hidden md:table-cell">
+                      {c.companyStatus && (
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-0 text-[9px] font-bold uppercase tracking-wider h-5">
+                          {c.companyStatus}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-3.5 text-sm text-muted-foreground tabular-nums hidden lg:table-cell">
+                      {c.employees != null
+                        ? c.employees.toLocaleString(locale === "da" ? "da-DK" : "en-US")
+                        : "–"}
+                    </TableCell>
+                    <TableCell
+                      className="py-3.5 hidden md:table-cell max-w-[200px]"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <td className="px-4 sm:px-6 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-9 h-9 rounded-full ${color.bg} flex items-center justify-center shrink-0`}
-                          >
-                            <span
-                              className={`text-xs font-bold ${color.text}`}
-                            >
-                              {initials}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-slate-900 truncate hover:text-blue-600 transition-colors">
-                                {c.name}
-                              </p>
-                              {priority && pConfig && (
-                                <span
-                                  className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase shrink-0 border ${pConfig.bg} ${pConfig.text} ${pConfig.border}`}
-                                  title={priority.reason}
-                                >
-                                  {priority.score}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {c.address && `${c.address}, `}
-                              {c.zipcode} {c.city}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 tabular-nums">
-                        {c.vat}
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 hidden md:table-cell">
-                        {c.city || "–"}
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 hidden lg:table-cell truncate max-w-[160px]">
-                        {c.industryName || "–"}
-                      </td>
-                      <td className="px-4 py-3.5 hidden md:table-cell">
-                        {c.companyStatus && (
-                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">
-                            {c.companyStatus}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-500 tabular-nums hidden lg:table-cell">
-                        {c.employees != null
-                          ? c.employees.toLocaleString(
-                              locale === "da" ? "da-DK" : "en-US"
-                            )
-                          : "–"}
-                      </td>
-                      <td
-                        className="px-4 py-3.5 hidden md:table-cell max-w-[200px]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {s.note ? (
-                          <button
-                            onClick={() => openNoteEditor(s.cvr, s.note)}
-                            className="text-left group"
-                          >
-                            <p className="text-xs text-slate-500 line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer">
-                              {s.note}
-                            </p>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => openNoteEditor(s.cvr, null)}
-                            className="inline-flex items-center gap-1 text-[10px] text-slate-300 hover:text-blue-500 transition-colors cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">add</span>
-                            {sv.addNote}
-                          </button>
-                        )}
-                      </td>
-                      <td
-                        className="px-3 py-3.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={() => openNoteEditor(s.cvr, s.note)}
-                            className="p-1.5 rounded-lg text-slate-300 hover:bg-amber-50 hover:text-amber-500 transition-colors cursor-pointer md:hidden"
-                            title={s.note ? sv.editNote : sv.addNote}
-                          >
-                            <span className="material-symbols-outlined text-lg">edit_note</span>
-                          </button>
-                          <button
-                            onClick={() => handleRemove(s.cvr)}
-                            disabled={removing === s.cvr}
-                            className="p-1.5 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50"
-                            title={sv.removed}
-                          >
-                            <span className="material-symbols-outlined text-lg">
-                              {removing === s.cvr
-                                ? "progress_activity"
-                                : "delete"}
-                            </span>
-                          </button>
-                          <span className="material-symbols-outlined text-slate-300 text-lg">
-                            open_in_new
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                      {s.note ? (
+                        <button
+                          onClick={() => openNoteEditor(s.cvr, s.note)}
+                          className="text-left group/note"
+                        >
+                          <p className="text-xs text-muted-foreground line-clamp-2 group-hover/note:text-primary transition-colors cursor-pointer">
+                            {s.note}
+                          </p>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => openNoteEditor(s.cvr, null)}
+                          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer"
+                        >
+                          <Plus className="size-3" />
+                          {sv.addNote}
+                        </button>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="py-3.5 pr-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="rounded-full text-muted-foreground/30 hover:text-amber-500 hover:bg-amber-50 md:hidden"
+                          onClick={() => openNoteEditor(s.cvr, s.note)}
+                          title={s.note ? sv.editNote : sv.addNote}
+                        >
+                          <StickyNote className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="rounded-full text-muted-foreground/30 hover:text-destructive hover:bg-destructive/5"
+                          onClick={() => handleRemove(s.cvr)}
+                          disabled={removing === s.cvr}
+                          title={sv.removed}
+                        >
+                          {removing === s.cvr ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </DashboardLayout>
   );

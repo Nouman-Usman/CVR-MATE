@@ -15,6 +15,30 @@ import {
   useResumeSubscription,
   useChangePlan,
 } from "@/lib/hooks/use-subscription";
+import { cn } from "@/lib/utils";
+import {
+  User,
+  Lock,
+  Building2,
+  UsersRound,
+  Bell,
+  Globe,
+  Plug,
+  CreditCard,
+  AlertTriangle,
+  ChevronDown,
+} from "lucide-react";
+
+type SettingsSection =
+  | "profile"
+  | "password"
+  | "brand"
+  | "team"
+  | "notifications"
+  | "language"
+  | "integrations"
+  | "subscription"
+  | "danger";
 
 function Toggle({
   checked,
@@ -953,6 +977,18 @@ export default function SettingsPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
+  const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["account", "workspace", "billing"]));
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  };
+
   const userEmail = session?.user?.email || "";
   const initials = (session?.user?.name || userEmail)
     .split(" ")
@@ -970,39 +1006,110 @@ export default function SettingsPage() {
   const btnPrimary =
     "px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
 
+  const sidebarGroups: {
+    key: string;
+    label: string;
+    items: { key: SettingsSection; label: string; icon: typeof User }[];
+  }[] = [
+    {
+      key: "account",
+      label: locale === "da" ? "Konto" : "Account",
+      items: [
+        { key: "profile", label: st.profile.title, icon: User },
+        { key: "password", label: st.password.title, icon: Lock },
+        { key: "notifications", label: st.notifications.title, icon: Bell },
+        { key: "language", label: st.language.title, icon: Globe },
+      ],
+    },
+    {
+      key: "workspace",
+      label: locale === "da" ? "Arbejdsplads" : "Workspace",
+      items: [
+        { key: "brand", label: st.brand.title, icon: Building2 },
+        { key: "team", label: st.team.title, icon: UsersRound },
+        { key: "integrations", label: (t.integrations as { title: string }).title, icon: Plug },
+      ],
+    },
+    {
+      key: "billing",
+      label: locale === "da" ? "Betaling" : "Billing",
+      items: [
+        { key: "subscription", label: (st.subscription as { title: string }).title, icon: CreditCard },
+        { key: "danger", label: st.danger.title, icon: AlertTriangle },
+      ],
+    },
+  ];
+
   return (
     <DashboardLayout>
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed top-20 right-6 z-50 px-5 py-3 rounded-full shadow-2xl text-sm font-medium flex items-center gap-2 ${
-            toastType === "error"
-              ? "bg-red-600 text-white"
-              : "bg-slate-900 text-white"
-          }`}
+          className={cn(
+            "fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300",
+            toastType === "error" ? "bg-destructive text-destructive-foreground" : "bg-foreground text-background"
+          )}
         >
-          <span
-            className={`material-symbols-outlined text-lg ${
-              toastType === "error" ? "text-red-200" : "text-emerald-400"
-            }`}
-          >
-            {toastType === "error" ? "error" : "check_circle"}
-          </span>
           {toast}
         </div>
       )}
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)]">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
           {st.title}
         </h1>
-        <p className="text-sm text-slate-400 mt-1">{st.subtitle}</p>
+        <p className="text-sm text-muted-foreground mt-1.5">{st.subtitle}</p>
       </div>
 
-      <div className="max-w-3xl space-y-6">
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* ── Sidebar ──────────────────────────────────────────── */}
+        <nav className="lg:w-60 shrink-0">
+          <div className="lg:sticky lg:top-6 space-y-1">
+            {sidebarGroups.map((group) => (
+              <div key={group.key}>
+                <button
+                  onClick={() => toggleGroup(group.key)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {group.label}
+                  <ChevronDown className={cn(
+                    "size-3.5 transition-transform duration-200",
+                    expandedGroups.has(group.key) ? "rotate-0" : "-rotate-90"
+                  )} />
+                </button>
+                {expandedGroups.has(group.key) && (
+                  <div className="space-y-0.5 mb-2">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeSection === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => setActiveSection(item.key)}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer",
+                            isActive
+                              ? "bg-primary/5 text-primary"
+                              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                          )}
+                        >
+                          <Icon className={cn("size-4", isActive ? "text-primary" : "text-muted-foreground/60")} />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </nav>
+
+        {/* ── Content ──────────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 max-w-3xl">
         {/* ── Profile ──────────────────────────────────────────────────── */}
-        <div className={cardClass}>
+        {activeSection === "profile" && <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               person
@@ -1053,10 +1160,10 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* ── Change Password ──────────────────────────────────────────── */}
-        <div className={cardClass}>
+        {activeSection === "password" && <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               lock
@@ -1159,10 +1266,10 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Company Profile / Brand ──────────────────────────────────── */}
-        <div className={cardClass}>
+        {activeSection === "brand" && <div className={cardClass}>
           <div className="flex items-center gap-2 mb-2">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               apartment
@@ -1355,10 +1462,10 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Team / Organization ──────────────────────────────────────── */}
-        <div className={cardClass}>
+        {activeSection === "team" && <div className={cardClass}>
           <div className="flex items-center gap-2 mb-2">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               groups
@@ -1601,10 +1708,10 @@ export default function SettingsPage() {
                 )}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Notifications ────────────────────────────────────────────── */}
-        <div className={cardClass}>
+        {activeSection === "notifications" && <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               notifications
@@ -1649,10 +1756,10 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* ── Language ─────────────────────────────────────────────────── */}
-        <div className={cardClass}>
+        {activeSection === "language" && <div className={cardClass}>
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-slate-400 text-xl">
               language
@@ -1687,16 +1794,16 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* ── CRM Integrations ─────────────────────────────────────────── */}
-        <CrmIntegrationsSection />
+        {activeSection === "integrations" && <CrmIntegrationsSection />}
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
-        <SubscriptionSection />
+        {activeSection === "subscription" && <SubscriptionSection />}
 
         {/* ── Danger zone ──────────────────────────────────────────────── */}
-        <div className="bg-red-50/50 rounded-2xl border border-red-100 p-4 sm:p-6 md:p-8">
+        {activeSection === "danger" && <div className="bg-red-50/50 rounded-2xl border border-red-100 p-4 sm:p-6 md:p-8">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-red-500 text-xl">
               warning
@@ -1706,9 +1813,10 @@ export default function SettingsPage() {
             </h2>
           </div>
           <p className="text-sm text-red-600/70 mb-4">{st.danger.warning}</p>
-          <button className="px-5 py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-full hover:bg-red-500 hover:text-white transition-colors">
+          <button className="px-5 py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-full hover:bg-red-500 hover:text-white transition-colors cursor-pointer">
             {st.danger.delete}
           </button>
+        </div>}
         </div>
       </div>
     </DashboardLayout>
