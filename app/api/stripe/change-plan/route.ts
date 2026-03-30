@@ -7,7 +7,7 @@ import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { priceToPlan, type PlanId } from "@/lib/stripe/plans";
 
-const PLAN_HIERARCHY: Record<PlanId, number> = { free: 0, go: 1, flow: 2 };
+const PLAN_HIERARCHY: Record<PlanId, number> = { free: 0, go: 1, flow: 2, enterprise: 3 };
 
 function getPriceIdForPlan(plan: PlanId): string | null {
   if (plan === "go") return process.env.NEXT_PUBLIC_STRIPE_GO_PRICE_ID ?? null;

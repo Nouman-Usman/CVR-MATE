@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const orgId = session.session.activeOrganizationId ?? "";
+
     // Check saved companies limit
     const [{ value: savedCount }] = await db
       .select({ value: count() })
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
       .where(eq(savedCompany.userId, session.user.id));
 
     const { allowed, limit } = await checkUsageEntitlement(
-      session.user.id,
+      orgId,
       "savedCompanies",
       savedCount
     );

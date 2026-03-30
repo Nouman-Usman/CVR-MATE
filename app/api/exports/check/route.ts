@@ -15,7 +15,9 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed: featureAllowed } = await checkEntitlement(session.user.id, "exports");
+    const orgId = session.session.activeOrganizationId ?? "";
+
+    const { allowed: featureAllowed } = await checkEntitlement(orgId, "exports");
     if (!featureAllowed) {
       return NextResponse.json(
         { error: "Exports require a paid plan", upgrade: true },
@@ -23,7 +25,7 @@ export async function POST() {
       );
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "export");
+    const quota = await checkMonthlyQuota(orgId, "export");
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `Export limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -31,7 +33,7 @@ export async function POST() {
       );
     }
 
-    await recordUsage(session.user.id, "export");
+    await recordUsage(orgId, session.user.id, "export");
 
     return NextResponse.json({
       allowed: true,

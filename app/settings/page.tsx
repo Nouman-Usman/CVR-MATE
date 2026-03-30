@@ -27,6 +27,15 @@ import {
   CreditCard,
   AlertTriangle,
   ChevronDown,
+  Users,
+  Shield,
+  Key,
+  ScrollText,
+  GitBranch,
+  BarChart3,
+  Database,
+  Palette,
+  ExternalLink,
 } from "lucide-react";
 
 type SettingsSection =
@@ -978,7 +987,7 @@ export default function SettingsPage() {
   // ── Render ──────────────────────────────────────────────────────────────
 
   const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["account", "workspace", "billing"]));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["account", "workspace", "billing", "organization"]));
 
   const toggleGroup = (group: string) => {
     setExpandedGroups((prev) => {
@@ -1040,8 +1049,23 @@ export default function SettingsPage() {
     },
   ];
 
+  // Org-level settings — link to dedicated pages
+  const orgRoutes = [
+    { label: locale === "da" ? "Generelt" : "General", href: "/settings/org/general", icon: Building2 },
+    { label: locale === "da" ? "Brand" : "Brand", href: "/settings/org/brand", icon: Palette },
+    { label: locale === "da" ? "Medlemmer" : "Members", href: "/settings/org/members", icon: Users },
+    { label: locale === "da" ? "Teams" : "Teams", href: "/settings/org/teams", icon: UsersRound },
+    { label: locale === "da" ? "Fakturering" : "Billing", href: "/settings/org/billing", icon: BarChart3 },
+    { label: locale === "da" ? "Integrationer" : "Integrations", href: "/settings/org/integrations", icon: Plug },
+    { label: locale === "da" ? "API-nøgler" : "API Keys", href: "/settings/org/api-keys", icon: Key },
+    { label: locale === "da" ? "Sikkerhed" : "Security", href: "/settings/org/security", icon: Shield },
+    { label: locale === "da" ? "Revisionslog" : "Audit Log", href: "/settings/org/audit", icon: ScrollText },
+    { label: locale === "da" ? "Data & privatliv" : "Data & Privacy", href: "/settings/org/data-privacy", icon: Database },
+    { label: locale === "da" ? "Pipeline" : "Pipeline", href: "/settings/org/pipeline", icon: GitBranch },
+  ];
+
   return (
-    <DashboardLayout>
+    <>
       {/* Toast */}
       {toast && (
         <div
@@ -1103,6 +1127,38 @@ export default function SettingsPage() {
                 )}
               </div>
             ))}
+
+            {/* Organization routes — link to dedicated pages */}
+            <div>
+              <button
+                onClick={() => toggleGroup("organization")}
+                className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                {locale === "da" ? "Organisation" : "Organization"}
+                <ChevronDown className={cn(
+                  "size-3.5 transition-transform duration-200",
+                  expandedGroups.has("organization") ? "rotate-0" : "-rotate-90"
+                )} />
+              </button>
+              {expandedGroups.has("organization") && (
+                <div className="space-y-0.5 mb-2">
+                  {orgRoutes.map((route) => {
+                    const Icon = route.icon;
+                    return (
+                      <Link
+                        key={route.href}
+                        href={route.href}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-muted-foreground hover:bg-muted/50 hover:text-foreground group"
+                      >
+                        <Icon className="size-4 text-muted-foreground/60 group-hover:text-foreground/60" />
+                        {route.label}
+                        <ExternalLink className="size-3 ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </nav>
 
@@ -1819,6 +1875,6 @@ export default function SettingsPage() {
         </div>}
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

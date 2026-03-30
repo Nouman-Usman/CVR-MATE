@@ -47,6 +47,9 @@ function LoginForm() {
       return;
     }
 
+    // Ensure user has an org (creates personal workspace if missing)
+    await fetch("/api/auth/ensure-org", { method: "POST" });
+
     router.push(callbackUrl);
   };
 

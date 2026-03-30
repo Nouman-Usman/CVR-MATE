@@ -12,6 +12,7 @@ const PROTECTED_ROUTES = [
   "/company",
   "/todos",
   "/onboarding",
+  "/person",
 ];
 
 const AUTH_ROUTES = ["/login", "/signup"];
@@ -27,6 +28,16 @@ function hasSessionCookie(req: NextRequest): boolean {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isLoggedIn = hasSessionCookie(req);
+
+  // ─── API v1 routes: skip session check (API key auth handled in route) ────
+  if (pathname.startsWith("/api/v1/")) {
+    // Add CORS headers for external API consumers
+    const response = NextResponse.next();
+    response.headers.set("Access-Control-Allow-Origin", "*");
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    response.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    return response;
+  }
 
   // Authenticated users trying to access login/signup → redirect to dashboard
   if (AUTH_ROUTES.some((route) => pathname.startsWith(route))) {
@@ -62,7 +73,9 @@ export const config = {
     "/company/:path*",
     "/todos/:path*",
     "/onboarding/:path*",
+    "/person/:path*",
     "/login",
     "/signup",
+    "/api/v1/:path*",
   ],
 };

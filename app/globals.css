@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-headline: var(--font-manrope);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -212,14 +212,14 @@ body {
   --chart-4: #f59e0b;
   --chart-5: #10b981;
   --radius: 0.625rem;
-  --sidebar: #f8fafc;
-  --sidebar-foreground: #191c1e;
-  --sidebar-primary: #2563eb;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #94a3b8;
+  --sidebar-primary: #3b82f6;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eff6ff;
-  --sidebar-accent-foreground: #1e293b;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #2563eb;
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: #3b82f6;
 }
 
 .dark {
@@ -247,13 +247,13 @@ body {
   --chart-3: #a78bfa;
   --chart-4: #fbbf24;
   --chart-5: #34d399;
-  --sidebar: #1e293b;
-  --sidebar-foreground: #f8fafc;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #94a3b8;
   --sidebar-primary: #3b82f6;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #3b82f6;
 }
 

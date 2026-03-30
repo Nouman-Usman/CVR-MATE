@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const orgId = session.session.activeOrganizationId ?? "";
+
     // Check trigger limit
     const [{ value: triggerCount }] = await db
       .select({ value: count() })
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
       .where(eq(leadTrigger.userId, session.user.id));
 
     const { allowed, limit } = await checkUsageEntitlement(
-      session.user.id,
+      orgId,
       "triggers",
       triggerCount
     );

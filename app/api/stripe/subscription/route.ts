@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getUserPlan, getPlanLimits, getUsageSummary } from "@/lib/stripe/entitlements";
+import { getOrgPlan, getPlanLimits, getUsageSummary } from "@/lib/stripe/entitlements";
 import { PLANS } from "@/lib/stripe/plans";
 
 export async function GET() {
@@ -11,10 +11,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { plan, status, subscription } = await getUserPlan(session.user.id);
+    const orgId = session.session.activeOrganizationId ?? "";
+
+    const { plan, status, subscription } = await getOrgPlan(orgId);
     const limits = getPlanLimits(plan);
     const planDef = PLANS[plan];
-    const usage = await getUsageSummary(session.user.id);
+    const usage = await getUsageSummary(orgId);
 
     const serializeInf = (v: number) => (isFinite(v) ? v : -1);
 

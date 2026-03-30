@@ -22,7 +22,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "aiFeatures");
+    const orgId = session.session.activeOrganizationId ?? "";
+
+    const { allowed } = await checkEntitlement(orgId, "aiFeatures");
     if (!allowed) {
       return NextResponse.json(
         { error: "AI features require a paid plan", upgrade: true },
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    const quota = await checkMonthlyQuota(orgId, "ai_usage");
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -154,7 +156,7 @@ ${formatBrandContext(brand)}`;
       })
       .returning();
 
-    await recordUsage(session.user.id, "ai_usage");
+    await recordUsage(orgId, session.user.id, "ai_usage");
     return NextResponse.json({ ...result, id: saved.id });
   } catch (error) {
     console.error("AI briefing error:", error instanceof Error ? error.stack : error);

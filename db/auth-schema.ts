@@ -1,5 +1,14 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  jsonb,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -84,13 +93,25 @@ export const organization = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     logo: text("logo"),
+    // ─── Enterprise fields ───
+    type: text("type").default("personal").notNull(), // 'personal' | 'team' | 'enterprise'
+    ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
+    billingEmail: text("billing_email"),
+    maxSeats: integer("max_seats").default(1).notNull(),
+    settings: jsonb("settings").default({}).notNull(), // timezone, language, branding, 2fa_required, etc.
+    isActive: boolean("is_active").default(true).notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date()),
     metadata: text("metadata"),
   },
-  (table) => [uniqueIndex("organization_slug_idx").on(table.slug)]
+  (table) => [
+    uniqueIndex("organization_slug_idx").on(table.slug),
+    index("organization_owner_idx").on(table.ownerId),
+    index("organization_type_idx").on(table.type),
+  ]
 );
 
 export const member = pgTable(
@@ -103,12 +124,18 @@ export const member = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    role: text("role").default("member").notNull(),
+    role: text("role").default("member").notNull(), // 'owner' | 'admin' | 'manager' | 'member' | 'viewer'
+    // ─── Enterprise fields ───
+    teamId: text("team_id"), // references team.id (added in app-schema to avoid circular)
+    invitedBy: text("invited_by"),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     index("member_org_idx").on(table.organizationId),
     index("member_user_idx").on(table.userId),
+    index("member_team_idx").on(table.teamId),
+    uniqueIndex("member_org_user_idx").on(table.organizationId, table.userId),
   ]
 );
 

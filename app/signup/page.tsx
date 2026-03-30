@@ -79,6 +79,9 @@ export default function SignupPage() {
         return;
       }
 
+      // Auto-create personal workspace so org context is available
+      await fetch("/api/auth/ensure-org", { method: "POST" });
+
       router.push("/onboarding");
     } catch {
       setError(

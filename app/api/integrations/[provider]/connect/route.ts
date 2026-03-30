@@ -17,7 +17,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "crm");
+    const orgId = session.session.activeOrganizationId ?? "";
+
+    const { allowed } = await checkEntitlement(orgId, "crm");
     if (!allowed) {
       return NextResponse.json(
         { error: "CRM integrations require a paid plan", upgrade: true },

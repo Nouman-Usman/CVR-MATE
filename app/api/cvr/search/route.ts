@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "company_search");
+    const orgId = session.session.activeOrganizationId ?? "";
+
+    const quota = await checkMonthlyQuota(orgId, "company_search");
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `Search limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -164,7 +166,7 @@ export async function GET(req: NextRequest) {
 
     // Only count as a usage on the first page to avoid double-counting paginated requests
     if (page === 1) {
-      await recordUsage(session.user.id, "company_search");
+      await recordUsage(orgId, session.user.id, "company_search");
     }
 
     return NextResponse.json({
