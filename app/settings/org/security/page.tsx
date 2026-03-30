@@ -124,12 +124,14 @@ export default function SecurityPage() {
   // Sync form when settings load
   useEffect(() => {
     if (settings) {
-      setSsoProvider(settings.sso.provider);
-      setSsoEntityId(settings.sso.entityId);
-      setSsoUrl(settings.sso.ssoUrl);
-      setSsoCertificate(settings.sso.certificate);
-      setSsoEnforced(settings.sso.enforced);
-      setTwoFactorEnforced(settings.twoFactorEnforced);
+      if (settings.sso) {
+        setSsoProvider(settings.sso.provider ?? "");
+        setSsoEntityId(settings.sso.entityId ?? "");
+        setSsoUrl(settings.sso.ssoUrl ?? "");
+        setSsoCertificate(settings.sso.certificate ?? "");
+        setSsoEnforced(settings.sso.enforced ?? false);
+      }
+      setTwoFactorEnforced(settings.twoFactorEnforced ?? false);
     }
   }, [settings]);
 
