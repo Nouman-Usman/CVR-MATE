@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSubscription } from "@/lib/hooks/use-subscription";
 import {
   Home,
   Search,
@@ -119,6 +120,92 @@ const adminSection: NavSection = {
 };
 
 const ADMIN_ROLES = new Set(["owner", "admin", "manager"]);
+
+// ─── Plan Usage Widget ──────────────────────────────────────────────────────
+
+const PLAN_BADGE_LIGHT: Record<string, string> = {
+  free: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  go: "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300",
+  flow: "bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-300",
+};
+
+function UsageMiniBarLight({ used, limit }: { used: number; limit: number }) {
+  const isUnlimited = limit === -1;
+  const pct = isUnlimited ? 0 : limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+  const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
+
+  return (
+    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+      {!isUnlimited && (
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      )}
+      {isUnlimited && (
+        <div className="h-full rounded-full bg-emerald-500 w-full" />
+      )}
+    </div>
+  );
+}
+
+function PlanUsageDropdownItem() {
+  const { data, isLoading } = useSubscription();
+
+  if (isLoading || !data) return null;
+
+  const plan = data.plan ?? "free";
+  const planName = data.planName ?? plan.toUpperCase();
+  const badgeClass = PLAN_BADGE_LIGHT[plan] ?? PLAN_BADGE_LIGHT.free;
+
+  return (
+    <Link
+      href="/settings/org/billing"
+      className="block px-3 py-2.5 space-y-2.5 hover:bg-accent rounded-sm transition-colors"
+    >
+      <div className="flex items-center justify-between">
+        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeClass}`}>
+          {planName}
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {data.status === "active" ? "Active" : data.status}
+        </span>
+      </div>
+      {data.usage && (
+        <div className="space-y-1.5">
+          <div>
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-[10px] text-muted-foreground">Searches</p>
+              <p className="text-[10px] tabular-nums text-muted-foreground">
+                {data.usage.companySearches.limit === -1
+                  ? `${data.usage.companySearches.used}`
+                  : `${data.usage.companySearches.used} / ${data.usage.companySearches.limit}`}
+              </p>
+            </div>
+            <UsageMiniBarLight
+              used={data.usage.companySearches.used}
+              limit={data.usage.companySearches.limit}
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-0.5">
+              <p className="text-[10px] text-muted-foreground">AI Features</p>
+              <p className="text-[10px] tabular-nums text-muted-foreground">
+                {data.usage.aiUsages.limit === -1
+                  ? `${data.usage.aiUsages.used}`
+                  : `${data.usage.aiUsages.used} / ${data.usage.aiUsages.limit}`}
+              </p>
+            </div>
+            <UsageMiniBarLight
+              used={data.usage.aiUsages.used}
+              limit={data.usage.aiUsages.limit}
+            />
+          </div>
+        </div>
+      )}
+    </Link>
+  );
+}
 
 // ─── AppSidebar ─────────────────────────────────────────────────────────────
 
@@ -315,6 +402,8 @@ export function AppSidebar({ user, onLogout }: AppSidebarProps) {
                     </span>
                   </div>
                 </div>
+                <DropdownMenuSeparator />
+                <PlanUsageDropdownItem />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={onLogout}

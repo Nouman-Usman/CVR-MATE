@@ -40,12 +40,13 @@ type Severity = "info" | "warning" | "critical";
 
 interface AuditEntry {
   id: string;
-  timestamp: string;
-  userName: string;
+  createdAt: string;
+  userName: string | null;
+  userEmail: string;
   action: string;
   entityType: string;
-  entity: string;
-  ipAddress: string;
+  entityId: string | null;
+  ipAddress: string | null;
   severity: Severity;
 }
 
@@ -267,20 +268,22 @@ export default function AuditLogPage() {
                   {entries.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell className="text-xs text-muted-foreground font-mono">
-                        {new Date(entry.timestamp).toLocaleString()}
+                        {entry.createdAt
+                          ? new Date(entry.createdAt).toLocaleString()
+                          : "—"}
                       </TableCell>
                       <TableCell className="text-sm font-medium">
-                        {entry.userName}
+                        {entry.userName || entry.userEmail}
                       </TableCell>
                       <TableCell className="text-sm">{entry.action}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{entry.entityType}</Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                        {entry.entity}
+                        {entry.entityId ?? "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {entry.ipAddress}
+                        {entry.ipAddress ?? "—"}
                       </TableCell>
                       <TableCell>
                         <SeverityBadge severity={entry.severity} />

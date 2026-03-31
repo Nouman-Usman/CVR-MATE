@@ -40,22 +40,57 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Plus, Key, Copy, Trash2, AlertTriangle } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Plus,
+  Key,
+  Copy,
+  AlertTriangle,
+  MoreHorizontal,
+  Trash2,
+  RefreshCw,
+} from "lucide-react";
 
-// ---- Types ----
+// ---- Types (matches API response from /api/admin/api-keys) ----
 
 interface ApiKey {
   id: string;
   name: string;
-  prefix: string;
+  keyPrefix: string;
   scopes: string[];
   createdAt: string;
-  lastUsed: string | null;
+  lastUsedAt: string | null;
   expiresAt: string | null;
-  status: "active" | "expired" | "revoked";
+  isActive: boolean;
 }
 
-// ---- Hook ----
+interface KeyUsage {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  isActive: boolean;
+  rateLimit: number;
+  lastUsedAt: string | null;
+  createdAt: string;
+  requestsLast30d: number;
+}
+
+interface RecentActivity {
+  id: string;
+  entityId: string | null;
+  action: string;
+  ipAddress: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+// ---- Hooks ----
 
 function useApiKeys() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -83,9 +118,56 @@ function useApiKeys() {
   return { keys, isLoading, refetch: fetchKeys };
 }
 
-// ---- Status badge ----
+function useApiKeyUsage() {
+  const [usage, setUsage] = useState<KeyUsage[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-const statusClass: Record<string, string> = {
+  const fetchUsage = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/api-keys/usage");
+      if (res.ok) {
+        const data = await res.json();
+        setUsage(data.usage ?? []);
+        setRecentActivity(data.recentActivity ?? []);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage]);
+
+  return { usage, recentActivity, isLoading };
+}
+
+// ---- Helpers ----
+
+function timeAgo(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// ---- Status helpers ----
+
+function getKeyStatus(key: ApiKey): "active" | "expired" | "revoked" {
+  if (!key.isActive) return "revoked";
+  if (key.expiresAt && new Date(key.expiresAt) < new Date()) return "expired";
+  return "active";
+}
+
+const statusStyles: Record<string, string> = {
   active:
     "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   expired:
@@ -96,7 +178,7 @@ const statusClass: Record<string, string> = {
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusClass[status] ?? statusClass.expired}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[status] ?? statusStyles.expired}`}
     >
       {status}
     </span>
@@ -107,6 +189,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function ApiKeysPage() {
   const { keys, isLoading, refetch } = useApiKeys();
+  const { usage, recentActivity, isLoading: usageLoading } = useApiKeyUsage();
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -115,12 +198,16 @@ export default function ApiKeysPage() {
   const [newExpiration, setNewExpiration] = useState("90d");
   const [creating, setCreating] = useState(false);
 
-  // Reveal dialog state (shown after creation)
+  // Reveal dialog state (shown after creation or rotation)
   const [revealKey, setRevealKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Revoke confirmation
   const [revokeId, setRevokeId] = useState<string | null>(null);
+
+  // Rotate confirmation
+  const [rotateId, setRotateId] = useState<string | null>(null);
+  const [rotating, setRotating] = useState(false);
 
   function toggleScope(scope: string) {
     setNewScopes((prev) =>
@@ -152,10 +239,11 @@ export default function ApiKeysPage() {
         toast.success("API key created");
         resetCreateForm();
         setCreateOpen(false);
-        setRevealKey(data.key?.plaintext ?? data.key);
+        setRevealKey(data.key?.plaintext ?? null);
         refetch();
       } else {
-        toast.error("Failed to create API key");
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "Failed to create API key");
       }
     } catch {
       toast.error("Failed to create API key");
@@ -178,6 +266,31 @@ export default function ApiKeysPage() {
       }
     } catch {
       toast.error("Failed to revoke API key");
+    }
+  }
+
+  async function handleRotate(keyId: string) {
+    setRotating(true);
+    try {
+      const res = await fetch("/api/admin/api-keys", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success("API key rotated — old key is now revoked");
+        setRotateId(null);
+        setRevealKey(data.key?.plaintext ?? null);
+        refetch();
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || "Failed to rotate API key");
+      }
+    } catch {
+      toast.error("Failed to rotate API key");
+    } finally {
+      setRotating(false);
     }
   }
 
@@ -344,58 +457,202 @@ export default function ApiKeysPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {keys.map((key) => (
-                  <TableRow key={key.id}>
-                    <TableCell className="text-sm font-medium">
-                      {key.name}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {key.prefix}...
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {key.scopes.map((scope) => (
-                          <Badge key={scope} variant="secondary">
-                            {scope}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(key.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {key.lastUsed
-                        ? new Date(key.lastUsed).toLocaleDateString()
-                        : "Never"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {key.expiresAt
-                        ? new Date(key.expiresAt).toLocaleDateString()
-                        : "Never"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={key.status} />
-                    </TableCell>
-                    <TableCell>
-                      {key.status === "active" && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setRevokeId(key.id)}
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                          <span className="sr-only">Revoke</span>
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {keys.map((key) => {
+                  const status = getKeyStatus(key);
+                  return (
+                    <TableRow key={key.id}>
+                      <TableCell className="text-sm font-medium">
+                        {key.name}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {key.keyPrefix}...
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {key.scopes.map((scope) => (
+                            <Badge key={scope} variant="secondary">
+                              {scope}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {key.createdAt
+                          ? new Date(key.createdAt).toLocaleDateString()
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {key.lastUsedAt
+                          ? new Date(key.lastUsedAt).toLocaleDateString()
+                          : "Never"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {key.expiresAt
+                          ? new Date(key.expiresAt).toLocaleDateString()
+                          : "Never"}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={status} />
+                      </TableCell>
+                      <TableCell>
+                        {status === "active" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button variant="ghost" size="icon-sm">
+                                  <MoreHorizontal className="size-4" />
+                                  <span className="sr-only">Actions</span>
+                                </Button>
+                              }
+                            />
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setRotateId(key.id)}
+                              >
+                                <RefreshCw className="size-4" />
+                                Rotate key
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setRevokeId(key.id)}
+                              >
+                                <Trash2 className="size-4" />
+                                Revoke key
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
+
+      {/* Usage Stats */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">API Usage</CardTitle>
+          <CardDescription>
+            Request activity per key over the last 30 days.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {usageLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : usage.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No API keys to show usage for.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {usage.map((u) => {
+                const pct =
+                  u.rateLimit > 0
+                    ? Math.min((u.requestsLast30d / (u.rateLimit * 24 * 30)) * 100, 100)
+                    : 0;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-4 rounded-lg border p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">
+                          {u.name}
+                        </p>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {u.keyPrefix}
+                        </span>
+                        {!u.isActive && (
+                          <StatusBadge status="revoked" />
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-3">
+                        <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${Math.max(pct, 1)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                          {u.requestsLast30d.toLocaleString()} reqs
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] text-muted-foreground">
+                        Rate limit: {u.rateLimit.toLocaleString()}/hr
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Last used:{" "}
+                        {u.lastUsedAt ? timeAgo(u.lastUsedAt) : "Never"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent Activity */}
+      {recentActivity.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+            <CardDescription>
+              Latest API key events across your organization.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Key</TableHead>
+                  <TableHead>IP Address</TableHead>
+                  <TableHead className="text-right">Time</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentActivity.slice(0, 20).map((event) => {
+                  const matchingKey = usage.find(
+                    (u) => u.id === event.entityId
+                  );
+                  return (
+                    <TableRow key={event.id}>
+                      <TableCell className="text-sm">
+                        <Badge variant="outline" className="text-[11px] font-normal capitalize">
+                          {event.action.replace(/_/g, " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {matchingKey?.keyPrefix ?? "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {event.ipAddress ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground text-right">
+                        {timeAgo(event.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Reveal Key Dialog */}
       <Dialog
@@ -409,7 +666,7 @@ export default function ApiKeysPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>API Key Created</DialogTitle>
+            <DialogTitle>Your API Key</DialogTitle>
             <DialogDescription>
               Copy your API key now. You will not be able to see it again.
             </DialogDescription>
@@ -428,11 +685,7 @@ export default function ApiKeysPage() {
                 readOnly
                 className="font-mono text-xs"
               />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleCopyKey}
-              >
+              <Button variant="outline" size="icon" onClick={handleCopyKey}>
                 <Copy className="size-4" />
                 <span className="sr-only">Copy</span>
               </Button>
@@ -442,7 +695,12 @@ export default function ApiKeysPage() {
             )}
           </div>
           <DialogFooter>
-            <Button onClick={() => { setRevealKey(null); setCopied(false); }}>
+            <Button
+              onClick={() => {
+                setRevealKey(null);
+                setCopied(false);
+              }}
+            >
               Done
             </Button>
           </DialogFooter>
@@ -473,6 +731,36 @@ export default function ApiKeysPage() {
               onClick={() => revokeId && handleRevoke(revokeId)}
             >
               Revoke Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rotate Confirmation Dialog */}
+      <Dialog
+        open={rotateId !== null}
+        onOpenChange={(open) => {
+          if (!open) setRotateId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rotate API Key</DialogTitle>
+            <DialogDescription>
+              This will generate a new key with the same name and scopes, and
+              immediately revoke the old key. Applications must update to the new
+              key.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              onClick={() => rotateId && handleRotate(rotateId)}
+              disabled={rotating}
+            >
+              {rotating ? "Rotating..." : "Rotate Key"}
             </Button>
           </DialogFooter>
         </DialogContent>

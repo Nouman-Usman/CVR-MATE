@@ -89,6 +89,66 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PATCH /api/admin/api-keys — rotate an API key (revoke old, create new with same config)
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId, orgId } = await getAuthContext({ resource: "api_keys", action: "create" });
+
+    const body = await request.json();
+    const { keyId } = body as { keyId: string };
+
+    if (!keyId) {
+      return Response.json({ error: "keyId is required" }, { status: 400 });
+    }
+
+    // Find the existing key
+    const existing = await db.query.apiKey.findFirst({
+      where: and(eq(apiKey.id, keyId), eq(apiKey.organizationId, orgId), eq(apiKey.isActive, true)),
+    });
+
+    if (!existing) {
+      return Response.json({ error: "Active API key not found" }, { status: 404 });
+    }
+
+    // Revoke the old key
+    await db
+      .update(apiKey)
+      .set({ isActive: false })
+      .where(eq(apiKey.id, keyId));
+
+    await logApiKeyRevoked(userId, orgId, existing.keyPrefix);
+
+    // Generate a new key with the same config
+    const { plaintext, hash, prefix } = generateApiKey();
+
+    const [newKey] = await db
+      .insert(apiKey)
+      .values({
+        organizationId: orgId,
+        name: existing.name,
+        keyHash: hash,
+        keyPrefix: prefix,
+        scopes: existing.scopes as string[],
+        expiresAt: existing.expiresAt,
+        createdByUserId: userId,
+      })
+      .returning({
+        id: apiKey.id,
+        name: apiKey.name,
+        keyPrefix: apiKey.keyPrefix,
+        scopes: apiKey.scopes,
+        expiresAt: apiKey.expiresAt,
+        createdAt: apiKey.createdAt,
+      });
+
+    await logApiKeyCreated(userId, orgId, prefix, existing.name);
+
+    return Response.json({ key: { ...newKey, plaintext } });
+  } catch (error) {
+    return handleAuthError(error);
+  }
+}
+
 // DELETE /api/admin/api-keys — revoke an API key
 export async function DELETE(request: NextRequest) {
   try {

@@ -63,19 +63,20 @@ type Role = "owner" | "admin" | "manager" | "member" | "viewer";
 
 interface Member {
   id: string;
-  name: string;
-  email: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string;
+  userImage: string | null;
   role: Role;
-  joinedAt: string;
-  avatarUrl?: string;
+  createdAt: string;
 }
 
 interface Invitation {
   id: string;
   email: string;
   role: Role;
-  sentAt: string;
   status: "pending" | "expired";
+  createdAt: string;
 }
 
 // ---- Role badge colors ----
@@ -102,7 +103,7 @@ function RoleBadge({ role }: { role: Role }) {
 }
 
 function MemberAvatar({ name }: { name: string }) {
-  const initials = name
+  const initials = (name || "?")
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -115,19 +116,21 @@ function MemberAvatar({ name }: { name: string }) {
   );
 }
 
-// ---- Data fetching hooks ----
+// ---- Data fetching hook ----
 
-function useMembers() {
+function useMembersData() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchMembers = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/admin/members");
       if (res.ok) {
         const data = await res.json();
         setMembers(data.members ?? []);
+        setInvitations(data.invitations ?? []);
       }
     } catch {
       // silently fail, will show empty state
@@ -137,47 +140,16 @@ function useMembers() {
   }, []);
 
   useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
+    fetchData();
+  }, [fetchData]);
 
-  return { members, isLoading, refetch: fetchMembers };
-}
-
-function useInvitations() {
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchInvitations = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/admin/members");
-      if (res.ok) {
-        const data = await res.json();
-        setInvitations(data.invitations ?? []);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchInvitations();
-  }, [fetchInvitations]);
-
-  return { invitations, isLoading, refetch: fetchInvitations };
+  return { members, invitations, isLoading, refetch: fetchData };
 }
 
 // ---- Page ----
 
 export default function MembersPage() {
-  const { members, isLoading: membersLoading, refetch: refetchMembers } = useMembers();
-  const {
-    invitations,
-    isLoading: invitationsLoading,
-    refetch: refetchInvitations,
-  } = useInvitations();
+  const { members, invitations, isLoading, refetch } = useMembersData();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -198,7 +170,7 @@ export default function MembersPage() {
         setInviteEmail("");
         setInviteRole("member");
         setInviteOpen(false);
-        refetchInvitations();
+        refetch();
       } else {
         toast.error("Failed to send invitation");
       }
@@ -218,7 +190,7 @@ export default function MembersPage() {
       });
       if (res.ok) {
         toast.success("Role updated");
-        refetchMembers();
+        refetch();
       } else {
         toast.error("Failed to update role");
       }
@@ -234,7 +206,7 @@ export default function MembersPage() {
       });
       if (res.ok) {
         toast.success("Member removed");
-        refetchMembers();
+        refetch();
       } else {
         toast.error("Failed to remove member");
       }
@@ -251,7 +223,7 @@ export default function MembersPage() {
       );
       if (res.ok) {
         toast.success("Invitation revoked");
-        refetchInvitations();
+        refetch();
       } else {
         toast.error("Failed to revoke invitation");
       }
@@ -331,7 +303,7 @@ export default function MembersPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {membersLoading ? (
+          {isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -371,11 +343,11 @@ export default function MembersPage() {
                   <TableRow key={member.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <MemberAvatar name={member.name} />
+                        <MemberAvatar name={member.userName ?? member.userEmail} />
                         <div>
-                          <p className="text-sm font-medium">{member.name}</p>
+                          <p className="text-sm font-medium">{member.userName || member.userEmail}</p>
                           <p className="text-xs text-muted-foreground">
-                            {member.email}
+                            {member.userEmail}
                           </p>
                         </div>
                       </div>
@@ -384,7 +356,7 @@ export default function MembersPage() {
                       <RoleBadge role={member.role} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(member.joinedAt).toLocaleDateString()}
+                      {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : "—"}
                     </TableCell>
                     <TableCell>
                       {member.role !== "owner" && (
@@ -442,7 +414,7 @@ export default function MembersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {invitationsLoading ? (
+          {isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 2 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
@@ -484,7 +456,7 @@ export default function MembersPage() {
                       <RoleBadge role={inv.role} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(inv.sentAt).toLocaleDateString()}
+                      {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge
