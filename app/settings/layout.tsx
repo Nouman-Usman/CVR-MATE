@@ -84,14 +84,6 @@ export default function SettingsLayout({
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  // The root /settings page has its own complete UI with built-in sidebar.
-  // Only show the layout sidebar for sub-pages (e.g. /settings/org/members).
-  const isRootSettings = pathname === "/settings";
-
-  if (isRootSettings) {
-    return <DashboardLayout>{children}</DashboardLayout>;
-  }
-
   return (
     <DashboardLayout>
     <div className="mx-auto w-full max-w-7xl">
