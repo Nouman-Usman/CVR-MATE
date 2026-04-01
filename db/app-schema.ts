@@ -332,6 +332,7 @@ export const userBrand = pgTable(
     products: text("products").notNull(),
     targetAudience: text("target_audience"),
     tone: text("tone").default("formal").notNull(),
+    preferredEmailClient: text("preferred_email_client").default("default").notNull(), // 'default' | 'gmail' | 'outlook'
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()

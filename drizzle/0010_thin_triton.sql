@@ -1,0 +1,1 @@
+ALTER TABLE "user_brand" ADD COLUMN "preferred_email_client" text DEFAULT 'default' NOT NULL;

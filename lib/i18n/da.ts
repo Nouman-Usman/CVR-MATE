@@ -674,10 +674,15 @@ const da = {
       weeklyDesc: "Modtag en ugentlig opsummering af din aktivitet",
     },
     language: {
-      title: "Sprog & Udseende",
+      title: "Sprog & Præferencer",
       label: "Sprog",
       danish: "Dansk",
       english: "English",
+      emailClient: "E-mailklient",
+      emailClientDesc: "Vælg hvor udkast til e-mails åbnes",
+      emailDefault: "Standard app",
+      emailGmail: "Gmail",
+      emailOutlook: "Outlook",
     },
     subscription: {
       title: "Abonnement",

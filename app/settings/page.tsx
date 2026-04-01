@@ -15,6 +15,7 @@ import {
   useResumeSubscription,
   useChangePlan,
 } from "@/lib/hooks/use-subscription";
+import { useEmailClientValue, useSetEmailClient, type EmailClient } from "@/lib/hooks/use-email-client";
 import { cn } from "@/lib/utils";
 import {
   User,
@@ -585,6 +586,10 @@ export default function SettingsPage() {
   const { t, locale, toggleLocale } = useLanguage();
   const { data: session } = useSession();
   const st = t.settings;
+
+  // Email client preference
+  const emailClient = useEmailClientValue();
+  const setEmailClientMutation = useSetEmailClient();
 
   // Profile
   const [name, setName] = useState(session?.user?.name || "");
@@ -1792,6 +1797,32 @@ export default function SettingsPage() {
               >
                 {st.language.english}
               </button>
+            </div>
+          </div>
+
+          {/* Email client preference */}
+          <div className="space-y-1.5 max-w-xs mt-6">
+            <label className={labelClass}>{st.language.emailClient}</label>
+            <p className="text-xs text-slate-400 mb-2">{st.language.emailClientDesc}</p>
+            <div className="flex bg-slate-50 rounded-full p-1 gap-1">
+              {(["default", "gmail", "outlook"] as EmailClient[]).map((client) => (
+                <button
+                  key={client}
+                  onClick={() => emailClient !== client && setEmailClientMutation.mutate(client)}
+                  disabled={setEmailClientMutation.isPending}
+                  className={`flex-1 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
+                    emailClient === client
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  {client === "default"
+                    ? st.language.emailDefault
+                    : client === "gmail"
+                      ? st.language.emailGmail
+                      : st.language.emailOutlook}
+                </button>
+              ))}
             </div>
           </div>
         </div>}

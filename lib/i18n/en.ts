@@ -676,10 +676,15 @@ const en: Dictionary = {
       weeklyDesc: "Receive a weekly summary of your activity",
     },
     language: {
-      title: "Language & Appearance",
+      title: "Language & Preferences",
       label: "Language",
       danish: "Dansk",
       english: "English",
+      emailClient: "Email client",
+      emailClientDesc: "Choose where to open drafted emails",
+      emailDefault: "Default app",
+      emailGmail: "Gmail",
+      emailOutlook: "Outlook",
     },
     subscription: {
       title: "Subscription",

@@ -8,7 +8,7 @@ import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-sto
 import { useSearchCompanies } from "@/lib/hooks/use-search";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 import { useSaveSearch } from "@/lib/hooks/use-saved-searches";
-import { useMutation } from "@tanstack/react-query";
+
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,7 +39,6 @@ import {
 } from "@/components/ui/table";
 import {
   Search,
-  Sparkles,
   ChevronDown,
   X,
   Heart,
@@ -307,37 +306,6 @@ function SearchPage() {
   const [saveSearchName, setSaveSearchName] = useState("");
   const [localError, setLocalError] = useState("");
 
-  const [aiExplanation, setAiExplanation] = useState("");
-  const aiSearchMutation = useMutation({
-    mutationFn: async (nlQuery: string) => {
-      const res = await fetch("/api/ai/parse-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: nlQuery, locale }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to interpret search");
-      return data as { filters: SearchFiltersState; explanation: string };
-    },
-    onSuccess: (data) => {
-      const f = data.filters;
-      setFilter("query", f.query || "");
-      if (f.industryText) setFilter("industryText", f.industryText);
-      if (f.industryCode && f.industryCode !== "all") setFilter("industryCode", f.industryCode);
-      if (f.companyForm && f.companyForm !== "all") setFilter("companyForm", f.companyForm);
-      if (f.size && f.size !== "all") setFilter("size", f.size);
-      if (f.zipcode) setFilter("zipcode", f.zipcode);
-      if (f.region && f.region !== "all") setFilter("region", f.region);
-      if (f.foundedPeriod && f.foundedPeriod !== "all") setFilter("foundedPeriod", f.foundedPeriod);
-      if (f.employeesMin > 0) setFilter("employeesMin", f.employeesMin);
-      if (f.employeesMax < 5000) setFilter("employeesMax", f.employeesMax);
-      if (f.revenueMin > 0) setFilter("revenueMin", f.revenueMin);
-      if (f.revenueMax < 1000) setFilter("revenueMax", f.revenueMax);
-      setAiExplanation(data.explanation);
-      setShowFilters(true);
-    },
-  });
-
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
@@ -491,33 +459,12 @@ function SearchPage() {
               <Search className="size-5 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
               <Input
                 className="h-12 pl-12 pr-4 text-sm rounded-xl border-border/60 bg-muted/30 focus:bg-background transition-colors"
-                placeholder={query.length > 0 ? s.searchPlaceholder : t.ai.search.placeholder}
+                placeholder={s.searchPlaceholder}
                 value={query}
                 onChange={(e) => setFilter("query", e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
             </div>
-
-            {/* AI button */}
-            <Button
-              variant="outline"
-              size="lg"
-              className="h-12 px-4 rounded-xl border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 hover:text-violet-700 shrink-0 gap-2 font-bold"
-              onClick={() => {
-                if (query.trim().length >= 10) {
-                  aiSearchMutation.mutate(query.trim());
-                }
-              }}
-              disabled={query.trim().length < 10 || aiSearchMutation.isPending}
-              title={t.ai.search.interpret}
-            >
-              {aiSearchMutation.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Sparkles className="size-4" />
-              )}
-              <span className="hidden sm:inline">{aiSearchMutation.isPending ? t.ai.search.interpreting : "AI"}</span>
-            </Button>
 
             {/* Search button */}
             <Button
@@ -535,32 +482,6 @@ function SearchPage() {
               {s.searchButton}
             </Button>
           </div>
-
-          {/* AI explanation */}
-          {aiExplanation && (
-            <div className="mt-3 flex items-start gap-3 p-3.5 rounded-xl bg-violet-50/80 border border-violet-100 animate-fade-in-up">
-              <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                <Sparkles className="size-3.5 text-violet-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-violet-700">
-                  <span className="font-bold">{t.ai.search.understood}:</span> {aiExplanation}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setAiExplanation("")}
-                className="shrink-0 text-violet-400 hover:text-violet-600"
-              >
-                <X className="size-3.5" />
-              </Button>
-            </div>
-          )}
-
-          {aiSearchMutation.isError && (
-            <p className="mt-3 text-sm text-destructive">{t.ai.search.error}</p>
-          )}
 
           {/* Filter toggle */}
           <button

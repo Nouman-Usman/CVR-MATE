@@ -12,6 +12,7 @@ import { useOutreach, useOutreachMessages } from "@/lib/hooks/use-outreach";
 import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
+import { useEmailClientValue, buildComposeUrl } from "@/lib/hooks/use-email-client";
 
 interface AccountingSummary {
   revenue?: number | null;
@@ -220,13 +221,6 @@ function formatDate(
   );
 }
 
-function buildMailtoUrl(to: string | null | undefined, subject: string | null | undefined, body: string): string {
-  // Use encodeURIComponent (not URLSearchParams) — mailto: requires %20 for spaces, not +
-  const parts: string[] = [];
-  if (subject) parts.push(`subject=${encodeURIComponent(subject)}`);
-  parts.push(`body=${encodeURIComponent(body)}`);
-  return `mailto:${encodeURIComponent(to ?? "")}?${parts.join("&")}`;
-}
 
 function InfoRow({
   icon,
@@ -330,6 +324,7 @@ export default function CompanyDetailPage() {
   >("overview");
 
   // AI features
+  const emailClient = useEmailClientValue();
   const briefingMutation = useCompanyBriefing();
   const outreachMutation = useOutreach();
   const suggestTodosMutation = useSuggestTodos();
@@ -771,6 +766,27 @@ export default function CompanyDetailPage() {
                   label={cd.country}
                   value={company.address?.countrycode}
                 />
+                {(company.address?.street || company.address?.cityname) && (
+                  <div className="mt-3">
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        [
+                          company.address?.street,
+                          company.address?.numberfrom != null ? String(company.address.numberfrom) : null,
+                          company.address?.zipcode ? String(company.address.zipcode) : null,
+                          company.address?.cityname,
+                          company.address?.countrycode || "Denmark",
+                        ].filter(Boolean).join(", ")
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">map</span>
+                      {locale === "da" ? "Vis på Google Maps" : "View on Google Maps"}
+                    </a>
+                  </div>
+                )}
                 {company.info?.purpose && (
                   <div className="mt-4 pt-4 border-t border-slate-100">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
@@ -1662,7 +1678,9 @@ export default function CompanyDetailPage() {
                                 {msg.type === "email" && (
                                   <div className="pt-3">
                                     <a
-                                      href={buildMailtoUrl(company.contact?.email, msg.subject, msg.message)}
+                                      href={buildComposeUrl(emailClient, company.contact?.email, msg.subject, msg.message)}
+                                      target={emailClient !== "default" ? "_blank" : undefined}
+                                      rel={emailClient !== "default" ? "noopener noreferrer" : undefined}
                                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors"
                                     >
                                       <span className="material-symbols-outlined text-sm">mail</span>
@@ -1793,11 +1811,14 @@ export default function CompanyDetailPage() {
                             </span>
                             {outreachType === "email" && (
                               <a
-                                href={buildMailtoUrl(
+                                href={buildComposeUrl(
+                                  emailClient,
                                   company.contact?.email,
                                   outreachMutation.data.subject,
                                   outreachMutation.data.message
                                 )}
+                                target={emailClient !== "default" ? "_blank" : undefined}
+                                rel={emailClient !== "default" ? "noopener noreferrer" : undefined}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase hover:bg-blue-100 transition-colors"
                               >
                                 <span className="material-symbols-outlined text-xs">mail</span>
