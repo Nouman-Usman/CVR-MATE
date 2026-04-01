@@ -36,6 +36,7 @@ export async function GET() {
         id: f.id,
         participantNumber: f.participantNumber,
         personName: f.personName,
+        fromVat: f.fromVat ?? null,
         note: f.note,
         lastCheckedAt: f.lastCheckedAt?.toISOString() ?? null,
         createdAt: f.createdAt.toISOString(),
@@ -121,6 +122,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       participantNumber: pn,
       personName: String(personName),
+      fromVat: fromVat ? String(fromVat) : null,
     });
 
     // ─── Backfill: build reverse index + initial snapshots ───

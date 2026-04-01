@@ -33,10 +33,12 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Search,
   X,
@@ -59,6 +61,9 @@ import {
   Building2,
   Tag,
   ExternalLink,
+  MoreHorizontal,
+  Eye,
+  Copy,
 } from "lucide-react";
 
 interface SavedCompany {
@@ -893,53 +898,69 @@ export default function SavedPage() {
                       )}
                     </div>
 
-                    {/* Action buttons — right side */}
-                    <div
-                      className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={<Button variant="ghost" size="icon-sm" className="rounded-lg text-muted-foreground/40 hover:text-amber-500 hover:bg-amber-50" />}
-                          onClick={() => openNoteEditor(s.cvr, s.note)}
+                    {/* Dropdown menu — always visible */}
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <button className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-slate-100 transition-colors cursor-pointer" />
+                          }
                         >
-                          <StickyNote className="size-4" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          {s.note ? sv.editNote : sv.addNote}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={<Button variant="ghost" size="icon-sm" className="rounded-lg text-muted-foreground/40 hover:text-blue-500 hover:bg-blue-50" />}
-                          onClick={() => openTagEditor(s.cvr, s.tags ?? [])}
-                        >
-                          <Tag className="size-4" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          {sv.editTags}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={<Button variant="ghost" size="icon-sm" className="rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50" />}
-                          onClick={() => handleRemove(s.cvr)}
-                          disabled={removing === s.cvr}
-                        >
-                          {removing === s.cvr ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-4" />
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          {locale === "da" ? "Fjern" : "Remove"}
-                        </TooltipContent>
-                      </Tooltip>
+                          <MoreHorizontal className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="bottom" align="end" sideOffset={4} className="w-52">
+                          <div className="px-2 py-1.5">
+                            <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/50 truncate">
+                              {c.name}
+                            </p>
+                          </div>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => router.push(`/company/${c.vat}`)}
+                          >
+                            <Eye className="size-4 text-muted-foreground" />
+                            {locale === "da" ? "Vis virksomhed" : "View company"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => { navigator.clipboard.writeText(c.vat); showToast(locale === "da" ? "CVR kopieret" : "CVR copied"); }}
+                          >
+                            <Copy className="size-4 text-muted-foreground" />
+                            {locale === "da" ? "Kopiér CVR" : "Copy CVR"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => openNoteEditor(s.cvr, s.note)}
+                          >
+                            <StickyNote className="size-4 text-amber-500" />
+                            {s.note ? sv.editNote : sv.addNote}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => openTagEditor(s.cvr, s.tags ?? [])}
+                          >
+                            <Tag className="size-4 text-blue-500" />
+                            {sv.editTags}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            className="gap-2 cursor-pointer"
+                            onClick={() => handleRemove(s.cvr)}
+                            disabled={removing === s.cvr}
+                          >
+                            {removing === s.cvr ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-4" />
+                            )}
+                            {locale === "da" ? "Fjern fra gemte" : "Remove from saved"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-
-                    {/* Chevron — always visible */}
-                    <ExternalLink className="size-4 text-muted-foreground/20 group-hover:text-blue-500 transition-colors shrink-0 mt-1.5" />
                   </div>
 
                   {/* ─ Bottom section: tags + note ─ */}

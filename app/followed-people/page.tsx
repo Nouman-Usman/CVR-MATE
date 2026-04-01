@@ -85,7 +85,7 @@ export default function FollowedPeoplePage() {
                 <div className="p-4 sm:p-5">
                   <div className="flex items-center gap-3.5">
                     {/* Avatar */}
-                    <Link href={`/person/${person.participantNumber}`}>
+                    <Link href={`/person/${person.participantNumber}${person.fromVat ? `?fromVat=${person.fromVat}` : ""}`}>
                       <div
                         className={`w-11 h-11 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm`}
                       >
@@ -96,7 +96,7 @@ export default function FollowedPeoplePage() {
                     {/* Info */}
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/person/${person.participantNumber}`}
+                        href={`/person/${person.participantNumber}${person.fromVat ? `?fromVat=${person.fromVat}` : ""}`}
                         className="text-sm font-semibold text-slate-900 hover:text-blue-600 transition-colors"
                       >
                         {person.personName}
@@ -139,7 +139,7 @@ export default function FollowedPeoplePage() {
                     </button>
 
                     {/* Arrow */}
-                    <Link href={`/person/${person.participantNumber}`}>
+                    <Link href={`/person/${person.participantNumber}${person.fromVat ? `?fromVat=${person.fromVat}` : ""}`}>
                       <span className="material-symbols-outlined text-lg text-slate-200 hover:text-blue-500 transition-colors shrink-0">
                         arrow_forward
                       </span>

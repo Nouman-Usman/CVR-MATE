@@ -465,6 +465,7 @@ export const followedPerson = pgTable(
     }),
     participantNumber: text("participant_number").notNull(),
     personName: text("person_name").notNull(),
+    fromVat: text("from_vat"), // originating company VAT — needed to fetch company relations
     note: text("note"),
     isActive: boolean("is_active").default(true).notNull(),
     lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),

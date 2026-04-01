@@ -1,0 +1,1 @@
+ALTER TABLE "followed_person" ADD COLUMN "from_vat" text;

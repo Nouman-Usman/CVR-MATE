@@ -6,6 +6,7 @@ interface FollowedPerson {
   id: string;
   participantNumber: string;
   personName: string;
+  fromVat: string | null;
   note: string | null;
   lastCheckedAt: string | null;
   createdAt: string;
