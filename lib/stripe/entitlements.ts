@@ -69,7 +69,7 @@ export async function checkEntitlement(
  */
 export async function checkUsageEntitlement(
   userId: string,
-  feature: "savedCompanies" | "triggers",
+  feature: "savedCompanies" | "triggers" | "followedPeople",
   currentCount: number
 ): Promise<{ allowed: boolean; plan: PlanId; limit: number; current: number }> {
   const { plan } = await getUserPlan(userId);

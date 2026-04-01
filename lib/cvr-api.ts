@@ -265,6 +265,27 @@ export async function getCompanyParticipations(vat: number): Promise<CvrParticip
   return ((company as unknown as Record<string, unknown>).participations ?? []) as CvrParticipation[];
 }
 
+// --- Change Feed ---
+
+export interface ChangedCompanyEntry {
+  vat: number;
+  change_id: number;
+}
+
+/** Fetch companies that changed since a given change_id. No caching — must be real-time. */
+export async function getChangedCompanies(sinceChangeId: number): Promise<ChangedCompanyEntry[]> {
+  return cvrFetch<ChangedCompanyEntry[]>(`/v2/dk/changed/list/company/${sinceChangeId}`);
+}
+
+/** Like getCompanyByVat but bypasses Redis cache. Used by cron worker for accurate diffing. */
+export async function getCompanyByVatFresh(vat: number): Promise<CvrCompany> {
+  const data = await cvrFetch<CvrCompany>(`/v2/dk/company/${vat}`);
+  // Update cache with fresh data
+  const key = cacheKey.company(vat);
+  await cacheSet(key, data, CACHE_TTL.company);
+  return data;
+}
+
 export async function suggestCompanies(name: string): Promise<CvrCompany[]> {
   if (!name || name.length < 2) return [];
 

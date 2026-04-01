@@ -68,7 +68,7 @@ export const notificationBus = new NotificationBus();
 
 export async function createNotification(data: {
   userId: string;
-  type: "trigger" | "system" | "export";
+  type: "trigger" | "system" | "export" | "person_follow";
   title: string;
   message?: string;
   link?: string;

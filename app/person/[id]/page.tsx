@@ -6,6 +6,11 @@ import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useParticipant } from "@/lib/hooks/use-participant";
+import {
+  useFollowedParticipantSet,
+  useFollowPerson,
+  useUnfollowPerson,
+} from "@/lib/hooks/use-followed-people";
 
 // Matches CvrParticipation from lib/cvr-api.ts (official CVR API v2 Participations schema)
 interface CompanyRelation {
@@ -93,6 +98,37 @@ function PersonDetailContent() {
   const error = !validId ? pd.notFound : fetchError ? pd.error : "";
 
   const [showHistorical, setShowHistorical] = useState(false);
+
+  // Follow state
+  const followedSet = useFollowedParticipantSet();
+  const isFollowed = validId ? followedSet.has(validId) : false;
+  const followMutation = useFollowPerson();
+  const unfollowMutation = useUnfollowPerson();
+  const isFollowLoading = followMutation.isPending || unfollowMutation.isPending;
+
+  const handleToggleFollow = () => {
+    if (!validId || !person) return;
+    if (isFollowed) {
+      unfollowMutation.mutate(validId);
+    } else {
+      followMutation.mutate(
+        {
+          participantNumber: validId,
+          personName: person.life.name,
+          fromVat,
+        },
+        {
+          onError: (err) => {
+            const e = err as Error & { upgrade?: boolean };
+            if (e.upgrade) {
+              // Could show a toast/modal — for now, alert
+              alert(pd.followLimitReached);
+            }
+          },
+        }
+      );
+    }
+  };
 
   const roleLabels: Record<string, string> = {
     founder: pd.founder,
@@ -220,6 +256,21 @@ function PersonDetailContent() {
                         {pd.adProtected}
                       </span>
                     )}
+                    {/* Follow/Unfollow button */}
+                    <button
+                      onClick={handleToggleFollow}
+                      disabled={isFollowLoading}
+                      className={`mt-0.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        isFollowed
+                          ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                          : "bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent"
+                      } ${isFollowLoading ? "opacity-50 cursor-wait" : ""}`}
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        {isFollowLoading ? "hourglass_empty" : isFollowed ? "person_check" : "person_add"}
+                      </span>
+                      {isFollowed ? pd.following : pd.follow}
+                    </button>
                   </div>
 
                   {/* Meta pills */}

@@ -449,6 +449,132 @@ export const companyWorkspace = pgTable(
   ]
 );
 
+// ─── FOLLOWED PERSON (user follows a CVR participant for change tracking) ───
+
+export const followedPerson = pgTable(
+  "followed_person",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    participantNumber: text("participant_number").notNull(),
+    personName: text("person_name").notNull(),
+    note: text("note"),
+    isActive: boolean("is_active").default(true).notNull(),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("followed_person_user_participant_idx").on(table.userId, table.participantNumber),
+    index("followed_person_user_idx").on(table.userId),
+    index("followed_person_participant_idx").on(table.participantNumber),
+    index("followed_person_org_idx").on(table.organizationId),
+  ]
+);
+
+// ─── PERSON ↔ COMPANY INDEX (reverse index for change feed filtering) ───────
+// Self-healing: cron worker inserts new rows when a followed participant appears in a new company.
+
+export const personCompanyIndex = pgTable(
+  "person_company_index",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantNumber: text("participant_number").notNull(),
+    companyVat: text("company_vat").notNull(),
+    companyName: text("company_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("person_company_idx").on(table.participantNumber, table.companyVat),
+    index("person_company_participant_idx").on(table.participantNumber),
+    index("person_company_vat_idx").on(table.companyVat),
+  ]
+);
+
+// ─── PERSON ROLE SNAPSHOT (last-known state for change diffing) ─────────────
+// Shared across users — keyed on (participantNumber, companyVat), NOT per-user.
+// rolesJson stores structured roles with soft-delete semantics:
+//   { type: string, start: string|null, end: string|null, title: string|null,
+//     owner_percent: number|null, owner_voting_percent: number|null }[]
+// When a role is removed, `end` is set (not deleted from array) to preserve history.
+
+export const personRoleSnapshot = pgTable(
+  "person_role_snapshot",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantNumber: text("participant_number").notNull(),
+    companyVat: text("company_vat").notNull(),
+    rolesJson: jsonb("roles_json").default([]).notNull(),
+    companyName: text("company_name"),
+    companyStatus: text("company_status"),
+    companyBankrupt: boolean("company_bankrupt").default(false),
+    companyIndustry: text("company_industry"),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("person_role_snapshot_unique_idx").on(table.participantNumber, table.companyVat),
+    index("person_role_snapshot_participant_idx").on(table.participantNumber),
+  ]
+);
+
+// ─── PERSON ROLE EVENT (immutable change log — audit trail + notifications) ──
+// Events are GLOBAL (not per-user). Resolve per-user at query time via followedPerson join.
+// eventHash prevents duplicate events from repeated processing.
+
+export const personRoleEvent = pgTable(
+  "person_role_event",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantNumber: text("participant_number").notNull(),
+    companyVat: text("company_vat").notNull(),
+    companyName: text("company_name"),
+    personName: text("person_name"),
+    eventType: text("event_type").notNull(), // 'role_added' | 'role_removed' | 'role_updated' | 'company_status_changed' | 'company_bankrupt'
+    eventCategory: text("event_category").notNull(), // 'role' | 'company' | 'ownership'
+    role: jsonb("role"), // the role object involved (null for company-level events)
+    previousValue: jsonb("previous_value"), // old state for updates
+    newValue: jsonb("new_value"), // new state for updates
+    importance: text("importance").default("normal").notNull(), // 'low' | 'normal' | 'high'
+    eventHash: text("event_hash").notNull(), // deterministic hash for dedup: hash(participant + company + eventType + role + newValue)
+    detectedAt: timestamp("detected_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("person_role_event_hash_idx").on(table.eventHash),
+    index("person_role_event_participant_idx").on(table.participantNumber),
+    index("person_role_event_company_idx").on(table.companyVat),
+    index("person_role_event_detected_idx").on(table.detectedAt),
+    index("person_role_event_type_idx").on(table.eventType),
+    index("person_role_event_category_idx").on(table.eventCategory),
+  ]
+);
+
+// ─── CHANGE FEED CURSOR (global cursor for CVR company change feed) ─────────
+// isProcessing + processingStartedAt provide a simple distributed lock.
+// Stale lock detection: if isProcessing=true but processingStartedAt > 30min ago, treat as stale.
+
+export const changeFeedCursor = pgTable(
+  "change_feed_cursor",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    feedType: text("feed_type").notNull(),
+    lastChangeId: text("last_change_id").notNull(),
+    isProcessing: boolean("is_processing").default(false).notNull(),
+    processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
+    processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("change_feed_cursor_type_idx").on(table.feedType),
+  ]
+);
+
 // ─── CRM CONNECTION ─────────────────────────────────────────────────────────
 
 export const crmConnection = pgTable(
@@ -710,6 +836,10 @@ export const usageRecordRelations = relations(usageRecord, ({ one }) => ({
   user: one(user, { fields: [usageRecord.userId], references: [user.id] }),
 }));
 
+export const followedPersonRelations = relations(followedPerson, ({ one }) => ({
+  user: one(user, { fields: [followedPerson.userId], references: [user.id] }),
+}));
+
 // Defined here (not in auth-schema.ts) to avoid circular imports
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -719,4 +849,5 @@ export const userRelations = relations(user, ({ many, one }) => ({
   crmConnections: many(crmConnection),
   activities: many(activity),
   usageRecords: many(usageRecord),
+  followedPeople: many(followedPerson),
 }));

@@ -6,6 +6,7 @@ export type PlanId = "free" | "go" | "flow";
 export interface PlanLimits {
   savedCompanies: number;
   triggers: number;
+  followedPeople: number;
   aiFeatures: boolean;
   crm: boolean;
   exports: boolean;
@@ -30,6 +31,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   free: {
     savedCompanies: 10,
     triggers: 0,
+    followedPeople: 0,
     aiFeatures: false,
     crm: false,
     exports: false,
@@ -42,6 +44,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   go: {
     savedCompanies: 100,
     triggers: 5,
+    followedPeople: 10,
     aiFeatures: true,
     crm: true,
     exports: true,
@@ -54,6 +57,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   flow: {
     savedCompanies: Infinity,
     triggers: Infinity,
+    followedPeople: Infinity,
     aiFeatures: true,
     crm: true,
     exports: true,

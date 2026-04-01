@@ -39,6 +39,7 @@ import {
   SearchCheck,
   ListTodo,
   Download,
+  UserCheck,
   Settings,
   Menu,
   Bell,
@@ -56,7 +57,7 @@ import {
 
 // ── Nav structure with grouped sections ──────────────────────────────
 
-type NavKey = "dashboard" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "exports" | "settings";
+type NavKey = "dashboard" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "exports" | "settings";
 
 interface NavItem {
   key: NavKey;
@@ -87,6 +88,7 @@ const navSections: NavSection[] = [
       { key: "triggers", icon: Zap, href: "/triggers" },
       { key: "saved", icon: Bookmark, href: "/saved" },
       { key: "savedSearches", icon: SearchCheck, href: "/saved-searches" },
+      { key: "followedPeople", icon: UserCheck, href: "/followed-people" },
     ],
   },
   {
