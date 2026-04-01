@@ -220,6 +220,13 @@ function formatDate(
   );
 }
 
+function buildMailtoUrl(to: string | null | undefined, subject: string | null | undefined, body: string): string {
+  const params = new URLSearchParams();
+  if (subject) params.set("subject", subject);
+  params.set("body", body);
+  return `mailto:${to ?? ""}?${params.toString()}`;
+}
+
 function InfoRow({
   icon,
   label,
@@ -1651,6 +1658,17 @@ export default function CompanyDetailPage() {
                             </button>
                             {isViewing && (
                               <div className="px-3 pb-3 space-y-3 border-t border-slate-50">
+                                {msg.type === "email" && (
+                                  <div className="pt-3">
+                                    <a
+                                      href={buildMailtoUrl(company.contact?.email, msg.subject, msg.message)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-sm">mail</span>
+                                      {ai.outreach.openInEmail}
+                                    </a>
+                                  </div>
+                                )}
                                 {msg.subject && (
                                   <div className="pt-3">
                                     <div className="flex items-center justify-between mb-1">
@@ -1772,6 +1790,19 @@ export default function CompanyDetailPage() {
                               <span className="material-symbols-outlined text-xs">check_circle</span>
                               {ai.outreach.saved}
                             </span>
+                            {outreachType === "email" && (
+                              <a
+                                href={buildMailtoUrl(
+                                  company.contact?.email,
+                                  outreachMutation.data.subject,
+                                  outreachMutation.data.message
+                                )}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase hover:bg-blue-100 transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-xs">mail</span>
+                                {ai.outreach.openInEmail}
+                              </a>
+                            )}
                           </div>
 
                           {outreachMutation.data.subject && (

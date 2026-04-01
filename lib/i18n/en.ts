@@ -889,6 +889,7 @@ const en: Dictionary = {
       followUp: "Follow-up",
       copy: "Copy",
       copied: "Copied!",
+      openInEmail: "Open in email",
       error: "Failed to generate message. Please try again.",
       close: "Close",
       saved: "Saved",

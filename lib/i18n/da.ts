@@ -887,6 +887,7 @@ const da = {
       followUp: "Opfølgning",
       copy: "Kopiér",
       copied: "Kopieret!",
+      openInEmail: "Åbn i e-mail",
       error: "Kunne ikke generere besked. Prøv igen.",
       close: "Luk",
       saved: "Gemt",
