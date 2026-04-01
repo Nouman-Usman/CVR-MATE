@@ -13,6 +13,7 @@ import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
 import { useEmailClientValue, buildComposeUrl } from "@/lib/hooks/use-email-client";
+import { InlineLoader } from "@/components/loading-screen";
 
 interface AccountingSummary {
   revenue?: number | null;
@@ -408,12 +409,7 @@ export default function CompanyDetailPage() {
   return (
     <DashboardLayout>
       {/* Loading */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-32">
-          <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-slate-400 font-medium">{cd.loading}</p>
-        </div>
-      )}
+      {loading && <InlineLoader message={cd.loading} />}
 
       {/* Error */}
       {!loading && error && (

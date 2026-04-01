@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSession } from "@/lib/auth-client";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useDashboard } from "@/lib/hooks/use-dashboard";
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
@@ -344,18 +345,7 @@ export default function DashboardPage() {
           </div>
 
           {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/3" />
-                    <Skeleton className="h-3 w-1/3" />
-                  </div>
-                  <Skeleton className="h-3 w-20" />
-                </div>
-              ))}
-            </div>
+            <InlineLoader />
           ) : recentCompanies.length === 0 ? (
             <div className="py-16 text-center px-6">
               <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">

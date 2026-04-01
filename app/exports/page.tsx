@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
 import { useActiveConnections, useBulkPushToCrm } from "@/lib/hooks/use-integrations";
 import { useExportCheck } from "@/lib/hooks/use-subscription";
@@ -526,27 +527,8 @@ export default function ExportsPage() {
         </Card>
       )}
 
-      {/* ── Loading skeleton ──────────────────────────────────── */}
-      {isLoading && (
-        <Card className="border-0 shadow-sm py-0">
-          <CardContent className="p-0">
-            <div className="p-5 space-y-0 divide-y divide-border/30">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                  <Skeleton className="w-5 h-5 rounded shrink-0" />
-                  <Skeleton className="w-9 h-9 rounded-full shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/5" />
-                    <Skeleton className="h-3 w-1/4" />
-                  </div>
-                  <Skeleton className="h-4 w-16 hidden sm:block" />
-                  <Skeleton className="h-5 w-14 rounded-full hidden md:block" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* ── Loading ──────────────────────────────────────────── */}
+      {isLoading && <InlineLoader />}
 
       {/* ── Error state ───────────────────────────────────────── */}
       {isError && !isLoading && (

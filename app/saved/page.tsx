@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote, useUpdateSavedTags } from "@/lib/hooks/use-saved-companies";
 import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
 import { companyColors } from "@/lib/constants/colors";
@@ -39,6 +40,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuGroup,
+  ContextMenuLabel,
+} from "@/components/ui/context-menu";
 import {
   Search,
   X,
@@ -594,26 +604,7 @@ export default function SavedPage() {
       )}
 
       {/* ── Loading skeleton ──────────────────────────────────── */}
-      {loading && (
-        <Card className="border-0 shadow-sm py-0">
-          <CardContent className="p-0">
-            <div className="p-5 space-y-0 divide-y divide-border/30">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                  <Skeleton className="w-11 h-11 rounded-full shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/5" />
-                    <Skeleton className="h-3 w-1/4" />
-                  </div>
-                  <Skeleton className="h-5 w-16 rounded-full hidden sm:block" />
-                  <Skeleton className="h-3 w-20 hidden md:block" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {loading && <InlineLoader />}
 
       {/* ── Empty state ───────────────────────────────────────── */}
       {!loading && companies.length === 0 && (
@@ -836,11 +827,13 @@ export default function SavedPage() {
             const pConfig = priority ? priorityConfig[priority.score as keyof typeof priorityConfig] : null;
 
             return (
+              <ContextMenu key={s.id}>
+              <ContextMenuTrigger render={
               <div
-                key={s.id}
                 className="group bg-white rounded-2xl transition-all duration-200 hover:shadow-[0_8px_30px_rgba(0,74,198,0.06)] hover:-translate-y-0.5 cursor-pointer"
                 onClick={() => router.push(`/company/${c.vat}`)}
-              >
+              />
+              }>
                 <div className="p-4 sm:p-5">
                   {/* ─ Top row: avatar + info + actions ─ */}
                   <div className="flex items-start gap-3.5">
@@ -999,7 +992,63 @@ export default function SavedPage() {
                     </div>
                   )}
                 </div>
-              </div>
+              </ContextMenuTrigger>
+
+              <ContextMenuContent className="w-56">
+                <ContextMenuGroup>
+                  <ContextMenuLabel>
+                    {c.name.length > 30 ? c.name.slice(0, 30) + "..." : c.name}
+                  </ContextMenuLabel>
+                  <p className="px-1.5 pb-1 text-[11px] text-muted-foreground">
+                    CVR {c.vat}
+                    {c.city && ` · ${c.city}`}
+                  </p>
+                </ContextMenuGroup>
+                <ContextMenuSeparator />
+
+                <ContextMenuItem onClick={() => router.push(`/company/${c.vat}`)}>
+                  <Eye className="size-4" />
+                  {locale === "da" ? "Vis virksomhed" : "View company"}
+                </ContextMenuItem>
+
+                <ContextMenuItem onClick={() => { navigator.clipboard.writeText(c.vat); showToast(locale === "da" ? "CVR kopieret" : "CVR copied"); }}>
+                  <Copy className="size-4" />
+                  {locale === "da" ? "Kopiér CVR" : "Copy CVR"}
+                </ContextMenuItem>
+
+                <ContextMenuSeparator />
+
+                <ContextMenuItem onClick={() => openNoteEditor(s.cvr, s.note)}>
+                  <StickyNote className="size-4" />
+                  {s.note ? sv.editNote : sv.addNote}
+                </ContextMenuItem>
+
+                <ContextMenuItem onClick={() => openTagEditor(s.cvr, s.tags ?? [])}>
+                  <Tag className="size-4" />
+                  {sv.editTags}
+                </ContextMenuItem>
+
+                {c.industryName && (
+                  <>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([c.city, "Denmark"].filter(Boolean).join(", "))}`, "_blank")}>
+                      <ExternalLink className="size-4" />
+                      {locale === "da" ? "Vis på kort" : "View on map"}
+                    </ContextMenuItem>
+                  </>
+                )}
+
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  variant="destructive"
+                  onClick={() => handleRemove(s.cvr)}
+                  disabled={removing === s.cvr}
+                >
+                  <Trash2 className="size-4" />
+                  {locale === "da" ? "Fjern fra gemte" : "Remove from saved"}
+                </ContextMenuItem>
+              </ContextMenuContent>
+              </ContextMenu>
             );
           })}
         </div>

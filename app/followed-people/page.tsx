@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import {
   useFollowedPeople,
   useUnfollowPerson,
@@ -43,13 +44,7 @@ export default function FollowedPeoplePage() {
       </div>
 
       {/* Loading skeleton */}
-      {isLoading && (
-        <div className="space-y-3 animate-pulse">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl h-20" />
-          ))}
-        </div>
-      )}
+      {isLoading && <InlineLoader />}
 
       {/* Empty state */}
       {!isLoading && people.length === 0 && (

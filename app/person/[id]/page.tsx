@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useParticipant } from "@/lib/hooks/use-participant";
 import {
   useFollowedParticipantSet,
@@ -184,17 +185,7 @@ function PersonDetailContent() {
       </button>
 
       {/* Loading skeleton */}
-      {loading && (
-        <div className="space-y-4 animate-pulse">
-          <div className="bg-white rounded-2xl h-48" />
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl h-24" />
-            <div className="bg-white rounded-2xl h-24" />
-            <div className="bg-white rounded-2xl h-24" />
-          </div>
-          <div className="bg-white rounded-2xl h-40" />
-        </div>
-      )}
+      {loading && <InlineLoader />}
 
       {/* Error */}
       {!loading && error && (

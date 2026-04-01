@@ -4,6 +4,7 @@ import { useCallback, useRef, useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo } from "@/lib/hooks/use-todos";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
@@ -859,26 +860,7 @@ export default function TodosPage() {
       )}
 
       {/* ── Loading ─────────────────────────────────────────── */}
-      {loading && (
-        <Card className="border-0 shadow-sm py-0">
-          <CardContent className="p-0">
-            <div className="p-5 space-y-0 divide-y divide-border/30">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                  <Skeleton className="w-5 h-5 rounded shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/5" />
-                    <Skeleton className="h-3 w-1/4" />
-                  </div>
-                  <Skeleton className="h-5 w-14 rounded-full hidden sm:block" />
-                  <Skeleton className="h-5 w-16 rounded-full hidden sm:block" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {loading && <InlineLoader />}
 
       {/* ── Empty state ─────────────────────────────────────── */}
       {!loading && filtered.length === 0 && (

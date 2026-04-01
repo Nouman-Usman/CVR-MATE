@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useSavedSearches, useDeleteSearch } from "@/lib/hooks/use-saved-searches";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -210,30 +211,8 @@ export default function SavedSearchesPage() {
         </div>
       )}
 
-      {/* ── Loading skeleton ──────────────────────────────────── */}
-      {loading && (
-        <Card className="border-0 shadow-sm py-0">
-          <CardContent className="p-0">
-            <div className="p-5 space-y-0 divide-y divide-border/30">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                  <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-1/3" />
-                    <div className="flex gap-2">
-                      <Skeleton className="h-5 w-20 rounded-full" />
-                      <Skeleton className="h-5 w-24 rounded-full" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-3 w-16 hidden sm:block" />
-                  <Skeleton className="h-8 w-20 rounded-lg hidden sm:block" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* ── Loading ──────────────────────────────────────────── */}
+      {loading && <InlineLoader />}
 
       {/* ── Empty state ───────────────────────────────────────── */}
       {!loading && searches.length === 0 && (

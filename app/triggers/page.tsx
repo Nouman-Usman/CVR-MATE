@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import {
   useTriggers,
   useCreateTrigger,
@@ -292,23 +293,7 @@ export default function TriggersPage() {
       )}
 
       {/* ── Loading ──────────────────────────────────────────── */}
-      {isLoading && (
-        <Card className="border-0 shadow-sm py-0">
-          <CardContent className="p-0 divide-y divide-border/30">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-5">
-                <Skeleton className="w-11 h-6 rounded-full shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-1/3" />
-                  <Skeleton className="h-3 w-2/3" />
-                </div>
-                <Skeleton className="h-8 w-8 rounded-lg" />
-                <Skeleton className="h-8 w-8 rounded-lg" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {isLoading && <InlineLoader />}
 
       {/* ── Empty state ──────────────────────────────────────── */}
       {!isLoading && triggers.length === 0 && (

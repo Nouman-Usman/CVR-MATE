@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useRecentCompanies } from "@/lib/hooks/use-recent-companies";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 import { companyColors } from "@/lib/constants/colors";
@@ -242,27 +243,8 @@ export default function RecentCompaniesPage() {
         )}
       </div>
 
-      {/* ── Loading skeleton ──────────────────────────────────── */}
-      {isLoading && (
-        <Card className="border-0 shadow-sm py-0">
-          <CardContent className="p-0">
-            <div className="p-5 space-y-0 divide-y divide-border/30">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                  <Skeleton className="w-11 h-11 rounded-full shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/5" />
-                    <Skeleton className="h-3 w-1/4" />
-                  </div>
-                  <Skeleton className="h-5 w-16 rounded-full hidden sm:block" />
-                  <Skeleton className="h-3 w-20 hidden md:block" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* ── Loading ──────────────────────────────────────────── */}
+      {isLoading && <InlineLoader />}
 
       {/* ── Error ─────────────────────────────────────────────── */}
       {!isLoading && fetchError && (

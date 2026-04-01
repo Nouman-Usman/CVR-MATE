@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, Suspense, useRef } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
+import { InlineLoader } from "@/components/loading-screen";
 import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-store";
 import { useSearchCompanies } from "@/lib/hooks/use-search";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
@@ -626,14 +627,7 @@ function SearchPage() {
       )}
 
       {/* ── Loading state ────────────────────────────────────── */}
-      {isLoading && (
-        <Card className="py-16 border-0 shadow-sm">
-          <CardContent className="text-center">
-            <Loader2 className="size-8 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">{s.searchButton}...</p>
-          </CardContent>
-        </Card>
-      )}
+      {isLoading && <InlineLoader message={`${s.searchButton}...`} />}
 
       {/* ── Results ──────────────────────────────────────────── */}
       {!isLoading && hasSearched && results.length > 0 && (
