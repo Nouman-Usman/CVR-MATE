@@ -12,6 +12,7 @@ import {
   useFollowPerson,
   useUnfollowPerson,
 } from "@/lib/hooks/use-followed-people";
+import { usePersonEnrichment, useSavedEnrichment, type PersonEnrichment } from "@/lib/hooks/use-enrichment";
 
 // Matches CvrParticipation from lib/cvr-api.ts (official CVR API v2 Participations schema)
 interface CompanyRelation {
@@ -130,6 +131,12 @@ function PersonDetailContent() {
       );
     }
   };
+
+  // AI Enrichment
+  const personEnrichmentMutation = usePersonEnrichment();
+  const { data: savedPersonEnrichment } = useSavedEnrichment<PersonEnrichment>("person", validId);
+  const personEnrichment = personEnrichmentMutation.data?.enrichment ?? savedPersonEnrichment?.enrichment ?? null;
+  const [showEnrichment, setShowEnrichment] = useState(true);
 
   const roleLabels: Record<string, string> = {
     founder: pd.founder,
@@ -356,6 +363,171 @@ function PersonDetailContent() {
                 {pd.historicalRoles}
               </p>
             </div>
+          </div>
+
+          {/* ─── AI Insights ─── */}
+          <div>
+            <button
+              onClick={() => setShowEnrichment(!showEnrichment)}
+              className="flex items-center gap-2.5 mb-3 px-1 cursor-pointer group w-full text-left"
+            >
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
+                <span className="material-symbols-outlined text-base text-white">psychology</span>
+              </div>
+              <h2 className="text-sm font-bold text-slate-900 font-[family-name:var(--font-manrope)]">
+                {t.ai.enrichment.tab}
+              </h2>
+              <span className={`material-symbols-outlined text-lg text-slate-400 ml-auto transition-transform duration-200 ${showEnrichment ? "rotate-180" : ""}`}>
+                expand_more
+              </span>
+            </button>
+
+            {showEnrichment && (
+              <div className="space-y-3">
+                {/* Generate CTA */}
+                {!personEnrichment && !personEnrichmentMutation.isPending && (
+                  <div className="bg-white rounded-2xl p-6 text-center">
+                    <p className="text-sm text-slate-500 mb-4">{t.ai.enrichment.noEnrichmentDesc}</p>
+                    <button
+                      onClick={() => {
+                        if (!validId || !person) return;
+                        personEnrichmentMutation.mutate({
+                          participantNumber: validId,
+                          personName: person.life.name,
+                          locale,
+                          personData: person as unknown as Record<string, unknown>,
+                          companies: companies as unknown as Record<string, unknown>[],
+                        });
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/20 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">psychology</span>
+                      {t.ai.enrichment.enrichCta}
+                    </button>
+                  </div>
+                )}
+
+                {personEnrichmentMutation.isPending && <InlineLoader message={t.ai.enrichment.generating} />}
+
+                {personEnrichment && (
+                  <>
+                    {/* Summary */}
+                    <div className="bg-white rounded-2xl p-5">
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{personEnrichment.summary}</p>
+                    </div>
+
+                    {/* Role Significance + Network Influence */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-white rounded-2xl p-5">
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t.ai.enrichment.roleSignificance}</h3>
+                        <p className="text-sm text-slate-700 leading-relaxed">{personEnrichment.roleSignificance}</p>
+                      </div>
+                      <div className="bg-white rounded-2xl p-5">
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t.ai.enrichment.networkInfluence}</h3>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase mb-2 ${
+                          (personEnrichment.networkInfluence as Record<string, string>)?.score === "high" ? "bg-emerald-50 text-emerald-700"
+                            : (personEnrichment.networkInfluence as Record<string, string>)?.score === "low" ? "bg-slate-100 text-slate-600"
+                              : "bg-blue-50 text-blue-700"
+                        }`}>
+                          {(personEnrichment.networkInfluence as Record<string, string>)?.score}
+                        </span>
+                        <p className="text-sm text-slate-700 leading-relaxed">{(personEnrichment.networkInfluence as Record<string, string>)?.details}</p>
+                      </div>
+                    </div>
+
+                    {/* Career Trajectory */}
+                    <div className="bg-white rounded-2xl p-5">
+                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t.ai.enrichment.careerTrajectory}</h3>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase mb-2 ${
+                        (personEnrichment.careerTrajectory as Record<string, string>)?.direction === "rising" ? "bg-emerald-50 text-emerald-700"
+                          : (personEnrichment.careerTrajectory as Record<string, string>)?.direction === "winding_down" ? "bg-amber-50 text-amber-700"
+                            : "bg-blue-50 text-blue-700"
+                      }`}>
+                        <span className="material-symbols-outlined text-xs">
+                          {(personEnrichment.careerTrajectory as Record<string, string>)?.direction === "rising" ? "trending_up" : (personEnrichment.careerTrajectory as Record<string, string>)?.direction === "winding_down" ? "trending_down" : "trending_flat"}
+                        </span>
+                        {t.ai.enrichment[(personEnrichment.careerTrajectory as Record<string, string>)?.direction === "winding_down" ? "windingDown" : ((personEnrichment.careerTrajectory as Record<string, string>)?.direction as "rising" | "stable") ?? "stable"]}
+                      </span>
+                      <p className="text-sm text-slate-700 leading-relaxed">{(personEnrichment.careerTrajectory as Record<string, string>)?.details}</p>
+                    </div>
+
+                    {/* Engagement Strategy */}
+                    {personEnrichment.engagementStrategy && (
+                      <div className="bg-white rounded-2xl p-5 border border-blue-50">
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-3 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">handshake</span>
+                          {t.ai.enrichment.engagementStrategy}
+                        </h3>
+                        <p className="text-sm text-slate-700 mb-3">{(personEnrichment.engagementStrategy as Record<string, unknown>)?.approach as string}</p>
+                        {((personEnrichment.engagementStrategy as Record<string, unknown>)?.topics as string[])?.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">{t.ai.enrichment.topics}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {((personEnrichment.engagementStrategy as Record<string, unknown>)?.topics as string[]).map((topic, i) => (
+                                <span key={i} className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">{topic}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {!!(personEnrichment.engagementStrategy as Record<string, unknown>)?.avoid && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-1">{t.ai.enrichment.avoid}</p>
+                            <p className="text-xs text-red-600">{(personEnrichment.engagementStrategy as Record<string, unknown>)?.avoid as string}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Key Insights */}
+                    {(personEnrichment.keyInsights as string[])?.length > 0 && (
+                      <div className="bg-white rounded-2xl p-5">
+                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{t.ai.enrichment.keyInsights}</h3>
+                        <ul className="space-y-1.5">
+                          {(personEnrichment.keyInsights as string[]).map((insight, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                              <span className="material-symbols-outlined text-xs text-cyan-400 shrink-0 mt-0.5">check_circle</span>
+                              {insight}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Regenerate */}
+                    <div className="flex items-center justify-between px-1">
+                      {personEnrichment.createdAt && (
+                        <p className="text-[11px] text-slate-400">
+                          {t.ai.enrichment.lastGenerated}: {new Date(personEnrichment.createdAt as string).toLocaleDateString(locale === "da" ? "da-DK" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (!validId || !person) return;
+                          personEnrichmentMutation.mutate({
+                            participantNumber: validId,
+                            personName: person.life.name,
+                            locale,
+                            personData: person as unknown as Record<string, unknown>,
+                            companies: companies as unknown as Record<string, unknown>[],
+                          });
+                        }}
+                        disabled={personEnrichmentMutation.isPending}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">refresh</span>
+                        {t.ai.enrichment.regenerate}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {personEnrichmentMutation.isError && (
+                  <div className="bg-red-50 rounded-2xl p-4 text-center">
+                    <p className="text-sm text-red-600">{t.ai.enrichment.error}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ─── Active Relations ─── */}

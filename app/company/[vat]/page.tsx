@@ -14,6 +14,7 @@ import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
 import { useEmailClientValue, buildComposeUrl } from "@/lib/hooks/use-email-client";
 import { InlineLoader } from "@/components/loading-screen";
+import { useCompanyEnrichment, useSavedEnrichment, type CompanyEnrichment } from "@/lib/hooks/use-enrichment";
 
 interface AccountingSummary {
   revenue?: number | null;
@@ -321,11 +322,14 @@ export default function CompanyDetailPage() {
   const saving = saveMutation.isPending || unsaveMutation.isPending;
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "financials" | "contact" | "people" | "ai-briefing"
+    "overview" | "financials" | "contact" | "people" | "ai-insights"
   >("overview");
 
   // AI features
   const emailClient = useEmailClientValue();
+  const enrichmentMutation = useCompanyEnrichment();
+  const { data: savedEnrichmentData } = useSavedEnrichment<CompanyEnrichment>("company", validVat);
+  const enrichment = enrichmentMutation.data?.enrichment ?? savedEnrichmentData?.enrichment ?? null;
   const briefingMutation = useCompanyBriefing();
   const outreachMutation = useOutreach();
   const suggestTodosMutation = useSuggestTodos();
@@ -389,7 +393,7 @@ export default function CompanyDetailPage() {
     { key: "financials" as const, label: cd.financials, icon: "bar_chart" },
     { key: "contact" as const, label: cd.contact, icon: "call" },
     { key: "people" as const, label: cd.people, icon: "groups" },
-    { key: "ai-briefing" as const, label: ai.briefing.tab, icon: "auto_awesome" },
+    { key: "ai-insights" as const, label: ai.enrichment.tab, icon: "psychology" },
   ];
 
   // Financial data - filter documents that have actual summary data (not empty arrays)
@@ -1310,8 +1314,8 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
-          {/* AI Briefing Tab */}
-          {activeTab === "ai-briefing" && (() => {
+          {/* AI Insights Tab */}
+          {activeTab === "ai-insights" && (() => {
             // Use freshly generated briefing if available, else the latest saved one
             const latestSaved = savedBriefings.data?.[0];
             const activeBriefing = briefingMutation.data?.briefing
@@ -1324,8 +1328,224 @@ export default function CompanyDetailPage() {
             // Treat as loading while query is in initial loading OR fetching state
             const isLoadingSaved = savedBriefings.isLoading || (savedBriefings.isFetching && !savedBriefings.data);
 
+            const er = ai.enrichment;
+            const gradeColors: Record<string, string> = {
+              A: "from-emerald-500 to-emerald-600 text-white",
+              B: "from-blue-500 to-blue-600 text-white",
+              C: "from-amber-400 to-amber-500 text-white",
+              D: "from-slate-400 to-slate-500 text-white",
+            };
+            const healthColors: Record<string, string> = {
+              growth: "bg-emerald-50 text-emerald-700",
+              stable: "bg-blue-50 text-blue-700",
+              declining: "bg-red-50 text-red-700",
+            };
+
             return (
             <div className="space-y-6">
+              {/* ── AI Enrichment Section ─── */}
+              {!enrichment && !enrichmentMutation.isPending && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-4">
+                    <span className="material-symbols-outlined text-3xl text-white">psychology</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">{er.noEnrichment}</h3>
+                  <p className="text-sm text-slate-500 max-w-md mx-auto mb-5">{er.noEnrichmentDesc}</p>
+                  <button
+                    onClick={() => enrichmentMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> })}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-lg">psychology</span>
+                    {er.generate}
+                  </button>
+                </div>
+              )}
+
+              {enrichmentMutation.isPending && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
+                  <InlineLoader message={er.generating} />
+                </div>
+              )}
+
+              {enrichment && (
+                <div className="space-y-4">
+                  {/* Lead Score + Financial Health — side by side */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Lead Score */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">{er.leadScore}</h2>
+                      <div className="flex items-center gap-4">
+                        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradeColors[(enrichment.leadScore as Record<string, string>)?.grade] ?? gradeColors.C} flex items-center justify-center shadow-lg`}>
+                          <span className="text-2xl font-black">{(enrichment.leadScore as Record<string, string>)?.grade ?? "C"}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {er[`grade${(enrichment.leadScore as Record<string, string>)?.grade ?? "C"}` as keyof typeof er] ?? er.gradeC}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                            {(enrichment.leadScore as Record<string, string>)?.reason}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Financial Health */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">{er.financialHealth}</h2>
+                      <div className="mb-3">
+                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${healthColors[(enrichment.financialHealth as Record<string, string>)?.status] ?? healthColors.stable}`}>
+                          {er[(enrichment.financialHealth as Record<string, string>)?.status as keyof typeof er] ?? er.stable}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600 leading-relaxed">
+                        {(enrichment.financialHealth as Record<string, string>)?.details}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base text-blue-500">description</span>
+                      {er.summary}
+                    </h2>
+                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{enrichment.summary}</p>
+                  </div>
+
+                  {/* Buying Signals + Pain Points — side by side */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {(enrichment.buyingSignals as string[])?.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-3 flex items-center gap-2">
+                          <span className="material-symbols-outlined text-base">trending_up</span>
+                          {er.buyingSignals}
+                        </h2>
+                        <ul className="space-y-2">
+                          {(enrichment.buyingSignals as string[]).map((signal, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
+                              {signal}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {(enrichment.painPoints as string[])?.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-3 flex items-center gap-2">
+                          <span className="material-symbols-outlined text-base">warning</span>
+                          {er.painPoints}
+                        </h2>
+                        <ul className="space-y-2">
+                          {(enrichment.painPoints as string[]).map((point, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                              {point}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Risk Factors */}
+                  {(enrichment.riskFactors as string[])?.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-red-50 p-5 sm:p-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-red-600 mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base">shield</span>
+                        {er.riskFactors}
+                      </h2>
+                      <div className="flex flex-wrap gap-2">
+                        {(enrichment.riskFactors as string[]).map((risk, i) => (
+                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
+                            <span className="w-1 h-1 rounded-full bg-red-400" />
+                            {risk}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Competitive Landscape */}
+                  {enrichment.competitiveLandscape && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-violet-500">diversity_3</span>
+                        {er.competitiveLandscape}
+                      </h2>
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{enrichment.competitiveLandscape as string}</p>
+                    </div>
+                  )}
+
+                  {/* Ideal Approach */}
+                  {enrichment.idealApproach && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-blue-50 p-5 sm:p-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-4 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base">target</span>
+                        {er.idealApproach}
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-xl bg-blue-50/50">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">{er.channel}</p>
+                          <p className="text-sm font-semibold text-blue-900 capitalize">{(enrichment.idealApproach as Record<string, string>)?.channel}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-blue-50/50">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">{er.timing}</p>
+                          <p className="text-sm font-semibold text-blue-900">{(enrichment.idealApproach as Record<string, string>)?.timing}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-blue-50/50 sm:col-span-1">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">{er.angle}</p>
+                          <p className="text-sm text-blue-900">{(enrichment.idealApproach as Record<string, string>)?.angle}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Key Insights */}
+                  {(enrichment.keyInsights as string[])?.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-cyan-500">lightbulb</span>
+                        {er.keyInsights}
+                      </h2>
+                      <ul className="space-y-2">
+                        {(enrichment.keyInsights as string[]).map((insight, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                            <span className="material-symbols-outlined text-sm text-cyan-400 shrink-0 mt-0.5">check_circle</span>
+                            {insight}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Regenerate + timestamp */}
+                  <div className="flex items-center justify-between pt-2">
+                    {enrichment.createdAt && (
+                      <p className="text-[11px] text-slate-400">
+                        {er.lastGenerated}: {new Date(enrichment.createdAt as string).toLocaleDateString(locale === "da" ? "da-DK" : "en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => enrichmentMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> })}
+                      disabled={enrichmentMutation.isPending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">refresh</span>
+                      {er.regenerate}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {enrichmentMutation.isError && (
+                <div className="bg-red-50 rounded-2xl p-5 text-center">
+                  <p className="text-sm text-red-600 font-medium">{er.error}</p>
+                </div>
+              )}
+
+              {/* ── Original Briefing Section (kept below enrichment) ─── */}
+
               {/* Loading saved briefings */}
               {isLoadingSaved && !briefingMutation.isPending && !activeBriefing && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">

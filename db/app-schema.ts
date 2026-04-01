@@ -393,6 +393,28 @@ export const outreachMessage = pgTable(
   ]
 );
 
+// ─── PROFILE ENRICHMENT (AI-generated intelligence for companies & people) ──
+
+export const profileEnrichment = pgTable(
+  "profile_enrichment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    entityType: text("entity_type").notNull(), // 'company' | 'person'
+    entityId: text("entity_id").notNull(), // CVR number or participant number
+    entityName: text("entity_name").notNull(),
+    enrichmentData: jsonb("enrichment_data").default({}).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("profile_enrichment_user_idx").on(table.userId),
+    index("profile_enrichment_entity_idx").on(table.userId, table.entityType, table.entityId),
+    index("profile_enrichment_created_idx").on(table.createdAt),
+  ]
+);
+
 // ─── ACTIVITY TIMELINE (unified audit trail) ────────────────────────────────
 
 export const activity = pgTable(
@@ -837,6 +859,10 @@ export const subscriptionRelations = relations(subscription, ({ one }) => ({
 
 export const usageRecordRelations = relations(usageRecord, ({ one }) => ({
   user: one(user, { fields: [usageRecord.userId], references: [user.id] }),
+}));
+
+export const profileEnrichmentRelations = relations(profileEnrichment, ({ one }) => ({
+  user: one(user, { fields: [profileEnrichment.userId], references: [user.id] }),
 }));
 
 export const followedPersonRelations = relations(followedPerson, ({ one }) => ({
