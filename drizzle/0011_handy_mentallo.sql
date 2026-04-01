@@ -1,0 +1,1 @@
+ALTER TABLE "saved_company" ADD COLUMN "tags" jsonb DEFAULT '[]'::jsonb;

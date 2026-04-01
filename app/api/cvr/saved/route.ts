@@ -25,6 +25,7 @@ export async function GET() {
         id: s.id,
         cvr: s.cvr,
         note: s.note,
+        tags: (s.tags ?? []) as string[],
         savedAt: s.createdAt,
         company: s.company,
       })),
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH /api/cvr/saved — update note on a saved company
+// PATCH /api/cvr/saved — update note or tags on a saved company
 export async function PATCH(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -171,7 +172,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { cvr, note } = body;
+    const { cvr } = body;
 
     if (!cvr) {
       return NextResponse.json(
@@ -180,9 +181,30 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    const updates: Record<string, unknown> = {};
+
+    if (body.note !== undefined) {
+      updates.note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+    }
+
+    if (body.tags !== undefined) {
+      const tags = Array.isArray(body.tags)
+        ? [...new Set(
+            body.tags
+              .map((t: unknown) => String(t).trim().slice(0, 30))
+              .filter(Boolean)
+          )].slice(0, 10)
+        : [];
+      updates.tags = tags;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
+
     await db
       .update(savedCompany)
-      .set({ note: typeof note === "string" && note.trim() ? note.trim() : null })
+      .set(updates)
       .where(
         and(
           eq(savedCompany.userId, session.user.id),
@@ -192,9 +214,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ updated: true });
   } catch (error) {
-    console.error("Failed to update saved company note:", error);
+    console.error("Failed to update saved company:", error);
     return NextResponse.json(
-      { error: "Failed to update note" },
+      { error: "Failed to update" },
       { status: 500 }
     );
   }

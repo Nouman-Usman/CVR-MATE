@@ -102,6 +102,7 @@ export const savedCompany = pgTable(
       .references(() => company.id, { onDelete: "cascade" }),
     cvr: text("cvr").notNull(),
     note: text("note"),
+    tags: jsonb("tags").default([]), // string[] — e.g. ["hot lead", "partner"]
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

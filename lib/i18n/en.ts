@@ -506,6 +506,13 @@ const en: Dictionary = {
     noteSaved: "Note saved",
     saveNote: "Save",
     cancelNote: "Cancel",
+    tags: "Tags",
+    addTag: "Add tag",
+    editTags: "Edit tags",
+    tagPlaceholder: "Type a tag and press Enter",
+    maxTags: "Maximum 10 tags",
+    noTags: "No tags",
+    tagsSaved: "Tags saved",
   },
   savedSearches: {
     title: "Saved searches",

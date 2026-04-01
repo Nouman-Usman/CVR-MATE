@@ -504,6 +504,13 @@ const da = {
     noteSaved: "Note gemt",
     saveNote: "Gem",
     cancelNote: "Annuller",
+    tags: "Tags",
+    addTag: "Tilføj tag",
+    editTags: "Rediger tags",
+    tagPlaceholder: "Skriv et tag og tryk Enter",
+    maxTags: "Maksimalt 10 tags",
+    noTags: "Ingen tags",
+    tagsSaved: "Tags gemt",
   },
   savedSearches: {
     title: "Gemte søgninger",

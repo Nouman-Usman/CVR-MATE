@@ -78,6 +78,13 @@
       "when": 1775028144225,
       "tag": "0010_thin_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775029828136,
+      "tag": "0011_handy_mentallo",
+      "breakpoints": true
     }
   ]
 }

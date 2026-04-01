@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
-import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote } from "@/lib/hooks/use-saved-companies";
+import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote, useUpdateSavedTags } from "@/lib/hooks/use-saved-companies";
 import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,11 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Search,
   X,
   Heart,
@@ -52,12 +57,15 @@ import {
   BarChart3,
   Zap,
   Building2,
+  Tag,
+  ExternalLink,
 } from "lucide-react";
 
 interface SavedCompany {
   id: string;
   cvr: string;
   note: string | null;
+  tags: string[];
   savedAt: string;
   company: {
     id: string;
@@ -87,21 +95,43 @@ export default function SavedPage() {
   const { data, isLoading: loading } = useSavedCompanies();
   const unsaveMutation = useUnsaveCompany();
   const updateNoteMutation = useUpdateSavedNote();
+  const updateTagsMutation = useUpdateSavedTags();
   const companies = (data?.results ?? []) as SavedCompany[];
 
   const [filter, setFilter] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+
+  // Collect all unique tags for the tag filter bar
+  const allTags = useMemo(() => {
+    const tagSet = new Map<string, number>();
+    for (const c of companies) {
+      for (const tag of c.tags ?? []) {
+        tagSet.set(tag, (tagSet.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...tagSet.entries()].sort((a, b) => b[1] - a[1]);
+  }, [companies]);
 
   const filtered = useMemo(() => {
-    if (!filter.trim()) return companies;
-    const q = filter.toLowerCase();
-    return companies.filter(
-      (s) =>
-        s.company.name.toLowerCase().includes(q) ||
-        s.cvr.includes(q) ||
-        (s.company.city ?? "").toLowerCase().includes(q) ||
-        (s.company.industryName ?? "").toLowerCase().includes(q)
-    );
-  }, [filter, companies]);
+    let list = companies;
+    // Tag filter
+    if (activeTag) {
+      list = list.filter((s) => (s.tags ?? []).includes(activeTag));
+    }
+    // Text filter
+    if (filter.trim()) {
+      const q = filter.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.company.name.toLowerCase().includes(q) ||
+          s.cvr.includes(q) ||
+          (s.company.city ?? "").toLowerCase().includes(q) ||
+          (s.company.industryName ?? "").toLowerCase().includes(q) ||
+          (s.tags ?? []).some(tag => tag.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [filter, activeTag, companies]);
 
   const handleRemove = (cvr: string) => {
     unsaveMutation.mutate(cvr);
@@ -111,11 +141,17 @@ export default function SavedPage() {
   // Note editing state
   const [editingNoteCvr, setEditingNoteCvr] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
-  const [noteToast, setNoteToast] = useState("");
 
   const openNoteEditor = (cvr: string, currentNote: string | null) => {
     setEditingNoteCvr(cvr);
     setNoteText(currentNote ?? "");
+  };
+
+  // Unified toast
+  const [toast, setToast] = useState("");
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
   };
 
   const handleSaveNote = () => {
@@ -125,8 +161,42 @@ export default function SavedPage() {
       {
         onSuccess: () => {
           setEditingNoteCvr(null);
-          setNoteToast(sv.noteSaved);
-          setTimeout(() => setNoteToast(""), 3000);
+          showToast(sv.noteSaved);
+        },
+      }
+    );
+  };
+
+  // Tag editing state
+  const [editingTagsCvr, setEditingTagsCvr] = useState<string | null>(null);
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+
+  const openTagEditor = (cvr: string, currentTags: string[]) => {
+    setEditingTagsCvr(cvr);
+    setEditTags([...currentTags]);
+    setTagInput("");
+  };
+
+  const handleAddTag = () => {
+    const tag = tagInput.trim().slice(0, 30);
+    if (!tag || editTags.length >= 10 || editTags.includes(tag)) return;
+    setEditTags([...editTags, tag]);
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setEditTags(editTags.filter(t => t !== tag));
+  };
+
+  const handleSaveTags = () => {
+    if (!editingTagsCvr) return;
+    updateTagsMutation.mutate(
+      { cvr: editingTagsCvr, tags: editTags },
+      {
+        onSuccess: () => {
+          setEditingTagsCvr(null);
+          showToast(sv.tagsSaved);
         },
       }
     );
@@ -166,20 +236,17 @@ export default function SavedPage() {
   const mediumCount = prioritized.filter(p => p.score === "medium").length;
   const lowCount = prioritized.filter(p => p.score === "low").length;
 
-  const handleFilterChange = (val: string) => {
-    setFilter(val);
-  };
-
   const notesCount = companies.filter(c => c.note).length;
   const activeCount = companies.filter(c => c.company.companyStatus).length;
+  const taggedCount = companies.filter(c => (c.tags ?? []).length > 0).length;
 
   return (
     <DashboardLayout>
-      {/* Note toast */}
-      {noteToast && (
+      {/* Unified toast */}
+      {toast && (
         <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle className="size-4 text-emerald-400" />
-          {noteToast}
+          {toast}
         </div>
       )}
 
@@ -221,6 +288,145 @@ export default function SavedPage() {
               {sv.saveNote}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tag edit dialog — Stitch-inspired design */}
+      <Dialog
+        open={editingTagsCvr !== null}
+        onOpenChange={(open) => { if (!open) setEditingTagsCvr(null); }}
+      >
+        <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+          {/* Header */}
+          <div className="px-6 pt-7 pb-3">
+            <DialogHeader className="gap-0.5">
+              <DialogTitle className="font-[family-name:var(--font-manrope)] text-xl font-extrabold tracking-tight">
+                {sv.editTags}
+              </DialogTitle>
+              <DialogDescription className="text-sm font-medium text-muted-foreground/70">
+                {companies.find((c) => c.cvr === editingTagsCvr)?.company.name}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {/* Body */}
+          <div className="px-6 py-4 space-y-6">
+            {/* Active tags */}
+            <div>
+              <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-3 block">
+                {sv.tags}
+              </label>
+              <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-100/60 flex flex-wrap gap-2 min-h-[56px] items-start">
+                {editTags.length === 0 && (
+                  <span className="text-sm text-muted-foreground/40 italic">{sv.noTags}</span>
+                )}
+                {editTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1.5 py-1.5 pl-3 pr-2 bg-blue-600 text-white rounded-full text-sm font-medium shadow-sm transition-transform active:scale-95"
+                  >
+                    {tag}
+                    <button
+                      onClick={() => handleRemoveTag(tag)}
+                      className="hover:bg-white/20 rounded-full p-0.5 flex items-center justify-center cursor-pointer"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* New tag input */}
+            <div>
+              <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-3 block">
+                {sv.addTag}
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } }}
+                  placeholder={sv.tagPlaceholder}
+                  maxLength={30}
+                  className="flex-1 h-12 rounded-xl bg-slate-50/80 border-slate-100/60 focus:ring-2 focus:ring-blue-600/20 placeholder:text-muted-foreground/30"
+                  disabled={editTags.length >= 10}
+                  autoFocus
+                />
+                <button
+                  onClick={handleAddTag}
+                  disabled={!tagInput.trim() || editTags.length >= 10}
+                  className="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40 disabled:hover:scale-100 cursor-pointer"
+                >
+                  <Plus className="size-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Suggestions from existing tags */}
+            {(() => {
+              const suggestions = allTags
+                .map(([tag]) => tag)
+                .filter((tag) => !editTags.includes(tag) && (!tagInput.trim() || tag.toLowerCase().includes(tagInput.toLowerCase())));
+              if (suggestions.length === 0 || editTags.length >= 10) return null;
+              return (
+                <div>
+                  <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-3 block">
+                    {locale === "da" ? "Foreslåede tags" : "Suggested tags"}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => {
+                          if (editTags.length < 10 && !editTags.includes(tag)) {
+                            setEditTags([...editTags, tag]);
+                            setTagInput("");
+                          }
+                        }}
+                        className="px-4 py-2 rounded-full border border-slate-200/60 text-slate-600 text-sm font-medium hover:bg-slate-100 hover:border-blue-200/60 hover:text-blue-700 transition-all cursor-pointer"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Footer — progress bar + actions */}
+          <div className="px-6 pt-4 pb-6 border-t border-slate-100/40">
+            {/* Progress indicator */}
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-[12px] font-bold text-muted-foreground/50 tabular-nums whitespace-nowrap">
+                <span className="text-blue-600">{editTags.length}</span>/10 {locale === "da" ? "TAGS BRUGT" : "TAGS USED"}
+              </span>
+              <div className="h-[3px] flex-1 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                  style={{ width: `${(editTags.length / 10) * 100}%` }}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <DialogClose
+                render={
+                  <button className="h-12 font-semibold text-muted-foreground/60 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer" />
+                }
+              >
+                {sv.cancelNote}
+              </DialogClose>
+              <button
+                onClick={handleSaveTags}
+                disabled={updateTagsMutation.isPending}
+                className="h-12 font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl shadow-xl shadow-blue-600/10 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {updateTagsMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                {sv.saveNote}
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -287,14 +493,14 @@ export default function SavedPage() {
           <Card className="border-0 shadow-sm py-0">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
-                <Factory className="size-5 text-violet-500" />
+                <Tag className="size-5 text-violet-500" />
               </div>
               <div>
                 <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
-                  {new Set(companies.map(c => c.company.industryName).filter(Boolean)).size}
+                  {taggedCount}
                 </p>
                 <p className="text-[11px] text-muted-foreground font-medium">
-                  {locale === "da" ? "Brancher" : "Industries"}
+                  {locale === "da" ? "Taggede" : "Tagged"}
                 </p>
               </div>
             </CardContent>
@@ -317,32 +523,67 @@ export default function SavedPage() {
         </div>
       )}
 
-      {/* ── Search + count bar ────────────────────────────────── */}
+      {/* ── Search + Tag filter bar ──────────────────────────── */}
       {!loading && companies.length > 0 && (
-        <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="size-4 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
-            <Input
-              className="h-11 rounded-xl pl-11 pr-9 border-border/60 bg-muted/30 focus:bg-background transition-colors"
-              placeholder={locale === "da" ? "Filtrer efter navn, CVR, by eller branche..." : "Filter by name, CVR, city or industry..."}
-              value={filter}
-              onChange={(e) => handleFilterChange(e.target.value)}
-            />
-            {filter && (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => handleFilterChange("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              >
-                <X className="size-4" />
-              </Button>
+        <div className="mb-5 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="size-4 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Input
+                className="h-11 rounded-xl pl-11 pr-9 border-border/60 bg-muted/30 focus:bg-background transition-colors"
+                placeholder={locale === "da" ? "Filtrer efter navn, CVR, by, branche eller tag..." : "Filter by name, CVR, city, industry or tag..."}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+              {filter && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => setFilter("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+            {filtered.length > 0 && (
+              <Badge variant="secondary" className="border-0 text-xs font-semibold h-7 px-3 shrink-0">
+                {filtered.length} {sv.count}
+              </Badge>
             )}
           </div>
-          {filtered.length > 0 && (
-            <Badge variant="secondary" className="border-0 text-xs font-semibold h-7 px-3 shrink-0">
-              {filtered.length} {sv.count}
-            </Badge>
+
+          {/* Tag filter chips */}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Tag className="size-3.5 text-muted-foreground/50 shrink-0" />
+              <button
+                onClick={() => setActiveTag(null)}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer",
+                  !activeTag
+                    ? "bg-foreground text-background shadow-sm"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {locale === "da" ? "Alle" : "All"}
+              </button>
+              {allTags.map(([tag, count]) => (
+                <button
+                  key={tag}
+                  onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer",
+                    activeTag === tag
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  )}
+                >
+                  {tag}
+                  <span className="ml-1 opacity-60">{count}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -437,7 +678,6 @@ export default function SavedPage() {
       {/* ── AI Pipeline Analysis — Results ─────────────────────── */}
       {showAnalysis && analysisData && !pipelineMutation.isPending && (
         <div className="space-y-3 mb-6">
-          {/* Priority summary */}
           <Card className="border-0 shadow-sm py-0">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -484,7 +724,6 @@ export default function SavedPage() {
             </CardContent>
           </Card>
 
-          {/* Segments */}
           {segments.length > 0 && (
             <Card className="border-0 shadow-sm py-0">
               <CardContent className="p-5">
@@ -523,7 +762,6 @@ export default function SavedPage() {
             </Card>
           )}
 
-          {/* Next Actions */}
           {nextActions.length > 0 && (
             <Card className="border-0 shadow-sm py-0">
               <CardContent className="p-5">
@@ -549,7 +787,7 @@ export default function SavedPage() {
       )}
 
       {/* ── No filter match ────────────────────────────────────── */}
-      {!loading && companies.length > 0 && filtered.length === 0 && filter && (
+      {!loading && companies.length > 0 && filtered.length === 0 && (filter || activeTag) && (
         <Card className="py-16 border-0 shadow-sm">
           <CardContent className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
@@ -561,173 +799,189 @@ export default function SavedPage() {
             <p className="text-muted-foreground text-sm max-w-sm mx-auto">
               {locale === "da" ? "Ingen gemte virksomheder matcher dit filter." : "No saved companies match your filter."}
             </p>
+            {activeTag && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 rounded-xl gap-1.5"
+                onClick={() => setActiveTag(null)}
+              >
+                <X className="size-3.5" />
+                {locale === "da" ? "Ryd tag-filter" : "Clear tag filter"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* ── Company table ─────────────────────────────────────── */}
+      {/* ── Company list — card-based, mobile-first ──────────── */}
       {!loading && filtered.length > 0 && (
-        <Card className="overflow-hidden border-0 shadow-sm py-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-border/40">
-                <TableHead className="pl-5 sm:pl-6 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {sv.table.company}
-                </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {sv.table.cvr}
-                </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
-                  {sv.table.city}
-                </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell">
-                  {sv.table.industry}
-                </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
-                  {sv.table.status}
-                </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell">
-                  {sv.table.employees}
-                </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden md:table-cell">
-                  {sv.note}
-                </TableHead>
-                <TableHead className="w-24" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((s, idx) => {
-                const c = s.company;
-                const color = companyColors[idx % companyColors.length];
-                const initials = c.name
-                  .split(" ")
-                  .filter(w => w.length > 0)
-                  .map((w) => w[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase();
-                const priority = priorityMap.get(s.cvr);
-                const pConfig = priority ? priorityConfig[priority.score as keyof typeof priorityConfig] : null;
+        <div className="space-y-3">
+          {filtered.map((s, idx) => {
+            const c = s.company;
+            const color = companyColors[idx % companyColors.length];
+            const initials = c.name
+              .split(" ")
+              .filter(w => w.length > 0)
+              .map((w) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase();
+            const priority = priorityMap.get(s.cvr);
+            const pConfig = priority ? priorityConfig[priority.score as keyof typeof priorityConfig] : null;
 
-                return (
-                  <TableRow
-                    key={s.id}
-                    className="group cursor-pointer border-border/30"
-                    onClick={() => router.push(`/company/${c.vat}`)}
-                  >
-                    <TableCell className="pl-5 sm:pl-6 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm",
-                          color.bg
-                        )}>
-                          <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                              {c.name}
-                            </p>
-                            {priority && pConfig && (
-                              <Badge
-                                variant="secondary"
-                                className={cn(
-                                  "hidden sm:inline-flex border text-[9px] font-bold uppercase tracking-wider h-5 shrink-0",
-                                  pConfig.bg, pConfig.text, pConfig.border
-                                )}
-                                title={priority.reason}
-                              >
-                                <span className={cn("w-1.5 h-1.5 rounded-full mr-1", pConfig.dot)} />
-                                {priority.score}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-muted-foreground truncate">
-                            {c.address && `${c.address}, `}{c.zipcode} {c.city}
-                          </p>
-                        </div>
+            return (
+              <div
+                key={s.id}
+                className="group bg-white rounded-2xl transition-all duration-200 hover:shadow-[0_8px_30px_rgba(0,74,198,0.06)] hover:-translate-y-0.5 cursor-pointer"
+                onClick={() => router.push(`/company/${c.vat}`)}
+              >
+                <div className="p-4 sm:p-5">
+                  {/* ─ Top row: avatar + info + actions ─ */}
+                  <div className="flex items-start gap-3.5">
+                    {/* Avatar */}
+                    <div className={cn(
+                      "w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+                      color.bg
+                    )}>
+                      <span className={cn("text-xs sm:text-sm font-bold", color.text)}>{initials}</span>
+                    </div>
+
+                    {/* Info block */}
+                    <div className="min-w-0 flex-1">
+                      {/* Name row */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-[15px] font-semibold text-foreground group-hover:text-blue-600 transition-colors truncate">
+                          {c.name}
+                        </h3>
+                        {c.companyStatus && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">
+                            {c.companyStatus}
+                          </span>
+                        )}
+                        {priority && pConfig && (
+                          <span className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border",
+                            pConfig.bg, pConfig.text, pConfig.border
+                          )}>
+                            <span className={cn("w-1.5 h-1.5 rounded-full", pConfig.dot)} />
+                            {priority.score}
+                          </span>
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell className="py-3.5 text-sm text-muted-foreground tabular-nums">
-                      {c.vat}
-                    </TableCell>
-                    <TableCell className="py-3.5 text-sm text-muted-foreground hidden md:table-cell">
-                      {c.city || "–"}
-                    </TableCell>
-                    <TableCell className="py-3.5 text-sm text-muted-foreground hidden lg:table-cell max-w-[160px] truncate">
-                      {c.industryName || "–"}
-                    </TableCell>
-                    <TableCell className="py-3.5 hidden md:table-cell">
-                      {c.companyStatus && (
-                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-0 text-[9px] font-bold uppercase tracking-wider h-5">
-                          {c.companyStatus}
-                        </Badge>
+
+                      {/* Meta row */}
+                      <div className="flex items-center gap-1.5 mt-1 text-[12px] text-muted-foreground">
+                        <span className="tabular-nums font-medium">{c.vat}</span>
+                        {c.city && (
+                          <>
+                            <span className="text-muted-foreground/30">·</span>
+                            <span>{c.city}</span>
+                          </>
+                        )}
+                        {c.employees != null && (
+                          <>
+                            <span className="text-muted-foreground/30">·</span>
+                            <span>{c.employees.toLocaleString(locale === "da" ? "da-DK" : "en-US")} {locale === "da" ? "ansatte" : "emp."}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Industry */}
+                      {c.industryName && (
+                        <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">{c.industryName}</p>
                       )}
-                    </TableCell>
-                    <TableCell className="py-3.5 text-sm text-muted-foreground tabular-nums hidden lg:table-cell">
-                      {c.employees != null
-                        ? c.employees.toLocaleString(locale === "da" ? "da-DK" : "en-US")
-                        : "–"}
-                    </TableCell>
-                    <TableCell
-                      className="py-3.5 hidden md:table-cell max-w-[200px]"
+                    </div>
+
+                    {/* Action buttons — right side */}
+                    <div
+                      className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {s.note ? (
-                        <button
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<Button variant="ghost" size="icon-sm" className="rounded-lg text-muted-foreground/40 hover:text-amber-500 hover:bg-amber-50" />}
                           onClick={() => openNoteEditor(s.cvr, s.note)}
-                          className="text-left group/note"
                         >
-                          <p className="text-xs text-muted-foreground line-clamp-2 group-hover/note:text-primary transition-colors cursor-pointer">
-                            {s.note}
-                          </p>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => openNoteEditor(s.cvr, null)}
-                          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/40 hover:text-primary transition-colors cursor-pointer"
+                          <StickyNote className="size-4" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {s.note ? sv.editNote : sv.addNote}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<Button variant="ghost" size="icon-sm" className="rounded-lg text-muted-foreground/40 hover:text-blue-500 hover:bg-blue-50" />}
+                          onClick={() => openTagEditor(s.cvr, s.tags ?? [])}
                         >
-                          <Plus className="size-3" />
-                          {sv.addNote}
-                        </button>
-                      )}
-                    </TableCell>
-                    <TableCell
-                      className="py-3.5 pr-4"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="rounded-full text-muted-foreground/30 hover:text-amber-500 hover:bg-amber-50 md:hidden"
-                          onClick={() => openNoteEditor(s.cvr, s.note)}
-                          title={s.note ? sv.editNote : sv.addNote}
-                        >
-                          <StickyNote className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="rounded-full text-muted-foreground/30 hover:text-destructive hover:bg-destructive/5"
+                          <Tag className="size-4" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {sv.editTags}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<Button variant="ghost" size="icon-sm" className="rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50" />}
                           onClick={() => handleRemove(s.cvr)}
                           disabled={removing === s.cvr}
-                          title={sv.removed}
                         >
                           {removing === s.cvr ? (
-                            <Loader2 className="size-3.5 animate-spin" />
+                            <Loader2 className="size-4 animate-spin" />
                           ) : (
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className="size-4" />
                           )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {locale === "da" ? "Fjern" : "Remove"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    {/* Chevron — always visible */}
+                    <ExternalLink className="size-4 text-muted-foreground/20 group-hover:text-blue-500 transition-colors shrink-0 mt-1.5" />
+                  </div>
+
+                  {/* ─ Bottom section: tags + note ─ */}
+                  {((s.tags ?? []).length > 0 || s.note) && (
+                    <div className="mt-3 pt-3 border-t border-slate-50 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
+                      {/* Tags */}
+                      {(s.tags ?? []).length > 0 && (
+                        <div
+                          className="flex flex-wrap gap-1.5 items-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Tag className="size-3 text-muted-foreground/30 shrink-0" />
+                          {(s.tags ?? []).map(tag => (
+                            <button
+                              key={tag}
+                              onClick={() => openTagEditor(s.cvr, s.tags ?? [])}
+                              className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* Note preview */}
+                      {s.note && (
+                        <div
+                          className="flex items-start gap-1.5 sm:ml-auto max-w-xs"
+                          onClick={(e) => { e.stopPropagation(); openNoteEditor(s.cvr, s.note); }}
+                        >
+                          <StickyNote className="size-3 text-amber-400 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-muted-foreground/60 line-clamp-1 hover:text-foreground transition-colors cursor-pointer">
+                            {s.note}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </DashboardLayout>
   );

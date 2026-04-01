@@ -6,6 +6,7 @@ interface SavedCompany {
   id: string;
   cvr: string;
   note: string | null;
+  tags: string[];
   savedAt: string;
   company: Record<string, unknown>;
 }
@@ -84,6 +85,42 @@ export function useUpdateSavedNote() {
         queryClient.setQueryData<SavedResponse>(["saved-companies"], {
           results: prev.results.map((s) =>
             s.cvr === cvr ? { ...s, note: note.trim() || null } : s
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["saved-companies"], context.prev);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-companies"] });
+    },
+  });
+}
+
+export function useUpdateSavedTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ cvr, tags }: { cvr: string; tags: string[] }) => {
+      const res = await fetch("/api/cvr/saved", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cvr, tags }),
+      });
+      if (!res.ok) throw new Error("Failed to update tags");
+      return res.json();
+    },
+    onMutate: async ({ cvr, tags }) => {
+      await queryClient.cancelQueries({ queryKey: ["saved-companies"] });
+      const prev = queryClient.getQueryData<SavedResponse>(["saved-companies"]);
+      if (prev) {
+        queryClient.setQueryData<SavedResponse>(["saved-companies"], {
+          results: prev.results.map((s) =>
+            s.cvr === cvr ? { ...s, tags } : s
           ),
         });
       }
