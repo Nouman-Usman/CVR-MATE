@@ -221,10 +221,11 @@ function formatDate(
 }
 
 function buildMailtoUrl(to: string | null | undefined, subject: string | null | undefined, body: string): string {
-  const params = new URLSearchParams();
-  if (subject) params.set("subject", subject);
-  params.set("body", body);
-  return `mailto:${to ?? ""}?${params.toString()}`;
+  // Use encodeURIComponent (not URLSearchParams) — mailto: requires %20 for spaces, not +
+  const parts: string[] = [];
+  if (subject) parts.push(`subject=${encodeURIComponent(subject)}`);
+  parts.push(`body=${encodeURIComponent(body)}`);
+  return `mailto:${encodeURIComponent(to ?? "")}?${parts.join("&")}`;
 }
 
 function InfoRow({
