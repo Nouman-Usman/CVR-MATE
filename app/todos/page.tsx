@@ -66,6 +66,7 @@ import {
   MoreHorizontal,
   Copy,
   MousePointerClick,
+  CalendarPlus,
 } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
@@ -112,6 +113,81 @@ function getCompanyColor(name: string) {
 
 function getInitials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
+/* ─── iCal Export ──────────────────────────────────────────────────── */
+
+function exportTodoAsIcal(todo: Todo) {
+  const now = new Date();
+  const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+
+  const priority = todo.priority === "high" ? 1 : todo.priority === "medium" ? 5 : 9;
+
+  let description = "";
+  if (todo.description) description += todo.description;
+  if (todo.company) {
+    if (description) description += "\\n\\n";
+    description += `Company: ${todo.company.name} (CVR ${todo.company.vat})`;
+  }
+  description += `\\nPriority: ${todo.priority}`;
+  if (todo.isCompleted) description += "\\nStatus: Completed";
+
+  const escapeIcal = (text: string): string =>
+    text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+
+  // Use VEVENT (not VTODO) — VTODO is unsupported by most calendar clients
+  // If due date exists, create an all-day event on that date
+  // If no due date, create a 1-hour event starting now
+  let dtStart: string;
+  let dtEnd: string;
+
+  if (todo.dueDate) {
+    const dateOnly = todo.dueDate.replace(/-/g, "");
+    dtStart = `DTSTART;VALUE=DATE:${dateOnly}`;
+    // All-day events: DTEND is the next day (exclusive)
+    const d = new Date(todo.dueDate);
+    d.setDate(d.getDate() + 1);
+    const nextDay = d.toISOString().split("T")[0].replace(/-/g, "");
+    dtEnd = `DTEND;VALUE=DATE:${nextDay}`;
+  } else {
+    dtStart = `DTSTART:${stamp}`;
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    const endStamp = oneHourLater.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+    dtEnd = `DTEND:${endStamp}`;
+  }
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//CVR-MATE//Task Export//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${todo.id}@cvr-mate.vercel.app`,
+    `DTSTAMP:${stamp}`,
+    dtStart,
+    dtEnd,
+    `SUMMARY:${escapeIcal(todo.title)}`,
+  ];
+
+  if (description) {
+    lines.push(`DESCRIPTION:${escapeIcal(description)}`);
+  }
+
+  lines.push(`PRIORITY:${priority}`);
+  lines.push("END:VEVENT", "END:VCALENDAR");
+
+  const content = lines.join("\r\n");
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${todo.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 50)}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ─── Company Picker ────────────────────────────────────────────────── */
@@ -603,6 +679,17 @@ export default function TodosPage() {
                   <DialogClose render={<Button variant="outline" className="rounded-xl" />}>
                     {d.cancel}
                   </DialogClose>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl gap-1.5"
+                    onClick={() => {
+                      exportTodoAsIcal(viewingTodo);
+                      showToast(locale === "da" ? "Kalender-fil downloadet" : "Calendar file downloaded");
+                    }}
+                  >
+                    <CalendarPlus className="size-4" />
+                    {locale === "da" ? "Kalender" : "Calendar"}
+                  </Button>
                   <Button
                     className="rounded-xl gap-1.5"
                     onClick={() => {
@@ -1129,6 +1216,11 @@ export default function TodosPage() {
                       <ContextMenuItem onClick={() => { navigator.clipboard.writeText(todo.title); showToast(locale === "da" ? "Kopieret" : "Copied"); }}>
                         <Copy className="size-4" />
                         {locale === "da" ? "Kopier titel" : "Copy title"}
+                      </ContextMenuItem>
+
+                      <ContextMenuItem onClick={() => { exportTodoAsIcal(todo as Todo); showToast(locale === "da" ? "Kalender-fil downloadet" : "Calendar file downloaded"); }}>
+                        <CalendarPlus className="size-4" />
+                        {locale === "da" ? "Eksporter til kalender" : "Export to calendar"}
                       </ContextMenuItem>
 
                       {todo.company && (

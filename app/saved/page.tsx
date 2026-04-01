@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote, useUpdateSavedTags } from "@/lib/hooks/use-saved-companies";
+import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ import {
   MoreHorizontal,
   Eye,
   Copy,
+  ListTodo,
 } from "lucide-react";
 
 interface SavedCompany {
@@ -212,6 +214,41 @@ export default function SavedPage() {
         onSuccess: () => {
           setEditingTagsCvr(null);
           showToast(sv.tagsSaved);
+        },
+      }
+    );
+  };
+
+  // Task creation
+  const createTodoMutation = useCreateTodo();
+  const [taskForCompany, setTaskForCompany] = useState<{ cvr: string; name: string } | null>(null);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDesc, setTaskDesc] = useState("");
+  const [taskPriority, setTaskPriority] = useState<"high" | "medium" | "low">("medium");
+  const [taskDueDate, setTaskDueDate] = useState("");
+
+  const openTaskCreator = (cvr: string, name: string) => {
+    setTaskForCompany({ cvr, name });
+    setTaskTitle("");
+    setTaskDesc("");
+    setTaskPriority("medium");
+    setTaskDueDate("");
+  };
+
+  const handleCreateTask = () => {
+    if (!taskForCompany || !taskTitle.trim()) return;
+    createTodoMutation.mutate(
+      {
+        title: taskTitle.trim(),
+        description: taskDesc.trim() || null,
+        priority: taskPriority,
+        dueDate: taskDueDate || null,
+        cvr: taskForCompany.cvr,
+      },
+      {
+        onSuccess: () => {
+          setTaskForCompany(null);
+          showToast(sv.taskCreated);
         },
       }
     );
@@ -439,6 +476,111 @@ export default function SavedPage() {
               >
                 {updateTagsMutation.isPending && <Loader2 className="size-4 animate-spin" />}
                 {sv.saveNote}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task creation dialog */}
+      <Dialog
+        open={taskForCompany !== null}
+        onOpenChange={(open) => { if (!open) setTaskForCompany(null); }}
+      >
+        <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+          <div className="px-6 pt-7 pb-3">
+            <DialogHeader className="gap-0.5">
+              <DialogTitle className="font-[family-name:var(--font-manrope)] text-xl font-extrabold tracking-tight">
+                {sv.createTask}
+              </DialogTitle>
+              <DialogDescription className="text-sm font-medium text-muted-foreground/70">
+                {taskForCompany?.name}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="px-6 py-4 space-y-4">
+            {/* Title */}
+            <div>
+              <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-2 block">
+                {sv.taskTitle}
+              </label>
+              <Input
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && taskTitle.trim()) handleCreateTask(); }}
+                placeholder={locale === "da" ? "Hvad skal gøres?" : "What needs to be done?"}
+                className="h-12 rounded-xl bg-slate-50/80 border-slate-100/60"
+                autoFocus
+              />
+            </div>
+            {/* Description */}
+            <div>
+              <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-2 block">
+                {sv.taskDesc}
+              </label>
+              <Textarea
+                value={taskDesc}
+                onChange={(e) => setTaskDesc(e.target.value)}
+                placeholder={locale === "da" ? "Tilføj flere detaljer..." : "Add more details..."}
+                rows={2}
+                className="rounded-xl bg-slate-50/80 border-slate-100/60 resize-none"
+              />
+            </div>
+            {/* Priority */}
+            <div>
+              <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-2 block">
+                {sv.taskPriority}
+              </label>
+              <div className="flex bg-slate-50 rounded-full p-1 gap-1">
+                {(["high", "medium", "low"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setTaskPriority(p)}
+                    className={cn(
+                      "flex-1 py-2 rounded-full text-xs font-bold transition-all cursor-pointer capitalize",
+                      taskPriority === p
+                        ? p === "high" ? "bg-red-500 text-white shadow-sm"
+                          : p === "medium" ? "bg-amber-500 text-white shadow-sm"
+                            : "bg-emerald-500 text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {p === "high" ? (locale === "da" ? "Høj" : "High")
+                      : p === "medium" ? (locale === "da" ? "Medium" : "Medium")
+                        : (locale === "da" ? "Lav" : "Low")}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Due date */}
+            <div>
+              <label className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground/50 mb-2 block">
+                {sv.taskDue}
+              </label>
+              <Input
+                type="date"
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+                className="h-12 rounded-xl bg-slate-50/80 border-slate-100/60"
+              />
+            </div>
+          </div>
+          <div className="px-6 pt-4 pb-6 border-t border-slate-100/40">
+            <div className="grid grid-cols-2 gap-3">
+              <DialogClose
+                render={
+                  <button className="h-12 font-semibold text-muted-foreground/60 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer" />
+                }
+              >
+                {sv.cancelNote}
+              </DialogClose>
+              <button
+                onClick={handleCreateTask}
+                disabled={!taskTitle.trim() || createTodoMutation.isPending}
+                className="h-12 font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl shadow-xl shadow-blue-600/10 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {createTodoMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                {sv.createTask}
               </button>
             </div>
           </div>
@@ -937,6 +1079,13 @@ export default function SavedPage() {
                             <Tag className="size-4 text-blue-500" />
                             {sv.editTags}
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => openTaskCreator(s.cvr, c.name)}
+                          >
+                            <ListTodo className="size-4 text-emerald-500" />
+                            {sv.createTask}
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
@@ -1026,6 +1175,11 @@ export default function SavedPage() {
                 <ContextMenuItem onClick={() => openTagEditor(s.cvr, s.tags ?? [])}>
                   <Tag className="size-4" />
                   {sv.editTags}
+                </ContextMenuItem>
+
+                <ContextMenuItem onClick={() => openTaskCreator(s.cvr, c.name)}>
+                  <ListTodo className="size-4" />
+                  {sv.createTask}
                 </ContextMenuItem>
 
                 {c.industryName && (

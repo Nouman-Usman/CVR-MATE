@@ -513,6 +513,12 @@ const en: Dictionary = {
     maxTags: "Maximum 10 tags",
     noTags: "No tags",
     tagsSaved: "Tags saved",
+    createTask: "Create task",
+    taskTitle: "Task title",
+    taskPriority: "Priority",
+    taskDue: "Due date",
+    taskCreated: "Task created",
+    taskDesc: "Description (optional)",
   },
   savedSearches: {
     title: "Saved searches",

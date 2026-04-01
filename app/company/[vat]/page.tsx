@@ -361,6 +361,11 @@ export default function CompanyDetailPage() {
   // Note modal state
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [saveNote, setSaveNote] = useState("");
+  const [showQuickTask, setShowQuickTask] = useState(false);
+  const [quickTaskTitle, setQuickTaskTitle] = useState("");
+  const [quickTaskPriority, setQuickTaskPriority] = useState<"high" | "medium" | "low">("medium");
+  const [quickTaskDue, setQuickTaskDue] = useState("");
+  const [quickTaskToast, setQuickTaskToast] = useState("");
 
   const handleSaveToggle = () => {
     if (!company) return;
@@ -476,6 +481,14 @@ export default function CompanyDetailPage() {
                   bookmark
                 </span>
                 {saving ? "..." : isSaved ? cd.saved : cd.save}
+              </button>
+
+              <button
+                onClick={() => { setShowQuickTask(true); setQuickTaskTitle(""); setQuickTaskPriority("medium"); setQuickTaskDue(""); }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              >
+                <span className="material-symbols-outlined text-lg">task_alt</span>
+                {locale === "da" ? "Opret opgave" : "Create task"}
               </button>
 
               {/* Push to CRM */}
@@ -2160,6 +2173,93 @@ export default function CompanyDetailPage() {
                   <span className="material-symbols-outlined text-base">bookmark</span>
                 )}
                 {saveMutation.isPending ? "..." : cd.save}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Quick Task toast */}
+      {quickTaskToast && (
+        <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          <span className="material-symbols-outlined text-emerald-400 text-base">check_circle</span>
+          {quickTaskToast}
+        </div>
+      )}
+
+      {/* Quick Task dialog */}
+      {showQuickTask && company && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowQuickTask(false)} />
+          <div className="relative bg-white w-full sm:rounded-2xl rounded-t-2xl shadow-2xl sm:max-w-md flex flex-col animate-[slideUp_0.2s_ease-out] sm:animate-[fadeIn_0.15s_ease-out]">
+            <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-emerald-600 text-xl">task_alt</span>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {locale === "da" ? "Opret opgave" : "Create task"}
+                  </h3>
+                  <p className="text-xs text-slate-400">{company.life.name}</p>
+                </div>
+              </div>
+              <input
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 outline-none transition-colors mb-3"
+                value={quickTaskTitle}
+                onChange={(e) => setQuickTaskTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && quickTaskTitle.trim()) {
+                    createTodoMutation.mutate(
+                      { title: quickTaskTitle.trim(), priority: quickTaskPriority, dueDate: quickTaskDue || null, cvr: vat },
+                      { onSuccess: () => { setShowQuickTask(false); setQuickTaskToast(locale === "da" ? "Opgave oprettet" : "Task created"); setTimeout(() => setQuickTaskToast(""), 3000); } }
+                    );
+                  }
+                }}
+                placeholder={locale === "da" ? "Hvad skal gøres?" : "What needs to be done?"}
+                autoFocus
+              />
+              <div className="flex bg-slate-50 rounded-full p-1 gap-1 mb-3">
+                {(["high", "medium", "low"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setQuickTaskPriority(p)}
+                    className={`flex-1 py-2 rounded-full text-xs font-bold transition-all cursor-pointer capitalize ${
+                      quickTaskPriority === p
+                        ? p === "high" ? "bg-red-500 text-white shadow-sm" : p === "medium" ? "bg-amber-500 text-white shadow-sm" : "bg-emerald-500 text-white shadow-sm"
+                        : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    {p === "high" ? (locale === "da" ? "Høj" : "High") : p === "medium" ? "Medium" : (locale === "da" ? "Lav" : "Low")}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="date"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 outline-none transition-colors"
+                value={quickTaskDue}
+                onChange={(e) => setQuickTaskDue(e.target.value)}
+              />
+            </div>
+            <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6 flex gap-2">
+              <button
+                onClick={() => setShowQuickTask(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                {locale === "da" ? "Annuller" : "Cancel"}
+              </button>
+              <button
+                onClick={() => {
+                  if (!quickTaskTitle.trim()) return;
+                  createTodoMutation.mutate(
+                    { title: quickTaskTitle.trim(), priority: quickTaskPriority, dueDate: quickTaskDue || null, cvr: vat },
+                    { onSuccess: () => { setShowQuickTask(false); setQuickTaskToast(locale === "da" ? "Opgave oprettet" : "Task created"); setTimeout(() => setQuickTaskToast(""), 3000); } }
+                  );
+                }}
+                disabled={!quickTaskTitle.trim() || createTodoMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {createTodoMutation.isPending && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {locale === "da" ? "Opret" : "Create"}
               </button>
             </div>
           </div>

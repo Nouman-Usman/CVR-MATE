@@ -5,7 +5,7 @@ Todos:
 4) Create a link for Google Maps for companies (Done ✅)
 5) Increase the search window from 10 to 100 (for now)  (Done ✅)
 6) Implement a feature of tagging the saved comapny  (Done ✅)
-7) Profile Enrichment using AI 
-8) Buisness Plan (What it cost to us, what we should cost to end user)
-9) Export a task as an iCal file ready for Outlook
-10) Create a task on a saved company
+7) Profile Enrichment using AI (Done ✅)
+8) Buisness Plan (What it cost to us, what we should cost to end user) Pending
+9) Export a task as an iCal file ready for Outlook (Done ✅)
+10) Create a task on a saved company (Done ✅)

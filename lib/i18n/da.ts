@@ -511,6 +511,12 @@ const da = {
     maxTags: "Maksimalt 10 tags",
     noTags: "Ingen tags",
     tagsSaved: "Tags gemt",
+    createTask: "Opret opgave",
+    taskTitle: "Opgavetitel",
+    taskPriority: "Prioritet",
+    taskDue: "Forfaldsdato",
+    taskCreated: "Opgave oprettet",
+    taskDesc: "Beskrivelse (valgfri)",
   },
   savedSearches: {
     title: "Gemte søgninger",
