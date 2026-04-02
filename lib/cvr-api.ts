@@ -151,55 +151,29 @@ export interface SearchCompanyParams {
 }
 
 export async function searchCompanies(params: SearchCompanyParams): Promise<CvrCompany[]> {
-  // Separate pagination params from search filters
-  const { limit: _limit, page: _page, ...filterParams } = params;
-
   const cleanParams: Record<string, string> = {};
-  for (const [key, value] of Object.entries(filterParams)) {
+  for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "" && value !== "all") {
       cleanParams[key] = value;
     }
   }
 
+  // Cache is per-page (page param is part of cleanParams)
   const key = cacheKey.search(cleanParams);
   const cached = await cacheGet<CvrCompany[]>(key);
   if (cached) return cached;
 
-  // The CVR API returns ~10 results per call with no documented limit/page param.
-  // We paginate by calling with page=1,2,3... until we get fewer results or hit a cap.
-  const MAX_PAGES = 10; // Up to ~100 results (10 per page × 10 pages)
-  const allResults: CvrCompany[] = [];
-  const seen = new Set<number>();
-
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const pageParams = { ...cleanParams, page: String(page) };
-
-    const data = await cvrFetch<CvrCompany[] | Record<string, unknown>>("/v2/dk/search/company", pageParams);
-
-    let pageResults: CvrCompany[];
-    if (Array.isArray(data)) {
-      pageResults = data;
-    } else {
-      const wrapped = data as { results?: CvrCompany[] };
-      pageResults = wrapped.results ?? [];
-    }
-
-    if (pageResults.length === 0) break;
-
-    // Deduplicate by VAT
-    for (const company of pageResults) {
-      if (!seen.has(company.vat)) {
-        seen.add(company.vat);
-        allResults.push(company);
-      }
-    }
-
-    // If the API returned fewer than expected (~10), we've likely exhausted results
-    if (pageResults.length < 10) break;
+  const data = await cvrFetch<CvrCompany[]>("/v2/dk/search/company", cleanParams);
+  let results: CvrCompany[];
+  if (Array.isArray(data)) {
+    results = data;
+  } else {
+    const wrapped = data as unknown as { results?: CvrCompany[] };
+    results = wrapped.results ?? [];
   }
 
-  await cacheSet(key, allResults, CACHE_TTL.search);
-  return allResults;
+  await cacheSet(key, results, CACHE_TTL.search);
+  return results;
 }
 
 // --- Participant ---

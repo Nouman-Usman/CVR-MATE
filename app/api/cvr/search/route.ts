@@ -121,13 +121,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Pass page directly to CVR API — each page returns ~10 results
+    const page = parseInt(params.get("page") || "1", 10);
+    searchParams.page = String(page);
+
     const results = await searchCompanies(searchParams);
-    let allResults = Array.isArray(results) ? results : [];
+    let pageResults = Array.isArray(results) ? results : [];
 
     // ─── Apply segmentation post-filters ───
     if (segEmployeesMax) {
       const max = Number(segEmployeesMax);
-      allResults = allResults.filter((c) => {
+      pageResults = pageResults.filter((c) => {
         const count = getEmployeeCount(c);
         return count == null || count <= max;
       });
@@ -136,11 +140,10 @@ export async function GET(req: NextRequest) {
     if (segRevenueMin || segRevenueMax) {
       const minVal = segRevenueMin ? Number(segRevenueMin) * 1_000_000 : 0;
       const maxVal = segRevenueMax ? Number(segRevenueMax) * 1_000_000 : Infinity;
-      allResults = allResults.filter((c) => {
+      pageResults = pageResults.filter((c) => {
         const summary = getLatestSummary(c);
-        // revenue is often null in Danish filings; use grossprofitloss as proxy
         const revenue = summary?.revenue ?? summary?.grossprofitloss;
-        if (revenue == null) return true; // keep companies without data
+        if (revenue == null) return true;
         return revenue >= minVal && revenue <= maxVal;
       });
     }
@@ -148,32 +151,28 @@ export async function GET(req: NextRequest) {
     if (segProfitMin || segProfitMax) {
       const minVal = segProfitMin ? Number(segProfitMin) * 1_000_000 : 0;
       const maxVal = segProfitMax ? Number(segProfitMax) * 1_000_000 : Infinity;
-      allResults = allResults.filter((c) => {
+      pageResults = pageResults.filter((c) => {
         const summary = getLatestSummary(c);
         const profit = summary?.grossprofitloss;
-        if (profit == null) return true; // keep companies without data
+        if (profit == null) return true;
         return profit >= minVal && profit <= maxVal;
       });
     }
 
-    // Client-side pagination: the CVR API returns all matches at once
-    const page = parseInt(params.get("page") || "1", 10);
-    const pageSize = parseInt(params.get("limit") || "50", 10);
-    const start = (page - 1) * pageSize;
-    const paged = allResults.slice(start, start + pageSize);
-
-    // Only count as a usage on the first page to avoid double-counting paginated requests
+    // Only count as a usage on the first page
     if (page === 1) {
       await recordUsage(session.user.id, "company_search");
     }
 
+    // CVR API returns ~10 per page. If fewer, there are no more results.
+    const hasMore = pageResults.length >= 10;
+
     return NextResponse.json({
-      results: paged,
-      count: paged.length,
-      total: allResults.length,
+      results: pageResults,
+      count: pageResults.length,
+      total: pageResults.length,
       page,
-      limit: pageSize,
-      hasMore: start + pageSize < allResults.length,
+      hasMore,
     });
   } catch (error) {
     console.error("CVR search error:", error);

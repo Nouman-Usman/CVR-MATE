@@ -7,7 +7,6 @@ interface SearchResponse {
   count: number;
   total: number;
   page: number;
-  limit: number;
   hasMore: boolean;
   error?: string;
 }
@@ -24,7 +23,6 @@ export function useSearchCompanies(
     queryFn: async () => {
       const p = new URLSearchParams(paramString);
       p.set("page", String(page));
-      p.set("limit", "50");
       const res = await fetch(`/api/cvr/search?${p.toString()}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

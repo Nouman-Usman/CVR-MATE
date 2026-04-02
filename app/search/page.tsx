@@ -293,10 +293,58 @@ function SearchPage() {
     isFetching,
   } = useSearchCompanies(committedParams, page, hasSearched);
 
-  const rawResults = searchData?.results ?? [];
-  const results = useMemo(() => rawResults.map(mapCvrCompany), [rawResults]);
-  const totalResults = searchData?.total ?? 0;
-  const hasMore = searchData?.hasMore ?? false;
+  const rawPageResults = searchData?.results ?? [];
+  const apiHasMore = searchData?.hasMore ?? false;
+
+  // Accumulate results across pages, dedup by VAT
+  const [accumulatedResults, setAccumulatedResults] = useState<ReturnType<typeof mapCvrCompany>[]>([]);
+  const [rawDataMap, setRawDataMap] = useState<Map<string, Record<string, unknown>>>(new Map());
+  const [noMoreResults, setNoMoreResults] = useState(false);
+
+  // When page 1 loads (new search), reset accumulated
+  useEffect(() => {
+    if (page === 1 && rawPageResults.length > 0) {
+      const mapped = rawPageResults.map(mapCvrCompany);
+      setAccumulatedResults(mapped);
+      const newMap = new Map<string, Record<string, unknown>>();
+      rawPageResults.forEach((r, i) => newMap.set(mapped[i].cvr, r));
+      setRawDataMap(newMap);
+      setNoMoreResults(!apiHasMore);
+    } else if (page === 1 && rawPageResults.length === 0 && !isLoading) {
+      setAccumulatedResults([]);
+      setRawDataMap(new Map());
+      setNoMoreResults(false);
+    }
+  }, [page, rawPageResults, isLoading, apiHasMore]);
+
+  // When a subsequent page loads, append new unique results
+  useEffect(() => {
+    if (page > 1 && rawPageResults.length > 0 && !isLoading) {
+      const newMapped = rawPageResults.map(mapCvrCompany);
+      setAccumulatedResults((prev) => {
+        const seen = new Set(prev.map((r) => r.cvr));
+        const unique = newMapped.filter((r) => !seen.has(r.cvr));
+        if (unique.length === 0) {
+          setNoMoreResults(true);
+          return prev;
+        }
+        if (!apiHasMore) setNoMoreResults(true);
+        return [...prev, ...unique];
+      });
+      setRawDataMap((prev) => {
+        const next = new Map(prev);
+        rawPageResults.forEach((r, i) => {
+          if (!next.has(newMapped[i].cvr)) next.set(newMapped[i].cvr, r);
+        });
+        return next;
+      });
+    } else if (page > 1 && rawPageResults.length === 0 && !isLoading) {
+      setNoMoreResults(true);
+    }
+  }, [page, rawPageResults, isLoading, apiHasMore]);
+
+  const results = accumulatedResults;
+  const hasMore = apiHasMore && !noMoreResults;
 
   const savedCvrs = useSavedCvrSet();
   const saveCompanyMutation = useSaveCompany();
@@ -356,6 +404,8 @@ function SearchPage() {
   const handleSearch = useCallback(() => {
     setLocalError("");
     clearSelected();
+    setAccumulatedResults([]);
+    setNoMoreResults(false);
     const params = buildSearchParams();
     if (!params) {
       setLocalError(s.noFilter);
@@ -636,11 +686,9 @@ function SearchPage() {
           <div className="px-5 sm:px-6 py-4 border-b border-border/40 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">
-                <span className="font-bold text-foreground">{results.length}</span>
-                {totalResults > results.length && (
-                  <span className="text-muted-foreground/60"> / {totalResults}</span>
-                )}{" "}
+                <span className="font-bold text-foreground">{results.length}</span>{" "}
                 {s.results}
+                {hasMore && !noMoreResults && <span className="text-muted-foreground/50"> +</span>}
               </p>
               {isFetching && <Loader2 className="size-3.5 text-primary animate-spin" />}
             </div>
@@ -722,7 +770,7 @@ function SearchPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleSaveCompany(c, rawResults[idx] || {})}
+                          onClick={() => handleSaveCompany(c, rawDataMap.get(c.cvr) || {})}
                           disabled={isSaving}
                           className="rounded-full"
                           title={isSaved ? t.companyDetail.unsave : t.companyDetail.save}
@@ -750,9 +798,9 @@ function SearchPage() {
             </Table>
           </div>
 
-          {/* Load more */}
-          {hasMore && (
-            <div className="px-5 sm:px-6 py-4 border-t border-border/40 flex justify-center">
+          {/* Load more / No more results */}
+          <div className="px-5 sm:px-6 py-4 border-t border-border/40 flex justify-center">
+            {hasMore ? (
               <Button
                 variant="secondary"
                 size="lg"
@@ -767,8 +815,12 @@ function SearchPage() {
                 )}
                 {isFetching ? s.loadingMore : s.loadMore}
               </Button>
-            </div>
-          )}
+            ) : noMoreResults && results.length > 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {locale === "da" ? "Ikke flere virksomheder fundet" : "No more companies found"}
+              </p>
+            ) : null}
+          </div>
         </Card>
       )}
 
