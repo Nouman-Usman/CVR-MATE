@@ -293,58 +293,62 @@ function SearchPage() {
     isFetching,
   } = useSearchCompanies(committedParams, page, hasSearched);
 
-  const rawPageResults = searchData?.results ?? [];
-  const apiHasMore = searchData?.hasMore ?? false;
-
   // Accumulate results across pages, dedup by VAT
+  // Use refs to track what we've already processed — avoids useEffect infinite loops
   const [accumulatedResults, setAccumulatedResults] = useState<ReturnType<typeof mapCvrCompany>[]>([]);
   const [rawDataMap, setRawDataMap] = useState<Map<string, Record<string, unknown>>>(new Map());
   const [noMoreResults, setNoMoreResults] = useState(false);
+  const lastProcessedRef = useRef<string | null>(null);
 
-  // When page 1 loads (new search), reset accumulated
-  useEffect(() => {
-    if (page === 1 && rawPageResults.length > 0) {
-      const mapped = rawPageResults.map(mapCvrCompany);
-      setAccumulatedResults(mapped);
-      const newMap = new Map<string, Record<string, unknown>>();
-      rawPageResults.forEach((r, i) => newMap.set(mapped[i].cvr, r));
-      setRawDataMap(newMap);
-      setNoMoreResults(!apiHasMore);
-    } else if (page === 1 && rawPageResults.length === 0 && !isLoading) {
-      setAccumulatedResults([]);
-      setRawDataMap(new Map());
-      setNoMoreResults(false);
-    }
-  }, [page, rawPageResults, isLoading, apiHasMore]);
+  // Derive a stable key from the query response to detect actual data changes
+  const dataKey = searchData ? `${page}:${searchData.count}:${searchData.hasMore}` : null;
 
-  // When a subsequent page loads, append new unique results
-  useEffect(() => {
-    if (page > 1 && rawPageResults.length > 0 && !isLoading) {
-      const newMapped = rawPageResults.map(mapCvrCompany);
-      setAccumulatedResults((prev) => {
-        const seen = new Set(prev.map((r) => r.cvr));
-        const unique = newMapped.filter((r) => !seen.has(r.cvr));
-        if (unique.length === 0) {
-          setNoMoreResults(true);
-          return prev;
-        }
-        if (!apiHasMore) setNoMoreResults(true);
-        return [...prev, ...unique];
-      });
-      setRawDataMap((prev) => {
-        const next = new Map(prev);
-        rawPageResults.forEach((r, i) => {
-          if (!next.has(newMapped[i].cvr)) next.set(newMapped[i].cvr, r);
+  if (dataKey && dataKey !== lastProcessedRef.current && !isLoading) {
+    lastProcessedRef.current = dataKey;
+    const rawPageResults = searchData?.results ?? [];
+    const apiHasMore = searchData?.hasMore ?? false;
+
+    if (page === 1) {
+      if (rawPageResults.length > 0) {
+        const mapped = rawPageResults.map(mapCvrCompany);
+        setAccumulatedResults(mapped);
+        const newMap = new Map<string, Record<string, unknown>>();
+        rawPageResults.forEach((r, i) => newMap.set(mapped[i].cvr, r));
+        setRawDataMap(newMap);
+        setNoMoreResults(!apiHasMore);
+      } else {
+        setAccumulatedResults([]);
+        setRawDataMap(new Map());
+        setNoMoreResults(false);
+      }
+    } else {
+      if (rawPageResults.length > 0) {
+        const newMapped = rawPageResults.map(mapCvrCompany);
+        setAccumulatedResults((prev) => {
+          const seen = new Set(prev.map((r) => r.cvr));
+          const unique = newMapped.filter((r) => !seen.has(r.cvr));
+          if (unique.length === 0) {
+            setNoMoreResults(true);
+            return prev;
+          }
+          if (!apiHasMore) setNoMoreResults(true);
+          return [...prev, ...unique];
         });
-        return next;
-      });
-    } else if (page > 1 && rawPageResults.length === 0 && !isLoading) {
-      setNoMoreResults(true);
+        setRawDataMap((prev) => {
+          const next = new Map(prev);
+          rawPageResults.forEach((r, i) => {
+            if (!next.has(newMapped[i].cvr)) next.set(newMapped[i].cvr, r);
+          });
+          return next;
+        });
+      } else {
+        setNoMoreResults(true);
+      }
     }
-  }, [page, rawPageResults, isLoading, apiHasMore]);
+  }
 
   const results = accumulatedResults;
-  const hasMore = apiHasMore && !noMoreResults;
+  const hasMore = (searchData?.hasMore ?? false) && !noMoreResults;
 
   const savedCvrs = useSavedCvrSet();
   const saveCompanyMutation = useSaveCompany();
