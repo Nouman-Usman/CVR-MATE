@@ -90,8 +90,8 @@ export async function GET(req: NextRequest) {
     const segProfitMin = params.get("seg_profit_min");
     const segProfitMax = params.get("seg_profit_max");
 
-    const hasAnyFilter = Object.values(searchParams).some(
-      (v) => v && v !== "20"
+    const hasAnyFilter = Object.entries(searchParams).some(
+      ([k, v]) => v && k !== "companystatus_code" && k !== "page"
     );
 
     // Also count segmentation filters as valid
