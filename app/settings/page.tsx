@@ -1032,7 +1032,7 @@ export default function SettingsPage() {
       items: [
         { key: "brand", label: st.brand.title, icon: Building2 },
         { key: "team", label: st.team.title, icon: UsersRound },
-        { key: "integrations", label: (t.integrations as { title: string }).title, icon: Plug },
+        // { key: "integrations", label: (t.integrations as { title: string }).title, icon: Plug },
       ],
     },
     {
@@ -1828,7 +1828,7 @@ export default function SettingsPage() {
         </div>}
 
         {/* ── CRM Integrations ─────────────────────────────────────────── */}
-        {activeSection === "integrations" && <CrmIntegrationsSection />}
+        {/* {activeSection === "integrations" && <CrmIntegrationsSection />} */}
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
         {activeSection === "subscription" && <SubscriptionSection />}

@@ -83,9 +83,6 @@ export async function GET(req: NextRequest) {
       searchParams.companystatus_code = "20";
     }
 
-    // Request max results from CVR API (default is 10)
-    searchParams.limit = "100";
-
     // Check for segmentation post-filters (not part of CVR API)
     const segEmployeesMax = params.get("seg_employees_max");
     const segRevenueMin = params.get("seg_revenue_min");
