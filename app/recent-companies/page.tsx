@@ -31,7 +31,20 @@ import {
   Users,
   Sparkles,
   TrendingUp,
+  Eye,
+  Copy,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuGroup,
+  ContextMenuLabel,
+} from "@/components/ui/context-menu";
 
 const PAGE_SIZE = 20;
 
@@ -126,8 +139,17 @@ export default function RecentCompaniesPage() {
     setPage(1);
   };
 
+  const [toast, setToast] = useState("");
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+
   return (
     <DashboardLayout>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          {toast}
+        </div>
+      )}
       {/* ── Header ────────────────────────────────────────────── */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
@@ -300,11 +322,13 @@ export default function RecentCompaniesPage() {
                 ) as unknown as Record<string, unknown> | undefined;
 
                 return (
+                  <ContextMenu key={c.cvr}>
+                  <ContextMenuTrigger render={
                   <div
-                    key={c.cvr}
                     className="group flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-muted/30 transition-colors cursor-pointer"
                     onClick={() => router.push(`/company/${c.cvr}`)}
-                  >
+                  />
+                  }>
                     {/* Avatar */}
                     <div className={cn(
                       "w-11 h-11 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm transition-shadow group-hover:shadow-md",
@@ -338,11 +362,11 @@ export default function RecentCompaniesPage() {
                           </span>
                         )}
                         {c.founded && (
-                          <span className="hidden lg:flex items-center gap-1">
+                          <span className="flex items-center gap-1">
                             <Calendar className="size-3" />
                             {new Date(c.founded).toLocaleDateString(
                               locale === "da" ? "da-DK" : "en-US",
-                              { year: "numeric", month: "short" }
+                              { year: "numeric", month: "short", day: "numeric" }
                             )}
                           </span>
                         )}
@@ -376,7 +400,49 @@ export default function RecentCompaniesPage() {
 
                     {/* Arrow */}
                     <ArrowRight className="size-4 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-all shrink-0" />
-                  </div>
+                  </ContextMenuTrigger>
+
+                  <ContextMenuContent className="w-56">
+                    <ContextMenuGroup>
+                      <ContextMenuLabel>
+                        {c.name.length > 30 ? c.name.slice(0, 30) + "..." : c.name}
+                      </ContextMenuLabel>
+                      <p className="px-1.5 pb-1 text-[11px] text-muted-foreground">
+                        CVR {c.cvr}{c.city && ` · ${c.city}`}
+                      </p>
+                    </ContextMenuGroup>
+                    <ContextMenuSeparator />
+
+                    <ContextMenuItem onClick={() => router.push(`/company/${c.cvr}`)}>
+                      <Eye className="size-4" />
+                      {locale === "da" ? "Vis virksomhed" : "View company"}
+                    </ContextMenuItem>
+
+                    <ContextMenuItem onClick={() => { navigator.clipboard.writeText(c.cvr); showToast(locale === "da" ? "CVR kopieret" : "CVR copied"); }}>
+                      <Copy className="size-4" />
+                      {locale === "da" ? "Kopiér CVR" : "Copy CVR"}
+                    </ContextMenuItem>
+
+                    <ContextMenuSeparator />
+
+                    <ContextMenuItem onClick={() => rawResult && handleSaveToggle(c, rawResult)}>
+                      <Heart className={cn("size-4", isSaved && "text-red-500 fill-red-500")} />
+                      {isSaved
+                        ? (locale === "da" ? "Fjern fra gemte" : "Remove from saved")
+                        : (locale === "da" ? "Gem virksomhed" : "Save company")}
+                    </ContextMenuItem>
+
+                    {c.city && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([c.city, "Denmark"].filter(Boolean).join(", "))}`, "_blank")}>
+                          <ExternalLink className="size-4" />
+                          {locale === "da" ? "Vis på kort" : "View on map"}
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </ContextMenuContent>
+                  </ContextMenu>
                 );
               })}
             </div>
