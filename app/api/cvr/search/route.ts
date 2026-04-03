@@ -144,27 +144,58 @@ export async function GET(req: NextRequest) {
       searchParams.life_start = "1900-01-01";
     }
 
-    // CVR API returns ~10 results per search call (no pagination).
-    // To maximize results, we fetch from BOTH the search endpoint AND
-    // the suggestions endpoint (if a name is provided), then merge + dedup.
-    const nameQuery = searchParams.life_name;
-
-    const [searchResults, suggestResults] = await Promise.all([
-      searchCompanies(searchParams).catch(() => [] as CvrCompany[]),
-      nameQuery && nameQuery.length >= 2
-        ? suggestCompanies(nameQuery).catch(() => [] as CvrCompany[])
-        : Promise.resolve([] as CvrCompany[]),
-    ]);
-
-    // Merge both result sets, dedup by VAT, search results first (higher relevance)
+    // CVR API returns a fixed ~10 results per search call. The `page` param
+    // returns duplicates (confirmed by testing). To get more results, we make
+    // multiple parallel calls with query variations (appending suffix letters).
     const seen = new Set<number>();
-    const merged: CvrCompany[] = [];
-    for (const c of [...searchResults, ...suggestResults]) {
-      if (seen.has(c.vat)) continue;
-      seen.add(c.vat);
-      merged.push(c);
+    const all: CvrCompany[] = [];
+
+    function addBatch(batch: CvrCompany[]) {
+      for (const c of batch) {
+        if (!seen.has(c.vat)) {
+          seen.add(c.vat);
+          all.push(c);
+        }
+      }
     }
-    let pageResults = merged;
+
+    // 1. Base search — always runs
+    const baseResults = await searchCompanies(searchParams).catch(() => [] as CvrCompany[]);
+    addBatch(baseResults);
+
+    // 2. Fire parallel variation queries to get more results.
+    //    The CVR API returns different results for slightly different queries.
+    const nameQuery = searchParams.life_name;
+    const variationCalls: Promise<CvrCompany[]>[] = [];
+
+    if (nameQuery && nameQuery.length >= 1) {
+      // Name variations: append common Danish prefixes that yield different result sets
+      const suffixes = ["a", "b", "c", "d", "e", "s", "i", "k", "m", "n", "p"];
+      for (const s of suffixes) {
+        variationCalls.push(
+          searchCompanies({ ...searchParams, life_name: `${nameQuery} ${s}` }).catch(() => [])
+        );
+      }
+      // Also try the suggestions endpoint (different matching algorithm)
+      variationCalls.push(
+        suggestCompanies(nameQuery).catch(() => [])
+      );
+    }
+
+    // For non-name searches, try with different status codes to broaden results
+    if (!nameQuery && hasAnyFilter) {
+      // Also search for OPHØRT (19) companies in addition to active (20)
+      variationCalls.push(
+        searchCompanies({ ...searchParams, companystatus_code: "19" }).catch(() => [])
+      );
+    }
+
+    if (variationCalls.length > 0) {
+      const batches = await Promise.all(variationCalls);
+      for (const batch of batches) addBatch(batch);
+    }
+
+    let pageResults = all;
 
     // ─── Apply segmentation post-filters ───
     if (segEmployeesMax) {

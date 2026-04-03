@@ -475,7 +475,7 @@ function SearchPage() {
             <Button
               variant="gradient"
               size="lg"
-              className="h-12 px-6 rounded-xl shrink-0 gap-2 font-bold"
+              className="h-12 px-3 sm:px-6 rounded-xl shrink-0 gap-2 font-bold"
               onClick={handleSearch}
               disabled={isLoading || isFetching}
             >
@@ -484,7 +484,7 @@ function SearchPage() {
               ) : (
                 <Search className="size-4" />
               )}
-              {s.searchButton}
+              <span className="hidden sm:inline">{s.searchButton}</span>
             </Button>
           </div>
 
@@ -617,27 +617,14 @@ function SearchPage() {
         </Alert>
       )}
 
-      {/* ── Selected actions bar ──────────────────────────────── */}
-      {selected.length > 0 && (
-        <div className="bg-primary/5 border border-primary/10 rounded-xl px-5 py-3.5 mb-4 flex items-center justify-between animate-fade-in-up">
-          <p className="text-sm font-semibold text-primary">
-            {selected.length} {s.selected}
-          </p>
-          <Button size="sm" className="rounded-full gap-2">
-            <Download className="size-3.5" />
-            {s.export}
-          </Button>
-        </div>
-      )}
-
       {/* ── Loading state ────────────────────────────────────── */}
       {isLoading && <InlineLoader message={`${s.searchButton}...`} />}
 
       {/* ── Results ──────────────────────────────────────────── */}
       {!isLoading && hasSearched && results.length > 0 && (
-        <Card className="overflow-hidden border-0 shadow-sm py-0">
+        <>
           {/* Results header */}
-          <div className="px-5 sm:px-6 py-4 border-b border-border/40 flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">
                 <span className="font-bold text-foreground">{results.length}</span>{" "}
@@ -645,122 +632,141 @@ function SearchPage() {
               </p>
               {isFetching && <Loader2 className="size-3.5 text-primary animate-spin" />}
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSaveModal(true)}
-              className="gap-1.5 text-muted-foreground hover:text-primary"
-            >
-              <Bookmark className="size-4" />
-              {s.saveSearch}
-            </Button>
+            <div className="flex items-center gap-2">
+              {selected.length > 0 && (
+                <Button size="sm" className="rounded-full gap-2 h-8">
+                  <Download className="size-3.5" />
+                  {s.export} ({selected.length})
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSaveModal(true)}
+                className="gap-1.5 text-muted-foreground hover:text-primary h-8"
+              >
+                <Bookmark className="size-3.5" />
+                <span className="hidden sm:inline">{s.saveSearch}</span>
+              </Button>
+            </div>
           </div>
 
-          {/* Results table */}
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="px-4 sm:px-6 w-10">
-                    <Checkbox
-                      checked={selectedSet.size === results.length && results.length > 0}
-                      onCheckedChange={toggleAll}
-                    />
-                  </TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest">{s.table.company}</TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest">{s.table.cvr}</TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">{s.table.city}</TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">{s.table.industry}</TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">{s.table.employees}</TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden md:table-cell">{s.table.status}</TableHead>
-                  <TableHead className="px-4 text-[10px] font-bold uppercase tracking-widest hidden lg:table-cell">{s.table.founded}</TableHead>
-                  <TableHead className="w-10 px-2" />
-                  <TableHead className="w-10 px-2" />
-                </TableRow>
-              </TableHeader>
-              <TableBody className="animate-stagger">
-                {results.map((c, idx) => {
-                  const color = companyColors[idx % companyColors.length];
-                  const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-                  const isSaved = savedCvrs.has(c.cvr);
-                  const isSaving = savingCvr === c.cvr;
-                  return (
-                    <TableRow
-                      key={c.cvr}
-                      className="group hover:bg-muted/40 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/company/${c.cvr}`)}
-                    >
-                      <TableCell className="px-4 sm:px-6" onClick={(e) => e.stopPropagation()}>
+          {/* Results — card-based, mobile-first */}
+          <div className="space-y-3">
+            {results.map((c, idx) => {
+              const color = companyColors[idx % companyColors.length];
+              const initials = c.name.split(" ").filter(w => w.length > 0).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+              const isSaved = savedCvrs.has(c.cvr);
+              const isSaving = savingCvr === c.cvr;
+              const isSelected = selectedSet.has(c.cvr);
+
+              return (
+                <div
+                  key={c.cvr}
+                  className={cn(
+                    "group bg-white rounded-2xl transition-all duration-200 hover:shadow-[0_8px_30px_rgba(0,74,198,0.06)] hover:-translate-y-0.5 cursor-pointer",
+                    isSelected && "ring-2 ring-primary/20 bg-primary/[0.02]"
+                  )}
+                  onClick={() => router.push(`/company/${c.cvr}`)}
+                >
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-start gap-3.5">
+                      {/* Checkbox */}
+                      <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
-                          checked={selectedSet.has(c.cvr)}
+                          checked={isSelected}
                           onCheckedChange={() => toggleSelect(c.cvr)}
+                          className="size-4"
                         />
-                      </TableCell>
-                      <TableCell className="px-4 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm", color.bg)}>
-                            <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{c.name}</p>
-                            <p className="text-[10px] text-muted-foreground md:hidden">{c.city} · {c.employees}</p>
-                          </div>
+                      </div>
+
+                      {/* Avatar */}
+                      <div className={cn(
+                        "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+                        color.bg
+                      )}>
+                        <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        {/* Name + status */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-[15px] font-semibold text-foreground group-hover:text-blue-600 transition-colors truncate">
+                            {c.name}
+                          </h3>
+                          {c.status && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">
+                              {c.status}
+                            </span>
+                          )}
+                          {c.form && (
+                            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-medium bg-slate-50 text-slate-500">
+                              {c.form}
+                            </span>
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums">{c.cvr}</TableCell>
-                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden md:table-cell">{c.city}</TableCell>
-                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground hidden lg:table-cell truncate max-w-[160px]">{c.industry}</TableCell>
-                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums hidden md:table-cell">{c.employees}</TableCell>
-                      <TableCell className="px-4 py-3.5 hidden md:table-cell">
-                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-0 text-[10px] font-bold uppercase tracking-wider">
-                          {c.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-4 py-3.5 text-sm text-muted-foreground tabular-nums hidden lg:table-cell">
-                        {new Date(c.founded).toLocaleDateString(locale === "da" ? "da-DK" : "en-US")}
-                      </TableCell>
-                      <TableCell className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
+
+                        {/* Meta row */}
+                        <div className="flex items-center gap-1.5 mt-1 text-[12px] text-muted-foreground flex-wrap">
+                          <span className="tabular-nums font-medium">{c.cvr}</span>
+                          {c.city && (
+                            <>
+                              <span className="text-muted-foreground/30">·</span>
+                              <span>{c.city}</span>
+                            </>
+                          )}
+                          {c.employees && c.employees !== "\u2013" && (
+                            <>
+                              <span className="text-muted-foreground/30">·</span>
+                              <span>{c.employees} {locale === "da" ? "ansatte" : "emp."}</span>
+                            </>
+                          )}
+                          {c.founded && (
+                            <>
+                              <span className="text-muted-foreground/30 hidden sm:inline">·</span>
+                              <span className="hidden sm:inline">{locale === "da" ? "Stiftet" : "Est."} {new Date(c.founded).getFullYear()}</span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Industry */}
+                        {c.industry && (
+                          <p className="text-[11px] text-muted-foreground/50 mt-0.5 truncate">{c.industry}</p>
+                        )}
+                      </div>
+
+                      {/* Actions — right side */}
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => handleSaveCompany(c, rawDataMap.get(c.cvr) || {})}
                           disabled={isSaving}
                           className="rounded-full"
-                          title={isSaved ? t.companyDetail.unsave : t.companyDetail.save}
                         >
                           <Heart className={cn(
                             "size-4 transition-all duration-200",
-                            isSaved ? "text-red-500 fill-red-500" : "text-muted-foreground/30 hover:text-red-400"
+                            isSaved ? "text-red-500 fill-red-500" : "text-muted-foreground/20 group-hover:text-red-400"
                           )} />
                         </Button>
-                      </TableCell>
-                      <TableCell className="px-2 py-3.5" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="rounded-full text-muted-foreground/30 hover:text-primary"
-                          onClick={() => router.push(`/company/${c.cvr}`)}
-                        >
-                          <ExternalLink className="size-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        <ChevronRight className="size-4 text-muted-foreground/20 group-hover:text-blue-500 transition-colors hidden sm:block" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Refine hint */}
-          {results.length > 0 && (
-            <div className="px-5 sm:px-6 py-4 border-t border-border/40 flex items-center justify-center gap-2">
-              <Search className="size-3.5 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground/60">
-                {s.refineHint}
-              </p>
-            </div>
-          )}
-        </Card>
+          <div className="mt-4 flex items-center justify-center gap-2 py-3">
+            <Search className="size-3.5 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground/50">
+              {s.refineHint}
+            </p>
+          </div>
+        </>
       )}
 
       {/* ── Empty states ─────────────────────────────────────── */}
