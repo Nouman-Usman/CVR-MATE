@@ -143,14 +143,12 @@ export async function GET(req: NextRequest) {
       searchParams.life_start = "1900-01-01";
     }
 
-    // Pass page directly to CVR API — each page returns ~10 results
-    const page = parseInt(params.get("page") || "1", 10);
-    searchParams.page = String(page);
-
+    // CVR API has no documented pagination — returns a fixed ~10 results per call.
+    // We return all results at once; the frontend shows a "refine filters" hint.
     const results = await searchCompanies(searchParams);
     const rawResults = Array.isArray(results) ? results : [];
 
-    // Deduplicate by VAT (CVR pagination is not stable — results can shift between pages)
+    // Deduplicate by VAT
     const seen = new Set<number>();
     let pageResults = rawResults.filter((c) => {
       if (seen.has(c.vat)) return false;
@@ -189,13 +187,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Only count as a usage on the first page
-    if (page === 1) {
-      await recordUsage(session.user.id, "company_search");
-    }
-
-    // hasMore based on RAW results from CVR API (before our post-filters removed items)
-    const hasMore = rawResults.length >= 10;
+    await recordUsage(session.user.id, "company_search");
 
     // Enrich results with computed fields so frontend doesn't recompute
     const enriched = pageResults.map(enrichResult);
@@ -203,9 +195,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       results: enriched,
       count: enriched.length,
-      total: enriched.length,
-      page,
-      hasMore,
+      hasMore: false,
     });
   } catch (error) {
     console.error("CVR search error:", error);

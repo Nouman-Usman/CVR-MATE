@@ -5,25 +5,20 @@ import { useQuery } from "@tanstack/react-query";
 interface SearchResponse {
   results: Record<string, unknown>[];
   count: number;
-  total: number;
-  page: number;
   hasMore: boolean;
   error?: string;
 }
 
 export function useSearchCompanies(
   params: URLSearchParams | null,
-  page: number,
   enabled: boolean
 ) {
   const paramString = params?.toString() ?? "";
 
   return useQuery<SearchResponse>({
-    queryKey: ["search", paramString, page],
+    queryKey: ["search", paramString],
     queryFn: async () => {
-      const p = new URLSearchParams(paramString);
-      p.set("page", String(page));
-      const res = await fetch(`/api/cvr/search?${p.toString()}`);
+      const res = await fetch(`/api/cvr/search?${paramString}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Search failed");

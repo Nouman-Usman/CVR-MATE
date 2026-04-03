@@ -146,6 +146,7 @@ export interface SearchCompanyParams {
   employment_interval_low?: string;
   info_ean_id?: string;
   info_lei_id?: string;
+  // Undocumented but used by the recent companies route
   limit?: string;
   page?: string;
 }

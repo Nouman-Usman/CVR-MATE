@@ -374,6 +374,7 @@ const da = {
     export: "Eksporter",
     loadMore: "Indlæs flere",
     loadingMore: "Indlæser...",
+    refineHint: "Viser de bedste matches. Indsnævr dine filtre for at finde flere virksomheder.",
     industries: [
       { code: "all", label: "Alle brancher" },
       { code: "46", label: "Engroshandel" },

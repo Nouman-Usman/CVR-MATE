@@ -376,6 +376,7 @@ const en: Dictionary = {
     export: "Export",
     loadMore: "Load more",
     loadingMore: "Loading...",
+    refineHint: "Showing top matches. Refine your filters to discover more companies.",
     industries: [
       { code: "all", label: "All industries" },
       { code: "46", label: "Wholesale trade" },

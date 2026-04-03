@@ -245,8 +245,8 @@ function SearchPage() {
     query, industryText, industryCode, companyForm, size,
     zipcode, region, foundedPeriod, revenueMin, revenueMax,
     profitMin, profitMax, employeesMin, employeesMax,
-    showFilters, page, scrollY, selected, hasSearched,
-    setFilter, setPage, setScrollY, setHasSearched, setShowFilters,
+    showFilters, scrollY, selected, hasSearched,
+    setFilter, setScrollY, setHasSearched, setShowFilters,
     toggleSelect, selectAll, clearSelected, resetAll,
   } = store;
 
@@ -291,72 +291,20 @@ function SearchPage() {
     isLoading,
     error: searchError,
     isFetching,
-  } = useSearchCompanies(committedParams, page, hasSearched);
+  } = useSearchCompanies(committedParams, hasSearched);
 
-  // Accumulate results across pages, dedup by VAT
-  const accRef = useRef<ReturnType<typeof mapCvrCompany>[]>([]);
-  const rawMapRef = useRef<Map<string, Record<string, unknown>>>(new Map());
-  const [results, setResults] = useState<ReturnType<typeof mapCvrCompany>[]>([]);
-  const [rawDataMap, setRawDataMap] = useState<Map<string, Record<string, unknown>>>(new Map());
-  const [noMoreResults, setNoMoreResults] = useState(false);
-  const processedPageRef = useRef(0);
+  // Map raw results to typed Company objects
+  const rawResults = searchData?.results ?? [];
+  const results = useMemo(() => rawResults.map(mapCvrCompany), [rawResults]);
 
-  // Stable fingerprint: only changes when we get genuinely new data
-  const firstVat = searchData?.results?.[0] ? (searchData.results[0] as Record<string, unknown>).vat : null;
-  const dataFingerprint = searchData && !isLoading && !isFetching ? `${page}:${firstVat}:${searchData.count}` : null;
-
-  useEffect(() => {
-    if (!dataFingerprint || !searchData) return;
-
-    const rawPage = searchData.results ?? [];
-    const apiMore = searchData.hasMore ?? false;
-
-    if (page === 1) {
-      // New search — reset
-      const mapped = rawPage.map(mapCvrCompany);
-      accRef.current = mapped;
-      const m = new Map<string, Record<string, unknown>>();
-      rawPage.forEach((r, i) => m.set(mapped[i].cvr, r));
-      rawMapRef.current = m;
-      setResults(mapped);
-      setRawDataMap(m);
-      setNoMoreResults(rawPage.length === 0 || !apiMore);
-      processedPageRef.current = 1;
-      return;
-    }
-
-    // Page 2+ — only process if this page hasn't been processed yet
-    if (page <= processedPageRef.current) return;
-    processedPageRef.current = page;
-
-    if (rawPage.length === 0) {
-      setNoMoreResults(true);
-      return;
-    }
-
-    const newMapped = rawPage.map(mapCvrCompany);
-    const seen = new Set(accRef.current.map((r) => r.cvr));
-    const unique = newMapped.filter((r) => !seen.has(r.cvr));
-
-    if (unique.length === 0) {
-      setNoMoreResults(true);
-      return;
-    }
-
-    const updated = [...accRef.current, ...unique];
-    accRef.current = updated;
-    rawPage.forEach((r, i) => {
-      if (!rawMapRef.current.has(newMapped[i].cvr)) {
-        rawMapRef.current.set(newMapped[i].cvr, r);
-      }
+  // Build a map of CVR → raw data for saving companies
+  const rawDataMap = useMemo(() => {
+    const m = new Map<string, Record<string, unknown>>();
+    rawResults.forEach((r, i) => {
+      if (results[i]) m.set(results[i].cvr, r);
     });
-    setResults(updated);
-    setRawDataMap(new Map(rawMapRef.current));
-    if (!apiMore) setNoMoreResults(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataFingerprint]);
-
-  const hasMore = (searchData?.hasMore ?? false) && !noMoreResults;
+    return m;
+  }, [rawResults, results]);
 
   const savedCvrs = useSavedCvrSet();
   const saveCompanyMutation = useSaveCompany();
@@ -393,7 +341,6 @@ function SearchPage() {
     if (em) { setFilter("employeesMin", Number(em)); hasParams = true; }
     if (hasParams) {
       setHasSearched(true);
-      setPage(1);
       setTimeout(() => {
         setCommittedParams(buildSearchParams());
       }, 0);
@@ -416,23 +363,14 @@ function SearchPage() {
   const handleSearch = useCallback(() => {
     setLocalError("");
     clearSelected();
-    accRef.current = [];
-    rawMapRef.current = new Map();
-    processedPageRef.current = 0;
-    setResults([]);
-    setRawDataMap(new Map());
-    setNoMoreResults(false);
     const params = buildSearchParams();
     if (!params) {
       setLocalError(s.noFilter);
       return;
     }
-    setPage(1);
     setHasSearched(true);
     setCommittedParams(params);
-  }, [buildSearchParams, s, setPage, setHasSearched, clearSelected]);
-
-  const handleLoadMore = useCallback(() => { setPage(page + 1); }, [page, setPage]);
+  }, [buildSearchParams, s, setHasSearched, clearSelected]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -704,7 +642,6 @@ function SearchPage() {
               <p className="text-sm text-muted-foreground">
                 <span className="font-bold text-foreground">{results.length}</span>{" "}
                 {s.results}
-                {hasMore && !noMoreResults && <span className="text-muted-foreground/50"> +</span>}
               </p>
               {isFetching && <Loader2 className="size-3.5 text-primary animate-spin" />}
             </div>
@@ -814,29 +751,15 @@ function SearchPage() {
             </Table>
           </div>
 
-          {/* Load more / No more results */}
-          <div className="px-5 sm:px-6 py-4 border-t border-border/40 flex justify-center">
-            {hasMore ? (
-              <Button
-                variant="secondary"
-                size="lg"
-                className="rounded-xl gap-2"
-                onClick={handleLoadMore}
-                disabled={isFetching}
-              >
-                {isFetching ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <ChevronDown className="size-4" />
-                )}
-                {isFetching ? s.loadingMore : s.loadMore}
-              </Button>
-            ) : noMoreResults && results.length > 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {locale === "da" ? "Ikke flere virksomheder fundet" : "No more companies found"}
+          {/* Refine hint */}
+          {results.length > 0 && (
+            <div className="px-5 sm:px-6 py-4 border-t border-border/40 flex items-center justify-center gap-2">
+              <Search className="size-3.5 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground/60">
+                {s.refineHint}
               </p>
-            ) : null}
-          </div>
+            </div>
+          )}
         </Card>
       )}
 
