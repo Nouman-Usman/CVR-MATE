@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import {
   searchCompanies,
+  suggestCompanies,
   type SearchCompanyParams,
   type CvrCompany,
 } from "@/lib/cvr-api";
@@ -143,18 +144,27 @@ export async function GET(req: NextRequest) {
       searchParams.life_start = "1900-01-01";
     }
 
-    // CVR API has no documented pagination — returns a fixed ~10 results per call.
-    // We return all results at once; the frontend shows a "refine filters" hint.
-    const results = await searchCompanies(searchParams);
-    const rawResults = Array.isArray(results) ? results : [];
+    // CVR API returns ~10 results per search call (no pagination).
+    // To maximize results, we fetch from BOTH the search endpoint AND
+    // the suggestions endpoint (if a name is provided), then merge + dedup.
+    const nameQuery = searchParams.life_name;
 
-    // Deduplicate by VAT
+    const [searchResults, suggestResults] = await Promise.all([
+      searchCompanies(searchParams).catch(() => [] as CvrCompany[]),
+      nameQuery && nameQuery.length >= 2
+        ? suggestCompanies(nameQuery).catch(() => [] as CvrCompany[])
+        : Promise.resolve([] as CvrCompany[]),
+    ]);
+
+    // Merge both result sets, dedup by VAT, search results first (higher relevance)
     const seen = new Set<number>();
-    let pageResults = rawResults.filter((c) => {
-      if (seen.has(c.vat)) return false;
+    const merged: CvrCompany[] = [];
+    for (const c of [...searchResults, ...suggestResults]) {
+      if (seen.has(c.vat)) continue;
       seen.add(c.vat);
-      return true;
-    });
+      merged.push(c);
+    }
+    let pageResults = merged;
 
     // ─── Apply segmentation post-filters ───
     if (segEmployeesMax) {
