@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVR-MATE: 30-Slide Strategic Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #065f46;
+            --secondary: #6366f1;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --bg-slide: #ffffff;
+            --bg-page: #f1f5f9;
+            --border: #e2e8f0;
+            --mint-light: #ecfdf5;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-page);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-dark);
+            overflow: hidden;
+        }
+
+        /* Slide Container Logic */
+        .presentation-wrapper {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 1500px;
+        }
+
+        .slide {
+            width: 1280px;
+            height: 720px;
+            background: var(--bg-slide);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            display: none;
+            flex-direction: column;
+            padding: 60px 80px;
+            position: relative;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .slide.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Google Slides Aesthetic */
+        h1,
+        h2,
+        h3 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        h2 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        h2 i {
+            color: var(--primary);
+            font-size: 32px;
+        }
+
+        .slide-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 80px;
+            right: 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+        }
+
+        .primary-tag {
+            background: var(--mint-light);
+            color: var(--primary-dark);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 700;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        /* Layout Grids */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            height: 100%;
+            align-items: start;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        .v-center {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+        }
+
+        /* Tables & Matrix */
+        .matrix {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .matrix th {
+            text-align: left;
+            background: #f8fafc;
+            padding: 12px;
+            border-bottom: 2px solid var(--border);
+            color: var(--text-dark);
+        }
+
+        .matrix td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .matrix tr:hover {
+            background: #f1f5f9;
+        }
+
+        .check {
+            color: var(--primary);
+            font-weight: 800;
+        }
+
+        .cross {
+            color: #f43f5e;
+            opacity: 0.5;
+        }
+
+        /* Charts */
+        .chart-box {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid var(--border);
+            height: 100%;
+        }
+
+        .bar-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 20px;
+            height: 300px;
+            padding-top: 40px;
+        }
+
+        .bar {
+            flex: 1;
+            background: var(--primary);
+            border-radius: 6px 6px 0 0;
+            position: relative;
+            transition: height 0.6s ease;
+        }
+
+        .bar::after {
+            content: attr(data-val);
+            position: absolute;
+            top: -30px;
+            width: 100%;
+            text-align: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .bar-label {
+            font-size: 12px;
+            margin-top: 10px;
+            text-align: center;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* Navigation Controls */
+        .controls {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .btn-nav {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .btn-nav:hover {
+            transform: scale(1.1);
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Pricing Cards */
+        .price-card {
+            border: 1px solid var(--border);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+        }
+
+        .price-card.featured {
+            border: 2px solid var(--primary);
+            background: var(--mint-light);
+        }
+
+        .price-val {
+            font-size: 42px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin: 15px 0;
+        }
+
+        .price-val span {
+            font-size: 16px;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="presentation-wrapper" id="presentation">
+
+        <!-- SLIDE 1: COVER -->
+        <div class="slide active" id="slide1">
+            <div class="v-center" style="text-align: center;">
+                <div class="primary-tag">INVESTOR PRESENTATION 2026</div>
+                <h1 style="font-size: 100px; letter-spacing: -3px; font-weight: 900;">CVR-MATE</h1>
+                <p style="font-size: 32px; color: var(--text-muted); margin-top: 20px;">AI-Powered Nordic Business
+                    Intelligence</p>
+                <div style="margin-top: 60px; display: flex; justify-content: center; gap: 40px;">
+                    <div style="text-align: left;">
+                        <small style="text-transform: uppercase; letter-spacing: 1px;">Strategic Plan</small>
+                        <p style="font-weight: 700;">Revenue & Pricing Strategy</p>
+                    </div>
+                    <div style="width: 2px; background: var(--border);"></div>
+                    <div style="text-align: left;">
+                        <small style="text-transform: uppercase; letter-spacing: 1px;">Status</small>
+                        <p style="font-weight: 700;">Final Revision 4.3</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>CONFIDENTIAL | CVR-MATE APS</span>
+                <span>SLIDE 01 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: MISSION -->
+        <div class="slide" id="slide2">
+            <h2><i class="fa-solid fa-rocket"></i> Our Mission</h2>
+            <div class="grid-2">
+                <div>
+                    <p style="font-size: 28px; line-height: 1.4; color: var(--text-dark); margin-bottom: 40px;">
+                        We are building the <strong>intelligent operating system</strong> for Nordic sales teams.
+                    </p>
+                    <p style="font-size: 18px; color: var(--text-muted);">
+                        CVR-MATE transforms cold registration data from the Danish CVR registry into warm, actionable
+                        sales opportunities using state-of-the-art AI.
+                    </p>
+                </div>
+                <div class="chart-box">
+                    <h3>The Value Prop</h3>
+                    <ul style="list-style: none; margin-top: 30px;">
+                        <li style="margin-bottom: 20px; display: flex; gap: 15px;">
+                            <i class="fa-solid fa-bolt" style="color:var(--primary)"></i>
+                            <span><strong>Speed:</strong> Instant company intelligence briefs.</span>
+                        </li>
+                        <li style="margin-bottom: 20px; display: flex; gap: 15px;">
+                            <i class="fa-solid fa-bullseye" style="color:var(--primary)"></i>
+                            <span><strong>Precision:</strong> Lead scoring based on financial health.</span>
+                        </li>
+                        <li style="display: flex; gap: 15px;">
+                            <i class="fa-solid fa-robot" style="color:var(--primary)"></i>
+                            <span><strong>Automation:</strong> AI-generated outreach for email and LinkedIn.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>STRATEGY & VISION</span>
+                <span>SLIDE 02 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: PROBLEM -->
+        <div class="slide" id="slide3">
+            <h2><i class="fa-solid fa-triangle-exclamation"></i> The Legacy Problem</h2>
+            <div class="grid-2">
+                <div class="chart-box" style="background: #fff1f2; border-color: #fecdd3;">
+                    <h3 style="color: #be123c;">Current Barriers</h3>
+                    <ul style="list-style: none; margin-top: 20px;">
+                        <li style="margin-bottom: 15px;">❌ <strong>Overpriced:</strong> Legacy data costs 2000+ DKK/mo.
+                        </li>
+                        <li style="margin-bottom: 15px;">❌ <strong>Static:</strong> Only provides addresses, not
+                            strategy.</li>
+                        <li>❌ <strong>Siloed:</strong> Poor integration with modern CRM stacks.</li>
+                    </ul>
+                </div>
+                <div>
+                    <p style="font-size: 24px; color: var(--text-dark); font-weight: 600;">The "Information Overload"
+                        Gap</p>
+                    <p style="margin-top: 20px; font-size: 18px;">Sales reps in Denmark spend 15+ hours weekly on manual
+                        research across Proff, LinkedIn, and CVR.dk. </p>
+                    <p style="margin-top: 20px; font-style: italic;">"They have the data, but they don't have the
+                        context."</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>MARKET ANALYSIS</span>
+                <span>SLIDE 03 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: INFRASTRUCTURE (FIXED) -->
+        <div class="slide" id="slide4">
+            <h2><i class="fa-solid fa-server"></i> Infra: Fixed Costs</h2>
+            <div class="v-center">
+                <p style="margin-bottom: 30px; font-size: 18px;">Our technology stack is built on high-margin,
+                    low-overhead cloud services.</p>
+                <table class="matrix" style="font-size: 18px;">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Provider</th>
+                            <th>Tier</th>
+                            <th>Monthly Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Database</td>
+                            <td>Supabase</td>
+                            <td>Pro (Postgres)</td>
+                            <td>$25</td>
+                        </tr>
+                        <tr>
+                            <td>Hosting</td>
+                            <td>Vercel</td>
+                            <td>Pro (Edge)</td>
+                            <td>$20</td>
+                        </tr>
+                        <tr>
+                            <td>Domain</td>
+                            <td>Punktum.dk</td>
+                            <td>Standard (.dk)</td>
+                            <td>$1</td>
+                        </tr>
+                        <tr style="background: var(--mint-light); font-weight: 800; color: var(--primary-dark);">
+                            <td colspan="3">Total Fixed Monthly Burn</td>
+                            <td>$46</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="slide-footer">
+                <span>UNIT ECONOMICS</span>
+                <span>SLIDE 04 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: INFRASTRUCTURE (VARIABLE) -->
+        <div class="slide" id="slide5">
+            <h2><i class="fa-solid fa-microchip"></i> Infra: Variable Costs</h2>
+            <div class="v-center">
+                <p style="margin-bottom: 30px; font-size: 18px;">Variable costs scale linearly with user growth,
+                    protecting our gross margins.</p>
+                <table class="matrix" style="font-size: 16px;">
+                    <thead>
+                        <tr>
+                            <th>Resource</th>
+                            <th>Provider</th>
+                            <th>Scaling Logic</th>
+                            <th>100 User Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>AI / LLM</td>
+                            <td>Google Gemini</td>
+                            <td>Paid per Million tokens</td>
+                            <td>$43</td>
+                        </tr>
+                        <tr>
+                            <td>Company Data</td>
+                            <td>CVR API</td>
+                            <td>Business Subscription</td>
+                            <td>$143</td>
+                        </tr>
+                        <tr>
+                            <td>Caching</td>
+                            <td>Upstash Redis</td>
+                            <td>Free Tier (< 500K cmd)</td>
+                            <td>$0</td>
+                        </tr>
+                        <tr style="background: var(--mint-light); font-weight: 800; color: var(--primary-dark);">
+                            <td colspan="3">Total Variable Monthly</td>
+                            <td>$186</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="slide-footer">
+                <span>UNIT ECONOMICS</span>
+                <span>SLIDE 05 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: COST DISTRIBUTION CHART -->
+        <div class="slide" id="slide6">
+            <h2><i class="fa-solid fa-chart-pie"></i> Cost Per User Breakdown</h2>
+            <div class="grid-2">
+                <div class="v-center">
+                    <div style="font-size: 60px; font-weight: 800; color: var(--primary);">$3.01</div>
+                    <div
+                        style="font-size: 20px; font-weight: 600; text-transform: uppercase; color: var(--text-muted);">
+                        Total Cost per User</div>
+                    <p style="margin-top: 30px; font-size: 16px;">Calculated based on 100 users, including Stripe
+                        transaction fees (~$69).</p>
+                </div>
+                <div class="chart-box">
+                    <h3>Component Weight</h3>
+                    <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 20px;">
+                        <div>
+                            <div
+                                style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px;">
+                                <span>Variable (Data/AI)</span>
+                                <span>62%</span>
+                            </div>
+                            <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 10px;">
+                                <div style="width: 62%; height: 100%; background: var(--primary); border-radius: 10px;">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div
+                                style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px;">
+                                <span>Stripe Transaction Fees</span>
+                                <span>23%</span>
+                            </div>
+                            <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 10px;">
+                                <div
+                                    style="width: 23%; height: 100%; background: var(--secondary); border-radius: 10px;">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div
+                                style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px;">
+                                <span>Fixed Infrastructure</span>
+                                <span>15%</span>
+                            </div>
+                            <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 10px;">
+                                <div
+                                    style="width: 15%; height: 100%; background: var(--text-dark); border-radius: 10px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>FINANCIAL METRICS</span>
+                <span>SLIDE 06 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: PRICING PHILOSOPHY -->
+        <div class="slide" id="slide7">
+            <h2><i class="fa-solid fa-scale-balanced"></i> Pricing Philosophy</h2>
+            <div class="v-center" style="text-align: center;">
+                <p style="font-size: 28px; font-weight: 600; margin-bottom: 40px;">Target: Infra Cost =
+                    <strong>20-30%</strong> of Revenue</p>
+                <div class="grid-3">
+                    <div class="chart-box">
+                        <div style="font-size: 32px; font-weight: 800; color: var(--primary);">$15.05</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Revenue Needed (20% Ratio)</div>
+                    </div>
+                    <div class="chart-box" style="background: var(--mint-light);">
+                        <div style="font-size: 32px; font-weight: 800; color: var(--primary);">$12.04</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Revenue Needed (25% Ratio)</div>
+                    </div>
+                    <div class="chart-box">
+                        <div style="font-size: 32px; font-weight: 800; color: var(--primary);">$10.03</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Revenue Needed (30% Ratio)</div>
+                    </div>
+                </div>
+                <p style="margin-top: 50px; font-size: 20px; color: var(--text-muted);">
+                    Industry standard SaaS benchmark for gross profitability.
+                </p>
+            </div>
+            <div class="slide-footer">
+                <span>FINANCIAL METRICS</span>
+                <span>SLIDE 07 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: THE 3 TIERS OVERVIEW -->
+        <div class="slide" id="slide8">
+            <h2><i class="fa-solid fa-layer-group"></i> Pricing Tiers Overview</h2>
+            <div class="grid-3" style="margin-top: 20px;">
+                <div class="price-card">
+                    <h3>STARTER</h3>
+                    <div class="price-val">99 <span>DKK/mo</span></div>
+                    <p style="font-size: 12px; color: var(--text-muted);">Solo prospectors & freelancers</p>
+                    <p style="margin-top: 20px; font-weight: 700; color: var(--primary);">89% Gross Margin</p>
+                </div>
+                <div class="price-card featured">
+                    <h3>PROFESSIONAL</h3>
+                    <div class="price-val">299 <span>DKK/mo</span></div>
+                    <p style="font-size: 12px; color: var(--text-muted);">Sales reps & BDRs at SMBs</p>
+                    <p style="margin-top: 20px; font-weight: 700; color: var(--primary);">92% Gross Margin</p>
+                </div>
+                <div class="price-card">
+                    <h3>ENTERPRISE</h3>
+                    <div class="price-val">699 <span>DKK/mo</span></div>
+                    <p style="font-size: 12px; color: var(--text-muted);">Teams, agencies & leaders</p>
+                    <p style="margin-top: 20px; font-weight: 700; color: var(--primary);">95% Gross Margin</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>PRODUCT OFFERING</span>
+                <span>SLIDE 08 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: STARTER TIER DETAILS -->
+        <div class="slide" id="slide9">
+            <h2><i class="fa-solid fa-user"></i> Starter Tier Deep-Dive</h2>
+            <div class="grid-2">
+                <div>
+                    <h3>Essential Search</h3>
+                    <ul style="list-style: none; margin-top: 20px;">
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> 50 Company Searches /
+                            mo</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> 25 Saved Companies</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Basic AI Briefings</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Email Client
+                            Integration</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Google Maps Integration
+                        </li>
+                    </ul>
+                </div>
+                <div class="chart-box">
+                    <h3>Why this tier?</h3>
+                    <p style="font-size: 16px;">Designed as a high-volume entry point to displace free, inefficient
+                        search habits on manual registries. Converts the "Free User" into a paying contributor.</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>PRODUCT OFFERING</span>
+                <span>SLIDE 09 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: PROFESSIONAL TIER DETAILS -->
+        <div class="slide" id="slide10">
+            <h2><i class="fa-solid fa-id-badge"></i> Professional Tier Deep-Dive</h2>
+            <div class="grid-2">
+                <div>
+                    <h3>Full AI Intelligence</h3>
+                    <ul style="list-style: none; margin-top: 20px;">
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> 500 Company Searches /
+                            mo</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Full AI Intelligence
+                            Suite</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> CRM Synchronization
+                            (HubSpot/Salesforce)</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> 5 Lead Triggers &
+                            Alerts</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Person Tracking (Role
+                            Changes)</li>
+                    </ul>
+                </div>
+                <div class="chart-box" style="background: var(--primary); color: white;">
+                    <h3>The Money-Maker</h3>
+                    <p style="font-size: 16px;">This tier drives the highest revenue per seat. It targets active
+                        outbound reps who need a tool that "thinks" for them.</p>
+                    <div style="font-size: 40px; margin-top: 20px; font-weight: 800;">299 DKK</div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>PRODUCT OFFERING</span>
+                <span>SLIDE 10 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 11: ENTERPRISE TIER DETAILS -->
+        <div class="slide" id="slide11">
+            <h2><i class="fa-solid fa-building"></i> Enterprise Tier Deep-Dive</h2>
+            <div class="grid-2">
+                <div>
+                    <h3>Organization Scale</h3>
+                    <ul style="list-style: none; margin-top: 20px;">
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Unlimited Searches &
+                            Saved Data</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Team Workspace & Role
+                            Management</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> All 3 CRM Provider
+                            Connections</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Priority 4h Email
+                            Support</li>
+                        <li style="margin-bottom: 12px;"><i class="fa-solid fa-check check"></i> Custom Onboarding
+                            Sessions</li>
+                    </ul>
+                </div>
+                <div class="chart-box">
+                    <h3>Network Effect</h3>
+                    <p style="font-size: 16px;">Designed for organizations of 3+ people. Shared saved companies and
+                        pipelines create organizational stickiness and reduce churn.</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>PRODUCT OFFERING</span>
+                <span>SLIDE 11 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: FEATURE MATRIX - SEARCH -->
+        <div class="slide" id="slide12">
+            <h2><i class="fa-solid fa-magnifying-glass"></i> Matrix: Search & Discovery</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Company search</td>
+                        <td>10/mo</td>
+                        <td>50/mo</td>
+                        <td>500/mo</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Filters (Industry/City)</td>
+                        <td>Basic</td>
+                        <td>Full</td>
+                        <td>Full</td>
+                        <td>Full</td>
+                    </tr>
+                    <tr>
+                        <td>Segmentation (Revenue)</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Multi-source search</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Person lookup</td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 12 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 13: MATRIX - SAVED DATA -->
+        <div class="slide" id="slide13">
+            <h2><i class="fa-solid fa-folder"></i> Matrix: Saved Data</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Saved companies</td>
+                        <td>5</td>
+                        <td>25</td>
+                        <td>100</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Company notes</td>
+                        <td>3</td>
+                        <td>25</td>
+                        <td>100</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Tags</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span> (10)</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Context menus</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Dropdown actions</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 13 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 14: MATRIX - AI CORE -->
+        <div class="slide" id="slide14">
+            <h2><i class="fa-solid fa-brain"></i> Matrix: AI Intelligence</h2>
+            <table class="matrix" style="font-size: 13px;">
+                <thead>
+                    <tr>
+                        <th>AI Tool</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>AI Usages</td>
+                        <td>0</td>
+                        <td>10</td>
+                        <td>50</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Company Briefing</td>
+                        <td><span class="cross">✕</span></td>
+                        <td>Basic</td>
+                        <td>Full</td>
+                        <td>Priority</td>
+                    </tr>
+                    <tr>
+                        <td>Buying Signals</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Lead Score (A-D)</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Pain Points</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Ideal Approach</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 14 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 15: MATRIX - AI OUTREACH -->
+        <div class="slide" id="slide15">
+            <h2><i class="fa-solid fa-paper-plane"></i> Matrix: AI Outreach</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Drafting Tool</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Email Drafts</td>
+                        <td><span class="cross">✕</span></td>
+                        <td>5/mo</td>
+                        <td>30/mo</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>LinkedIn Scripts</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Phone Scripts</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Brand Personalization</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 15 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 16: MATRIX - LEAD TRACKING -->
+        <div class="slide" id="slide16">
+            <h2><i class="fa-solid fa-bell"></i> Matrix: Lead Tracking</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Automation</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Lead Triggers</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>5</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Frequency</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>Daily/Weekly</td>
+                        <td>Custom</td>
+                    </tr>
+                    <tr>
+                        <td>Person Tracking</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>10</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Role Change Detect</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td>12h Cycle</td>
+                        <td>12h Cycle</td>
+                    </tr>
+                    <tr>
+                        <td>Change Audit Log</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td>30 Days</td>
+                        <td>Unlimited</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 16 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 17: MATRIX - TASK MGMT -->
+        <div class="slide" id="slide17">
+            <h2><i class="fa-solid fa-list-check"></i> Matrix: Task Management</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Workflows</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Tasks / Todos</td>
+                        <td>5</td>
+                        <td>10</td>
+                        <td>Unlimited</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>Company Linkage</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Calendar Export</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>AI Task Suggest</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 17 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 18: MATRIX - CRM -->
+        <div class="slide" id="slide18">
+            <h2><i class="fa-solid fa-plug"></i> Matrix: CRM Integration</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Integrations</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Connections</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>1 Provider</td>
+                        <td>All 3</td>
+                    </tr>
+                    <tr>
+                        <td>HubSpot / Salesforce</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Pipedrive</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Bulk Push</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td>30/mo</td>
+                        <td>Unlimited</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 18 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 19: MATRIX - EXPORTS -->
+        <div class="slide" id="slide19">
+            <h2><i class="fa-solid fa-file-export"></i> Matrix: Export & Reports</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Reporting</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>PDF/Excel Exports</td>
+                        <td>0</td>
+                        <td>5/mo</td>
+                        <td>30/mo</td>
+                        <td>Unlimited</td>
+                    </tr>
+                    <tr>
+                        <td>CSV Data Export</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Bulk Results</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>AI Enrich Export</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 19 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 20: MATRIX - COLLABORATION -->
+        <div class="slide" id="slide20">
+            <h2><i class="fa-solid fa-users"></i> Matrix: Team Collaboration</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Teamwork</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Team Creation</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Member Roles</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Shared Workspaces</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Activity Feed</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 20 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 21: MATRIX - SUPPORT -->
+        <div class="slide" id="slide21">
+            <h2><i class="fa-solid fa-headset"></i> Matrix: Support & SLA</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Service Levels</th>
+                        <th>FREE</th>
+                        <th>STARTER</th>
+                        <th>PRO</th>
+                        <th>ENT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Documentation</td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Email Support</td>
+                        <td>—</td>
+                        <td>Standard (48h)</td>
+                        <td>Priority (24h)</td>
+                        <td>Priority (4h)</td>
+                    </tr>
+                    <tr>
+                        <td>Account Manager</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>SLA Guarantee</td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td><span class="cross">✕</span></td>
+                        <td>99.9% Uptime</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>THE 100-FEATURE MATRIX</span>
+                <span>SLIDE 21 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 22: ANNUAL PRICING -->
+        <div class="slide" id="slide22">
+            <h2><i class="fa-solid fa-calendar-check"></i> Annual Pricing Strategy</h2>
+            <div class="v-center" style="text-align: center;">
+                <p style="font-size: 28px; margin-bottom: 40px;">Get <strong>2 Months Free</strong> with Annual Billing
+                    (20% Off)</p>
+                <div class="grid-3">
+                    <div class="chart-box">
+                        <h3>STARTER</h3>
+                        <div style="font-size: 32px; font-weight: 800; color: var(--primary);">79 DKK</div>
+                        <div style="font-size: 14px; margin-top: 10px;">948 DKK / yr</div>
+                        <div style="color: #059669; font-weight: 700; margin-top: 10px;">Save 240 DKK</div>
+                    </div>
+                    <div class="chart-box" style="background: var(--primary); color: white;">
+                        <h3>PROFESSIONAL</h3>
+                        <div style="font-size: 32px; font-weight: 800; color: white;">239 DKK</div>
+                        <div style="font-size: 14px; margin-top: 10px;">2,868 DKK / yr</div>
+                        <div style="color: #ecfdf5; font-weight: 700; margin-top: 10px;">Save 720 DKK</div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>ENTERPRISE</h3>
+                        <div style="font-size: 32px; font-weight: 800; color: var(--primary);">559 DKK</div>
+                        <div style="font-size: 14px; margin-top: 10px;">6,708 DKK / yr</div>
+                        <div style="color: #059669; font-weight: 700; margin-top: 10px;">Save 1,680 DKK</div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>BILLING STRATEGY</span>
+                <span>SLIDE 22 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 23: REVENUE PROJECTIONS -->
+        <div class="slide" id="slide23">
+            <h2><i class="fa-solid fa-money-bill-trend-up"></i> Revenue: 100 User Target</h2>
+            <div class="grid-2">
+                <div class="v-center">
+                    <p style="font-size: 20px;">Conservative Mix Breakdown:</p>
+                    <ul style="list-style: none; margin-top: 20px;">
+                        <li>🔹 50% Starter (50 users)</li>
+                        <li>🔹 35% Professional (35 users)</li>
+                        <li>🔹 15% Enterprise (15 users)</li>
+                    </ul>
+                    <div style="margin-top: 40px; padding: 20px; background: var(--mint-light); border-radius: 12px;">
+                        <p style="font-size: 24px; font-weight: 800; color: var(--primary-dark);">$3,705 Monthly Revenue
+                        </p>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <div class="bar-container">
+                        <div class="bar" style="height: 35%;" data-val="$700"></div>
+                        <div class="bar" style="height: 75%; background: var(--secondary);" data-val="$1,505"></div>
+                        <div class="bar" style="height: 74%;" data-val="$1,500"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0 10px;">
+                        <span class="bar-label">Starter</span>
+                        <span class="bar-label">Pro</span>
+                        <span class="bar-label">Enterprise</span>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>FINANCIAL PROJECTIONS</span>
+                <span>SLIDE 23 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 24: P&L ANALYSIS -->
+        <div class="slide" id="slide24">
+            <h2><i class="fa-solid fa-calculator"></i> Monthly P&L (100 Users)</h2>
+            <div class="v-center">
+                <table class="matrix" style="font-size: 20px;">
+                    <thead>
+                        <tr>
+                            <th>Line Item</th>
+                            <th>Amount</th>
+                            <th>% of Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Gross Revenue</td>
+                            <td>$3,705</td>
+                            <td>100%</td>
+                        </tr>
+                        <tr>
+                            <td>Stripe Fees</td>
+                            <td>-$81</td>
+                            <td>2.2%</td>
+                        </tr>
+                        <tr>
+                            <td>Infrastructure (Fixed + Var)</td>
+                            <td>-$232</td>
+                            <td>6.3%</td>
+                        </tr>
+                        <tr style="background: var(--mint-light); font-weight: 900; color: var(--primary-dark);">
+                            <td>Gross Profit</td>
+                            <td>$3,392</td>
+                            <td>91.6%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="slide-footer">
+                <span>FINANCIAL PROJECTIONS</span>
+                <span>SLIDE 24 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 25: SCALING PROJECTIONS -->
+        <div class="slide" id="slide25">
+            <h2><i class="fa-solid fa-arrow-trend-up"></i> Scaling Projections</h2>
+            <div class="v-center">
+                <table class="matrix">
+                    <thead>
+                        <tr>
+                            <th>Users</th>
+                            <th>Monthly Revenue</th>
+                            <th>Infra Cost</th>
+                            <th>Net Profit (Gross)</th>
+                            <th>Infra %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>100</td>
+                            <td>$3,705</td>
+                            <td>$232</td>
+                            <td>$3,392</td>
+                            <td>6.3%</td>
+                        </tr>
+                        <tr>
+                            <td>250</td>
+                            <td>$9,263</td>
+                            <td>$400</td>
+                            <td>$8,663</td>
+                            <td>4.3%</td>
+                        </tr>
+                        <tr>
+                            <td>500</td>
+                            <td>$18,525</td>
+                            <td>$900</td>
+                            <td>$17,225</td>
+                            <td>4.9%</td>
+                        </tr>
+                        <tr style="font-weight: 800; color: var(--primary);">
+                            <td>1,000</td>
+                            <td>$37,050</td>
+                            <td>$1,500</td>
+                            <td>$34,750</td>
+                            <td>4.1%</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 30px; font-style: italic;">Infra percentage decreases as scaling logic kicks in
+                    for fixed costs.</p>
+            </div>
+            <div class="slide-footer">
+                <span>FINANCIAL PROJECTIONS</span>
+                <span>SLIDE 25 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 26: OPERATING EXPENSES -->
+        <div class="slide" id="slide26">
+            <h2><i class="fa-solid fa-chart-line"></i> OpEx Allocation</h2>
+            <div class="grid-2">
+                <div class="chart-box">
+                    <p>Allocation of $3,705 Revenue:</p>
+                    <ul style="list-style: none; margin-top: 20px;">
+                        <li style="margin-bottom: 15px;"><span style="color: var(--primary)">●</span> Engineering (30%)
+                            - $1,112</li>
+                        <li style="margin-bottom: 15px;"><span style="color: var(--secondary)">●</span> Sales &
+                            Marketing (20%) - $741</li>
+                        <li style="margin-bottom: 15px;"><span style="color: var(--text-dark)">●</span> Net Profit Goal
+                            (20%) - $742</li>
+                        <li><span style="color: #64748b">●</span> Reserve (30%) - $1,110</li>
+                    </ul>
+                </div>
+                <div class="v-center">
+                    <h3>Built for Sustainability</h3>
+                    <p style="margin-top: 20px;">We prioritize product development (30%) to maintain our competitive AI
+                        moat while targeting a healthy 20% net margin.</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>OPEX BUDGET</span>
+                <span>SLIDE 26 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 27: BREAK-EVEN ANALYSIS -->
+        <div class="slide" id="slide27">
+            <h2><i class="fa-solid fa-flag-checkered"></i> Break-Even Analysis</h2>
+            <div class="grid-2">
+                <div class="v-center">
+                    <p style="font-size: 24px; font-weight: 700;">Critical Threshold:</p>
+                    <div style="font-size: 60px; font-weight: 900; color: var(--primary);">234</div>
+                    <p style="font-size: 20px; font-weight: 600; color: var(--text-muted);">Paying Users</p>
+                    <p style="margin-top: 30px; font-size: 16px;">Based on a monthly burn of $8,650 (Team + Marketing +
+                        Infra).</p>
+                </div>
+                <div class="chart-box">
+                    <h3>Monthly Burn</h3>
+                    <ul style="list-style: none;">
+                        <li style="margin-bottom: 15px;">Team (1 Dev + 1 Ops): $8,000</li>
+                        <li style="margin-bottom: 15px;">Marketing Baseline: $500</li>
+                        <li>Infra Baseline: $150</li>
+                    </ul>
+                    <div
+                        style="border-top: 1px solid var(--border); margin-top: 20px; padding-top: 20px; font-weight: 700;">
+                        Total Burn: $8,650
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>SUSTAINABILITY</span>
+                <span>SLIDE 27 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 28: COMPETITIVE LANDSCAPE -->
+        <div class="slide" id="slide28">
+            <h2><i class="fa-solid fa-chess"></i> Competitive Landscape</h2>
+            <table class="matrix">
+                <thead>
+                    <tr>
+                        <th>Competitor</th>
+                        <th>Pricing</th>
+                        <th>Edge</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Bisnode / D&B</td>
+                        <td>500-2,000+</td>
+                        <td><strong>3-5x Cheaper</strong> + AI Signals</td>
+                    </tr>
+                    <tr>
+                        <td>Proff.dk</td>
+                        <td>Free (Basic)</td>
+                        <td>Actionable Intelligence Tool</td>
+                    </tr>
+                    <tr>
+                        <td>Risika.dk</td>
+                        <td>299-999</td>
+                        <td>Sales Outreach focus vs Risk</td>
+                    </tr>
+                    <tr>
+                        <td>Salesforce + Data</td>
+                        <td>2,000+</td>
+                        <td>No CRM Lock-in, Nordic First</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="slide-footer">
+                <span>MARKET POSITIONING</span>
+                <span>SLIDE 28 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 29: RISKS & MITIGATION -->
+        <div class="slide" id="slide29">
+            <h2><i class="fa-solid fa-shield-halved"></i> Key Risks & Mitigations</h2>
+            <div class="grid-2">
+                <div class="chart-box" style="background: #fef2f2;">
+                    <h3 style="color: #991b1b;">Risks</h3>
+                    <p style="font-size: 14px; margin-top: 10px;">CVR API Price Hikes</p>
+                    <p style="font-size: 14px; margin-top: 10px;">Gemini API Deprecation</p>
+                    <p style="font-size: 14px; margin-top: 10px;">Low Paid Conversion</p>
+                </div>
+                <div class="chart-box" style="background: #f0fdf4;">
+                    <h3 style="color: #166534;">Mitigations</h3>
+                    <p style="font-size: 14px; margin-top: 10px;">Aggressive 90% Redis Caching</p>
+                    <p style="font-size: 14px; margin-top: 10px;">Model-Agnostic Architecture</p>
+                    <p style="font-size: 14px; margin-top: 10px;">Value-based feature gating</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>RISK MANAGEMENT</span>
+                <span>SLIDE 29 / 30</span>
+            </div>
+        </div>
+
+        <!-- SLIDE 30: CONCLUSION & CONTACT -->
+        <div class="slide" id="slide30">
+            <div class="v-center" style="text-align: center;">
+                <div class="primary-tag">SUMMARY</div>
+                <h2 style="justify-content: center;">Next Steps: Nordic Dominance</h2>
+                <p style="font-size: 24px; color: var(--text-muted); margin-bottom: 60px;">Scaling AI-driven sales
+                    intelligence for the modern era.</p>
+                <div style="background: var(--mint-light); padding: 40px; border-radius: 24px; display: inline-block;">
+                    <p style="font-weight: 800; font-size: 28px; color: var(--primary-dark);">www.cvr-mate.dk</p>
+                    <p style="margin-top: 10px; font-weight: 600;">Contact: sales@cvr-mate.dk</p>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span>INVESTOR RELATIONS</span>
+                <span>SLIDE 30 / 30</span>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i></button>
+            <button class="btn-nav" onclick="nextSlide()"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 30;
+
+        function showSlide(n) {
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById('slide' + n);
+            if (target) target.classList.add('active');
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                showSlide(currentSlide);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                showSlide(currentSlide);
+            }
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+    </script>
+
+</body>
+
+</html>

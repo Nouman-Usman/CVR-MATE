@@ -153,17 +153,17 @@ function SidebarNav({
       </div>
 
       {/* Nav sections */}
-      <nav className={cn("flex-1 overflow-y-auto py-4", collapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-3")}>
         {navSections.map((section, sIdx) => (
-          <div key={section.label} className={sIdx > 0 ? "mt-6" : ""}>
+          <div key={section.label} className={sIdx > 0 ? "mt-5" : ""}>
             {/* Section label */}
             {!collapsed && (
-              <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500/80">
                 {locale === "da" ? section.labelDa : section.label}
               </p>
             )}
             {collapsed && sIdx > 0 && (
-              <Separator className="mx-auto mb-3 bg-white/[0.06] w-8" />
+              <Separator className="mx-auto mb-2.5 bg-white/[0.06] w-6" />
             )}
 
             <div className="space-y-0.5">
@@ -176,23 +176,23 @@ function SidebarNav({
                     href={item.href}
                     onClick={onNavClick}
                     className={cn(
-                      "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
-                      collapsed ? "justify-center w-10 h-10 mx-auto" : "gap-3 px-3 py-2.5",
+                      "group relative flex items-center rounded-lg text-[13px] font-medium transition-all duration-150",
+                      collapsed ? "justify-center w-10 h-10 mx-auto" : "gap-3 px-3 py-2",
                       isActive
-                        ? "bg-white/[0.1] text-white"
-                        : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-200"
+                        ? "bg-white/[0.08] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
                     )}
                   >
                     {/* Active indicator bar */}
                     {isActive && (
                       <span className={cn(
                         "absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-gradient-to-b from-blue-400 to-cyan-400",
-                        collapsed ? "h-5 -left-2" : "h-6"
+                        collapsed ? "h-4 -left-2" : "h-5"
                       )} />
                     )}
                     <Icon className={cn(
-                      "shrink-0 transition-colors",
-                      collapsed ? "size-5" : "size-[18px]",
+                      "shrink-0 transition-colors duration-150",
+                      collapsed ? "size-[18px]" : "size-4",
                       isActive ? "text-blue-400" : "text-slate-500 group-hover:text-slate-300"
                     )} />
                     {!collapsed && (
@@ -222,7 +222,7 @@ function SidebarNav({
       </nav>
 
       {/* Bottom: Settings + User */}
-      <div className={cn("shrink-0 border-t border-white/[0.06]", collapsed ? "px-2 py-3" : "px-3 py-3")}>
+      <div className={cn("shrink-0 border-t border-white/[0.05]", collapsed ? "px-2 py-3" : "px-3 py-3")}>
         {/* Settings link */}
         {(() => {
           const isActive = pathname === settingsItem.href;
@@ -425,7 +425,7 @@ export default function DashboardLayout({
     <div className="min-h-screen flex bg-background">
       {/* Mobile sidebar via Sheet */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-[260px] p-0 bg-[#0f172a] border-r-0" showCloseButton={false}>
+        <SheetContent side="left" className="w-[280px] p-0 bg-[#0f172a] border-r-0" showCloseButton={false}>
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <SidebarNav
             pathname={pathname}
@@ -441,10 +441,10 @@ export default function DashboardLayout({
         </SheetContent>
       </Sheet>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — visible from md breakpoint (768px+) */}
       <aside
         className={cn(
-          "hidden lg:flex sticky top-0 left-0 h-screen bg-[#0f172a] flex-col z-50 transition-all duration-300 ease-in-out shrink-0",
+          "hidden md:flex sticky top-0 left-0 h-screen bg-[#0f172a] flex-col z-50 transition-all duration-300 ease-in-out shrink-0",
           collapsed ? "w-[68px]" : "w-[260px]"
         )}
       >
@@ -464,16 +464,20 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-border h-16 flex items-center justify-between px-4 sm:px-8 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-border/60 h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6 shrink-0">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden"
+              className="md:hidden shrink-0"
             >
-              <Menu className="size-6" />
+              <Menu className="size-5" />
             </Button>
+            {/* Show logo on mobile when sidebar is hidden */}
+            <div className="md:hidden">
+              <LogoFull size="small" />
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             {/* Notification bell + dropdown */}
@@ -573,7 +577,7 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {showOnboardingBanner && !bannerDismissed && (
             <div className="mb-6 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl p-4 flex items-center justify-between gap-4 shadow-md">
               <div className="flex items-center gap-3 text-white">
