@@ -8,24 +8,53 @@ import {
 } from "@/lib/cvr-api";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
-// Extract latest financial summary from a company's accounting documents
+// ─── Data extraction helpers (sorted for accuracy) ─────────────────────────
+
+/** Extract the LATEST financial summary — sorts by document end date, not array order */
 function getLatestSummary(c: CvrCompany) {
   const docs = c.accounting?.documents;
-  if (!Array.isArray(docs)) return null;
-  for (const doc of docs) {
-    if (doc.summary) return doc.summary;
-  }
+  if (!Array.isArray(docs) || docs.length === 0) return null;
+
+  // Documents may have end/publicdate fields not in the base type
+  const sorted = [...docs].sort((a, b) => {
+    const raw = (x: unknown) => x as Record<string, unknown>;
+    const dateA = new Date((raw(a).end || raw(a).publicdate || 0) as string).getTime();
+    const dateB = new Date((raw(b).end || raw(b).publicdate || 0) as string).getTime();
+    return dateB - dateA;
+  });
+
+  return sorted.find((d) => d.summary)?.summary ?? null;
+}
+
+/** Extract the LATEST employee count — sorts months/years by recency */
+function getEmployeeCount(c: CvrCompany): number | null {
+  const months = [...(c.employment?.months ?? [])].sort(
+    (a, b) => b.year - a.year || b.month - a.month
+  );
+  if (months[0]?.amount != null) return months[0].amount;
+
+  const years = [...(c.employment?.years ?? [])].sort(
+    (a, b) => b.year - a.year
+  );
+  if (years[0]?.amount != null) return years[0].amount;
+
   return null;
 }
 
-// Get latest employee count from employment data
-function getEmployeeCount(c: CvrCompany): number | null {
-  const m = c.employment?.months?.[0];
-  if (m?.amount != null) return m.amount;
-  const y = c.employment?.years?.[0];
-  if (y?.amount != null) return y.amount;
-  return null;
+// ─── Enrichment: add computed fields so frontend doesn't recompute ──────────
+
+function enrichResult(c: CvrCompany) {
+  const summary = getLatestSummary(c);
+  return {
+    ...c,
+    _employeeCount: getEmployeeCount(c),
+    _revenue: summary?.revenue ?? null,
+    _profit: summary?.grossprofitloss ?? null,
+    _equity: summary?.equity ?? null,
+  };
 }
+
+// ─── Route handler ──────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   try {
@@ -94,7 +123,6 @@ export async function GET(req: NextRequest) {
       ([k, v]) => v && k !== "companystatus_code" && k !== "page"
     );
 
-    // Also count segmentation filters as valid
     const hasSegFilter = !!(
       segEmployeesMax ||
       segRevenueMin ||
@@ -110,15 +138,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // If only segmentation filters are set (no CVR API filters),
-    // we need at least one CVR API filter — use status as baseline
+    // Segmentation-only queries: inject a broad baseline so CVR API has something to work with
     if (!hasAnyFilter && hasSegFilter) {
-      // companystatus_code "20" is already set — that alone won't pass the
-      // CVR API's requirement for a real search term, so reject gracefully.
-      return NextResponse.json(
-        { error: "At least one search filter is required" },
-        { status: 400 }
-      );
+      searchParams.life_start = "1900-01-01";
     }
 
     // Pass page directly to CVR API — each page returns ~10 results
@@ -126,7 +148,15 @@ export async function GET(req: NextRequest) {
     searchParams.page = String(page);
 
     const results = await searchCompanies(searchParams);
-    let pageResults = Array.isArray(results) ? results : [];
+    const rawResults = Array.isArray(results) ? results : [];
+
+    // Deduplicate by VAT (CVR pagination is not stable — results can shift between pages)
+    const seen = new Set<number>();
+    let pageResults = rawResults.filter((c) => {
+      if (seen.has(c.vat)) return false;
+      seen.add(c.vat);
+      return true;
+    });
 
     // ─── Apply segmentation post-filters ───
     if (segEmployeesMax) {
@@ -164,13 +194,16 @@ export async function GET(req: NextRequest) {
       await recordUsage(session.user.id, "company_search");
     }
 
-    // CVR API returns ~10 per page. If fewer, there are no more results.
-    const hasMore = pageResults.length >= 10;
+    // hasMore based on RAW results from CVR API (before our post-filters removed items)
+    const hasMore = rawResults.length >= 10;
+
+    // Enrich results with computed fields so frontend doesn't recompute
+    const enriched = pageResults.map(enrichResult);
 
     return NextResponse.json({
-      results: pageResults,
-      count: pageResults.length,
-      total: pageResults.length,
+      results: enriched,
+      count: enriched.length,
+      total: enriched.length,
       page,
       hasMore,
     });
