@@ -144,6 +144,7 @@ export async function PATCH(req: NextRequest) {
     if (body.products !== undefined) updates.products = body.products.trim();
     if (body.targetAudience !== undefined) updates.targetAudience = body.targetAudience?.trim() || null;
     if (body.tone !== undefined) updates.tone = body.tone || "formal";
+    if (body.aiEnrichment !== undefined) updates.aiEnrichment = body.aiEnrichment;
 
     const [updated] = await db
       .update(userBrand)

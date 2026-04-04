@@ -28,6 +28,8 @@ import {
   CreditCard,
   AlertTriangle,
   ChevronDown,
+  Loader2,
+  X,
 } from "lucide-react";
 
 type SettingsSection =
@@ -629,6 +631,15 @@ export default function SettingsPage() {
     "idle"
   );
 
+  // AI Enrichment questionnaire
+  interface EnrichQuestion { id: string; question: string; placeholder: string }
+  const [enrichStep, setEnrichStep] = useState<"idle" | "questions" | "answering" | "generating" | "done">("idle");
+  const [enrichQuestions, setEnrichQuestions] = useState<EnrichQuestion[]>([]);
+  const [enrichAnswers, setEnrichAnswers] = useState<Record<string, string>>({});
+  const [enrichCurrentQ, setEnrichCurrentQ] = useState(0);
+  const [aiEnrichmentData, setAiEnrichmentData] = useState<Record<string, unknown> | null>(null);
+  const [enrichSaving, setEnrichSaving] = useState(false);
+
   // Team / Organization
   const [org, setOrg] = useState<Org | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
@@ -673,6 +684,10 @@ export default function SettingsPage() {
           setBrandProducts(data.brand.products || "");
           setBrandTargetAudience(data.brand.targetAudience || "");
           setBrandTone(data.brand.tone || "formal");
+          if (data.brand.aiEnrichment) {
+            setAiEnrichmentData(data.brand.aiEnrichment as Record<string, unknown>);
+            setEnrichStep("done");
+          }
         }
         setBrandLoaded(true);
       })
@@ -1467,6 +1482,292 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
+
+          {/* ── AI Brand Enrichment ─────────────────────────────── */}
+          {brandLoaded && (() => {
+            const ei = (st.brand as unknown as { aiEnrichment: Record<string, string> }).aiEnrichment;
+            return (
+            <div className="border-t border-slate-100 pt-6 mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-500 text-xl">auto_awesome</span>
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    {ei.title}
+                  </h3>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mb-5">
+                {ei.subtitle}
+              </p>
+
+              {/* State 1: Not started / CTA */}
+              {enrichStep === "idle" && (
+                <div className="text-center py-6">
+                  {!hasBrand ? (
+                    <p className="text-sm text-slate-400">
+                      {ei.needsProfile}
+                    </p>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        setEnrichStep("questions");
+                        try {
+                          const res = await fetch("/api/brand/enrich/questions", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ locale }),
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.questions?.length > 0) {
+                            setEnrichQuestions(data.questions);
+                            setEnrichAnswers({});
+                            setEnrichCurrentQ(0);
+                            setEnrichStep("answering");
+                          } else {
+                            showToast(data.error || "Failed", "error");
+                            setEnrichStep("idle");
+                          }
+                        } catch {
+                          showToast("Failed to load questions", "error");
+                          setEnrichStep("idle");
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/20 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                      {ei.start}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* State 1b: Loading questions */}
+              {enrichStep === "questions" && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-6 text-blue-500 animate-spin" />
+                </div>
+              )}
+
+              {/* State 2: Answering questions — stepper */}
+              {enrichStep === "answering" && enrichQuestions.length > 0 && (
+                <div className="space-y-4">
+                  {/* Progress bar */}
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-[11px] font-bold text-slate-400 tabular-nums whitespace-nowrap">
+                      {enrichCurrentQ + 1} / {enrichQuestions.length}
+                    </span>
+                    <div className="h-[3px] flex-1 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                        style={{ width: `${((enrichCurrentQ + 1) / enrichQuestions.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Question card */}
+                  <div className="bg-slate-50/80 rounded-xl p-5">
+                    <p className="text-sm font-semibold text-slate-900 mb-3">
+                      {enrichQuestions[enrichCurrentQ]?.question}
+                    </p>
+                    <textarea
+                      className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 outline-none resize-none transition-colors"
+                      rows={3}
+                      value={enrichAnswers[enrichQuestions[enrichCurrentQ]?.id] ?? ""}
+                      onChange={(e) => setEnrichAnswers(prev => ({ ...prev, [enrichQuestions[enrichCurrentQ].id]: e.target.value }))}
+                      placeholder={enrichQuestions[enrichCurrentQ]?.placeholder}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Navigation buttons */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setEnrichCurrentQ(Math.max(0, enrichCurrentQ - 1))}
+                      disabled={enrichCurrentQ === 0}
+                      className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-30 cursor-pointer transition-colors"
+                    >
+                      {ei?.back}
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (enrichCurrentQ < enrichQuestions.length - 1) {
+                            setEnrichCurrentQ(enrichCurrentQ + 1);
+                          }
+                        }}
+                        className="px-3 py-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+                      >
+                        {ei?.skip}
+                      </button>
+                      {enrichCurrentQ < enrichQuestions.length - 1 ? (
+                        <button
+                          onClick={() => setEnrichCurrentQ(enrichCurrentQ + 1)}
+                          className="px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-colors cursor-pointer"
+                        >
+                          {ei?.next}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            setEnrichStep("generating");
+                            try {
+                              const answersArr = enrichQuestions.map(q => ({
+                                questionId: q.id,
+                                question: q.question,
+                                answer: enrichAnswers[q.id] ?? "",
+                              }));
+                              const res = await fetch("/api/brand/enrich", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ answers: answersArr, locale }),
+                              });
+                              const data = await res.json();
+                              if (res.ok && data.aiEnrichment) {
+                                setAiEnrichmentData(data.aiEnrichment);
+                                setEnrichStep("done");
+                                showToast(ei?.enriched ?? "Enriched");
+                              } else {
+                                showToast(data.error || "Failed", "error");
+                                setEnrichStep("answering");
+                              }
+                            } catch {
+                              showToast("Enrichment failed", "error");
+                              setEnrichStep("answering");
+                            }
+                          }}
+                          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/20 hover:opacity-90 transition-all cursor-pointer"
+                        >
+                          {ei?.generate}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* State 2b: Generating enrichment */}
+              {enrichStep === "generating" && (
+                <div className="flex flex-col items-center justify-center py-8 gap-3">
+                  <Loader2 className="size-6 text-blue-500 animate-spin" />
+                  <p className="text-sm text-slate-400">{ei?.generating}</p>
+                </div>
+              )}
+
+              {/* State 3: Enrichment complete — display fields */}
+              {enrichStep === "done" && aiEnrichmentData && (() => {
+                const en = ei;
+                const d = aiEnrichmentData as Record<string, unknown>;
+
+                const renderField = (label: string, key: string, multiline = false) => (
+                  <div key={key}>
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-1.5 block">{label}</label>
+                    {multiline ? (
+                      <textarea
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none resize-none transition-colors"
+                        rows={3}
+                        value={String(d[key] ?? "")}
+                        onChange={(e) => setAiEnrichmentData(prev => prev ? { ...prev, [key]: e.target.value } : prev)}
+                      />
+                    ) : (
+                      <input
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                        value={String(d[key] ?? "")}
+                        onChange={(e) => setAiEnrichmentData(prev => prev ? { ...prev, [key]: e.target.value } : prev)}
+                      />
+                    )}
+                  </div>
+                );
+
+                const renderList = (label: string, key: string) => {
+                  const items = Array.isArray(d[key]) ? (d[key] as string[]) : [];
+                  return (
+                    <div key={key}>
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-1.5 block">{label}</label>
+                      <div className="space-y-1.5">
+                        {items.map((item, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none transition-colors"
+                              value={item}
+                              onChange={(e) => {
+                                const updated = [...items];
+                                updated[i] = e.target.value;
+                                setAiEnrichmentData(prev => prev ? { ...prev, [key]: updated } : prev);
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                setAiEnrichmentData(prev => prev ? { ...prev, [key]: items.filter((_, j) => j !== i) } : prev);
+                              }}
+                              className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer shrink-0 px-1"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            setAiEnrichmentData(prev => prev ? { ...prev, [key]: [...items, ""] } : prev);
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                        >
+                          + {en?.addPoint}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div className="space-y-4">
+                    {renderField(en?.description ?? "", "description", true)}
+                    {renderField(en?.valueProposition ?? "", "valueProposition", true)}
+                    {renderList(en?.messagingPoints ?? "", "messagingPoints")}
+                    {renderList(en?.painPointsSolved ?? "", "painPointsSolved")}
+                    {renderList(en?.competitiveAdvantages ?? "", "competitiveAdvantages")}
+                    {renderField(en?.idealCustomerProfile ?? "", "idealCustomerProfile", true)}
+                    {renderField(en?.pricingModel ?? "", "pricingModel")}
+                    {renderField(en?.geographicFocus ?? "", "geographicFocus")}
+
+                    {!!(d.generatedAt) && (
+                      <p className="text-[11px] text-slate-400">
+                        {en?.generatedAt}: {new Date(d.generatedAt as string).toLocaleDateString(locale === "da" ? "da-DK" : "en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={async () => {
+                          setEnrichSaving(true);
+                          try {
+                            const res = await fetch("/api/brand", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ cvr: brandCvr || undefined, aiEnrichment: aiEnrichmentData }),
+                            });
+                            if (res.ok) showToast(locale === "da" ? "Gemt" : "Saved");
+                            else showToast("Failed", "error");
+                          } catch { showToast("Failed", "error"); }
+                          finally { setEnrichSaving(false); }
+                        }}
+                        disabled={enrichSaving}
+                        className={btnPrimary}
+                      >
+                        {enrichSaving ? (en?.savingEdits ?? "...") : (en?.saveEdits ?? "Save")}
+                      </button>
+                      <button
+                        onClick={() => { setEnrichStep("idle"); setAiEnrichmentData(null); }}
+                        className="px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer transition-colors"
+                      >
+                        {en?.regenerate}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            );
+          })()}
         </div>}
 
         {/* ── Team / Organization ──────────────────────────────────────── */}

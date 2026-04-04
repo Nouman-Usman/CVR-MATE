@@ -1,0 +1,1 @@
+ALTER TABLE "user_brand" ADD COLUMN "ai_enrichment" jsonb;

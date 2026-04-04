@@ -99,6 +99,13 @@
       "when": 1775037297011,
       "tag": "0013_legal_marvel_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1775270907652,
+      "tag": "0014_abnormal_lord_hawal",
+      "breakpoints": true
     }
   ]
 }
