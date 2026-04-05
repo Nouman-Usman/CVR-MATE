@@ -7,7 +7,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useCompany } from "@/lib/hooks/use-company";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
-import { useCompanyBriefing, useSavedBriefings } from "@/lib/hooks/use-company-briefing";
+// import { useCompanyBriefing, useSavedBriefings } from "@/lib/hooks/use-company-briefing";
 import { useOutreach, useOutreachMessages } from "@/lib/hooks/use-outreach";
 import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
@@ -330,7 +330,7 @@ export default function CompanyDetailPage() {
   const enrichmentMutation = useCompanyEnrichment();
   const { data: savedEnrichmentData } = useSavedEnrichment<CompanyEnrichment>("company", validVat);
   const enrichment = enrichmentMutation.data?.enrichment ?? savedEnrichmentData?.enrichment ?? null;
-  const briefingMutation = useCompanyBriefing();
+  // const briefingMutation = useCompanyBriefing();
   const outreachMutation = useOutreach();
   const suggestTodosMutation = useSuggestTodos();
   const createTodoMutation = useCreateTodo();
@@ -347,10 +347,7 @@ export default function CompanyDetailPage() {
   // Saved outreach messages
   const outreachMessages = useOutreachMessages(validVat);
 
-  // Saved briefings
-  const savedBriefings = useSavedBriefings(validVat);
-  const [showBriefingHistory, setShowBriefingHistory] = useState(false);
-  const [viewingBriefingItem, setViewingBriefingItem] = useState<string | null>(null);
+  // Saved briefings (removed — using enrichment instead)
 
   // CRM Integration
   const activeConnections = useActiveConnections();
@@ -1329,17 +1326,6 @@ export default function CompanyDetailPage() {
 
           {/* AI Insights Tab */}
           {activeTab === "ai-insights" && (() => {
-            // Use freshly generated briefing if available, else the latest saved one
-            const latestSaved = savedBriefings.data?.[0];
-            const activeBriefing = briefingMutation.data?.briefing
-              ? briefingMutation.data
-              : latestSaved
-                ? { briefing: latestSaved.briefing, keyInsights: latestSaved.keyInsights as string[], suggestedApproach: latestSaved.suggestedApproach }
-                : null;
-            const hasSavedHistory = (savedBriefings.data?.length ?? 0) > 0;
-
-            // Treat as loading while query is in initial loading OR fetching state
-            const isLoadingSaved = savedBriefings.isLoading || (savedBriefings.isFetching && !savedBriefings.data);
 
             const er = ai.enrichment;
             const gradeColors: Record<string, string> = {
@@ -1557,277 +1543,91 @@ export default function CompanyDetailPage() {
                 </div>
               )}
 
-              {/* ── Original Briefing Section (kept below enrichment) ─── */}
-
-              {/* Loading saved briefings */}
-              {isLoadingSaved && !briefingMutation.isPending && !activeBriefing && (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
-                  <div className="w-10 h-10 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                  <p className="text-slate-500 font-medium">{ai.briefing.generating}</p>
-                </div>
-              )}
-
-              {/* Generate / Regenerate — show only when saved data loaded and empty */}
-              {!activeBriefing && !briefingMutation.isPending && !isLoadingSaved && (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
-                    <span className="material-symbols-outlined text-3xl text-white">auto_awesome</span>
+              {/* ── Suggest Tasks (shown when enrichment exists) ─── */}
+              {enrichment && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg text-blue-600">task_alt</span>
+                      {ai.todos.suggest}
+                    </h2>
+                    <button
+                      onClick={() => {
+                        setShowTodoSuggestions(true);
+                        setAddedTodos(new Set());
+                        suggestTodosMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> });
+                      }}
+                      disabled={suggestTodosMutation.isPending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                      {suggestTodosMutation.isPending ? ai.todos.suggesting : ai.todos.suggest}
+                    </button>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-2">{ai.briefing.tab}</h3>
-                  <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-                    {ai.briefing.empty}
-                  </p>
-                  <button
-                    onClick={() => briefingMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> })}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition-all shadow-sm cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-lg">auto_awesome</span>
-                    {ai.briefing.generate}
-                  </button>
-                  {briefingMutation.isError && (
-                    <p className="text-sm text-red-500 mt-4">{ai.briefing.error}</p>
-                  )}
-                </div>
-              )}
 
-              {/* Loading */}
-              {briefingMutation.isPending && (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-8 text-center">
-                  <div className="w-10 h-10 border-3 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                  <p className="text-slate-500 font-medium">{ai.briefing.generating}</p>
-                </div>
-              )}
-
-              {/* Briefing History */}
-              {showBriefingHistory && hasSavedHistory && (
-                <div className="space-y-3">
-                  {savedBriefings.data?.map((b) => {
-                    const isViewing = viewingBriefingItem === b.id;
-                    return (
-                      <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-slate-100/60 overflow-hidden">
-                        <button
-                          onClick={() => setViewingBriefingItem(isViewing ? null : b.id)}
-                          className="w-full flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="material-symbols-outlined text-violet-500 text-lg">auto_awesome</span>
-                            <span className="text-sm font-medium text-slate-700 truncate">{ai.briefing.tab}</span>
-                            <span className="text-xs text-slate-400">
-                              {new Date(b.createdAt).toLocaleDateString(locale === "da" ? "da-DK" : "en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                          <span className="material-symbols-outlined text-sm text-slate-400">
-                            {isViewing ? "expand_less" : "expand_more"}
-                          </span>
-                        </button>
-                        {isViewing && (
-                          <div className="px-4 pb-4 space-y-4 border-t border-slate-50">
-                            <div className="pt-3 prose prose-sm prose-slate max-w-none">
-                              {b.briefing.split("\n").filter(Boolean).map((p, i) => (
-                                <p key={i} className="text-sm text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
-                              ))}
-                            </div>
-                            {(b.keyInsights as string[])?.length > 0 && (
-                              <div>
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">{ai.briefing.keyInsights}</h3>
-                                <div className="space-y-2">
-                                  {(b.keyInsights as string[]).map((insight, i) => (
-                                    <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
-                                      <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">arrow_right</span>
-                                      <p className="text-sm text-slate-700 font-medium">{insight}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {b.suggestedApproach && (
-                              <div>
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">{ai.briefing.suggestedApproach}</h3>
-                                <p className="text-sm text-slate-700 leading-relaxed">{b.suggestedApproach}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Active Briefing Result */}
-              {activeBriefing && !briefingMutation.isPending && !showBriefingHistory && (
-                <>
-                  {/* Briefing text */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <span className="material-symbols-outlined text-lg text-violet-600">auto_awesome</span>
-                          {ai.briefing.tab}
-                        </h2>
-                        {briefingMutation.data?.briefing && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase">
-                            <span className="material-symbols-outlined text-xs">check_circle</span>
-                            {ai.briefing.saved}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {hasSavedHistory && (savedBriefings.data?.length ?? 0) > 1 && (
-                          <button
-                            onClick={() => { setShowBriefingHistory(true); setViewingBriefingItem(null); }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">history</span>
-                            {ai.briefing.viewHistory}
-                            <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold">
-                              {savedBriefings.data?.length}
-                            </span>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => briefingMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> })}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-sm">refresh</span>
-                          {ai.briefing.regenerate}
-                        </button>
-                      </div>
+                  {showTodoSuggestions && suggestTodosMutation.isPending && (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                     </div>
-                    <div className="prose prose-sm prose-slate max-w-none">
-                      {activeBriefing.briefing.split("\n").filter(Boolean).map((p, i) => (
-                        <p key={i} className="text-sm text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
+                  )}
+
+                  {showTodoSuggestions && suggestTodosMutation.data?.suggestions && (
+                    <div className="space-y-2">
+                      {suggestTodosMutation.data.suggestions.map((suggestion, i) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                suggestion.priority === "high" ? "bg-red-50 text-red-600" :
+                                suggestion.priority === "medium" ? "bg-amber-50 text-amber-600" :
+                                "bg-slate-50 text-slate-500"
+                              }`}>
+                                {suggestion.priority}
+                              </span>
+                              <span className="text-[10px] text-slate-400">{suggestion.dueInDays}d</span>
+                            </div>
+                            <p className="text-sm font-medium text-slate-800">{suggestion.title}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{suggestion.description}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const dueDate = new Date();
+                              dueDate.setDate(dueDate.getDate() + suggestion.dueInDays);
+                              createTodoMutation.mutate({
+                                title: suggestion.title,
+                                description: suggestion.description,
+                                priority: suggestion.priority,
+                                dueDate: dueDate.toISOString().split("T")[0],
+                                cvr: vat,
+                              });
+                              setAddedTodos(prev => new Set(prev).add(i));
+                            }}
+                            disabled={addedTodos.has(i) || createTodoMutation.isPending}
+                            className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+                              addedTodos.has(i)
+                                ? "bg-emerald-50 text-emerald-600"
+                                : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              {addedTodos.has(i) ? "check" : "add"}
+                            </span>
+                            {addedTodos.has(i) ? ai.todos.added : ai.todos.addTask}
+                          </button>
+                        </div>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Key Insights */}
-                  {activeBriefing.keyInsights?.length > 0 && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
-                      <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg text-amber-500">lightbulb</span>
-                        {ai.briefing.keyInsights}
-                      </h2>
-                      <div className="space-y-2">
-                        {activeBriefing.keyInsights.map((insight, i) => (
-                          <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
-                            <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">arrow_right</span>
-                            <p className="text-sm text-slate-700 font-medium">{insight}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   )}
 
-                  {/* Suggested Approach */}
-                  {activeBriefing.suggestedApproach && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
-                      <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg text-emerald-500">route</span>
-                        {ai.briefing.suggestedApproach}
-                      </h2>
-                      <p className="text-sm text-slate-700 leading-relaxed">{activeBriefing.suggestedApproach}</p>
-                    </div>
+                  {showTodoSuggestions && suggestTodosMutation.isError && (
+                    <p className="text-sm text-red-500">{ai.todos.error}</p>
                   )}
 
-                  {/* Suggest Tasks */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-5 sm:p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg text-blue-600">task_alt</span>
-                        {ai.todos.suggest}
-                      </h2>
-                      <button
-                        onClick={() => {
-                          setShowTodoSuggestions(true);
-                          setAddedTodos(new Set());
-                          suggestTodosMutation.mutate({ vat, locale, companyData: company as unknown as Record<string, unknown> });
-                        }}
-                        disabled={suggestTodosMutation.isPending}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                        {suggestTodosMutation.isPending ? ai.todos.suggesting : ai.todos.suggest}
-                      </button>
-                    </div>
-
-                    {showTodoSuggestions && suggestTodosMutation.isPending && (
-                      <div className="flex items-center justify-center py-6">
-                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-
-                    {showTodoSuggestions && suggestTodosMutation.data?.suggestions && (
-                      <div className="space-y-2">
-                        {suggestTodosMutation.data.suggestions.map((suggestion, i) => (
-                          <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50/50 transition-colors">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                  suggestion.priority === "high" ? "bg-red-50 text-red-600" :
-                                  suggestion.priority === "medium" ? "bg-amber-50 text-amber-600" :
-                                  "bg-slate-50 text-slate-500"
-                                }`}>
-                                  {suggestion.priority}
-                                </span>
-                                <span className="text-[10px] text-slate-400">{suggestion.dueInDays}d</span>
-                              </div>
-                              <p className="text-sm font-medium text-slate-800">{suggestion.title}</p>
-                              <p className="text-xs text-slate-500 mt-0.5">{suggestion.description}</p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const dueDate = new Date();
-                                dueDate.setDate(dueDate.getDate() + suggestion.dueInDays);
-                                createTodoMutation.mutate({
-                                  title: suggestion.title,
-                                  description: suggestion.description,
-                                  priority: suggestion.priority,
-                                  dueDate: dueDate.toISOString().split("T")[0],
-                                  cvr: vat,
-                                });
-                                setAddedTodos(prev => new Set(prev).add(i));
-                              }}
-                              disabled={addedTodos.has(i) || createTodoMutation.isPending}
-                              className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
-                                addedTodos.has(i)
-                                  ? "bg-emerald-50 text-emerald-600"
-                                  : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                              }`}
-                            >
-                              <span className="material-symbols-outlined text-sm">
-                                {addedTodos.has(i) ? "check" : "add"}
-                              </span>
-                              {addedTodos.has(i) ? ai.todos.added : ai.todos.addTask}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {showTodoSuggestions && suggestTodosMutation.isError && (
-                      <p className="text-sm text-red-500">{ai.todos.error}</p>
-                    )}
-
-                    {!showTodoSuggestions && (
-                      <p className="text-sm text-slate-400 text-center py-4">
-                        {ai.todos.suggest}
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Back to current briefing from history */}
-              {showBriefingHistory && (
-                <div className="text-center">
-                  <button
-                    onClick={() => setShowBriefingHistory(false)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">arrow_back</span>
-                    {ai.briefing.hideHistory}
-                  </button>
+                  {!showTodoSuggestions && (
+                    <p className="text-sm text-slate-400 text-center py-4">
+                      {ai.todos.suggest}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
