@@ -25,8 +25,12 @@ export async function POST(req: NextRequest) {
 
     // Validate priceId is one of our known prices
     const validPriceIds = [
-      process.env.NEXT_PUBLIC_STRIPE_GO_PRICE_ID,
-      process.env.NEXT_PUBLIC_STRIPE_FLOW_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_STARTER_MONTHLY_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_STARTER_ANNUAL_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_PRO_ANNUAL_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_ENT_MONTHLY_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_ENT_ANNUAL_PRICE_ID,
     ].filter(Boolean);
 
     if (!validPriceIds.includes(priceId)) {

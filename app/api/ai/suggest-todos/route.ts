@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
-import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 interface TodoSuggestion {
   title: string;
@@ -24,15 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "aiFeatures");
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "AI features require a paid plan", upgrade: true },
-        { status: 403 }
-      );
-    }
-
-    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    const quota = await checkMonthlyQuota(session.user.id, "ai_task_suggest");
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -127,7 +119,7 @@ ${formatBrandContext(brand)}`;
       })),
     };
 
-    await recordUsage(session.user.id, "ai_usage");
+    await recordUsage(session.user.id, "ai_task_suggest");
     return NextResponse.json(result);
   } catch (error) {
     console.error("AI suggest-todos error:", error);

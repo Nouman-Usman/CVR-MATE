@@ -43,6 +43,7 @@ export default function Home() {
   const isLoggedIn = !!session;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [pricingInterval, setPricingInterval] = useState<"monthly" | "annual">("monthly");
 
   // Refs for GSAP
   const heroRef = useRef<HTMLDivElement>(null);
@@ -432,25 +433,64 @@ export default function Home() {
                 {t.pricing.title}
               </span>
             </h2>
-            <p className="text-lg text-slate-500 max-w-xl mx-auto">{t.pricing.subtitle}</p>
+            <p className="text-lg text-slate-500 max-w-xl mx-auto mb-8">{t.pricing.subtitle}</p>
+
+            {/* Monthly / Annual toggle */}
+            <div className="flex justify-center">
+              <div className="inline-flex bg-white/[0.06] rounded-full p-1 gap-1 border border-white/[0.08]">
+                <button
+                  onClick={() => setPricingInterval("monthly")}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-all cursor-pointer ${
+                    pricingInterval === "monthly"
+                      ? "bg-white/[0.1] text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {t.pricing.monthly}
+                </button>
+                <button
+                  onClick={() => setPricingInterval("annual")}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    pricingInterval === "annual"
+                      ? "bg-white/[0.1] text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {t.pricing.annual}
+                  <span className="inline-flex px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                    {t.pricing.annualSave}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-            {/* Starter/GO */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
+            {/* Starter */}
             <div className="pricing-card">
               <GlassCard>
+                <div className="mb-5">
+                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.starter.name}</h3>
+                  <p className="text-sm text-slate-500">{t.pricing.starter.desc}</p>
+                </div>
                 <div className="mb-6">
-                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.go.name}</h3>
-                  <p className="text-sm text-slate-500">{t.pricing.go.features[0]}</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-4xl font-extrabold text-white font-[family-name:var(--font-manrope)]">
+                      {pricingInterval === "annual" ? t.pricing.starter.annualPrice : t.pricing.starter.price}
+                    </span>
+                    <span className="text-sm text-slate-500">DKK{t.pricing.period}</span>
+                  </div>
+                  {pricingInterval === "annual" && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-slate-600 line-through">{t.pricing.starter.price} DKK</span>
+                      <span className="text-[10px] text-emerald-400 font-bold">2,868 DKK/yr</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold text-white font-[family-name:var(--font-manrope)]">{t.pricing.go.price}</span>
-                  <span className="text-sm text-slate-500">{t.pricing.go.period}</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {t.pricing.go.features.map((f: string) => (
+                <ul className="space-y-2.5 mb-8">
+                  {t.pricing.starter.features.map((f: string) => (
                     <li key={f} className="flex items-start gap-2.5 text-sm text-slate-400">
-                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5">check_circle</span>
+                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5 shrink-0">check_circle</span>
                       {f}
                     </li>
                   ))}
@@ -459,14 +499,13 @@ export default function Home() {
                   href="/signup"
                   className="block w-full py-3 rounded-xl border border-white/[0.12] text-center font-bold text-sm text-slate-300 hover:bg-white/[0.06] transition-all"
                 >
-                  {t.pricing.go.cta}
+                  {t.pricing.starter.cta}
                 </Link>
               </GlassCard>
             </div>
 
-            {/* Pro/FLOW */}
+            {/* Professional — featured */}
             <div className="pricing-card relative">
-              {/* Glow border */}
               <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-500 to-violet-500 opacity-60 blur-[1px]" />
               <div className="relative bg-[#0d1225] rounded-2xl p-6 sm:p-8 border border-white/[0.08]">
                 <div className="absolute top-0 right-6 -translate-y-1/2">
@@ -474,20 +513,28 @@ export default function Home() {
                     Recommended
                   </span>
                 </div>
+                <div className="mb-5">
+                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.professional.name}</h3>
+                  <p className="text-sm text-slate-500">{t.pricing.professional.desc}</p>
+                </div>
                 <div className="mb-6">
-                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.flow.name}</h3>
-                  <p className="text-sm text-slate-500">{t.pricing.flow.features[0]}</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent font-[family-name:var(--font-manrope)]">
+                      {pricingInterval === "annual" ? t.pricing.professional.annualPrice : t.pricing.professional.price}
+                    </span>
+                    <span className="text-sm text-slate-500">DKK{t.pricing.period}</span>
+                  </div>
+                  {pricingInterval === "annual" && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-slate-600 line-through">{t.pricing.professional.price} DKK</span>
+                      <span className="text-[10px] text-emerald-400 font-bold">6,708 DKK/yr</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent font-[family-name:var(--font-manrope)]">
-                    {t.pricing.flow.price}
-                  </span>
-                  <span className="text-sm text-slate-500">{t.pricing.flow.period}</span>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {t.pricing.flow.features.map((f: string) => (
+                <ul className="space-y-2.5 mb-8">
+                  {t.pricing.professional.features.map((f: string) => (
                     <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
-                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5">check_circle</span>
+                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5 shrink-0">check_circle</span>
                       {f}
                     </li>
                   ))}
@@ -496,9 +543,47 @@ export default function Home() {
                   href="/signup"
                   className="block w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-center font-bold text-sm text-white hover:shadow-lg hover:shadow-blue-500/25 transition-all"
                 >
-                  {t.pricing.flow.cta}
+                  {t.pricing.professional.cta}
                 </Link>
               </div>
+            </div>
+
+            {/* Enterprise */}
+            <div className="pricing-card">
+              <GlassCard>
+                <div className="mb-5">
+                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.enterprise.name}</h3>
+                  <p className="text-sm text-slate-500">{t.pricing.enterprise.desc}</p>
+                </div>
+                <div className="mb-6">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-4xl font-extrabold text-white font-[family-name:var(--font-manrope)]">
+                      {pricingInterval === "annual" ? t.pricing.enterprise.annualPrice : t.pricing.enterprise.price}
+                    </span>
+                    <span className="text-sm text-slate-500">DKK{t.pricing.period}</span>
+                  </div>
+                  {pricingInterval === "annual" && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-slate-600 line-through">{t.pricing.enterprise.price} DKK</span>
+                      <span className="text-[10px] text-emerald-400 font-bold">16,308 DKK/yr</span>
+                    </div>
+                  )}
+                </div>
+                <ul className="space-y-2.5 mb-8">
+                  {t.pricing.enterprise.features.map((f: string) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-400">
+                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5 shrink-0">check_circle</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/signup"
+                  className="block w-full py-3 rounded-xl border border-white/[0.12] text-center font-bold text-sm text-slate-300 hover:bg-white/[0.06] transition-all"
+                >
+                  {t.pricing.enterprise.cta}
+                </Link>
+              </GlassCard>
             </div>
           </div>
         </div>

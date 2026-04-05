@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { PlanId } from "@/lib/stripe/plans";
 
 export interface UsageQuota {
   used: number;
@@ -8,9 +9,10 @@ export interface UsageQuota {
 }
 
 export interface SubscriptionData {
-  plan: "free" | "go" | "flow";
+  plan: PlanId;
   planName: string;
   price: number;
+  annualPrice: number;
   currency: string;
   status: string;
   currentPeriodEnd: string | null;
@@ -18,20 +20,25 @@ export interface SubscriptionData {
   limits: {
     savedCompanies: number;
     triggers: number;
-    aiFeatures: boolean;
-    crm: boolean;
-    exports: boolean;
-    teamFeatures: boolean;
-    prioritySupport: boolean;
-    aiUsagesPerMonth: number;
+    followedPeople: number;
+    tasks: number;
+    crmConnections: number;
     companySearchesPerMonth: number;
+    aiUsagesPerMonth: number;
+    enrichmentsPerMonth: number;
+    emailDraftsPerMonth: number;
+    linkedinDraftsPerMonth: number;
+    phoneDraftsPerMonth: number;
     exportsPerMonth: number;
+    aiTaskSuggestPerMonth: number;
+    bulkPushPerMonth: number;
+    teamFeatures: boolean;
+    brandPersonalization: boolean;
+    calendarExport: boolean;
+    contextMenus: boolean;
+    prioritySupport: boolean;
   };
-  usage: {
-    aiUsages: UsageQuota;
-    companySearches: UsageQuota;
-    exports: UsageQuota;
-  };
+  usage: Record<string, UsageQuota>;
 }
 
 export function useSubscription() {
@@ -56,7 +63,6 @@ export function useCheckout() {
       });
       const data = await res.json();
 
-      // Already subscribed — redirect to billing portal to change plans
       if (res.status === 409) {
         const portalRes = await fetch("/api/stripe/portal", { method: "POST" });
         const portalData = await portalRes.json();
@@ -119,7 +125,7 @@ export function useResumeSubscription() {
 export function useChangePlan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (targetPlan: "free" | "go" | "flow") => {
+    mutationFn: async (targetPlan: PlanId) => {
       const res = await fetch("/api/stripe/change-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,7 +134,6 @@ export function useChangePlan() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to change plan");
 
-      // If server says we need checkout (free → paid), initiate it
       if (data.action === "checkout" && data.priceId) {
         const checkoutRes = await fetch("/api/stripe/checkout", {
           method: "POST",

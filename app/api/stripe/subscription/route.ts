@@ -18,22 +18,22 @@ export async function GET() {
 
     const serializeInf = (v: number) => (isFinite(v) ? v : -1);
 
+    // Serialize all numeric limits (Infinity → -1 for JSON)
+    const serializedLimits: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(limits)) {
+      serializedLimits[key] = typeof value === "number" && !isFinite(value) ? -1 : value;
+    }
+
     return NextResponse.json({
       plan,
       planName: planDef.name,
       price: planDef.price,
+      annualPrice: planDef.annualPrice,
       currency: planDef.currency,
       status,
       currentPeriodEnd: subscription?.currentPeriodEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
-      limits: {
-        ...limits,
-        savedCompanies: serializeInf(limits.savedCompanies),
-        triggers: serializeInf(limits.triggers),
-        aiUsagesPerMonth: serializeInf(limits.aiUsagesPerMonth),
-        companySearchesPerMonth: serializeInf(limits.companySearchesPerMonth),
-        exportsPerMonth: serializeInf(limits.exportsPerMonth),
-      },
+      limits: serializedLimits,
       usage,
     });
   } catch (error) {

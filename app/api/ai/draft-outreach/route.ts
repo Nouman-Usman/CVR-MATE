@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
-import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 import { db } from "@/db";
 import { outreachMessage } from "@/db/schema";
 
@@ -21,22 +21,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "aiFeatures");
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "AI features require a paid plan", upgrade: true },
-        { status: 403 }
-      );
-    }
-
-    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
-    if (!quota.allowed) {
-      return NextResponse.json(
-        { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
-        { status: 403 }
-      );
-    }
-
     const {
       vat,
       type = "email",
@@ -46,6 +30,16 @@ export async function POST(req: NextRequest) {
       locale = "en",
       companyData,
     } = await req.json();
+
+    const draftFeature = type === "linkedin" ? "linkedin_draft" : type === "phone_script" ? "phone_draft" : "email_draft";
+
+    const quota = await checkMonthlyQuota(session.user.id, draftFeature as any);
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
+        { status: 403 }
+      );
+    }
 
     if (!vat || !/^\d{8}$/.test(String(vat))) {
       return NextResponse.json(
@@ -193,7 +187,7 @@ Respond with a JSON object:
       })
       .returning();
 
-    await recordUsage(session.user.id, "ai_usage");
+    await recordUsage(session.user.id, draftFeature as any);
     return NextResponse.json({ ...normalized, id: saved.id });
   } catch (error) {
     console.error("AI outreach error:", error);

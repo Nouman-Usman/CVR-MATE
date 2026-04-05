@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand } from "@/lib/get-user-brand";
-import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 interface ParsedFilters {
   query: string;
@@ -32,14 +32,6 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { allowed } = await checkEntitlement(session.user.id, "aiFeatures");
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "AI features require a paid plan", upgrade: true },
-        { status: 403 }
-      );
     }
 
     const quota = await checkMonthlyQuota(session.user.id, "ai_usage");

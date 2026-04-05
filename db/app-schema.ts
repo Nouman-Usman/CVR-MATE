@@ -710,7 +710,7 @@ export const subscription = pgTable(
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
     stripePriceId: text("stripe_price_id"),
-    plan: text("plan").default("free").notNull(), // 'free' | 'go' | 'flow'
+    plan: text("plan").default("free").notNull(), // 'free' | 'starter' | 'professional' | 'enterprise'
     status: text("status").default("active").notNull(), // 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete'
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),

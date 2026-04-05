@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc, count } from "drizzle-orm";
 import { todo, company } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { getCompanyByVat } from "@/lib/cvr-api";
+import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
 
 export async function GET() {
   try {
@@ -47,6 +48,20 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check task limit
+    const [{ value: taskCount }] = await db
+      .select({ value: count() })
+      .from(todo)
+      .where(eq(todo.userId, session.user.id));
+
+    const { allowed, limit } = await checkUsageEntitlement(session.user.id, "tasks", taskCount);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Task limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();

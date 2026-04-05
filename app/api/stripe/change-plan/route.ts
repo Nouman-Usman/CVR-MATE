@@ -5,13 +5,19 @@ import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { priceToPlan, type PlanId } from "@/lib/stripe/plans";
+import { priceToPlan, resolvePlanId, type PlanId } from "@/lib/stripe/plans";
 
-const PLAN_HIERARCHY: Record<PlanId, number> = { free: 0, go: 1, flow: 2 };
+const PLAN_HIERARCHY: Record<PlanId, number> = {
+  free: 0,
+  starter: 1,
+  professional: 2,
+  enterprise: 3,
+};
 
 function getPriceIdForPlan(plan: PlanId): string | null {
-  if (plan === "go") return process.env.NEXT_PUBLIC_STRIPE_GO_PRICE_ID ?? null;
-  if (plan === "flow") return process.env.NEXT_PUBLIC_STRIPE_FLOW_PRICE_ID ?? null;
+  if (plan === "starter") return process.env.NEXT_PUBLIC_STRIPE_STARTER_MONTHLY_PRICE_ID ?? null;
+  if (plan === "professional") return process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID ?? null;
+  if (plan === "enterprise") return process.env.NEXT_PUBLIC_STRIPE_ENT_MONTHLY_PRICE_ID ?? null;
   return null;
 }
 
@@ -25,7 +31,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const targetPlan = body.targetPlan as PlanId;
 
-    if (!targetPlan || !["free", "go", "flow"].includes(targetPlan)) {
+    if (!targetPlan || !["free", "starter", "professional", "enterprise"].includes(targetPlan)) {
       return NextResponse.json({ error: "Invalid target plan" }, { status: 400 });
     }
 
@@ -34,7 +40,7 @@ export async function POST(req: NextRequest) {
     });
 
     const currentPlan = (sub?.status === "active" || sub?.status === "past_due")
-      ? (sub.plan as PlanId)
+      ? resolvePlanId(sub.plan)
       : "free";
 
     if (currentPlan === targetPlan) {

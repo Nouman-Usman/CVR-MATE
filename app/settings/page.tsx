@@ -95,11 +95,12 @@ interface Org {
 
 // ─── Subscription Section ─────────────────────────────────────────────────────
 
-const PLAN_COLORS = {
+const PLAN_COLORS: Record<string, { bg: string; text: string }> = {
   free: { bg: "bg-slate-100", text: "text-slate-700" },
-  go: { bg: "bg-blue-50", text: "text-blue-700" },
-  flow: { bg: "bg-violet-50", text: "text-violet-700" },
-} as const;
+  starter: { bg: "bg-blue-50", text: "text-blue-700" },
+  professional: { bg: "bg-violet-50", text: "text-violet-700" },
+  enterprise: { bg: "bg-amber-50", text: "text-amber-700" },
+};
 
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number }) {
   const isUnlimited = limit === -1;
@@ -138,25 +139,13 @@ function SubscriptionSection() {
   const resumeMutation = useResumeSubscription();
   const changePlanMutation = useChangePlan();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
 
   const cardClass =
     "bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8";
 
-  const goPriceId = process.env.NEXT_PUBLIC_STRIPE_GO_PRICE_ID;
-  const flowPriceId = process.env.NEXT_PUBLIC_STRIPE_FLOW_PRICE_ID;
-
   const plan = data?.plan ?? "free";
-  const planColor = PLAN_COLORS[plan];
-  const planNames = {
-    free: (sub.free as { name: string })?.name ?? "Free",
-    go: (sub.go as { name: string })?.name ?? "CVR-MATE GO",
-    flow: (sub.flow as { name: string })?.name ?? "CVR-MATE FLOW",
-  };
-  const planDescriptions = {
-    free: (sub.free as { description: string })?.description ?? "",
-    go: (sub.go as { description: string })?.description ?? "",
-    flow: (sub.flow as { description: string })?.description ?? "",
-  };
+  const planColor = PLAN_COLORS[plan] ?? PLAN_COLORS.free;
 
   const isPaid = plan !== "free";
   const isPastDue = data?.status === "past_due";
@@ -229,34 +218,25 @@ function SubscriptionSection() {
           )}
 
           {/* Current plan card */}
-          <div className="bg-slate-50 rounded-xl p-6 mb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <span className={`px-3 py-1 ${planColor.bg} ${planColor.text} rounded-full text-xs font-bold uppercase tracking-wider`}>
-                    {planNames[plan]}
+          <div className="rounded-xl overflow-hidden mb-4">
+            <div className={`px-6 py-4 ${planColor.bg}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm font-bold ${planColor.text}`}>
+                    {data?.planName ?? "Free"}
                   </span>
                   {isPaid && data?.price != null && (
-                    <span className="text-lg font-black text-slate-900">
+                    <span className="text-sm font-semibold text-slate-600">
                       {data.price.toLocaleString(locale === "da" ? "da-DK" : "en-US")} {data.currency}{sub.perMonth as string}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-slate-500 mt-1">{planDescriptions[plan]}</p>
-                {nextBillingDate && isPaid && !isCanceling && (
-                  <p className="text-xs text-slate-400 mt-2">
-                    {sub.nextBilling as string}: {nextBillingDate}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex gap-2 self-start shrink-0">
                 {isPaid && (
-                  <>
+                  <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => portalMutation.mutate()}
                       disabled={anyMutationPending}
-                      className="px-4 py-2 border-2 border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 bg-white/80 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
                     >
                       {portalMutation.isPending ? (
                         <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -268,17 +248,22 @@ function SubscriptionSection() {
                       <button
                         onClick={() => setShowCancelConfirm(true)}
                         disabled={anyMutationPending}
-                        className="px-4 py-2 border-2 border-red-200 rounded-full text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1.5 bg-white/80 border border-red-200 rounded-lg text-[11px] font-semibold text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         {sub.cancelSubscription as string}
                       </button>
                     )}
-                  </>
-                )}
-                {!isPaid && (
-                  <p className="text-sm text-slate-400">{sub.freePlan as string}</p>
+                  </div>
                 )}
               </div>
+              {nextBillingDate && isPaid && !isCanceling && (
+                <p className="text-[11px] text-slate-500 mt-2">
+                  {sub.nextBilling as string}: {nextBillingDate}
+                </p>
+              )}
+              {!isPaid && (
+                <p className="text-xs text-slate-500 mt-1">{sub.freePlan as string}</p>
+              )}
             </div>
           </div>
 
@@ -321,89 +306,138 @@ function SubscriptionSection() {
               </h3>
               <div className="space-y-3">
                 <UsageMeter
-                  label={sub.companySearches as string}
-                  used={data.usage.companySearches.used}
-                  limit={data.usage.companySearches.limit}
+                  label={locale === "da" ? "Virksomhedssøgninger" : "Company searches"}
+                  used={data.usage.companySearches?.used ?? 0}
+                  limit={data.usage.companySearches?.limit ?? 0}
                 />
                 <UsageMeter
-                  label={sub.aiUsages as string}
-                  used={data.usage.aiUsages.used}
-                  limit={data.usage.aiUsages.limit}
+                  label={locale === "da" ? "AI brug" : "AI usages"}
+                  used={data.usage.aiUsages?.used ?? 0}
+                  limit={data.usage.aiUsages?.limit ?? 0}
                 />
                 <UsageMeter
-                  label={sub.exports as string}
-                  used={data.usage.exports.used}
-                  limit={data.usage.exports.limit}
+                  label={locale === "da" ? "Berigelser" : "Enrichments"}
+                  used={data.usage.enrichments?.used ?? 0}
+                  limit={data.usage.enrichments?.limit ?? 0}
+                />
+                <UsageMeter
+                  label={locale === "da" ? "E-mail udkast" : "Email drafts"}
+                  used={data.usage.emailDrafts?.used ?? 0}
+                  limit={data.usage.emailDrafts?.limit ?? 0}
+                />
+                <UsageMeter
+                  label={locale === "da" ? "Eksport" : "Exports"}
+                  used={data.usage.exports?.used ?? 0}
+                  limit={data.usage.exports?.limit ?? 0}
                 />
               </div>
             </div>
           )}
 
-          {/* Plan change options */}
-          {plan !== "flow" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {plan === "free" && goPriceId && (
-                <button
-                  onClick={() => changePlanMutation.mutate("go")}
-                  disabled={anyMutationPending}
-                  className="flex items-center justify-between p-4 rounded-xl border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-slate-900">{planNames.go}</p>
-                    <p className="text-xs text-slate-500">{planDescriptions.go}</p>
+          {/* Plan upgrade/change options */}
+          {plan !== "enterprise" && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  {sub.upgrade as string}
+                </h3>
+                {/* Monthly / Annual toggle */}
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-slate-100 rounded-full p-0.5 gap-0.5">
+                    <button
+                      onClick={() => setBillingInterval("monthly")}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                        billingInterval === "monthly"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      {locale === "da" ? "Månedlig" : "Monthly"}
+                    </button>
+                    <button
+                      onClick={() => setBillingInterval("annual")}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        billingInterval === "annual"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      {locale === "da" ? "Årlig" : "Annual"}
+                      <span className="inline-flex px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-bold">
+                        -20%
+                      </span>
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-bold text-blue-600">2.999 DKK{sub.perMonth as string}</span>
-                    <span className="material-symbols-outlined text-blue-600 text-lg">arrow_forward</span>
-                  </div>
-                </button>
-              )}
-              {flowPriceId && (
-                <button
-                  onClick={() => changePlanMutation.mutate("flow")}
-                  disabled={anyMutationPending}
-                  className="flex items-center justify-between p-4 rounded-xl border-2 border-violet-200 hover:border-violet-400 hover:bg-violet-50/50 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-slate-900">{planNames.flow}</p>
-                    <p className="text-xs text-slate-500">{planDescriptions.flow}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-bold text-violet-600">4.999 DKK{sub.perMonth as string}</span>
-                    <span className="material-symbols-outlined text-violet-600 text-lg">arrow_forward</span>
-                  </div>
-                </button>
-              )}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {(["starter", "professional", "enterprise"] as const)
+                  .filter((p) => p !== plan)
+                  .map((targetPlan) => {
+                    const colors = PLAN_COLORS[targetPlan];
+                    const monthlyPrices: Record<string, number> = { starter: 299, professional: 699, enterprise: 1699 };
+                    const annualPrices: Record<string, number> = { starter: 239, professional: 559, enterprise: 1359 };
+                    const names: Record<string, string> = { starter: "Starter", professional: "Professional", enterprise: "Enterprise" };
+                    const descs: Record<string, string> = {
+                      starter: locale === "da" ? "Solo-prospektering" : "Solo prospecting",
+                      professional: locale === "da" ? "For salgsteams" : "For sales teams",
+                      enterprise: locale === "da" ? "Teams & bureauer" : "Teams & agencies",
+                    };
+                    const price = billingInterval === "annual" ? annualPrices[targetPlan] : monthlyPrices[targetPlan];
+                    const isHigher = (["free", "starter", "professional", "enterprise"] as const).indexOf(targetPlan) > (["free", "starter", "professional", "enterprise"] as const).indexOf(plan);
+
+                    return (
+                      <button
+                        key={targetPlan}
+                        onClick={() => changePlanMutation.mutate(targetPlan)}
+                        disabled={anyMutationPending}
+                        className={`flex flex-col p-5 rounded-xl border-2 hover:shadow-md transition-all cursor-pointer disabled:opacity-50 text-left group ${
+                          targetPlan === "professional" ? "border-violet-200 hover:border-violet-400 hover:bg-violet-50/30" :
+                          targetPlan === "enterprise" ? "border-amber-200 hover:border-amber-400 hover:bg-amber-50/30" :
+                          "border-blue-200 hover:border-blue-400 hover:bg-blue-50/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-3">
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
+                            {names[targetPlan]}
+                          </span>
+                          {isHigher && (
+                            <span className="material-symbols-outlined text-sm text-slate-300 group-hover:text-slate-500 transition-colors">arrow_forward</span>
+                          )}
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-xl font-black text-slate-900">{price.toLocaleString()}</span>
+                          <span className="text-sm font-medium text-slate-400">DKK{sub.perMonth as string}</span>
+                        </div>
+                        {billingInterval === "annual" ? (
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-slate-400 line-through">{monthlyPrices[targetPlan].toLocaleString()} DKK</span>
+                            <span className="text-[10px] text-emerald-600 font-bold">
+                              {(annualPrices[targetPlan] * 12).toLocaleString()} DKK/{locale === "da" ? "år" : "yr"}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 mt-0.5">
+                            {(monthlyPrices[targetPlan] * 12).toLocaleString()} DKK/{locale === "da" ? "år" : "yr"}
+                          </span>
+                        )}
+                        <span className="text-[11px] text-slate-500 mt-1">{descs[targetPlan]}</span>
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
           )}
 
           {/* Downgrade option for paid users */}
-          {plan === "go" && (
-            <div className="mt-3">
+          {plan !== "free" && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
               <button
                 onClick={() => changePlanMutation.mutate("free")}
                 disabled={anyMutationPending}
-                className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer disabled:opacity-50"
+                className="text-xs text-slate-400 hover:text-red-500 cursor-pointer disabled:opacity-50 transition-colors"
               >
-                {sub.downgrade as string} → {planNames.free}
-              </button>
-            </div>
-          )}
-          {plan === "flow" && (
-            <div className="mt-3 flex gap-4">
-              <button
-                onClick={() => changePlanMutation.mutate("go")}
-                disabled={anyMutationPending}
-                className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer disabled:opacity-50"
-              >
-                {sub.downgrade as string} → {planNames.go}
-              </button>
-              <button
-                onClick={() => changePlanMutation.mutate("free")}
-                disabled={anyMutationPending}
-                className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer disabled:opacity-50"
-              >
-                {sub.downgrade as string} → {planNames.free}
+                {sub.downgrade as string} → Free
               </button>
             </div>
           )}
