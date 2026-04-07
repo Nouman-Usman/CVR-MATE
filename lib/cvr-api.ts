@@ -208,6 +208,8 @@ export interface CvrParticipantRaw {
     profession?: string | null;
     deceased?: boolean;
   };
+  // Participations — all companies this person is involved with (returned by CVR API)
+  participations?: CvrParticipation[];
 }
 
 // Enriched participant data returned by our API route (participant + company relations)

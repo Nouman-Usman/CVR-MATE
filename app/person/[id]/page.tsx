@@ -165,10 +165,15 @@ function PersonDetailContent() {
     return { activeCompanies: active, historicalCompanies: historical };
   }, [companies]);
 
-  // Count unique role types across active companies
+  // Count total active roles across all companies (a person can have multiple roles per company)
   const totalActiveRoles = useMemo(
     () => activeCompanies.reduce((sum, c) => sum + c.roles.filter((r) => !r.life.end).length, 0),
     [activeCompanies]
+  );
+  // Count total historical roles
+  const totalHistoricalRoles = useMemo(
+    () => historicalCompanies.reduce((sum, c) => sum + c.roles.filter((r) => !!r.life.end).length, 0),
+    [historicalCompanies]
   );
 
   const initials = person?.life.name
@@ -357,7 +362,7 @@ function PersonDetailContent() {
                 <span className="material-symbols-outlined text-lg text-slate-500">history</span>
               </div>
               <p className="text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums font-[family-name:var(--font-manrope)]">
-                {historicalCompanies.length}
+                {totalHistoricalRoles}
               </p>
               <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mt-0.5">
                 {pd.historicalRoles}
@@ -540,7 +545,7 @@ function PersonDetailContent() {
                 {pd.activeRoles}
               </h2>
               <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 tabular-nums">
-                {activeCompanies.length}
+                {totalActiveRoles}
               </span>
             </div>
 
@@ -581,7 +586,7 @@ function PersonDetailContent() {
                   {pd.historicalRoles}
                 </h2>
                 <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 tabular-nums">
-                  {historicalCompanies.length}
+                  {totalHistoricalRoles}
                 </span>
                 <span
                   className={`material-symbols-outlined text-lg text-slate-400 ml-auto transition-transform duration-200 ${

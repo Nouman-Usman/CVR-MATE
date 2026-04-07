@@ -10,6 +10,9 @@ export function resolvePlanId(plan: string): PlanId {
   if (plan === "free" || plan === "starter" || plan === "professional" || plan === "enterprise") {
     return plan;
   }
+  // Legacy plan migration: users who still have old plan names in the DB
+  if (plan === "go") return "professional";
+  if (plan === "flow") return "enterprise";
   return "free";
 }
 

@@ -50,13 +50,46 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     const isUpgrade = PLAN_HIERARCHY[targetPlan] > PLAN_HIERARCHY[currentPlan];
 
-    // ─── Free → Paid: need a checkout session ────────────────────────────
-    if (currentPlan === "free" || !sub?.stripeSubscriptionId) {
+    // ─── No Stripe subscription at all: need a checkout session ───────────
+    if (!sub?.stripeSubscriptionId) {
       const priceId = getPriceIdForPlan(targetPlan);
       if (!priceId) {
         return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
       }
-      // Return a signal that the frontend should initiate checkout
+      return NextResponse.json({ action: "checkout", priceId });
+    }
+
+    // ─── Has Stripe subscription but it's canceling: reactivate + change ──
+    if (sub.cancelAtPeriodEnd && targetPlan !== "free") {
+      const newPriceId = getPriceIdForPlan(targetPlan);
+      if (!newPriceId) {
+        return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
+      }
+      const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+      const currentItem = stripeSub.items.data[0];
+      if (!currentItem) {
+        return NextResponse.json({ error: "Subscription has no items" }, { status: 500 });
+      }
+      // Reactivate and switch price
+      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+        cancel_at_period_end: false,
+        items: [{ id: currentItem.id, price: newPriceId }],
+        proration_behavior: "create_prorations",
+      });
+      const resolvedPlan = priceToPlan(newPriceId);
+      await db
+        .update(subscription)
+        .set({ stripePriceId: newPriceId, plan: resolvedPlan, cancelAtPeriodEnd: false })
+        .where(eq(subscription.id, sub.id));
+      return NextResponse.json({ success: true, action: "upgraded", plan: resolvedPlan });
+    }
+
+    // ─── Free (canceled/no sub) → Paid: need checkout ───────────────────
+    if (currentPlan === "free") {
+      const priceId = getPriceIdForPlan(targetPlan);
+      if (!priceId) {
+        return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
+      }
       return NextResponse.json({ action: "checkout", priceId });
     }
 

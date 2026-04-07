@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/db";
 import { subscription, usageRecord } from "@/db/schema";
 import { eq, and, gte, count } from "drizzle-orm";
-import { PLAN_LIMITS, resolvePlanId, type PlanId, type PlanLimits } from "./plans";
+import { PLAN_LIMITS, resolvePlanId, priceToPlan, type PlanId, type PlanLimits } from "./plans";
 
 export interface UserPlan {
   plan: PlanId;
@@ -52,8 +52,17 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
     return { plan: "free", status: sub.status, subscription: sub };
   }
 
+  // Derive plan from stripe_price_id as the source of truth (plan column may be stale)
+  let plan = resolvePlanId(sub.plan);
+  if (sub.stripePriceId && sub.status === "active") {
+    const priceBasedPlan = priceToPlan(sub.stripePriceId);
+    if (priceBasedPlan !== "free") {
+      plan = priceBasedPlan;
+    }
+  }
+
   return {
-    plan: resolvePlanId(sub.plan),
+    plan,
     status: sub.status,
     subscription: sub,
   };

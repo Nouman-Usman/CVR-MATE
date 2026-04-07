@@ -141,6 +141,18 @@ export function useChangePlan() {
           body: JSON.stringify({ priceId: data.priceId }),
         });
         const checkoutData = await checkoutRes.json();
+
+        // 409 = already has subscription — redirect to billing portal to manage
+        if (checkoutRes.status === 409) {
+          const portalRes = await fetch("/api/stripe/portal", { method: "POST" });
+          const portalData = await portalRes.json();
+          if (portalRes.ok && portalData.url) {
+            window.location.href = portalData.url;
+            return portalData;
+          }
+          throw new Error("Please manage your subscription from the billing portal.");
+        }
+
         if (!checkoutRes.ok) throw new Error(checkoutData.error || "Failed to create checkout");
         if (checkoutData.url) window.location.href = checkoutData.url;
         return checkoutData;

@@ -18,18 +18,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 1. Fetch participant personal data from CVR API
+    // 1. Fetch participant data from CVR API — may include participations[]
     const participantRaw = await getParticipantByNumber(Number(id));
 
-    // 2. Get company relations (participations) from the originating company
-    let companies: CvrParticipation[] = [];
+    // 2. Extract participations directly from the participant response (source of truth)
+    let companies: CvrParticipation[] = participantRaw.participations ?? [];
 
-    if (fromVat && /^\d{8}$/.test(fromVat)) {
+    // 3. If participant endpoint didn't return participations, fall back to originating company
+    if (companies.length === 0 && fromVat && /^\d{8}$/.test(fromVat)) {
       const company = await getCompanyByVat(Number(fromVat));
       const raw = company as unknown as Record<string, unknown>;
 
-      // The company schema has participations[] — companies where participants are involved.
-      // We also check participants[] to find this person's roles in the current company.
       const participations = (raw.participations ?? []) as CvrParticipation[];
       if (participations.length > 0) {
         companies = participations;
@@ -46,7 +45,6 @@ export async function GET(req: NextRequest) {
       );
 
       if (thisParticipant) {
-        // Check if the originating company is already in participations
         const alreadyIncluded = companies.some(
           (c) => c.vat === Number(fromVat)
         );
@@ -62,6 +60,14 @@ export async function GET(req: NextRequest) {
         }
       }
     }
+
+    // 4. Deduplicate companies by VAT (participant endpoint + originating company may overlap)
+    const seen = new Set<number>();
+    companies = companies.filter((c) => {
+      if (seen.has(c.vat)) return false;
+      seen.add(c.vat);
+      return true;
+    });
 
     const participant: CvrParticipant = {
       ...participantRaw,

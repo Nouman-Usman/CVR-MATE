@@ -51,8 +51,13 @@ export async function POST(req: NextRequest) {
 
     let stripeCustomerId = existingSub?.stripeCustomerId;
 
-    // If they already have an active subscription, redirect to portal instead
-    if (existingSub?.stripeSubscriptionId && existingSub.status === "active") {
+    // If they already have an active subscription (and not scheduled to cancel),
+    // redirect to portal instead of creating a new checkout
+    if (
+      existingSub?.stripeSubscriptionId &&
+      existingSub.status === "active" &&
+      !existingSub.cancelAtPeriodEnd
+    ) {
       return NextResponse.json(
         { error: "You already have an active subscription. Use the billing portal to change plans." },
         { status: 409 }
