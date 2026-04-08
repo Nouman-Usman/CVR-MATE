@@ -5,7 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { priceToPlan, resolvePlanId, type PlanId } from "@/lib/stripe/plans";
+import { priceToPlan, type PlanId } from "@/lib/stripe/plans";
 
 const PLAN_HIERARCHY: Record<PlanId, number> = {
   free: 0,
@@ -39,19 +39,29 @@ export async function POST(req: NextRequest) {
       where: eq(subscription.userId, session.user.id),
     });
 
-    const currentPlan = (sub?.status === "active" || sub?.status === "past_due")
-      ? resolvePlanId(sub.plan)
-      : "free";
+    const stripe = getStripe();
+
+    // Derive current plan from stripe_price_id (source of truth), not the plan column
+    let currentPlan: PlanId = "free";
+    if (sub && (sub.status === "active" || sub.status === "past_due")) {
+      if (sub.stripePriceId) {
+        const fromPrice = priceToPlan(sub.stripePriceId);
+        currentPlan = fromPrice !== "free" ? fromPrice : "free";
+      }
+      // If cancelled at period end, they're effectively "leaving" — treat as current plan still active for change purposes
+    }
 
     if (currentPlan === targetPlan) {
       return NextResponse.json({ error: "Already on this plan" }, { status: 400 });
     }
 
-    const stripe = getStripe();
     const isUpgrade = PLAN_HIERARCHY[targetPlan] > PLAN_HIERARCHY[currentPlan];
 
     // ─── No Stripe subscription at all: need a checkout session ───────────
     if (!sub?.stripeSubscriptionId) {
+      if (targetPlan === "free") {
+        return NextResponse.json({ error: "Already on free plan" }, { status: 400 });
+      }
       const priceId = getPriceIdForPlan(targetPlan);
       if (!priceId) {
         return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
@@ -59,46 +69,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ action: "checkout", priceId });
     }
 
-    // ─── Has Stripe subscription but it's canceling: reactivate + change ──
-    if (sub.cancelAtPeriodEnd && targetPlan !== "free") {
-      const newPriceId = getPriceIdForPlan(targetPlan);
-      if (!newPriceId) {
-        return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
-      }
-      const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
-      const currentItem = stripeSub.items.data[0];
-      if (!currentItem) {
-        return NextResponse.json({ error: "Subscription has no items" }, { status: 500 });
-      }
-      // Reactivate and switch price
-      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
-        cancel_at_period_end: false,
-        items: [{ id: currentItem.id, price: newPriceId }],
-        proration_behavior: "create_prorations",
-      });
-      const resolvedPlan = priceToPlan(newPriceId);
-      await db
-        .update(subscription)
-        .set({ stripePriceId: newPriceId, plan: resolvedPlan, cancelAtPeriodEnd: false })
-        .where(eq(subscription.id, sub.id));
-      return NextResponse.json({ success: true, action: "upgraded", plan: resolvedPlan });
-    }
-
-    // ─── Free (canceled/no sub) → Paid: need checkout ───────────────────
-    if (currentPlan === "free") {
-      const priceId = getPriceIdForPlan(targetPlan);
-      if (!priceId) {
-        return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
-      }
-      return NextResponse.json({ action: "checkout", priceId });
-    }
-
-    // ─── Paid → Free: schedule cancellation at period end ────────────────
+    // ─── Paid → Free: cancel subscription in Stripe ──────────────────────
     if (targetPlan === "free") {
+      // Actually cancel in Stripe (schedule end-of-period cancellation)
       await stripe.subscriptions.update(sub.stripeSubscriptionId, {
         cancel_at_period_end: true,
       });
 
+      // Update DB to reflect the cancellation — keep plan name but mark canceling
       await db
         .update(subscription)
         .set({ cancelAtPeriodEnd: true })
@@ -112,26 +90,52 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ─── Paid → Paid: update subscription item's price ───────────────────
+    // ─── From here, targetPlan is a paid plan ────────────────────────────
     const newPriceId = getPriceIdForPlan(targetPlan);
     if (!newPriceId) {
       return NextResponse.json({ error: "Target plan not available" }, { status: 400 });
     }
 
-    // Get the current subscription from Stripe to find the item ID
-    const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+    // Check if Stripe subscription still exists
+    let stripeSub;
+    try {
+      stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+    } catch {
+      // Subscription doesn't exist in Stripe anymore — need new checkout
+      return NextResponse.json({ action: "checkout", priceId: newPriceId });
+    }
+
+    // If subscription is canceled in Stripe, need new checkout
+    if (stripeSub.status === "canceled") {
+      return NextResponse.json({ action: "checkout", priceId: newPriceId });
+    }
+
     const currentItem = stripeSub.items.data[0];
     if (!currentItem) {
       return NextResponse.json({ error: "Subscription has no items" }, { status: 500 });
     }
 
-    // Upgrade: immediate with proration. Downgrade: immediate, no proration.
-    await stripe.subscriptions.update(sub.stripeSubscriptionId, {
-      items: [{ id: currentItem.id, price: newPriceId }],
-      proration_behavior: isUpgrade ? "create_prorations" : "none",
-    });
+    // Update Stripe subscription: change price + reactivate if canceling
+    try {
+      await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+        cancel_at_period_end: false,
+        items: [{ id: currentItem.id, price: newPriceId }],
+        proration_behavior: isUpgrade ? "create_prorations" : "none",
+      });
+    } catch (stripeErr) {
+      const msg = stripeErr instanceof Error ? stripeErr.message : "Stripe update failed";
+      // If customer or subscription was deleted, clean up DB and redirect to checkout
+      if (msg.includes("No such customer") || msg.includes("No such subscription")) {
+        await db
+          .update(subscription)
+          .set({ plan: "free", status: "canceled", cancelAtPeriodEnd: false, stripeSubscriptionId: null })
+          .where(eq(subscription.id, sub.id));
+        return NextResponse.json({ action: "checkout", priceId: newPriceId });
+      }
+      throw stripeErr;
+    }
 
-    // Update local DB immediately
+    // Update DB: plan name, price ID, cancel flag — all in sync
     const resolvedPlan = priceToPlan(newPriceId);
     await db
       .update(subscription)
@@ -139,6 +143,7 @@ export async function POST(req: NextRequest) {
         stripePriceId: newPriceId,
         plan: resolvedPlan,
         cancelAtPeriodEnd: false,
+        status: "active",
       })
       .where(eq(subscription.id, sub.id));
 

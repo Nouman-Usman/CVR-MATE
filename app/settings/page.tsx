@@ -9,7 +9,6 @@ import Link from "next/link";
 import { useIntegrations, useCrmDisconnect, useSyncHistory } from "@/lib/hooks/use-integrations";
 import {
   useSubscription,
-  useCheckout,
   useCustomerPortal,
   useCancelSubscription,
   useResumeSubscription,
@@ -133,13 +132,17 @@ function SubscriptionSection() {
   const st = t.settings;
   const sub = st.subscription as Record<string, unknown>;
   const { data, isLoading } = useSubscription();
-  const checkoutMutation = useCheckout();
   const portalMutation = useCustomerPortal();
   const cancelMutation = useCancelSubscription();
   const resumeMutation = useResumeSubscription();
   const changePlanMutation = useChangePlan();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
+  const [subToast, setSubToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const showSubToast = (msg: string, type: "success" | "error" = "success") => {
+    setSubToast({ msg, type });
+    setTimeout(() => setSubToast(null), 4000);
+  };
 
   const cardClass =
     "bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8";
@@ -159,10 +162,22 @@ function SubscriptionSection() {
     : null;
 
   const anyMutationPending =
-    checkoutMutation.isPending || portalMutation.isPending ||
-    cancelMutation.isPending || resumeMutation.isPending || changePlanMutation.isPending;
+    portalMutation.isPending || cancelMutation.isPending ||
+    resumeMutation.isPending || changePlanMutation.isPending;
 
   return (
+    <>
+    {/* Subscription toast */}
+    {subToast && (
+      <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300 ${
+        subToast.type === "error" ? "bg-red-600 text-white" : "bg-foreground text-background"
+      }`}>
+        <span className="material-symbols-outlined text-base">
+          {subToast.type === "error" ? "error" : "check_circle"}
+        </span>
+        {subToast.msg}
+      </div>
+    )}
     <div className={cardClass}>
       <div className="flex items-center gap-2 mb-6">
         <span className="material-symbols-outlined text-slate-400 text-xl">
@@ -203,7 +218,10 @@ function SubscriptionSection() {
               <div className="flex-1">
                 <p className="text-sm text-amber-700">{sub.cancelNotice as string}</p>
                 <button
-                  onClick={() => resumeMutation.mutate()}
+                  onClick={() => resumeMutation.mutate(undefined, {
+                    onSuccess: () => showSubToast(locale === "da" ? "Abonnement genoptaget" : "Subscription resumed"),
+                    onError: (err) => showSubToast(err.message || "Failed to resume", "error"),
+                  })}
                   disabled={resumeMutation.isPending}
                   className="mt-2 px-4 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-full hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-50"
                 >
@@ -234,7 +252,9 @@ function SubscriptionSection() {
                 {isPaid && (
                   <div className="flex gap-2 shrink-0">
                     <button
-                      onClick={() => portalMutation.mutate()}
+                      onClick={() => portalMutation.mutate(undefined, {
+                        onError: (err) => showSubToast(err.message || "Failed to open billing portal", "error"),
+                      })}
                       disabled={anyMutationPending}
                       className="px-3 py-1.5 bg-white/80 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
                     >
@@ -276,7 +296,11 @@ function SubscriptionSection() {
                 <button
                   onClick={() => {
                     cancelMutation.mutate(undefined, {
-                      onSuccess: () => setShowCancelConfirm(false),
+                      onSuccess: () => {
+                        setShowCancelConfirm(false);
+                        showSubToast(locale === "da" ? "Abonnement annulleret" : "Subscription canceled");
+                      },
+                      onError: (err) => showSubToast(err.message || "Failed to cancel", "error"),
                     });
                   }}
                   disabled={cancelMutation.isPending}
@@ -389,7 +413,16 @@ function SubscriptionSection() {
                     return (
                       <button
                         key={targetPlan}
-                        onClick={() => changePlanMutation.mutate(targetPlan)}
+                        onClick={() => changePlanMutation.mutate(targetPlan, {
+                          onSuccess: (data) => {
+                            if (data?.action === "downgrade_scheduled") {
+                              showSubToast(locale === "da" ? "Nedgradering planlagt ved periodens udløb" : "Downgrade scheduled at end of billing period");
+                            } else {
+                              showSubToast(locale === "da" ? "Plan ændret!" : "Plan changed!");
+                            }
+                          },
+                          onError: (err) => showSubToast(err.message || (locale === "da" ? "Kunne ikke ændre plan" : "Failed to change plan"), "error"),
+                        })}
                         disabled={anyMutationPending}
                         className={`flex flex-col p-5 rounded-xl border-2 hover:shadow-md transition-all cursor-pointer disabled:opacity-50 text-left group ${
                           targetPlan === "professional" ? "border-violet-200 hover:border-violet-400 hover:bg-violet-50/30" :
@@ -401,9 +434,11 @@ function SubscriptionSection() {
                           <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
                             {names[targetPlan]}
                           </span>
-                          {isHigher && (
+                          {changePlanMutation.isPending && changePlanMutation.variables === targetPlan ? (
+                            <Loader2 className="size-4 animate-spin text-slate-400" />
+                          ) : isHigher ? (
                             <span className="material-symbols-outlined text-sm text-slate-300 group-hover:text-slate-500 transition-colors">arrow_forward</span>
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex items-baseline gap-1.5">
                           <span className="text-xl font-black text-slate-900">{price.toLocaleString()}</span>
@@ -433,7 +468,10 @@ function SubscriptionSection() {
           {plan !== "free" && (
             <div className="mt-4 pt-4 border-t border-slate-100">
               <button
-                onClick={() => changePlanMutation.mutate("free")}
+                onClick={() => changePlanMutation.mutate("free" as const, {
+                  onSuccess: () => showSubToast(locale === "da" ? "Nedgradering planlagt" : "Downgrade scheduled"),
+                  onError: (err) => showSubToast(err.message || "Failed to downgrade", "error"),
+                })}
                 disabled={anyMutationPending}
                 className="text-xs text-slate-400 hover:text-red-500 cursor-pointer disabled:opacity-50 transition-colors"
               >
@@ -444,6 +482,7 @@ function SubscriptionSection() {
         </>
       )}
     </div>
+    </>
   );
 }
 

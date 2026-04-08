@@ -658,23 +658,23 @@ function CompanyRelationCard({
   return (
     <Link
       href={`/company/${company.vat}`}
-      className={`block bg-white rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-blue-600/[0.04] hover:-translate-y-0.5 group ${
-        historical ? "opacity-70 hover:opacity-100" : ""
+      className={`block bg-white rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-[0_8px_30px_rgba(0,74,198,0.06)] hover:-translate-y-0.5 group ${
+        historical ? "opacity-60 hover:opacity-100" : ""
       }`}
     >
       <div className="p-4 sm:p-5">
+        {/* Top row: avatar + company info + arrow */}
         <div className="flex items-start gap-3.5">
-          {/* Company avatar */}
           <div
-            className={`w-11 h-11 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm`}
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm`}
           >
             {initials}
           </div>
 
           <div className="min-w-0 flex-1">
-            {/* Name row */}
+            {/* Name + status + role badges inline */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+              <span className="text-[15px] font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                 {company.life.name}
               </span>
               {statusText && (
@@ -690,76 +690,82 @@ function CompanyRelationCard({
               )}
             </div>
 
-            {/* Company meta */}
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-400 flex-wrap">
+            {/* CVR + company type */}
+            <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-slate-400">
               <span className="tabular-nums font-medium">CVR {company.vat}</span>
               {company.companyform?.description && (
                 <>
                   <span className="text-slate-200">·</span>
-                  <span>{company.companyform.description}</span>
+                  <span>{company.companyform.description.toUpperCase()}</span>
                 </>
               )}
             </div>
-
-            {/* Roles */}
-            <div className="mt-3 space-y-2">
-              {displayRoles.map((role, ri) => {
-                const isActive = !role.life.end;
-                const config = ROLE_CONFIG[role.type] || DEFAULT_ROLE;
-                return (
-                  <div key={ri} className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${config.bg} ${config.text}`}
-                    >
-                      <span className="material-symbols-outlined text-[11px]">{config.icon}</span>
-                      {roleLabels[role.type] || role.type}
-                    </span>
-                    {role.life?.title &&
-                      role.life.title !== (roleLabels[role.type] || role.type) && (
-                        <span className="text-xs font-medium text-slate-600">
-                          {role.life.title}
-                        </span>
-                      )}
-                    {role.life?.start && (
-                      <span className="text-[11px] text-slate-400 tabular-nums">
-                        {formatDate(role.life.start, locale)}
-                        <span className="mx-1 text-slate-200">→</span>
-                        {role.life.end
-                          ? formatDate(role.life.end, locale)
-                          : (locale === "da" ? "nu" : "present")}
-                      </span>
-                    )}
-                    {role.life?.owner_percent != null && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
-                        <span className="text-slate-200">·</span>
-                        {pd.ownershipPercent}:
-                        <span className="font-semibold text-slate-700">
-                          {role.life.owner_percent}%
-                        </span>
-                        {role.life.owner_voting_percent != null && (
-                          <>
-                            <span className="text-slate-200">·</span>
-                            {pd.votingPercent}:
-                            <span className="font-semibold text-slate-700">
-                              {role.life.owner_voting_percent}%
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    )}
-                    {isActive && (
-                      <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20 shrink-0" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
 
-          {/* Arrow */}
-          <span className="material-symbols-outlined text-lg text-slate-200 group-hover:text-blue-500 transition-colors shrink-0 mt-1">
+          <span className="material-symbols-outlined text-lg text-slate-200 group-hover:text-blue-500 transition-colors shrink-0 mt-2">
             arrow_forward
           </span>
+        </div>
+
+        {/* Role badges — compact row below company header */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {displayRoles.map((role, ri) => {
+            const isActive = !role.life.end;
+            const config = ROLE_CONFIG[role.type] || DEFAULT_ROLE;
+            return (
+              <span
+                key={ri}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${config.bg} ${config.text}`}
+              >
+                <span className="material-symbols-outlined text-[12px]">{config.icon}</span>
+                {roleLabels[role.type] || role.type}
+                {isActive && (
+                  <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500 ml-0.5" />
+                )}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Role details — dates, ownership */}
+        <div className="mt-2.5 space-y-1.5 pl-0.5">
+          {displayRoles.map((role, ri) => {
+            const config = ROLE_CONFIG[role.type] || DEFAULT_ROLE;
+            const hasOwnership = role.life?.owner_percent != null;
+            const hasDates = role.life?.start;
+            if (!hasDates && !hasOwnership) return null;
+            return (
+              <div key={ri} className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
+                <span className={`font-semibold ${config.text}`}>
+                  {roleLabels[role.type] || role.type}
+                </span>
+                {role.life?.title &&
+                  role.life.title !== (roleLabels[role.type] || role.type) && (
+                    <span className="text-slate-500">{role.life.title}</span>
+                  )}
+                {hasDates && (
+                  <span className="tabular-nums">
+                    {formatDate(role.life.start!, locale)}
+                    <span className="mx-0.5 text-slate-200">→</span>
+                    {role.life.end ? formatDate(role.life.end, locale) : (locale === "da" ? "nu" : "present")}
+                    {!role.life.end && <span className="inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500 ml-1.5 -translate-y-px" />}
+                  </span>
+                )}
+                {hasOwnership && (
+                  <span className="text-slate-500">
+                    <span className="text-slate-200">·</span>
+                    {" "}{pd.ownershipPercent}: <span className="font-semibold text-slate-700">{role.life.owner_percent}%</span>
+                    {role.life.owner_voting_percent != null && (
+                      <>
+                        {" "}<span className="text-slate-200">·</span>
+                        {" "}{pd.votingPercent}: <span className="font-semibold text-slate-700">{role.life.owner_voting_percent}%</span>
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </Link>

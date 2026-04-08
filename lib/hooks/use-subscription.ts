@@ -45,6 +45,8 @@ export function useSubscription() {
   return useQuery<SubscriptionData>({
     queryKey: ["subscription"],
     queryFn: async () => {
+      // Force-sync from Stripe first, then fetch
+      await fetch("/api/stripe/subscription", { method: "POST" }).catch(() => {});
       const res = await fetch("/api/stripe/subscription");
       if (!res.ok) throw new Error("Failed to fetch subscription");
       return res.json();

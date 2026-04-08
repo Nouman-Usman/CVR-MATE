@@ -64,7 +64,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create or reuse Stripe customer
+    // Verify existing customer still exists in Stripe, create new one if not
+    if (stripeCustomerId) {
+      try {
+        await stripe.customers.retrieve(stripeCustomerId);
+      } catch {
+        // Customer was deleted from Stripe — clear it so we create a new one
+        stripeCustomerId = undefined;
+      }
+    }
+
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         email: userEmail,
@@ -72,7 +81,7 @@ export async function POST(req: NextRequest) {
       });
       stripeCustomerId = customer.id;
 
-      // Persist the customer ID early so we don't create duplicates on retry
+      // Persist the new customer ID
       if (existingSub) {
         await db
           .update(subscription)
