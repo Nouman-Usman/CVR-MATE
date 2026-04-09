@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
+import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { db } from "@/db";
+import { crmConnection } from "@/db/schema";
 import { CRM_PROVIDERS, type CrmProvider } from "@/lib/crm/types";
-import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { checkEntitlement, checkUsageEntitlement } from "@/lib/stripe/entitlements";
 
 // GET /api/integrations/[provider]/connect — initiate OAuth flow
 export async function GET(
@@ -17,10 +20,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "crm");
+    const { allowed, plan } = await checkEntitlement(session.user.id, "crm");
     if (!allowed) {
       return NextResponse.json(
-        { error: "CRM integrations require a paid plan", upgrade: true },
+        { error: "CRM integrations require Professional or Enterprise plan", upgrade: true, plan },
         { status: 403 }
       );
     }
@@ -34,6 +37,30 @@ export async function GET(
     const clientId = process.env[config.clientIdEnv];
     if (!clientId) {
       return NextResponse.json({ error: `${provider} not configured` }, { status: 500 });
+    }
+
+    // Enforce connection limit per plan tier
+    const activeConnections = await db.query.crmConnection.findMany({
+      where: and(
+        eq(crmConnection.userId, session.user.id),
+        eq(crmConnection.isActive, true)
+      ),
+    });
+
+    // Allow reconnecting to same provider (re-auth) without counting toward limit
+    const isReconnect = activeConnections.some(c => c.provider === provider);
+    if (!isReconnect) {
+      const { allowed: canAdd, limit } = await checkUsageEntitlement(
+        session.user.id,
+        "crmConnections",
+        activeConnections.length
+      );
+      if (!canAdd) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000";
+        return NextResponse.redirect(
+          `${baseUrl}/settings?tab=integrations&error=connection_limit&limit=${limit}&current=${activeConnections.length}`
+        );
+      }
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3000";

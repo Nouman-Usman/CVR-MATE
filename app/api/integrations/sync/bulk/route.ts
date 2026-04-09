@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { company, crmConnection, crmSyncMapping, crmSyncLog } from "@/db/schema";
 import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
-import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 // POST /api/integrations/sync/bulk — push multiple companies to CRM
 export async function POST(req: NextRequest) {
@@ -16,11 +16,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "crm");
+    const { allowed, plan } = await checkEntitlement(session.user.id, "crm");
     if (!allowed) {
       return NextResponse.json(
-        { error: "CRM integrations require a paid plan", upgrade: true },
+        { error: "CRM sync requires Professional or Enterprise plan", upgrade: true, plan },
         { status: 403 }
+      );
+    }
+
+    // Check monthly bulk push quota
+    const quota = await checkMonthlyQuota(session.user.id, "bulk_push");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        {
+          error: `Monthly bulk push limit reached (${quota.used}/${quota.limit})`,
+          upgrade: true,
+          usage: { used: quota.used, limit: quota.limit },
+        },
+        { status: 429 }
       );
     }
 
@@ -144,6 +157,11 @@ export async function POST(req: NextRequest) {
 
     const success = results.filter((r) => r.status === "success").length;
     const failed = results.filter((r) => r.status === "error").length;
+
+    // Record usage for each successful push (quota tracking)
+    for (let i = 0; i < success; i++) {
+      await recordUsage(session.user.id, "bulk_push");
+    }
 
     return NextResponse.json({ results, summary: { total: companies.length, success, failed } });
   } catch (error) {

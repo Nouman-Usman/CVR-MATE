@@ -9,6 +9,8 @@ import { InlineLoader } from "@/components/loading-screen";
 import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote, useUpdateSavedTags } from "@/lib/hooks/use-saved-companies";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
 import { usePipelineAnalysis, type PipelineResponse } from "@/lib/hooks/use-pipeline-analysis";
+import { useActiveConnections, usePushToCrm, useBulkPushToCrm } from "@/lib/hooks/use-integrations";
+import { useSubscription } from "@/lib/hooks/use-subscription";
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,6 +78,10 @@ import {
   Eye,
   Copy,
   ListTodo,
+  Upload,
+  CheckSquare,
+  Square,
+  ArrowUpFromLine,
 } from "lucide-react";
 
 interface SavedCompany {
@@ -166,9 +172,13 @@ export default function SavedPage() {
 
   // Unified toast
   const [toast, setToast] = useState("");
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, durationMs = 3000) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 3000);
+    // Show errors longer so the user can read them
+    const duration = msg.toLowerCase().includes("fail") || msg.toLowerCase().includes("error") || msg.toLowerCase().includes("fejl")
+      ? Math.max(durationMs, 6000)
+      : durationMs;
+    setTimeout(() => setToast(""), duration);
   };
 
   const handleSaveNote = () => {
@@ -250,6 +260,78 @@ export default function SavedPage() {
           setTaskForCompany(null);
           showToast(sv.taskCreated);
         },
+      }
+    );
+  };
+
+  // CRM Push
+  const activeConnections = useActiveConnections();
+  const pushToCrm = usePushToCrm();
+  const bulkPush = useBulkPushToCrm();
+  const { data: subData } = useSubscription();
+  const canUseCrm = (subData?.limits?.crmConnections ?? 0) > 0;
+  const hasCrmConnections = activeConnections.length > 0;
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showCrmDialog, setShowCrmDialog] = useState(false);
+  const [crmPushTarget, setCrmPushTarget] = useState<"selected" | "all">("selected");
+
+  const toggleSelect = (companyId: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map(s => s.company.id)));
+    }
+  };
+
+  const handleSinglePush = (connectionId: string, companyId: string, providerName: string) => {
+    pushToCrm.mutate(
+      { connectionId, companyId },
+      {
+        onSuccess: (res) => {
+          const action = res.action === "push_company" ? (locale === "da" ? "Sendt til" : "Pushed to") : (locale === "da" ? "Opdateret i" : "Updated in");
+          showToast(`${action} ${providerName}`);
+        },
+        onError: (err) => showToast(`${locale === "da" ? "Fejl" : "Error"}: ${err.message}`),
+      }
+    );
+  };
+
+  const handleBulkPush = (connectionId: string, providerName: string) => {
+    const ids = crmPushTarget === "all"
+      ? filtered.map(s => s.company.id)
+      : [...selected];
+    if (ids.length === 0) return;
+
+    bulkPush.mutate(
+      { connectionId, companyIds: ids },
+      {
+        onSuccess: (res) => {
+          // Extract first error message for user visibility
+          const firstError = res.results?.find((r: { status: string; error?: string }) => r.status === "error")?.error;
+          const errorHint = firstError
+            ? ` — ${firstError.length > 80 ? firstError.slice(0, 80) + "…" : firstError}`
+            : "";
+          showToast(
+            `${res.summary.success} ${locale === "da" ? "sendt til" : "pushed to"} ${providerName}${
+              res.summary.failed > 0
+                ? `, ${res.summary.failed} ${locale === "da" ? "fejlede" : "failed"}${errorHint}`
+                : ""
+            }`
+          );
+          setShowCrmDialog(false);
+          setSelected(new Set());
+        },
+        onError: (err) => showToast(`${locale === "da" ? "Fejl" : "Error"}: ${err.message}`),
       }
     );
   };
@@ -708,6 +790,17 @@ export default function SavedPage() {
                 {filtered.length} {sv.count}
               </Badge>
             )}
+            {hasCrmConnections && filtered.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shrink-0"
+                onClick={() => { setCrmPushTarget("all"); setShowCrmDialog(true); }}
+              >
+                <ArrowUpFromLine className="size-3.5" />
+                {locale === "da" ? "Send alle til CRM" : "Push all to CRM"}
+              </Button>
+            )}
           </div>
 
           {/* Tag filter chips */}
@@ -979,6 +1072,27 @@ export default function SavedPage() {
                 <div className="p-4 sm:p-5">
                   {/* ─ Top row: avatar + info + actions ─ */}
                   <div className="flex items-start gap-3.5">
+                    {/* Checkbox for bulk selection */}
+                    {hasCrmConnections && (
+                      <div
+                        className="shrink-0 flex items-center pt-1.5"
+                        onClick={(e) => { e.stopPropagation(); toggleSelect(c.id); }}
+                      >
+                        <div className={cn(
+                          "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer",
+                          selected.has(c.id)
+                            ? "bg-indigo-600 border-indigo-600"
+                            : "border-slate-200 hover:border-slate-400"
+                        )}>
+                          {selected.has(c.id) && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none" className="text-white">
+                              <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Avatar */}
                     <div className={cn(
                       "w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
@@ -1086,6 +1200,22 @@ export default function SavedPage() {
                             <ListTodo className="size-4 text-emerald-500" />
                             {sv.createTask}
                           </DropdownMenuItem>
+                          {hasCrmConnections && (
+                            <>
+                              <DropdownMenuSeparator />
+                              {activeConnections.map((conn) => (
+                                <DropdownMenuItem
+                                  key={conn.id}
+                                  className="gap-2 cursor-pointer"
+                                  onClick={() => handleSinglePush(conn.id, c.id, conn.provider)}
+                                  disabled={pushToCrm.isPending}
+                                >
+                                  <Upload className="size-4 text-indigo-500" />
+                                  {locale === "da" ? `Send til ${conn.provider}` : `Push to ${conn.provider}`}
+                                </DropdownMenuItem>
+                              ))}
+                            </>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
@@ -1182,6 +1312,21 @@ export default function SavedPage() {
                   {sv.createTask}
                 </ContextMenuItem>
 
+                {hasCrmConnections && (
+                  <>
+                    <ContextMenuSeparator />
+                    {activeConnections.map((conn) => (
+                      <ContextMenuItem
+                        key={conn.id}
+                        onClick={() => handleSinglePush(conn.id, c.id, conn.provider)}
+                      >
+                        <Upload className="size-4" />
+                        {locale === "da" ? `Send til ${conn.provider}` : `Push to ${conn.provider}`}
+                      </ContextMenuItem>
+                    ))}
+                  </>
+                )}
+
                 {c.industryName && (
                   <>
                     <ContextMenuSeparator />
@@ -1207,6 +1352,111 @@ export default function SavedPage() {
           })}
         </div>
       )}
+      {/* ── Floating Bulk Action Bar ────────────────────────── */}
+      {selected.size > 0 && hasCrmConnections && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <div className="flex items-center gap-3 px-5 py-3 bg-slate-900 text-white rounded-2xl shadow-2xl shadow-black/20">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+            >
+              {selected.size === filtered.length ? (
+                <CheckSquare className="size-4" />
+              ) : (
+                <Square className="size-4" />
+              )}
+              {selected.size} {locale === "da" ? "valgt" : "selected"}
+            </button>
+
+            <div className="w-px h-5 bg-slate-700" />
+
+            <button
+              onClick={() => { setCrmPushTarget("selected"); setShowCrmDialog(true); }}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-500 transition-colors"
+            >
+              <ArrowUpFromLine className="size-3.5" />
+              {locale === "da" ? "Send til CRM" : "Push to CRM"}
+            </button>
+
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── CRM Push Dialog ─────────────────────────────────── */}
+      <Dialog open={showCrmDialog} onOpenChange={setShowCrmDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpFromLine className="size-5 text-indigo-600" />
+              {locale === "da" ? "Send til CRM" : "Push to CRM"}
+            </DialogTitle>
+            <DialogDescription>
+              {crmPushTarget === "selected"
+                ? `${selected.size} ${locale === "da" ? "virksomheder valgt" : "companies selected"}`
+                : `${filtered.length} ${locale === "da" ? "virksomheder" : "companies"}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            {activeConnections.map((conn) => {
+              const providerColors: Record<string, string> = {
+                hubspot: "#FF7A59",
+                salesforce: "#00A1E0",
+                pipedrive: "#017737",
+              };
+              const color = providerColors[conn.provider] ?? "#6366f1";
+              const icons: Record<string, string> = {
+                hubspot: "hub",
+                salesforce: "cloud",
+                pipedrive: "filter_alt",
+              };
+
+              return (
+                <button
+                  key={conn.id}
+                  onClick={() => handleBulkPush(conn.id, conn.provider)}
+                  disabled={bulkPush.isPending}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition-all disabled:opacity-50 text-left"
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: color + "18" }}
+                  >
+                    <span className="material-symbols-outlined text-lg" style={{ color }}>
+                      {icons[conn.provider] ?? "sync"}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-900 capitalize">{conn.provider}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {locale === "da" ? "Send virksomheder til" : "Push companies to"} {conn.provider}
+                    </p>
+                  </div>
+                  {bulkPush.isPending ? (
+                    <Loader2 className="size-4 animate-spin text-slate-400" />
+                  ) : (
+                    <ArrowRight className="size-4 text-slate-300" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <DialogClose>
+              <Button variant="outline" className="rounded-xl">
+                {locale === "da" ? "Annuller" : "Cancel"}
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
