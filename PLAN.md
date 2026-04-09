@@ -1,482 +1,397 @@
-# CRM Integrations — Enterprise-Grade Implementation Plan
+# Payment Gateway Hardening — Stripe/DB Consistency Plan
 
-## Executive Summary
+## Problem Statement
 
-CVR-MATE has a solid CRM integration foundation (OAuth flows, encrypted tokens, sync mapping, audit logging) for HubSpot, Salesforce, and Pipedrive. However, critical gaps in entitlement enforcement, error handling, rate limiting, and UI polish prevent this from being production-ready. This plan upgrades the existing infrastructure to enterprise-grade quality across 6 phases.
-
----
-
-## Current State Audit
-
-### What Already Works
-| Component | Status | Files |
-|-----------|--------|-------|
-| OAuth Connect/Callback/Disconnect | ✅ Complete | `app/api/integrations/[provider]/*` |
-| Token Encryption (AES-256-GCM) | ✅ Complete | `lib/crm/encryption.ts` |
-| Token Auto-Refresh (5-min buffer) | ✅ Complete | `lib/crm/token-manager.ts` |
-| Single Company Push | ⚠️ Missing entitlement check | `app/api/integrations/sync/company/route.ts` |
-| Bulk Company Push | ⚠️ Missing quota check | `app/api/integrations/sync/bulk/route.ts` |
-| DB Schema (3 tables) | ✅ Complete | `db/app-schema.ts` |
-| React Hooks (7 hooks) | ✅ Complete | `lib/hooks/use-integrations.ts` |
-| Settings UI Component | ⚠️ Commented out, basic | `app/settings/page.tsx:497-656` |
-| Plan Limits (0/0/1/3) | ✅ Defined | `lib/stripe/plans.ts` |
-| Entitlement Engine | ✅ Complete | `lib/stripe/entitlements.ts` |
-
-### Critical Security Gaps (Must Fix)
-1. **`sync/company/route.ts`** — No entitlement check. Any user can push companies to CRM.
-2. **`sync/bulk/route.ts`** — Checks `checkEntitlement("crm")` but never calls `checkMonthlyQuota("bulk_push")`. Monthly quota (0/0/30/∞) is never enforced.
-3. **`connect/route.ts`** — Checks `checkEntitlement("crm")` but not `checkUsageEntitlement("crmConnections", count)`. Professional users (limit: 1) could connect all 3 providers.
-
-### Architecture Gaps
-1. No rate limiting against CRM provider API quotas
-2. Bulk sync is sequential — no concurrency control
-3. Pipedrive CVR field uses hardcoded hash (`7c039c49b0ed63688c4e8778db0e8d4b8a1e4b48`)
-4. No retry mechanism for transient failures
-5. No "Push to CRM" button on company detail or saved companies pages
-6. No sync status indicators in the main app UI
-7. No connection health monitoring
+The current payment system has critical data inconsistencies between the local database and Stripe. The root cause is that **API routes write plan changes to the DB before Stripe confirms payment**, and the webhook handler (the only mechanism that can correct this) **silently swallows all errors**.
 
 ---
 
-## Implementation Phases
+## Root Cause Analysis
 
-### Phase 1: Security Hardening & Entitlement Enforcement
-**Priority: CRITICAL — Must deploy first**
-**Estimated effort: 1-2 hours**
+### Issue 1: CRITICAL — Plan upgraded in DB before payment
+**File: `app/api/stripe/change-plan/route.ts` lines 138-148**
 
-#### 1.1 Fix Single Company Sync Entitlement
-**File: `app/api/integrations/sync/company/route.ts`**
-
-Add entitlement check after authentication (before line 19):
-```ts
-import { checkEntitlement } from "@/lib/stripe/entitlements";
-
-// After session check:
-const { allowed } = await checkEntitlement(session.user.id, "crm");
-if (!allowed) {
-  return NextResponse.json(
-    { error: "CRM sync requires Professional or Enterprise plan", upgrade: true },
-    { status: 403 }
-  );
-}
+```
+User requests upgrade → Stripe creates prorated invoice → DB updated immediately
+                                                            ↑ BUG: Payment hasn't happened yet
 ```
 
-#### 1.2 Fix Bulk Sync Monthly Quota
-**File: `app/api/integrations/sync/bulk/route.ts`**
+The `stripe.subscriptions.update()` call changes the subscription in Stripe, which may create a prorated invoice. But the code writes `plan: resolvedPlan, status: "active"` to DB on the **next line** — before the invoice is charged. If the card declines, the DB shows the upgraded plan forever.
 
-Replace existing `checkEntitlement` with both entitlement AND quota check:
+**Fix principle**: Never write the new plan to DB from API routes. Let the **webhook** be the only writer of plan/status/price data after Stripe confirms the state.
+
+### Issue 2: CRITICAL — Webhook returns 200 on all errors
+**File: `app/api/stripe/webhook/route.ts` lines 65-70**
+
 ```ts
-import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
-
-// After session check:
-const { allowed: crmAllowed } = await checkEntitlement(session.user.id, "crm");
-if (!crmAllowed) {
-  return NextResponse.json({ error: "CRM requires Professional or Enterprise plan", upgrade: true }, { status: 403 });
+catch (err) {
+  console.error(...);  // Log only
 }
-
-const quota = await checkMonthlyQuota(session.user.id, "bulk_push");
-if (!quota.allowed) {
-  return NextResponse.json({
-    error: `Monthly bulk push limit reached (${quota.used}/${quota.limit})`,
-    upgrade: true,
-    usage: { used: quota.used, limit: quota.limit },
-  }, { status: 429 });
-}
-
-// After successful sync loop, record one usage event per company pushed:
-for (const result of results.filter(r => r.status === "success")) {
-  await recordUsage(session.user.id, "bulk_push");
-}
+return NextResponse.json({ received: true });  // Always 200
 ```
 
-#### 1.3 Fix Connection Limit Enforcement
-**File: `app/api/integrations/[provider]/connect/route.ts`**
+If the DB is down, if there's a query error, if anything fails — Stripe gets a 200 and never retries. The subscription state diverges permanently.
 
-After `checkEntitlement`, add connection count check:
+**Fix principle**: Return 500 for transient/retryable errors (DB timeout, network). Return 200 only for permanent errors (missing user) and successful processing.
+
+### Issue 3: HIGH — Dual source of truth (plan column vs stripePriceId)
+**Files: `entitlements.ts`, `change-plan/route.ts`, `subscription/route.ts`**
+
+Three files resolve the user's plan differently:
+- `entitlements.ts`: Uses `plan` column first, then overrides with `priceToPlan(stripePriceId)` if active
+- `change-plan/route.ts`: Uses `priceToPlan(stripePriceId)` only, ignores `plan` column
+- `subscription/route.ts` (sync): Writes both `plan` and `stripePriceId`
+
+When these go out of sync (which they do), different parts of the app see different plans.
+
+**Fix principle**: `stripePriceId` is the **only** source of truth. The `plan` column is a cached derivation that is ALWAYS computed from `stripePriceId`. Never write `plan` independently.
+
+### Issue 4: HIGH — Force-sync races with webhook
+**File: `app/api/stripe/subscription/route.ts` POST handler**
+
+The frontend calls force-sync on every settings page load. If a webhook arrives mid-sync, the sync can overwrite newer webhook data with stale Stripe API data (due to network latency).
+
+**Fix principle**: Add an `updatedAt` timestamp to the subscription table. Only update if the incoming data is newer.
+
+### Issue 5: MEDIUM — past_due users keep full access
+**File: `lib/stripe/entitlements.ts` lines 50-52**
+
+Only `canceled` and `unpaid` statuses downgrade to free. `past_due` users (failed payment) keep their paid plan indefinitely.
+
+**Fix principle**: Add a grace period. `past_due` users keep access for 3 days, then downgrade.
+
+### Issue 6: MEDIUM — getPriceIdForPlan() only returns monthly prices
+**File: `app/api/stripe/change-plan/route.ts` lines 17-22**
+
+If a user is on an annual plan and changes plan, they get switched to monthly billing. The function ignores the user's current billing interval.
+
+### Issue 7: MEDIUM — No idempotency on checkout
+**File: `app/api/stripe/checkout/route.ts`**
+
+No protection against duplicate customer creation from concurrent requests. No cleanup of `incomplete` subscriptions from abandoned checkouts.
+
+---
+
+## Implementation Plan
+
+### Phase 1: Make webhook the single writer (CRITICAL)
+**Estimated effort: 2-3 hours**
+
+#### 1.1 Add `updatedAt` column to subscription table
+**File: `db/app-schema.ts`**
+
 ```ts
-import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
+updatedAt: timestamp("updated_at").defaultNow().notNull(),
+```
 
-// Count existing active connections
-const activeConnections = await db.query.crmConnection.findMany({
-  where: and(
-    eq(crmConnection.userId, session.user.id),
-    eq(crmConnection.isActive, true)
-  ),
+This column tracks the last time the row was modified. All updates check `updatedAt` to prevent stale overwrites.
+
+#### 1.2 Rewrite `change-plan/route.ts` — stop writing plan to DB
+**File: `app/api/stripe/change-plan/route.ts`**
+
+Current (BROKEN):
+```ts
+await stripe.subscriptions.update(...);  // Tell Stripe
+await db.update(subscription).set({      // Write plan immediately ← BUG
+  plan: resolvedPlan, status: "active", ...
 });
+return { success: true, plan: resolvedPlan };
+```
 
-// Check if user can add another connection
-const { allowed: canAdd, limit } = await checkUsageEntitlement(
-  session.user.id,
-  "crmConnections",
-  activeConnections.length
-);
+Fixed:
+```ts
+await stripe.subscriptions.update(...);  // Tell Stripe
+// DO NOT write plan/price/status to DB — webhook will do it
+// Only write the intent so the UI can show "Change pending..."
+await db.update(subscription).set({
+  pendingPlanChange: targetPlan,  // New column: signals UI to show pending state
+}).where(eq(subscription.id, sub.id));
+return { success: true, action: "pending", message: "Plan change processing..." };
+```
 
-// Allow reconnecting to the same provider (re-auth)
-const isReconnect = activeConnections.some(c => c.provider === provider);
-if (!canAdd && !isReconnect) {
-  return NextResponse.json({
-    error: `Your plan allows ${limit} CRM connection(s). Disconnect an existing one first.`,
-    upgrade: true,
-    limit,
-    current: activeConnections.length,
-  }, { status: 403 });
+The webhook (`customer.subscription.updated`) will arrive within seconds and write the actual plan/price/status. The `pendingPlanChange` column lets the UI show a "processing" state.
+
+#### 1.3 Add `pendingPlanChange` column to subscription table
+**File: `db/app-schema.ts`**
+
+```ts
+pendingPlanChange: text("pending_plan_change"),  // null when no change pending
+```
+
+Cleared by the webhook handler after it writes the confirmed plan.
+
+#### 1.4 Rewrite webhook error handling — return 500 for retryable errors
+**File: `app/api/stripe/webhook/route.ts`**
+
+```ts
+try {
+  switch (event.type) { ... }
+} catch (err) {
+  console.error(`[Stripe Webhook] Error processing ${event.type}:`, err);
+
+  // Distinguish retryable (DB down, network) from permanent (missing user)
+  const isRetryable = err instanceof Error && (
+    err.message.includes("connection") ||
+    err.message.includes("timeout") ||
+    err.message.includes("ECONNREFUSED")
+  );
+
+  if (isRetryable) {
+    return NextResponse.json({ error: "Temporary error, please retry" }, { status: 500 });
+  }
+  // Permanent errors: return 200 so Stripe doesn't retry forever
 }
+return NextResponse.json({ received: true });
 ```
 
-#### 1.4 Add Rate Limiting Helper
-**New file: `lib/crm/rate-limiter.ts`**
+Stripe retries 500s with exponential backoff (up to 3 days), which is exactly what we want for transient DB failures.
 
-Simple in-memory sliding window rate limiter for CRM API calls:
+#### 1.5 Webhook handler clears `pendingPlanChange`
+**File: `app/api/stripe/webhook/route.ts` — `handleSubscriptionUpdated`**
+
+After updating plan/status from Stripe data, clear the pending flag:
 ```ts
-// Per-provider rate limits:
-// HubSpot: 100 requests / 10 seconds
-// Salesforce: 100 requests / 15 seconds (varies by edition)
-// Pipedrive: 80 requests / 2 seconds
+await db.update(subscription).set({
+  ...data,
+  pendingPlanChange: null,  // Plan confirmed by Stripe
+  updatedAt: new Date(),
+}).where(eq(subscription.id, existing.id));
 ```
-
-Use Upstash Redis for distributed rate limiting (already in the stack):
-- Key pattern: `crm:rate:{userId}:{provider}`
-- TTL matches provider window
-- Check before each CRM API call in provider clients
 
 ---
 
-### Phase 2: Enhanced CRM Provider Clients
-**Priority: HIGH — Reliability improvements**
-**Estimated effort: 2-3 hours**
-
-#### 2.1 Add Retry Logic with Exponential Backoff
-**New file: `lib/crm/retry.ts`**
-
-```ts
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  options: { maxRetries: number; baseDelay: number; retryableStatuses: number[] }
-): Promise<T>
-```
-
-- Default: 3 retries, 1s base delay, retry on 429/500/502/503/504
-- Applied to all CRM client methods (createCompany, updateCompany, findCompanyByVat)
-- Log retries to console for observability
-
-#### 2.2 Improve Error Classification
-**Update: `lib/crm/providers/*.ts`**
-
-Create typed error classes:
-```ts
-export class CrmApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number,
-    public provider: CrmProvider,
-    public retryable: boolean
-  ) { super(message); }
-}
-
-export class CrmAuthError extends CrmApiError { }  // 401/403 — token issues
-export class CrmRateLimitError extends CrmApiError { }  // 429 — rate limited
-export class CrmNotFoundError extends CrmApiError { }  // 404 — entity not found
-```
-
-Benefits: The sync routes can differentiate between "retry later" (rate limit) vs. "fix config" (auth) vs. "data issue" (not found).
-
-#### 2.3 Fix Pipedrive Custom Field
-**Update: `lib/crm/providers/pipedrive.ts`**
-
-Replace hardcoded hash with dynamic field discovery:
-```ts
-// On first sync, find or create the CVR custom field
-// Cache the field key per connection in Redis (24h TTL)
-// Fallback: search organizations by name if CVR field not found
-```
-
-#### 2.4 Add Connection Health Check
-**New file: `lib/crm/health.ts`**
-
-```ts
-export async function checkConnectionHealth(connectionId: string): Promise<{
-  healthy: boolean;
-  latencyMs: number;
-  error?: string;
-}>
-```
-
-- Makes a lightweight read-only API call (e.g., GET /me or list 1 record)
-- Called when user views integrations settings
-- Updates `lastRefreshedAt` on success
-- Marks connection inactive on permanent failure (expired refresh token)
-
----
-
-### Phase 3: Settings UI — Enterprise-Grade Integration Panel
-**Priority: HIGH — User-facing experience**
-**Estimated effort: 3-4 hours**
-
-#### 3.1 Extract & Rebuild CrmIntegrationsSection
-**New file: `components/settings/crm-integrations-section.tsx`**
-
-Extract from `app/settings/page.tsx` (lines 497-656) into standalone component. Complete redesign:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  CRM Integrations                                        │
-│  Connect your CRM to push Danish company data directly   │
-│                                                          │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │
-│  │  [HubSpot]   │ │ [Salesforce] │ │ [Pipedrive]  │    │
-│  │  ● Connected │ │  ○ Connect   │ │  ○ Connect   │    │
-│  │  Last sync:  │ │              │ │              │    │
-│  │  2 hours ago │ │  Pro+ only   │ │  Pro+ only   │    │
-│  │              │ │              │ │              │    │
-│  │ [Disconnect] │ │  [Upgrade]   │ │  [Upgrade]   │    │
-│  │ [Test]       │ │              │ │              │    │
-│  └──────────────┘ └──────────────┘ └──────────────┘    │
-│                                                          │
-│  Connection Limit: 1/1 used (Professional)               │
-│  Bulk Push Quota: 12/30 used this period                 │
-│                                                          │
-│  ┌─ Recent Sync Activity ──────────────────────────────┐ │
-│  │  ✅ Acme ApS → HubSpot          2 min ago          │ │
-│  │  ✅ Nordic Tech → HubSpot       5 min ago          │ │
-│  │  ❌ Dansk A/S → HubSpot (429)   8 min ago  [Retry] │ │
-│  │  ✅ CVR Corp → HubSpot         12 min ago          │ │
-│  └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
-
-Key UI elements:
-- **Plan-gated cards**: Free/Starter see disabled cards with "Upgrade to Professional" CTA
-- **Connection limit meter**: Shows `{used}/{limit} connections` with progress bar
-- **Bulk push quota meter**: Shows `{used}/{limit} pushes this month`
-- **Health indicator**: Green/yellow/red dot on each connected provider
-- **Test Connection button**: Calls health check endpoint
-- **Retry button on failed syncs**: Re-triggers individual sync
-- **Disconnect confirmation**: AlertDialog with warning about sync history
-
-#### 3.2 Plan-Gating UI Logic
-
-```ts
-// Inside the component:
-const { data: sub } = useSubscription();
-const plan = sub?.plan ?? "free";
-const crmLimit = sub?.limits?.crmConnections ?? 0;
-const bulkPushUsage = sub?.usage?.bulkPush ?? { used: 0, limit: 0 };
-
-const canUseCrm = crmLimit > 0; // Professional or Enterprise
-const canBulkPush = bulkPushUsage.limit > 0;
-```
-
-For Free/Starter users:
-- Show provider cards in disabled/muted state
-- Overlay with lock icon and "Available on Professional" badge
-- "Upgrade" button links to subscription section
-
-#### 3.3 Un-comment and Wire Up in Settings
-**File: `app/settings/page.tsx`**
-
-1. Un-comment the integrations tab in the sidebar navigation
-2. Un-comment the `CrmIntegrationsSection` render
-3. Import the new extracted component
-4. Add tab routing for `?tab=integrations` (used by OAuth callback redirect)
-
----
-
-### Phase 4: Push-to-CRM in Main App UI
-**Priority: MEDIUM — Feature completeness**
-**Estimated effort: 2-3 hours**
-
-#### 4.1 Company Detail Page — CRM Push Button
-**File: `app/company/[id]/page.tsx`** (or wherever saved company detail lives)
-
-Add a "Push to CRM" dropdown button:
-```
-[Push to CRM ▾]
-  → HubSpot    ✅ Synced (2h ago)
-  → Salesforce  ○ Not connected
-  → Pipedrive   ○ Not connected
-```
-
-- Only visible for Professional/Enterprise plans
-- Shows sync status per connected provider
-- Clicking triggers `usePushToCrm` mutation
-- Shows toast on success/error
-
-#### 4.2 Saved Companies Page — Bulk Actions
-**Update saved companies list/table**
-
-Add CRM column and bulk action:
-- Sync status icon per row (●/○/⚠)
-- Checkbox selection → "Push to CRM" bulk action button
-- Progress indicator during bulk sync
-- Results summary toast: "12 synced, 2 failed"
-
-#### 4.3 Context Menu Integration
-**Update existing context menus**
-
-Add "Push to CRM → [Provider]" option to company context menus (right-click or action dropdown). Only visible when user has active CRM connections.
-
----
-
-### Phase 5: Sync History & Analytics Dashboard
-**Priority: MEDIUM — Observability**
+### Phase 2: Single source of truth for plan resolution (HIGH)
 **Estimated effort: 1-2 hours**
 
-#### 5.1 Enhanced Sync History in Settings
-**Update: `components/settings/crm-integrations-section.tsx`**
+#### 2.1 Rewrite `getUserPlan()` — derive plan exclusively from `stripePriceId`
+**File: `lib/stripe/entitlements.ts`**
 
-- Paginated sync log table (not just last 8)
-- Filter by: provider, status (success/error/skipped), date range
-- Expandable rows showing error details and metadata
-- Export sync logs as CSV
-
-#### 5.2 Sync Summary Stats
-
-Add summary cards at top of integrations section:
-```
-┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-│   Total Synced │ │  Failed Today  │ │  Last Sync     │
-│      127       │ │      3         │ │  2 min ago     │
-└───────────────┘ └───────────────┘ └───────────────┘
+Current (AMBIGUOUS):
+```ts
+let plan = resolvePlanId(sub.plan);          // Use plan column first
+if (sub.stripePriceId && sub.status === "active") {
+  const priceBasedPlan = priceToPlan(sub.stripePriceId);
+  if (priceBasedPlan !== "free") {
+    plan = priceBasedPlan;                   // Override sometimes
+  }
+}
 ```
 
-#### 5.3 Add Sync History API Endpoint Improvements
-**File: `app/api/integrations/sync/history/route.ts`**
+Fixed:
+```ts
+// stripePriceId is the ONLY source of truth when subscription is active
+if (sub.status === "active" || sub.status === "past_due") {
+  const plan = sub.stripePriceId ? priceToPlan(sub.stripePriceId) : "free";
+  return { plan, status: sub.status, subscription: sub };
+}
 
-Add query parameters:
-- `provider` — filter by provider
-- `status` — filter by status
-- `from` / `to` — date range filter
-- `search` — search by company name in metadata
+// All other statuses (canceled, unpaid, incomplete) → free
+return { plan: "free", status: sub.status, subscription: sub };
+```
+
+No more `resolvePlanId(sub.plan)` fallback. No ambiguity.
+
+#### 2.2 Ensure all webhook writes always set BOTH `plan` and `stripePriceId`
+
+Every DB write in the webhook derives `plan` from `priceToPlan(priceId)` — this is already the case but must be enforced as an invariant. Create a helper:
+
+```ts
+function subscriptionDataFromStripe(stripeSub: Stripe.Subscription) {
+  const priceId = stripeSub.items.data[0]?.price?.id ?? null;
+  const plan = stripeSub.status === "canceled" ? "free" : priceToPlan(priceId);
+  const period = getSubscriptionPeriod(stripeSub);
+  const status = STATUS_MAP[stripeSub.status] ?? stripeSub.status;
+
+  return {
+    stripePriceId: priceId,
+    plan,
+    status,
+    currentPeriodStart: period.start,
+    currentPeriodEnd: period.end,
+    cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+    pendingPlanChange: null,
+    updatedAt: new Date(),
+  };
+}
+```
+
+Use this in ALL webhook handlers (`handleCheckoutCompleted`, `handleSubscriptionUpdated`, `handlePaymentSucceeded`) to guarantee consistency.
 
 ---
 
-### Phase 6: Advanced Features (Future)
-**Priority: LOW — Post-launch enhancements**
+### Phase 3: Fix force-sync race condition (HIGH)
+**Estimated effort: 1 hour**
 
-These are deferred to post-launch. Listed here for architecture awareness:
+#### 3.1 Add staleness check to force-sync
+**File: `app/api/stripe/subscription/route.ts` POST handler**
 
-1. **Bidirectional Sync (Pull from CRM)**
-   - Webhook receivers for CRM events
-   - Conflict resolution strategy (last-write-wins with manual override)
-   - Schema: `syncDirection` column already supports "pull" and "bidirectional"
+Before writing, check if the DB was updated more recently than this sync started:
 
-2. **Custom Field Mapping UI**
-   - Let users map CVR-MATE fields → CRM fields
-   - New `crmFieldMapping` table
-   - Per-connection configuration
+```ts
+const syncStartedAt = new Date();
 
-3. **Scheduled Auto-Sync**
-   - QStash cron job to sync updated companies
-   - Configurable sync frequency (daily/weekly)
-   - Only syncs companies that changed since last sync
+// ... fetch from Stripe ...
 
-4. **CRM Webhooks (Inbound)**
-   - HubSpot: Webhook subscriptions API
-   - Salesforce: Platform Events / Streaming API
-   - Pipedrive: Webhooks API
-   - Updates sync mapping when CRM records change
-
-5. **Sync Queue with Dead Letter**
-   - Failed syncs queue to Upstash QStash
-   - Automatic retry (3 attempts, exponential backoff)
-   - Dead letter queue for manual review
-
----
-
-## File Change Map
-
-### New Files
-| File | Purpose |
-|------|---------|
-| `components/settings/crm-integrations-section.tsx` | Rebuilt integrations UI panel |
-| `lib/crm/retry.ts` | Retry utility with exponential backoff |
-| `lib/crm/errors.ts` | Typed CRM error classes |
-| `lib/crm/rate-limiter.ts` | Redis-based per-provider rate limiter |
-| `lib/crm/health.ts` | Connection health check utility |
-| `app/api/integrations/health/route.ts` | Health check API endpoint |
-
-### Modified Files
-| File | Changes |
-|------|---------|
-| `app/api/integrations/[provider]/connect/route.ts` | Add connection limit check |
-| `app/api/integrations/sync/company/route.ts` | Add entitlement check, use retry |
-| `app/api/integrations/sync/bulk/route.ts` | Add monthly quota check, record usage |
-| `app/api/integrations/sync/history/route.ts` | Add filtering query params |
-| `app/settings/page.tsx` | Un-comment integrations, import new component |
-| `lib/crm/providers/hubspot.ts` | Add retry, better errors |
-| `lib/crm/providers/salesforce.ts` | Add retry, better errors |
-| `lib/crm/providers/pipedrive.ts` | Fix custom field, add retry |
-| `lib/crm/index.ts` | Integrate rate limiter |
-| `lib/hooks/use-integrations.ts` | Add health check hook, quota display |
-
-### No Schema Changes Required
-The existing `crmConnection`, `crmSyncMapping`, and `crmSyncLog` tables already support everything in Phases 1-5. The schema was designed with forward-looking fields (`syncDirection`, `version`, `lastRemoteUpdate`, `syncStatus: "conflict"`).
-
----
-
-## Environment Variables Required
-
-Already configured (from existing setup):
-```env
-# CRM OAuth (per provider)
-HUBSPOT_CLIENT_ID=
-HUBSPOT_CLIENT_SECRET=
-SALESFORCE_CLIENT_ID=
-SALESFORCE_CLIENT_SECRET=
-PIPEDRIVE_CLIENT_ID=
-PIPEDRIVE_CLIENT_SECRET=
-
-# Token encryption
-CRM_TOKEN_ENCRYPTION_KEY=  # 32-byte hex string for AES-256-GCM
+// Only write if no webhook has updated since we started
+await db.update(subscription)
+  .set({ ...data, updatedAt: syncStartedAt })
+  .where(
+    and(
+      eq(subscription.id, sub.id),
+      // Only update if DB hasn't been written to since we started fetching
+      lte(subscription.updatedAt, syncStartedAt)
+    )
+  );
 ```
 
-No new env vars required for Phases 1-5.
+This prevents the sync from overwriting newer webhook data.
+
+#### 3.2 Reduce force-sync frequency
+**File: `lib/hooks/use-subscription.ts`**
+
+Currently force-syncs on every settings page load. Change to only sync if data is stale (>5 min):
+
+```ts
+queryFn: async () => {
+  const cached = queryClient.getQueryData<SubscriptionData>(["subscription"]);
+  const isStale = !cached || Date.now() - lastSyncTime > 5 * 60_000;
+  if (isStale) {
+    await fetch("/api/stripe/subscription", { method: "POST" }).catch(() => {});
+  }
+  const res = await fetch("/api/stripe/subscription");
+  return res.json();
+},
+```
+
+---
+
+### Phase 4: Handle `past_due` grace period (MEDIUM)
+**Estimated effort: 30 minutes**
+
+#### 4.1 Add grace period logic to entitlements
+**File: `lib/stripe/entitlements.ts`**
+
+```ts
+// past_due gets a 3-day grace period, then downgrades
+if (sub.status === "past_due") {
+  const pastDueSince = sub.updatedAt; // When status changed to past_due
+  const gracePeriodMs = 3 * 24 * 60 * 60 * 1000; // 3 days
+  const graceExpired = Date.now() - pastDueSince.getTime() > gracePeriodMs;
+
+  if (graceExpired) {
+    return { plan: "free", status: "past_due", subscription: sub };
+  }
+  // Within grace period — keep their plan
+}
+```
+
+---
+
+### Phase 5: Fix billing interval preservation on plan change (MEDIUM)
+**Estimated effort: 30 minutes**
+
+#### 5.1 Detect current billing interval and use matching price
+**File: `app/api/stripe/change-plan/route.ts`**
+
+```ts
+function getPriceIdForPlan(plan: PlanId, interval: "month" | "year"): string | null {
+  const prices: Record<string, Record<string, string | undefined>> = {
+    starter:      { month: process.env.NEXT_PUBLIC_STRIPE_STARTER_MONTHLY_PRICE_ID, year: process.env.NEXT_PUBLIC_STRIPE_STARTER_ANNUAL_PRICE_ID },
+    professional: { month: process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID,     year: process.env.NEXT_PUBLIC_STRIPE_PRO_ANNUAL_PRICE_ID },
+    enterprise:   { month: process.env.NEXT_PUBLIC_STRIPE_ENT_MONTHLY_PRICE_ID,     year: process.env.NEXT_PUBLIC_STRIPE_ENT_ANNUAL_PRICE_ID },
+  };
+  return prices[plan]?.[interval] ?? null;
+}
+
+// Detect current interval from Stripe subscription
+const currentInterval = stripeSub.items.data[0]?.price?.recurring?.interval ?? "month";
+const newPriceId = getPriceIdForPlan(targetPlan, currentInterval);
+```
+
+---
+
+### Phase 6: Harden checkout against race conditions (MEDIUM)
+**Estimated effort: 1 hour**
+
+#### 6.1 Clean up incomplete subscriptions before new checkout
+**File: `app/api/stripe/checkout/route.ts`**
+
+Before creating a new checkout, cancel any incomplete Stripe subscriptions:
+
+```ts
+if (existingSub?.stripeSubscriptionId && existingSub.status === "incomplete") {
+  try {
+    await stripe.subscriptions.cancel(existingSub.stripeSubscriptionId);
+  } catch { /* ignore if already gone */ }
+  await db.update(subscription)
+    .set({ stripeSubscriptionId: null, status: "canceled" })
+    .where(eq(subscription.id, existingSub.id));
+}
+```
+
+#### 6.2 Add idempotency key for customer creation
+
+```ts
+const customer = await stripe.customers.create({
+  email: userEmail,
+  metadata: { userId },
+}, {
+  idempotencyKey: `customer_create_${userId}`,
+});
+```
+
+This prevents duplicate customers even if two requests run concurrently.
 
 ---
 
 ## Execution Order
 
 ```
-Phase 1 (CRITICAL)  →  Phase 2 (HIGH)  →  Phase 3 (HIGH)  →  Phase 4 (MEDIUM)  →  Phase 5 (MEDIUM)
-Security fixes         Provider reliability  Settings UI         App-wide CRM UI      Analytics
-~1-2 hours             ~2-3 hours            ~3-4 hours          ~2-3 hours            ~1-2 hours
+Phase 1 (CRITICAL)  →  Phase 2 (HIGH)  →  Phase 3 (HIGH)  →  Phase 4-6 (MEDIUM)
+Webhook as writer      Single source       Race condition      Polish
+~2-3 hours             ~1-2 hours          ~1 hour             ~2 hours
 ```
 
-**Total estimated effort: 10-14 hours across 5 active phases.**
-
-Phase 6 is deferred and should be planned separately after initial launch feedback.
+**Total: ~6-8 hours**
 
 ---
 
-## Cross-Check Verification
+## Verification Checklist
 
-### Security Cross-Check ✅
-- [x] All sync endpoints enforce plan entitlements
-- [x] Connection count limited per plan tier
-- [x] Monthly bulk push quota enforced and tracked
-- [x] OAuth tokens encrypted at rest (AES-256-GCM)
-- [x] CSRF protection on OAuth flows (httpOnly state cookie)
-- [x] Connection ownership verified on every API call
-- [x] Soft-delete on disconnect (preserves audit trail)
-- [x] Rate limiting prevents CRM API abuse
+After implementation, test these scenarios:
 
-### Data Integrity Cross-Check ✅
-- [x] VAT-based deduplication prevents duplicate CRM records
-- [x] Sync mapping tracks local↔remote entity pairs
-- [x] Version counter prevents stale update overwrites (Phase 6)
-- [x] Audit log captures every sync operation with status
-- [x] Token refresh failure auto-marks connection inactive
+| Scenario | Expected Behavior |
+|----------|-------------------|
+| Upgrade Starter → Professional | DB stays on Starter until Stripe webhook confirms. UI shows "Processing..." |
+| Upgrade with declined card | DB stays on current plan. User sees error after Stripe retry fails. |
+| Downgrade Professional → Free | `cancel_at_period_end = true`. Plan stays Professional until period ends. |
+| Payment fails on renewal | Status → `past_due`. User keeps access for 3 days. Then → free. |
+| User opens Settings while webhook fires | Force-sync doesn't overwrite newer webhook data (updatedAt check). |
+| Two concurrent upgrade requests | Stripe idempotency prevents duplicate charges. DB converges via webhook. |
+| Webhook handler DB timeout | Returns 500 → Stripe retries. Eventually succeeds. |
+| Annual user changes plan | Keeps annual billing interval. |
+| Incomplete checkout abandoned | Next checkout cancels the incomplete sub first. |
 
-### Plan Tier Cross-Check ✅
-- [x] Free: 0 CRM connections, 0 bulk push → fully blocked
-- [x] Starter: 0 CRM connections, 0 bulk push → fully blocked
-- [x] Professional: 1 connection, 30 bulk pushes/month → properly limited
-- [x] Enterprise: 3 connections, unlimited bulk pushes → properly gated
-- [x] UI shows plan-appropriate messaging and upgrade CTAs
-- [x] Reconnecting same provider doesn't count toward limit
+---
 
-### Backward Compatibility Cross-Check ✅
-- [x] No schema migrations required (existing tables sufficient)
-- [x] Existing hooks maintain same API contract
-- [x] OAuth callback redirect URL pattern unchanged
-- [x] Legacy `checkEntitlement("crm")` still works via LEGACY_FEATURE_MAP
+## Architecture Diagram — Before vs After
+
+### Before (Current — Broken)
+```
+User → change-plan API → Stripe.update() → DB.update(plan=new) ← IMMEDIATE, BEFORE PAYMENT
+                                         ↓
+                                    Stripe webhook → DB.update() ← MAY NEVER ARRIVE (errors swallowed)
+```
+
+### After (Fixed)
+```
+User → change-plan API → Stripe.update() → DB.update(pendingPlanChange=new) ← INTENT ONLY
+                                         ↓
+                            Stripe processes payment
+                                         ↓
+                            Stripe webhook → DB.update(plan=new, pending=null) ← CONFIRMED BY STRIPE
+                                         ↓
+                            User sees updated plan (webhook is the ONLY plan writer)
+```
+
+**The golden rule: Stripe is the source of truth. The webhook is the only writer. API routes express intent, not state.**

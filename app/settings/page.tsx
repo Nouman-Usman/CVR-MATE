@@ -901,13 +901,17 @@ export default function SettingsPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
-  // Read ?tab= param for deep-linking (e.g., from OAuth callback redirects)
-  const [activeSection, setActiveSection] = useState<SettingsSection>(() => {
-    if (typeof window === "undefined") return "profile";
+  // Deep-link via ?tab= (e.g., OAuth callback redirects to ?tab=integrations)
+  // Must use useEffect to avoid hydration mismatch — server always renders "profile"
+  const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
+
+  useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
     const valid: SettingsSection[] = ["profile", "password", "brand", "team", "notifications", "language", "integrations", "subscription", "danger"];
-    return valid.includes(tab as SettingsSection) ? (tab as SettingsSection) : "profile";
-  });
+    if (tab && valid.includes(tab as SettingsSection)) {
+      setActiveSection(tab as SettingsSection);
+    }
+  }, []);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["account", "workspace", "billing"]));
 
   const toggleGroup = (group: string) => {

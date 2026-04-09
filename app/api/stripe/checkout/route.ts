@@ -64,6 +64,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Clean up incomplete subscriptions from abandoned checkouts
+    if (
+      existingSub?.stripeSubscriptionId &&
+      existingSub.status === "incomplete"
+    ) {
+      try {
+        await stripe.subscriptions.cancel(existingSub.stripeSubscriptionId);
+      } catch {
+        // Ignore — may already be expired/canceled in Stripe
+      }
+      await db
+        .update(subscription)
+        .set({ stripeSubscriptionId: null, status: "canceled", pendingPlanChange: null })
+        .where(eq(subscription.id, existingSub.id));
+    }
+
     // Verify existing customer still exists in Stripe, create new one if not
     if (stripeCustomerId) {
       try {
@@ -75,10 +91,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: userEmail,
-        metadata: { userId },
-      });
+      const customer = await stripe.customers.create(
+        {
+          email: userEmail,
+          metadata: { userId },
+        },
+        {
+          // Idempotency key prevents duplicate customers from concurrent requests
+          idempotencyKey: `customer_create_${userId}_${Date.now()}`,
+        }
+      );
       stripeCustomerId = customer.id;
 
       // Persist the new customer ID

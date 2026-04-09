@@ -17,6 +17,7 @@ export interface SubscriptionData {
   status: string;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  pendingPlanChange: PlanId | null;
   limits: {
     savedCompanies: number;
     triggers: number;
@@ -158,6 +159,13 @@ export function useChangePlan() {
         if (!checkoutRes.ok) throw new Error(checkoutData.error || "Failed to create checkout");
         if (checkoutData.url) window.location.href = checkoutData.url;
         return checkoutData;
+      }
+
+      // For pending plan changes, poll briefly for webhook confirmation
+      if (data.action === "upgrade_pending" || data.action === "downgrade_pending" || data.action === "downgrade_scheduled") {
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ["subscription"] }), 2000);
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ["subscription"] }), 5000);
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ["subscription"] }), 10000);
       }
 
       return data;

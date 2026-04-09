@@ -715,6 +715,7 @@ export const subscription = pgTable(
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+    pendingPlanChange: text("pending_plan_change"), // null when no change pending; set by change-plan, cleared by webhook
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()

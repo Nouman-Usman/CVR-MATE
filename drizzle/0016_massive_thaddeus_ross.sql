@@ -1,0 +1,1 @@
+ALTER TABLE "subscription" ADD COLUMN "pending_plan_change" text;

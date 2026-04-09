@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/db";
 import { subscription, usageRecord } from "@/db/schema";
 import { eq, and, gte, count } from "drizzle-orm";
-import { PLAN_LIMITS, resolvePlanId, priceToPlan, type PlanId, type PlanLimits } from "./plans";
+import { PLAN_LIMITS, priceToPlan, type PlanId, type PlanLimits } from "./plans";
 
 export interface UserPlan {
   plan: PlanId;
@@ -34,9 +34,21 @@ const FEATURE_TO_LIMIT: Record<MonthlyFeature, keyof PlanLimits> = {
   bulk_push: "bulkPushPerMonth",
 };
 
+/** Grace period for past_due status before downgrading to free (3 days) */
+const PAST_DUE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
 /**
  * Get the user's current plan. No subscription row = Free.
- * Canceled or unpaid subscriptions are treated as Free.
+ *
+ * Source of truth: `stripePriceId` — the plan column is a cached derivation
+ * written by the webhook and should never be trusted independently.
+ *
+ * Status handling:
+ * - active        → paid plan from stripePriceId
+ * - past_due      → paid plan for 3-day grace period, then free
+ * - canceled      → free
+ * - unpaid        → free
+ * - incomplete    → free
  */
 export async function getUserPlan(userId: string): Promise<UserPlan> {
   const sub = await db.query.subscription.findFirst({
@@ -47,18 +59,23 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
     return { plan: "free", status: "active", subscription: null };
   }
 
-  // Canceled or unpaid → downgraded to free
-  if (sub.status === "canceled" || sub.status === "unpaid") {
+  // These statuses = no access
+  if (sub.status === "canceled" || sub.status === "unpaid" || sub.status === "incomplete") {
     return { plan: "free", status: sub.status, subscription: sub };
   }
 
-  // Derive plan from stripe_price_id as the source of truth (plan column may be stale)
-  let plan = resolvePlanId(sub.plan);
-  if (sub.stripePriceId && sub.status === "active") {
-    const priceBasedPlan = priceToPlan(sub.stripePriceId);
-    if (priceBasedPlan !== "free") {
-      plan = priceBasedPlan;
+  // Derive plan exclusively from stripePriceId (single source of truth)
+  const plan = sub.stripePriceId ? priceToPlan(sub.stripePriceId) : "free";
+
+  // past_due: grant a 3-day grace period, then downgrade
+  if (sub.status === "past_due") {
+    const pastDueSince = sub.updatedAt ?? sub.createdAt;
+    const graceExpired = Date.now() - pastDueSince.getTime() > PAST_DUE_GRACE_MS;
+
+    if (graceExpired) {
+      return { plan: "free", status: "past_due", subscription: sub };
     }
+    // Within grace period — keep their paid plan
   }
 
   return {
