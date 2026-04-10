@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { company, crmConnection, crmSyncMapping, crmSyncLog } from "@/db/schema";
 import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
+import { CrmNotFoundError } from "@/lib/crm/errors";
 import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 // POST /api/integrations/sync/bulk — push multiple companies to CRM
@@ -95,19 +96,32 @@ export async function POST(req: NextRequest) {
           founded: comp.founded,
         };
 
-        const existing = mappingByCompanyId.get(comp.id);
-        let crmEntityId: string;
-        let action: string;
+        let existing = mappingByCompanyId.get(comp.id);
+        let crmEntityId = "";
+        let action = "";
+        let needsCreate = !existing;
 
         if (existing) {
-          await client.updateCompany(existing.crmEntityId, payload);
-          crmEntityId = existing.crmEntityId;
-          action = "update_company";
-          await db
-            .update(crmSyncMapping)
-            .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
-            .where(eq(crmSyncMapping.id, existing.id));
-        } else {
+          try {
+            await client.updateCompany(existing.crmEntityId, payload);
+            crmEntityId = existing.crmEntityId;
+            action = "update_company";
+            await db
+              .update(crmSyncMapping)
+              .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
+              .where(eq(crmSyncMapping.id, existing.id));
+          } catch (err) {
+            if (err instanceof CrmNotFoundError) {
+              // CRM record deleted externally — clear stale mapping and re-create
+              await db.delete(crmSyncMapping).where(eq(crmSyncMapping.id, existing.id));
+              needsCreate = true;
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        if (needsCreate) {
           const found = await client.findCompanyByVat(comp.vat);
           if (found) {
             await client.updateCompany(found.id, payload);

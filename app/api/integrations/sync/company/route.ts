@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { company, crmConnection, crmSyncMapping, crmSyncLog } from "@/db/schema";
 import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
+import { CrmNotFoundError } from "@/lib/crm/errors";
 import { checkEntitlement } from "@/lib/stripe/entitlements";
 
 // POST /api/integrations/sync/company — push a single company to CRM
@@ -75,21 +76,35 @@ export async function POST(req: NextRequest) {
       ),
     });
 
-    let crmEntityId: string;
-    let action: string;
+    const crmEntityType = provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization";
+    let crmEntityId = "";
+    let action = "";
+    let staleMappingCleared = false;
 
     if (existingMapping) {
-      // Update existing
-      await client.updateCompany(existingMapping.crmEntityId, payload);
-      crmEntityId = existingMapping.crmEntityId;
-      action = "update_company";
+      try {
+        // Try updating the existing CRM record
+        await client.updateCompany(existingMapping.crmEntityId, payload);
+        crmEntityId = existingMapping.crmEntityId;
+        action = "update_company";
 
-      await db
-        .update(crmSyncMapping)
-        .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
-        .where(eq(crmSyncMapping.id, existingMapping.id));
-    } else {
-      // Check if company exists in CRM by VAT
+        await db
+          .update(crmSyncMapping)
+          .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
+          .where(eq(crmSyncMapping.id, existingMapping.id));
+      } catch (err) {
+        // If the CRM record was deleted externally, clear the stale mapping and create fresh
+        if (err instanceof CrmNotFoundError) {
+          await db.delete(crmSyncMapping).where(eq(crmSyncMapping.id, existingMapping.id));
+          staleMappingCleared = true;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    // Create new CRM record if no mapping existed or stale mapping was cleared
+    if (!existingMapping || staleMappingCleared) {
       const found = await client.findCompanyByVat(comp.vat);
       if (found) {
         await client.updateCompany(found.id, payload);
@@ -101,12 +116,11 @@ export async function POST(req: NextRequest) {
         action = "push_company";
       }
 
-      // Create sync mapping
       await db.insert(crmSyncMapping).values({
         connectionId,
         localEntityType: "company",
         localEntityId: companyId,
-        crmEntityType: provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization",
+        crmEntityType,
         crmEntityId,
         syncStatus: "synced",
       });

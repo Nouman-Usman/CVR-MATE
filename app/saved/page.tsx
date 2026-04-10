@@ -1449,10 +1449,8 @@ export default function SavedPage() {
           </div>
 
           <DialogFooter>
-            <DialogClose>
-              <Button variant="outline" className="rounded-xl">
-                {locale === "da" ? "Annuller" : "Cancel"}
-              </Button>
+            <DialogClose render={<Button variant="outline" className="rounded-xl" />}>
+              {locale === "da" ? "Annuller" : "Cancel"}
             </DialogClose>
           </DialogFooter>
         </DialogContent>
