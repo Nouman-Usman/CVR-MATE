@@ -1,4 +1,4 @@
-export type CrmProvider = "hubspot" | "salesforce" | "pipedrive";
+export type CrmProvider = "hubspot" | "leadconnector" | "pipedrive";
 
 // ─── Payloads ──────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export interface CrmContactPayload {
 
 export interface CrmNotePayload {
   title: string;
-  body: string; // HTML for HubSpot/Pipedrive, plain text for Salesforce
+  body: string; // HTML for HubSpot/Pipedrive/LeadConnector
 }
 
 // ─── Client Interface ──────────────────────────────────────────────────────
@@ -88,15 +88,15 @@ export const CRM_PROVIDERS: Record<CrmProvider, CrmProviderConfig> = {
     clientIdEnv: "HUBSPOT_CLIENT_ID",
     clientSecretEnv: "HUBSPOT_CLIENT_SECRET",
   },
-  salesforce: {
-    name: "Salesforce",
-    icon: "cloud",
-    color: "#00A1E0",
-    authUrl: "https://login.salesforce.com/services/oauth2/authorize",
-    tokenUrl: "https://login.salesforce.com/services/oauth2/token",
-    scopes: "api refresh_token",
-    clientIdEnv: "SALESFORCE_CLIENT_ID",
-    clientSecretEnv: "SALESFORCE_CLIENT_SECRET",
+  leadconnector: {
+    name: "GoHighLevel",
+    icon: "rocket_launch",
+    color: "#FF6B35",
+    authUrl: "https://marketplace.gohighlevel.com/oauth/chooselocation",
+    tokenUrl: "https://services.leadconnectorhq.com/oauth/token",
+    scopes: "contacts.write contacts.readonly businesses.write businesses.readonly locations/customFields.write locations/customFields.readonly locations.readonly",
+    clientIdEnv: "LEADCONNECTOR_CLIENT_ID",
+    clientSecretEnv: "LEADCONNECTOR_CLIENT_SECRET",
   },
   pipedrive: {
     name: "Pipedrive",

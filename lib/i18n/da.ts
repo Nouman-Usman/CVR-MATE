@@ -621,7 +621,7 @@ const da = {
     syncHistory: "Synkroniseringshistorik",
     noHistory: "Ingen synkroniseringsaktivitet endnu",
     hubspot: "HubSpot",
-    salesforce: "Salesforce",
+    leadconnector: "GoHighLevel",
     pipedrive: "Pipedrive",
     selectCrm: "Vælg CRM",
     synced: "Synkroniseret",

@@ -83,7 +83,7 @@ function contactSyncId(companyId: string, participantNumber: number): string {
 function getCrmEntityType(provider: CrmProvider, entityKind: "company" | "contact" | "note"): string {
   const map: Record<CrmProvider, Record<string, string>> = {
     hubspot: { company: "company", contact: "contact", note: "note" },
-    salesforce: { company: "Account", contact: "Contact", note: "Note" },
+    leadconnector: { company: "contact", contact: "contact", note: "note" },
     pipedrive: { company: "organization", contact: "person", note: "note" },
   };
   return map[provider][entityKind];

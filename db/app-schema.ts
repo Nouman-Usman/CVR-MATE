@@ -613,11 +613,11 @@ export const crmConnection = pgTable(
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
-    provider: text("provider").notNull(), // 'hubspot' | 'salesforce' | 'pipedrive'
+    provider: text("provider").notNull(), // 'hubspot' | 'leadconnector' | 'pipedrive'
     accessToken: text("access_token").notNull(), // encrypted
     refreshToken: text("refresh_token"), // encrypted
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
-    instanceUrl: text("instance_url"), // Salesforce instance URL
+    instanceUrl: text("instance_url"), // LeadConnector locationId / provider-specific URL
     scopes: text("scopes"),
     isActive: boolean("is_active").default(true).notNull(),
     connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow().notNull(),

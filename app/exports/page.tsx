@@ -352,11 +352,11 @@ export default function ExportsPage() {
               >
                 <div className={cn(
                   "w-10 h-10 rounded-lg flex items-center justify-center",
-                  conn.provider === "hubspot" ? "bg-orange-50" : conn.provider === "salesforce" ? "bg-blue-50" : "bg-green-50"
+                  conn.provider === "hubspot" ? "bg-orange-50" : conn.provider === "leadconnector" ? "bg-orange-50" : "bg-green-50"
                 )}>
                   <Building2 className={cn(
                     "size-5",
-                    conn.provider === "hubspot" ? "text-orange-500" : conn.provider === "salesforce" ? "text-blue-500" : "text-green-600"
+                    conn.provider === "hubspot" ? "text-orange-500" : conn.provider === "leadconnector" ? "text-orange-500" : "text-green-600"
                   )} />
                 </div>
                 <div className="text-left flex-1">

@@ -526,7 +526,7 @@ export default function CompanyDetailPage() {
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
                           >
                             <span className="material-symbols-outlined text-base text-slate-400">
-                              {conn.provider === "hubspot" ? "hub" : conn.provider === "salesforce" ? "cloud" : "filter_alt"}
+                              {conn.provider === "hubspot" ? "hub" : conn.provider === "leadconnector" ? "rocket_launch" : "filter_alt"}
                             </span>
                             <span className="font-medium capitalize">{conn.provider}</span>
                             {pushToCrm.isPending && (

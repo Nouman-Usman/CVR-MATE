@@ -76,7 +76,8 @@ export async function GET(
     const accessToken = tokens.access_token as string;
     const refreshToken = tokens.refresh_token as string | undefined;
     const expiresIn = tokens.expires_in as number | undefined;
-    const instanceUrl = tokens.instance_url as string | undefined; // Salesforce
+    // LeadConnector returns locationId — stored in instanceUrl column for API routing
+    const instanceUrl = (tokens.locationId as string) ?? (tokens.instance_url as string) ?? undefined;
 
     const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 

@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Simple push (backwards compat): company data only
-    const crmEntityType = provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization";
+    const crmEntityType = provider === "hubspot" ? "company" : provider === "leadconnector" ? "contact" : "organization";
 
     // Fetch all companies
     const companies = await db.query.company.findMany({

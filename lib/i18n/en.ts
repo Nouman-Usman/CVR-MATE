@@ -623,7 +623,7 @@ const en: Dictionary = {
     syncHistory: "Sync history",
     noHistory: "No sync activity yet",
     hubspot: "HubSpot",
-    salesforce: "Salesforce",
+    leadconnector: "GoHighLevel",
     pipedrive: "Pipedrive",
     selectCrm: "Select CRM",
     synced: "Synced",

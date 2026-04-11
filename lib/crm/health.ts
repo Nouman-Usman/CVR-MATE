@@ -24,10 +24,15 @@ export async function checkConnectionHealth(
   try {
     const tokens = await getValidToken(connectionId);
 
-    const headers = {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${tokens.accessToken}`,
       "Content-Type": "application/json",
     };
+
+    // LeadConnector requires a Version header on all requests
+    if (provider === "leadconnector") {
+      headers.Version = "2021-07-28";
+    }
 
     let healthUrl: string;
     switch (provider) {
@@ -35,9 +40,9 @@ export async function checkConnectionHealth(
         // Lightweight: fetch account info
         healthUrl = "https://api.hubapi.com/account-info/v3/details";
         break;
-      case "salesforce":
-        // Lightweight: fetch org limits
-        healthUrl = `${tokens.instanceUrl}/services/data/v59.0/limits`;
+      case "leadconnector":
+        // Lightweight: fetch location details
+        healthUrl = `https://services.leadconnectorhq.com/locations/${tokens.instanceUrl}`;
         break;
       case "pipedrive":
         // Lightweight: fetch current user

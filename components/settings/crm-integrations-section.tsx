@@ -12,7 +12,7 @@ import { useSubscription } from "@/lib/hooks/use-subscription";
 import { Loader2, ArrowUpRight, Lock, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Plug } from "lucide-react";
 
 const CRM_CARDS: {
-  provider: "hubspot" | "salesforce" | "pipedrive";
+  provider: "hubspot" | "leadconnector" | "pipedrive";
   name: string;
   color: string;
   icon: string;
@@ -28,12 +28,12 @@ const CRM_CARDS: {
     descDa: "Synkroniser virksomheder til HubSpot CRM",
   },
   {
-    provider: "salesforce",
-    name: "Salesforce",
-    color: "#00A1E0",
-    icon: "cloud",
-    desc: "Push leads to Salesforce Accounts",
-    descDa: "Send leads til Salesforce-konti",
+    provider: "leadconnector",
+    name: "GoHighLevel",
+    color: "#FF6B35",
+    icon: "rocket_launch",
+    desc: "Push leads to GoHighLevel CRM",
+    descDa: "Send leads til GoHighLevel CRM",
   },
   {
     provider: "pipedrive",

@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       ),
     });
 
-    const crmEntityType = provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization";
+    const crmEntityType = provider === "hubspot" ? "company" : provider === "leadconnector" ? "contact" : "organization";
     let crmEntityId = "";
     let action = "";
     let staleMappingCleared = false;

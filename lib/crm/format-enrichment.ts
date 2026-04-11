@@ -68,7 +68,7 @@ export function formatCompanyEnrichmentNote(
 ): CrmNotePayload {
   const date = new Date().toISOString().split("T")[0];
 
-  // Plain text version (for Salesforce)
+  // Plain text version (fallback)
   const textParts: string[] = [
     `CVR-MATE Intelligence Brief — ${companyName}`,
     `Generated: ${date}`,

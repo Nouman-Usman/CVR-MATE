@@ -1407,13 +1407,13 @@ export default function SavedPage() {
             {activeConnections.map((conn) => {
               const providerColors: Record<string, string> = {
                 hubspot: "#FF7A59",
-                salesforce: "#00A1E0",
+                leadconnector: "#FF6B35",
                 pipedrive: "#017737",
               };
               const color = providerColors[conn.provider] ?? "#6366f1";
               const icons: Record<string, string> = {
                 hubspot: "hub",
-                salesforce: "cloud",
+                leadconnector: "rocket_launch",
                 pipedrive: "filter_alt",
               };
 

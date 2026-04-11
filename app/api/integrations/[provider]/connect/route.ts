@@ -88,11 +88,6 @@ export async function GET(
       authParams.set("scope", config.scopes);
     }
 
-    // Salesforce needs prompt=consent to always get refresh token
-    if (provider === "salesforce") {
-      authParams.set("prompt", "consent");
-    }
-
     const authUrl = `${config.authUrl}?${authParams.toString()}`;
     return NextResponse.redirect(authUrl);
   } catch (error) {
