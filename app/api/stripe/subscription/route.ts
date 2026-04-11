@@ -6,7 +6,7 @@ import { PLANS, priceToPlan } from "@/lib/stripe/plans";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { subscription } from "@/db/schema";
-import { eq, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export async function GET() {
   try {
@@ -26,9 +26,6 @@ export async function GET() {
       serializedLimits[key] = typeof value === "number" && !isFinite(value) ? -1 : value;
     }
 
-    // Include pending plan change so UI can show "processing" state
-    const pendingPlanChange = sub?.pendingPlanChange ?? null;
-
     return NextResponse.json({
       plan,
       planName: planDef.name,
@@ -38,7 +35,6 @@ export async function GET() {
       status,
       currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
-      pendingPlanChange,
       limits: serializedLimits,
       usage,
     });
@@ -87,7 +83,6 @@ export async function POST() {
           status: "canceled",
           cancelAtPeriodEnd: false,
           stripeSubscriptionId: null,
-          pendingPlanChange: null,
         })
         .where(eq(subscription.id, sub.id));
       return NextResponse.json({ synced: true, plan: "free", action: "subscription_not_found" });
@@ -127,7 +122,6 @@ export async function POST() {
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
         cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-        pendingPlanChange: null,
       })
       .where(
         // Guard: only update if the row hasn't been modified by a webhook since we started

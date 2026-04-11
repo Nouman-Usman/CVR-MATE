@@ -75,7 +75,7 @@ function subscriptionDataFromStripe(stripeSub: Stripe.Subscription) {
     currentPeriodStart: period.start,
     currentPeriodEnd: period.end,
     cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-    pendingPlanChange: null, // Clear pending flag — Stripe has confirmed the state
+    // pendingPlanChange is deprecated (cancel-first flow has no inline plan swaps)
   };
 }
 
@@ -192,10 +192,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId);
   const data = subscriptionDataFromStripe(stripeSub);
 
-  // Upsert
+  // Upsert — and cancel any old subscription that's being replaced
   const existing = await db.query.subscription.findFirst({
     where: eq(subscription.userId, userId),
   });
+
+  // If user already had a different subscription (cancel-first flow: they canceled
+  // their old plan and checked out a new one), immediately cancel the old one in
+  // Stripe to prevent double-billing and entitlement ambiguity.
+  if (existing?.stripeSubscriptionId && existing.stripeSubscriptionId !== stripeSubscriptionId) {
+    try {
+      await stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+      console.log(`[Stripe Webhook] Canceled old sub ${existing.stripeSubscriptionId} (replaced by ${stripeSubscriptionId})`);
+    } catch {
+      // Already canceled or doesn't exist — safe to ignore
+    }
+  }
 
   const fullData = {
     stripeCustomerId,
@@ -213,19 +225,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
-  const stripeCustomerId = typeof stripeSub.customer === "string"
-    ? stripeSub.customer
-    : stripeSub.customer?.id;
-
-  // Find by subscription ID first, then customer ID
-  let existing = await db.query.subscription.findFirst({
+  // Only match by exact subscription ID — no customer ID fallback.
+  // This prevents stale events from an old (canceled) subscription from
+  // overwriting the data of a newer subscription on the same customer.
+  const existing = await db.query.subscription.findFirst({
     where: eq(subscription.stripeSubscriptionId, stripeSub.id),
   });
-  if (!existing && stripeCustomerId) {
-    existing = await db.query.subscription.findFirst({
-      where: eq(subscription.stripeCustomerId, stripeCustomerId),
-    });
-  }
 
   if (!existing) {
     console.warn(`[Stripe Webhook] subscription.updated: no local row for sub ${stripeSub.id}`);
@@ -258,7 +263,6 @@ async function handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
       plan: "free",
       status: "canceled",
       cancelAtPeriodEnd: false,
-      pendingPlanChange: null,
     })
     .where(eq(subscription.id, existing.id));
 
@@ -300,7 +304,6 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     .update(subscription)
     .set({
       status: "past_due",
-      pendingPlanChange: null, // Clear any pending change — payment failed
     })
     .where(eq(subscription.id, existing.id));
 

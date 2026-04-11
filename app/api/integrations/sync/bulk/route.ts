@@ -8,6 +8,7 @@ import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
 import { CrmNotFoundError } from "@/lib/crm/errors";
 import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { executeRichPush } from "@/lib/crm/rich-push";
 
 // POST /api/integrations/sync/bulk — push multiple companies to CRM
 export async function POST(req: NextRequest) {
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { connectionId, companyIds } = await req.json();
+    const { connectionId, companyIds, richPush = true } = await req.json();
     if (!connectionId || !Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json({ error: "connectionId and companyIds[] are required" }, { status: 400 });
     }
@@ -61,6 +62,41 @@ export async function POST(req: NextRequest) {
 
     const provider = conn.provider as CrmProvider;
     const client = await getCrmClient(connectionId, provider);
+
+    // Rich push: push company + contacts + enrichment + notes for each
+    if (richPush) {
+      const results: { companyId: string; status: "success" | "error"; error?: string; contacts?: number; notes?: number }[] = [];
+
+      for (const companyId of companyIds) {
+        try {
+          const result = await executeRichPush(client, companyId, connectionId, session.user.id, provider);
+          results.push({
+            companyId,
+            status: "success",
+            contacts: result.contacts.filter((c) => c.action !== "skipped").length,
+            notes: result.notes.filter((n) => !n.error).length,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          results.push({ companyId, status: "error", error: message });
+        }
+        // Brief delay between companies to respect rate limits
+        if (companyIds.indexOf(companyId) < companyIds.length - 1) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+
+      const success = results.filter((r) => r.status === "success").length;
+      const failed = results.filter((r) => r.status === "error").length;
+
+      for (let i = 0; i < success; i++) {
+        await recordUsage(session.user.id, "bulk_push");
+      }
+
+      return NextResponse.json({ results, summary: { total: companyIds.length, success, failed } });
+    }
+
+    // Simple push (backwards compat): company data only
     const crmEntityType = provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization";
 
     // Fetch all companies

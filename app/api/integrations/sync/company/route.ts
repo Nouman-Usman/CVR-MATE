@@ -8,6 +8,7 @@ import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
 import { CrmNotFoundError } from "@/lib/crm/errors";
 import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { executeRichPush } from "@/lib/crm/rich-push";
 
 // POST /api/integrations/sync/company — push a single company to CRM
 export async function POST(req: NextRequest) {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { connectionId, companyId } = await req.json();
+    const { connectionId, companyId, richPush = true } = await req.json();
     if (!connectionId || !companyId) {
       return NextResponse.json({ error: "connectionId and companyId are required" }, { status: 400 });
     }
@@ -42,16 +43,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    // Get company data
+    const provider = conn.provider as CrmProvider;
+    const client = await getCrmClient(connectionId, provider);
+
+    // Rich push: company + contacts + enrichment + notes
+    if (richPush) {
+      const result = await executeRichPush(
+        client,
+        companyId,
+        connectionId,
+        session.user.id,
+        provider,
+      );
+
+      return NextResponse.json({
+        success: true,
+        ...result,
+        provider,
+      });
+    }
+
+    // Simple push (backwards compat): company only
     const comp = await db.query.company.findFirst({
       where: eq(company.id, companyId),
     });
     if (!comp) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
-
-    const provider = conn.provider as CrmProvider;
-    const client = await getCrmClient(connectionId, provider);
 
     const payload: CrmCompanyPayload = {
       name: comp.name,
@@ -83,7 +101,6 @@ export async function POST(req: NextRequest) {
 
     if (existingMapping) {
       try {
-        // Try updating the existing CRM record
         await client.updateCompany(existingMapping.crmEntityId, payload);
         crmEntityId = existingMapping.crmEntityId;
         action = "update_company";
@@ -93,7 +110,6 @@ export async function POST(req: NextRequest) {
           .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
           .where(eq(crmSyncMapping.id, existingMapping.id));
       } catch (err) {
-        // If the CRM record was deleted externally, clear the stale mapping and create fresh
         if (err instanceof CrmNotFoundError) {
           await db.delete(crmSyncMapping).where(eq(crmSyncMapping.id, existingMapping.id));
           staleMappingCleared = true;
@@ -103,7 +119,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create new CRM record if no mapping existed or stale mapping was cleared
     if (!existingMapping || staleMappingCleared) {
       const found = await client.findCompanyByVat(comp.vat);
       if (found) {
@@ -126,7 +141,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Log the sync
     await db.insert(crmSyncLog).values({
       connectionId,
       userId: session.user.id,
