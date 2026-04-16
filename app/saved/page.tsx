@@ -795,10 +795,17 @@ export default function SavedPage() {
                 variant="outline"
                 size="sm"
                 className="rounded-xl gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shrink-0"
-                onClick={() => { setCrmPushTarget("all"); setShowCrmDialog(true); }}
+                onClick={() => { if (!bulkPush.isPending) { setCrmPushTarget("all"); setShowCrmDialog(true); } }}
+                disabled={bulkPush.isPending}
               >
-                <ArrowUpFromLine className="size-3.5" />
-                {locale === "da" ? "Send alle til CRM" : "Push all to CRM"}
+                {bulkPush.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ArrowUpFromLine className="size-3.5" />
+                )}
+                {bulkPush.isPending
+                  ? (locale === "da" ? "Sender..." : "Pushing...")
+                  : (locale === "da" ? "Send alle til CRM" : "Push all to CRM")}
               </Button>
             )}
           </div>
@@ -1210,8 +1217,14 @@ export default function SavedPage() {
                                   onClick={() => handleSinglePush(conn.id, c.id, conn.provider)}
                                   disabled={pushToCrm.isPending}
                                 >
-                                  <Upload className="size-4 text-indigo-500" />
-                                  {locale === "da" ? `Send til ${conn.provider}` : `Push to ${conn.provider}`}
+                                  {pushToCrm.isPending ? (
+                                    <Loader2 className="size-4 text-indigo-400 animate-spin" />
+                                  ) : (
+                                    <Upload className="size-4 text-indigo-500" />
+                                  )}
+                                  {pushToCrm.isPending
+                                    ? (locale === "da" ? "Sender..." : "Pushing...")
+                                    : (locale === "da" ? `Send til ${conn.provider}` : `Push to ${conn.provider}`)}
                                 </DropdownMenuItem>
                               ))}
                             </>
@@ -1371,11 +1384,18 @@ export default function SavedPage() {
             <div className="w-px h-5 bg-slate-700" />
 
             <button
-              onClick={() => { setCrmPushTarget("selected"); setShowCrmDialog(true); }}
-              className="flex items-center gap-2 px-3.5 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-500 transition-colors"
+              onClick={() => { if (!bulkPush.isPending) { setCrmPushTarget("selected"); setShowCrmDialog(true); } }}
+              disabled={bulkPush.isPending}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <ArrowUpFromLine className="size-3.5" />
-              {locale === "da" ? "Send til CRM" : "Push to CRM"}
+              {bulkPush.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <ArrowUpFromLine className="size-3.5" />
+              )}
+              {bulkPush.isPending
+                ? (locale === "da" ? "Sender..." : "Pushing...")
+                : (locale === "da" ? "Send til CRM" : "Push to CRM")}
             </button>
 
             <button

@@ -394,9 +394,17 @@ export default function ExportsPage() {
               PDF
             </Button>
             {activeConnections.length > 0 && (
-              <Button className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowCrmModal(true)} disabled={!!exporting}>
-                <Building2 className="size-4" />
-                {ig.pushToCrm}
+              <Button
+                className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => { if (!bulkPush.isPending) setShowCrmModal(true); }}
+                disabled={!!exporting || bulkPush.isPending}
+              >
+                {bulkPush.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Building2 className="size-4" />
+                )}
+                {bulkPush.isPending ? (locale === "da" ? "Sender..." : "Pushing...") : ig.pushToCrm}
               </Button>
             )}
           </div>

@@ -492,11 +492,18 @@ export default function CompanyDetailPage() {
               {activeConnections.length > 0 && (
                 <div className="relative">
                   <button
-                    onClick={() => setShowCrmMenu(!showCrmMenu)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    onClick={() => !pushToCrm.isPending && setShowCrmMenu(!showCrmMenu)}
+                    disabled={pushToCrm.isPending}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-lg">sync</span>
-                    {t.integrations.pushToCrm}
+                    {pushToCrm.isPending ? (
+                      <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-lg">sync</span>
+                    )}
+                    {pushToCrm.isPending
+                      ? (locale === "da" ? "Sender..." : "Pushing...")
+                      : t.integrations.pushToCrm}
                   </button>
                   {showCrmMenu && (
                     <>
