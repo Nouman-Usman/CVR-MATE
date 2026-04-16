@@ -149,3 +149,32 @@ export function useSyncHistory() {
     staleTime: 30_000,
   });
 }
+
+interface HealthCheckResult {
+  healthy: boolean;
+  latencyMs: number;
+  provider: string;
+  error?: string;
+}
+
+export function useConnectionHealthCheck() {
+  const queryClient = useQueryClient();
+
+  return useMutation<HealthCheckResult, Error, string>({
+    mutationFn: async (connectionId: string) => {
+      const res = await fetch("/api/integrations/health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectionId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Health check failed");
+      }
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    },
+  });
+}

@@ -6,7 +6,9 @@ import { db } from "@/db";
 import { company, crmConnection, crmSyncMapping, crmSyncLog } from "@/db/schema";
 import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
-import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { CrmNotFoundError } from "@/lib/crm/errors";
+import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { executeRichPush } from "@/lib/crm/rich-push";
 
 // POST /api/integrations/sync/bulk — push multiple companies to CRM
 export async function POST(req: NextRequest) {
@@ -16,15 +18,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed } = await checkEntitlement(session.user.id, "crm");
+    const { allowed, plan } = await checkEntitlement(session.user.id, "crm");
     if (!allowed) {
       return NextResponse.json(
-        { error: "CRM integrations require a paid plan", upgrade: true },
+        { error: "CRM sync requires Professional or Enterprise plan", upgrade: true, plan },
         { status: 403 }
       );
     }
 
-    const { connectionId, companyIds } = await req.json();
+    // Check monthly bulk push quota
+    const quota = await checkMonthlyQuota(session.user.id, "bulk_push");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        {
+          error: `Monthly bulk push limit reached (${quota.used}/${quota.limit})`,
+          upgrade: true,
+          usage: { used: quota.used, limit: quota.limit },
+        },
+        { status: 429 }
+      );
+    }
+
+    const { connectionId, companyIds, richPush = true } = await req.json();
     if (!connectionId || !Array.isArray(companyIds) || companyIds.length === 0) {
       return NextResponse.json({ error: "connectionId and companyIds[] are required" }, { status: 400 });
     }
@@ -47,7 +62,42 @@ export async function POST(req: NextRequest) {
 
     const provider = conn.provider as CrmProvider;
     const client = await getCrmClient(connectionId, provider);
-    const crmEntityType = provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization";
+
+    // Rich push: push company + contacts + enrichment + notes for each
+    if (richPush) {
+      const results: { companyId: string; status: "success" | "error"; error?: string; contacts?: number; notes?: number }[] = [];
+
+      for (const companyId of companyIds) {
+        try {
+          const result = await executeRichPush(client, companyId, connectionId, session.user.id, provider);
+          results.push({
+            companyId,
+            status: "success",
+            contacts: result.contacts.filter((c) => c.action !== "skipped").length,
+            notes: result.notes.filter((n) => !n.error).length,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          results.push({ companyId, status: "error", error: message });
+        }
+        // Brief delay between companies to respect rate limits
+        if (companyIds.indexOf(companyId) < companyIds.length - 1) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+
+      const success = results.filter((r) => r.status === "success").length;
+      const failed = results.filter((r) => r.status === "error").length;
+
+      for (let i = 0; i < success; i++) {
+        await recordUsage(session.user.id, "bulk_push");
+      }
+
+      return NextResponse.json({ results, summary: { total: companyIds.length, success, failed } });
+    }
+
+    // Simple push (backwards compat): company data only
+    const crmEntityType = provider === "hubspot" ? "company" : provider === "leadconnector" ? "contact" : "organization";
 
     // Fetch all companies
     const companies = await db.query.company.findMany({
@@ -82,19 +132,32 @@ export async function POST(req: NextRequest) {
           founded: comp.founded,
         };
 
-        const existing = mappingByCompanyId.get(comp.id);
-        let crmEntityId: string;
-        let action: string;
+        let existing = mappingByCompanyId.get(comp.id);
+        let crmEntityId = "";
+        let action = "";
+        let needsCreate = !existing;
 
         if (existing) {
-          await client.updateCompany(existing.crmEntityId, payload);
-          crmEntityId = existing.crmEntityId;
-          action = "update_company";
-          await db
-            .update(crmSyncMapping)
-            .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
-            .where(eq(crmSyncMapping.id, existing.id));
-        } else {
+          try {
+            await client.updateCompany(existing.crmEntityId, payload);
+            crmEntityId = existing.crmEntityId;
+            action = "update_company";
+            await db
+              .update(crmSyncMapping)
+              .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
+              .where(eq(crmSyncMapping.id, existing.id));
+          } catch (err) {
+            if (err instanceof CrmNotFoundError) {
+              // CRM record deleted externally — clear stale mapping and re-create
+              await db.delete(crmSyncMapping).where(eq(crmSyncMapping.id, existing.id));
+              needsCreate = true;
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        if (needsCreate) {
           const found = await client.findCompanyByVat(comp.vat);
           if (found) {
             await client.updateCompany(found.id, payload);
@@ -144,6 +207,11 @@ export async function POST(req: NextRequest) {
 
     const success = results.filter((r) => r.status === "success").length;
     const failed = results.filter((r) => r.status === "error").length;
+
+    // Record usage for each successful push (quota tracking)
+    for (let i = 0; i < success; i++) {
+      await recordUsage(session.user.id, "bulk_push");
+    }
 
     return NextResponse.json({ results, summary: { total: companies.length, success, failed } });
   } catch (error) {

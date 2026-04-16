@@ -613,11 +613,11 @@ export const crmConnection = pgTable(
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
-    provider: text("provider").notNull(), // 'hubspot' | 'salesforce' | 'pipedrive'
+    provider: text("provider").notNull(), // 'hubspot' | 'leadconnector' | 'pipedrive'
     accessToken: text("access_token").notNull(), // encrypted
     refreshToken: text("refresh_token"), // encrypted
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
-    instanceUrl: text("instance_url"), // Salesforce instance URL
+    instanceUrl: text("instance_url"), // LeadConnector locationId / provider-specific URL
     scopes: text("scopes"),
     isActive: boolean("is_active").default(true).notNull(),
     connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow().notNull(),
@@ -715,6 +715,7 @@ export const subscription = pgTable(
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+    pendingPlanChange: text("pending_plan_change"), // null when no change pending; set by change-plan, cleared by webhook
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()

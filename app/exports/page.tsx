@@ -352,11 +352,11 @@ export default function ExportsPage() {
               >
                 <div className={cn(
                   "w-10 h-10 rounded-lg flex items-center justify-center",
-                  conn.provider === "hubspot" ? "bg-orange-50" : conn.provider === "salesforce" ? "bg-blue-50" : "bg-green-50"
+                  conn.provider === "hubspot" ? "bg-orange-50" : conn.provider === "leadconnector" ? "bg-orange-50" : "bg-green-50"
                 )}>
                   <Building2 className={cn(
                     "size-5",
-                    conn.provider === "hubspot" ? "text-orange-500" : conn.provider === "salesforce" ? "text-blue-500" : "text-green-600"
+                    conn.provider === "hubspot" ? "text-orange-500" : conn.provider === "leadconnector" ? "text-orange-500" : "text-green-600"
                   )} />
                 </div>
                 <div className="text-left flex-1">
@@ -394,9 +394,17 @@ export default function ExportsPage() {
               PDF
             </Button>
             {activeConnections.length > 0 && (
-              <Button className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowCrmModal(true)} disabled={!!exporting}>
-                <Building2 className="size-4" />
-                {ig.pushToCrm}
+              <Button
+                className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => { if (!bulkPush.isPending) setShowCrmModal(true); }}
+                disabled={!!exporting || bulkPush.isPending}
+              >
+                {bulkPush.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Building2 className="size-4" />
+                )}
+                {bulkPush.isPending ? (locale === "da" ? "Sender..." : "Pushing...") : ig.pushToCrm}
               </Button>
             )}
           </div>

@@ -6,6 +6,9 @@ import { db } from "@/db";
 import { company, crmConnection, crmSyncMapping, crmSyncLog } from "@/db/schema";
 import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
+import { CrmNotFoundError } from "@/lib/crm/errors";
+import { checkEntitlement } from "@/lib/stripe/entitlements";
+import { executeRichPush } from "@/lib/crm/rich-push";
 
 // POST /api/integrations/sync/company — push a single company to CRM
 export async function POST(req: NextRequest) {
@@ -15,7 +18,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { connectionId, companyId } = await req.json();
+    const { allowed, plan } = await checkEntitlement(session.user.id, "crm");
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "CRM sync requires Professional or Enterprise plan", upgrade: true, plan },
+        { status: 403 }
+      );
+    }
+
+    const { connectionId, companyId, richPush = true } = await req.json();
     if (!connectionId || !companyId) {
       return NextResponse.json({ error: "connectionId and companyId are required" }, { status: 400 });
     }
@@ -32,16 +43,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    // Get company data
+    const provider = conn.provider as CrmProvider;
+    const client = await getCrmClient(connectionId, provider);
+
+    // Rich push: company + contacts + enrichment + notes
+    if (richPush) {
+      const result = await executeRichPush(
+        client,
+        companyId,
+        connectionId,
+        session.user.id,
+        provider,
+      );
+
+      return NextResponse.json({
+        success: true,
+        ...result,
+        provider,
+      });
+    }
+
+    // Simple push (backwards compat): company only
     const comp = await db.query.company.findFirst({
       where: eq(company.id, companyId),
     });
     if (!comp) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
-
-    const provider = conn.provider as CrmProvider;
-    const client = await getCrmClient(connectionId, provider);
 
     const payload: CrmCompanyPayload = {
       name: comp.name,
@@ -66,21 +94,32 @@ export async function POST(req: NextRequest) {
       ),
     });
 
-    let crmEntityId: string;
-    let action: string;
+    const crmEntityType = provider === "hubspot" ? "company" : provider === "leadconnector" ? "contact" : "organization";
+    let crmEntityId = "";
+    let action = "";
+    let staleMappingCleared = false;
 
     if (existingMapping) {
-      // Update existing
-      await client.updateCompany(existingMapping.crmEntityId, payload);
-      crmEntityId = existingMapping.crmEntityId;
-      action = "update_company";
+      try {
+        await client.updateCompany(existingMapping.crmEntityId, payload);
+        crmEntityId = existingMapping.crmEntityId;
+        action = "update_company";
 
-      await db
-        .update(crmSyncMapping)
-        .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
-        .where(eq(crmSyncMapping.id, existingMapping.id));
-    } else {
-      // Check if company exists in CRM by VAT
+        await db
+          .update(crmSyncMapping)
+          .set({ lastSyncedAt: new Date(), syncStatus: "synced", syncError: null })
+          .where(eq(crmSyncMapping.id, existingMapping.id));
+      } catch (err) {
+        if (err instanceof CrmNotFoundError) {
+          await db.delete(crmSyncMapping).where(eq(crmSyncMapping.id, existingMapping.id));
+          staleMappingCleared = true;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!existingMapping || staleMappingCleared) {
       const found = await client.findCompanyByVat(comp.vat);
       if (found) {
         await client.updateCompany(found.id, payload);
@@ -92,18 +131,16 @@ export async function POST(req: NextRequest) {
         action = "push_company";
       }
 
-      // Create sync mapping
       await db.insert(crmSyncMapping).values({
         connectionId,
         localEntityType: "company",
         localEntityId: companyId,
-        crmEntityType: provider === "hubspot" ? "company" : provider === "salesforce" ? "Account" : "organization",
+        crmEntityType,
         crmEntityId,
         syncStatus: "synced",
       });
     }
 
-    // Log the sync
     await db.insert(crmSyncLog).values({
       connectionId,
       userId: session.user.id,

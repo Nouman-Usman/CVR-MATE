@@ -1,6 +1,6 @@
 {
-  "id": "9d7adfa4-e717-4a7a-b241-5422ac6834df",
-  "prevId": "d8151bfa-772f-4c02-aec9-a5252ff86921",
+  "id": "cc8d7ea5-a171-4a99-a3a3-622de90e008c",
+  "prevId": "9d7adfa4-e717-4a7a-b241-5422ac6834df",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3983,6 +3983,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "pending_plan_change": {
+          "name": "pending_plan_change",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

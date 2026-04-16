@@ -44,9 +44,7 @@ async function refreshAccessToken(
   const clientSecret = process.env[config.clientSecretEnv];
   if (!clientId || !clientSecret) throw new Error(`Missing OAuth credentials for ${provider}`);
 
-  const tokenUrl = provider === "salesforce" && instanceUrl
-    ? `${instanceUrl}/services/oauth2/token`
-    : config.tokenUrl;
+  const tokenUrl = config.tokenUrl;
 
   const body = new URLSearchParams({
     grant_type: "refresh_token",

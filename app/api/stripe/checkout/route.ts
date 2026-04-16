@@ -51,17 +51,34 @@ export async function POST(req: NextRequest) {
 
     let stripeCustomerId = existingSub?.stripeCustomerId;
 
-    // If they already have an active subscription (and not scheduled to cancel),
-    // redirect to portal instead of creating a new checkout
+    // Block checkout if user has an active subscription that isn't scheduled to cancel.
+    // Cancel-first flow: users must cancel their current plan before subscribing to a new one.
+    // When cancelAtPeriodEnd === true, checkout is allowed (user canceled and wants a new plan).
     if (
       existingSub?.stripeSubscriptionId &&
       existingSub.status === "active" &&
       !existingSub.cancelAtPeriodEnd
     ) {
       return NextResponse.json(
-        { error: "You already have an active subscription. Use the billing portal to change plans." },
+        { error: "You already have an active subscription. Cancel your current plan first to switch." },
         { status: 409 }
       );
+    }
+
+    // Clean up incomplete subscriptions from abandoned checkouts
+    if (
+      existingSub?.stripeSubscriptionId &&
+      existingSub.status === "incomplete"
+    ) {
+      try {
+        await stripe.subscriptions.cancel(existingSub.stripeSubscriptionId);
+      } catch {
+        // Ignore — may already be expired/canceled in Stripe
+      }
+      await db
+        .update(subscription)
+        .set({ stripeSubscriptionId: null, status: "canceled" })
+        .where(eq(subscription.id, existingSub.id));
     }
 
     // Verify existing customer still exists in Stripe, create new one if not
@@ -75,10 +92,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: userEmail,
-        metadata: { userId },
-      });
+      const customer = await stripe.customers.create(
+        {
+          email: userEmail,
+          metadata: { userId },
+        },
+        {
+          // Idempotency key prevents duplicate customers from concurrent requests
+          idempotencyKey: `customer_create_${userId}`,
+        }
+      );
       stripeCustomerId = customer.id;
 
       // Persist the new customer ID

@@ -6,13 +6,13 @@ import { authClient } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
-import { useIntegrations, useCrmDisconnect, useSyncHistory } from "@/lib/hooks/use-integrations";
+import CrmIntegrationsSectionComponent from "@/components/settings/crm-integrations-section";
 import {
   useSubscription,
+  useCheckout,
   useCustomerPortal,
   useCancelSubscription,
   useResumeSubscription,
-  useChangePlan,
 } from "@/lib/hooks/use-subscription";
 import { useEmailClientValue, useSetEmailClient, type EmailClient } from "@/lib/hooks/use-email-client";
 import { cn } from "@/lib/utils";
@@ -135,7 +135,7 @@ function SubscriptionSection() {
   const portalMutation = useCustomerPortal();
   const cancelMutation = useCancelSubscription();
   const resumeMutation = useResumeSubscription();
-  const changePlanMutation = useChangePlan();
+  const checkoutMutation = useCheckout();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
   const [subToast, setSubToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -163,7 +163,7 @@ function SubscriptionSection() {
 
   const anyMutationPending =
     portalMutation.isPending || cancelMutation.isPending ||
-    resumeMutation.isPending || changePlanMutation.isPending;
+    resumeMutation.isPending || checkoutMutation.isPending;
 
   return (
     <>
@@ -211,12 +211,17 @@ function SubscriptionSection() {
             </div>
           )}
 
-          {/* Cancel notice with resume button */}
+          {/* Cancel notice with resume button + hint to pick a new plan */}
           {isCanceling && !isPastDue && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
               <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">schedule</span>
               <div className="flex-1">
                 <p className="text-sm text-amber-700">{sub.cancelNotice as string}</p>
+                <p className="text-xs text-amber-600 mt-1">
+                  {locale === "da"
+                    ? "Du kan nu vælge en ny plan nedenfor, eller genoptage din nuværende plan."
+                    : "You can now subscribe to a different plan below, or resume your current plan."}
+                </p>
                 <button
                   onClick={() => resumeMutation.mutate(undefined, {
                     onSuccess: () => showSubToast(locale === "da" ? "Abonnement genoptaget" : "Subscription resumed"),
@@ -358,300 +363,151 @@ function SubscriptionSection() {
             </div>
           )}
 
-          {/* Plan upgrade/change options */}
-          {plan !== "enterprise" && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  {sub.upgrade as string}
-                </h3>
-                {/* Monthly / Annual toggle */}
-                <div className="flex items-center gap-2">
-                  <div className="flex bg-slate-100 rounded-full p-0.5 gap-0.5">
-                    <button
-                      onClick={() => setBillingInterval("monthly")}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
-                        billingInterval === "monthly"
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      {locale === "da" ? "Månedlig" : "Monthly"}
-                    </button>
-                    <button
-                      onClick={() => setBillingInterval("annual")}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        billingInterval === "annual"
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      {locale === "da" ? "Årlig" : "Annual"}
-                      <span className="inline-flex px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-bold">
-                        -20%
-                      </span>
-                    </button>
-                  </div>
+          {/* Plan options — 3 states: active (no grid), canceling (show grid), free (show grid) */}
+          {(() => {
+            // Active paid user who hasn't canceled — show info message instead of grid
+            if (isPaid && !isCanceling) {
+              return (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-slate-400 text-lg mt-0.5 shrink-0">info</span>
+                  <p className="text-sm text-slate-600">
+                    {locale === "da"
+                      ? "Opsig din nuværende plan først for at skifte til en anden plan."
+                      : "Cancel your current plan first to switch to a different plan."}
+                  </p>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {(["starter", "professional", "enterprise"] as const)
-                  .filter((p) => p !== plan)
-                  .map((targetPlan) => {
-                    const colors = PLAN_COLORS[targetPlan];
-                    const monthlyPrices: Record<string, number> = { starter: 299, professional: 699, enterprise: 1699 };
-                    const annualPrices: Record<string, number> = { starter: 239, professional: 559, enterprise: 1359 };
-                    const names: Record<string, string> = { starter: "Starter", professional: "Professional", enterprise: "Enterprise" };
-                    const descs: Record<string, string> = {
-                      starter: locale === "da" ? "Solo-prospektering" : "Solo prospecting",
-                      professional: locale === "da" ? "For salgsteams" : "For sales teams",
-                      enterprise: locale === "da" ? "Teams & bureauer" : "Teams & agencies",
-                    };
-                    const price = billingInterval === "annual" ? annualPrices[targetPlan] : monthlyPrices[targetPlan];
-                    const isHigher = (["free", "starter", "professional", "enterprise"] as const).indexOf(targetPlan) > (["free", "starter", "professional", "enterprise"] as const).indexOf(plan);
+              );
+            }
 
-                    return (
+            // Helper: resolve (plan, interval) → Stripe price ID
+            const getPriceId = (p: string, interval: "monthly" | "annual"): string | null => {
+              const map: Record<string, Record<string, string | undefined>> = {
+                starter: {
+                  monthly: process.env.NEXT_PUBLIC_STRIPE_STARTER_MONTHLY_PRICE_ID,
+                  annual: process.env.NEXT_PUBLIC_STRIPE_STARTER_ANNUAL_PRICE_ID,
+                },
+                professional: {
+                  monthly: process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID,
+                  annual: process.env.NEXT_PUBLIC_STRIPE_PRO_ANNUAL_PRICE_ID,
+                },
+                enterprise: {
+                  monthly: process.env.NEXT_PUBLIC_STRIPE_ENT_MONTHLY_PRICE_ID,
+                  annual: process.env.NEXT_PUBLIC_STRIPE_ENT_ANNUAL_PRICE_ID,
+                },
+              };
+              return map[p]?.[interval] ?? null;
+            };
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    {isCanceling
+                      ? (locale === "da" ? "Vælg en ny plan" : "Choose a new plan")
+                      : (sub.upgrade as string)}
+                  </h3>
+                  {/* Monthly / Annual toggle */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex bg-slate-100 rounded-full p-0.5 gap-0.5">
                       <button
-                        key={targetPlan}
-                        onClick={() => changePlanMutation.mutate(targetPlan, {
-                          onSuccess: (data) => {
-                            if (data?.action === "downgrade_scheduled") {
-                              showSubToast(locale === "da" ? "Nedgradering planlagt ved periodens udløb" : "Downgrade scheduled at end of billing period");
-                            } else {
-                              showSubToast(locale === "da" ? "Plan ændret!" : "Plan changed!");
-                            }
-                          },
-                          onError: (err) => showSubToast(err.message || (locale === "da" ? "Kunne ikke ændre plan" : "Failed to change plan"), "error"),
-                        })}
-                        disabled={anyMutationPending}
-                        className={`flex flex-col p-5 rounded-xl border-2 hover:shadow-md transition-all cursor-pointer disabled:opacity-50 text-left group ${
-                          targetPlan === "professional" ? "border-violet-200 hover:border-violet-400 hover:bg-violet-50/30" :
-                          targetPlan === "enterprise" ? "border-amber-200 hover:border-amber-400 hover:bg-amber-50/30" :
-                          "border-blue-200 hover:border-blue-400 hover:bg-blue-50/30"
+                        onClick={() => setBillingInterval("monthly")}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                          billingInterval === "monthly"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-400 hover:text-slate-600"
                         }`}
                       >
-                        <div className="flex items-center justify-between w-full mb-3">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
-                            {names[targetPlan]}
-                          </span>
-                          {changePlanMutation.isPending && changePlanMutation.variables === targetPlan ? (
-                            <Loader2 className="size-4 animate-spin text-slate-400" />
-                          ) : isHigher ? (
-                            <span className="material-symbols-outlined text-sm text-slate-300 group-hover:text-slate-500 transition-colors">arrow_forward</span>
-                          ) : null}
-                        </div>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-xl font-black text-slate-900">{price.toLocaleString()}</span>
-                          <span className="text-sm font-medium text-slate-400">DKK{sub.perMonth as string}</span>
-                        </div>
-                        {billingInterval === "annual" ? (
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] text-slate-400 line-through">{monthlyPrices[targetPlan].toLocaleString()} DKK</span>
-                            <span className="text-[10px] text-emerald-600 font-bold">
-                              {(annualPrices[targetPlan] * 12).toLocaleString()} DKK/{locale === "da" ? "år" : "yr"}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 mt-0.5">
-                            {(monthlyPrices[targetPlan] * 12).toLocaleString()} DKK/{locale === "da" ? "år" : "yr"}
-                          </span>
-                        )}
-                        <span className="text-[11px] text-slate-500 mt-1">{descs[targetPlan]}</span>
+                        {locale === "da" ? "Månedlig" : "Monthly"}
                       </button>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
+                      <button
+                        onClick={() => setBillingInterval("annual")}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          billingInterval === "annual"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-400 hover:text-slate-600"
+                        }`}
+                      >
+                        {locale === "da" ? "Årlig" : "Annual"}
+                        <span className="inline-flex px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-bold">
+                          -20%
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(["starter", "professional", "enterprise"] as const)
+                    .filter((p) => p !== plan)
+                    .map((targetPlan) => {
+                      const colors = PLAN_COLORS[targetPlan];
+                      const monthlyPrices: Record<string, number> = { starter: 299, professional: 699, enterprise: 1699 };
+                      const annualPrices: Record<string, number> = { starter: 239, professional: 559, enterprise: 1359 };
+                      const names: Record<string, string> = { starter: "Starter", professional: "Professional", enterprise: "Enterprise" };
+                      const descs: Record<string, string> = {
+                        starter: locale === "da" ? "Solo-prospektering" : "Solo prospecting",
+                        professional: locale === "da" ? "For salgsteams" : "For sales teams",
+                        enterprise: locale === "da" ? "Teams & bureauer" : "Teams & agencies",
+                      };
+                      const price = billingInterval === "annual" ? annualPrices[targetPlan] : monthlyPrices[targetPlan];
+                      const priceId = getPriceId(targetPlan, billingInterval);
 
-          {/* Downgrade option for paid users */}
-          {plan !== "free" && (
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <button
-                onClick={() => changePlanMutation.mutate("free" as const, {
-                  onSuccess: () => showSubToast(locale === "da" ? "Nedgradering planlagt" : "Downgrade scheduled"),
-                  onError: (err) => showSubToast(err.message || "Failed to downgrade", "error"),
-                })}
-                disabled={anyMutationPending}
-                className="text-xs text-slate-400 hover:text-red-500 cursor-pointer disabled:opacity-50 transition-colors"
-              >
-                {sub.downgrade as string} → Free
-              </button>
-            </div>
-          )}
+                      return (
+                        <button
+                          key={targetPlan}
+                          onClick={() => {
+                            if (!priceId) {
+                              showSubToast(locale === "da" ? "Pris ikke tilgængelig" : "Price not available", "error");
+                              return;
+                            }
+                            checkoutMutation.mutate(priceId, {
+                              onError: (err) => showSubToast(err.message || (locale === "da" ? "Kunne ikke starte checkout" : "Failed to start checkout"), "error"),
+                            });
+                          }}
+                          disabled={anyMutationPending || !priceId}
+                          className={`flex flex-col p-5 rounded-xl border-2 hover:shadow-md transition-all cursor-pointer disabled:opacity-50 text-left group ${
+                            targetPlan === "professional" ? "border-violet-200 hover:border-violet-400 hover:bg-violet-50/30" :
+                            targetPlan === "enterprise" ? "border-amber-200 hover:border-amber-400 hover:bg-amber-50/30" :
+                            "border-blue-200 hover:border-blue-400 hover:bg-blue-50/30"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full mb-3">
+                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${colors.bg} ${colors.text}`}>
+                              {names[targetPlan]}
+                            </span>
+                            {checkoutMutation.isPending ? (
+                              <Loader2 className="size-4 animate-spin text-slate-400" />
+                            ) : (
+                              <span className="material-symbols-outlined text-sm text-slate-300 group-hover:text-slate-500 transition-colors">arrow_forward</span>
+                            )}
+                          </div>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xl font-black text-slate-900">{price.toLocaleString()}</span>
+                            <span className="text-sm font-medium text-slate-400">DKK{sub.perMonth as string}</span>
+                          </div>
+                          {billingInterval === "annual" ? (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[11px] text-slate-400 line-through">{monthlyPrices[targetPlan].toLocaleString()} DKK</span>
+                              <span className="text-[10px] text-emerald-600 font-bold">
+                                {(annualPrices[targetPlan] * 12).toLocaleString()} DKK/{locale === "da" ? "år" : "yr"}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 mt-0.5">
+                              {(monthlyPrices[targetPlan] * 12).toLocaleString()} DKK/{locale === "da" ? "år" : "yr"}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-slate-500 mt-1">{descs[targetPlan]}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
     </>
-  );
-}
-
-// ─── CRM Integrations Section ────────────────────────────────────────────────
-
-const CRM_CARDS: { provider: "hubspot" | "salesforce" | "pipedrive"; name: string; color: string; icon: string; desc: string }[] = [
-  { provider: "hubspot", name: "HubSpot", color: "#FF7A59", icon: "hub", desc: "Sync companies to HubSpot CRM" },
-  { provider: "salesforce", name: "Salesforce", color: "#00A1E0", icon: "cloud", desc: "Push leads to Salesforce Accounts" },
-  { provider: "pipedrive", name: "Pipedrive", color: "#017737", icon: "filter_alt", desc: "Send companies to Pipedrive" },
-];
-
-function CrmIntegrationsSection() {
-  const { t } = useLanguage();
-  const ig = t.integrations;
-  const { data: intData, isLoading: intLoading } = useIntegrations();
-  const disconnectMutation = useCrmDisconnect();
-  const { data: historyData } = useSyncHistory();
-  const [confirmDisconnect, setConfirmDisconnect] = useState<string | null>(null);
-
-  const connections = intData?.connections ?? [];
-  const connMap = new Map(connections.filter(c => c.isActive).map(c => [c.provider, c]));
-
-  const handleConnect = (provider: string) => {
-    window.location.href = `/api/integrations/${provider}/connect`;
-  };
-
-  const handleDisconnect = (provider: string) => {
-    disconnectMutation.mutate(provider, {
-      onSuccess: () => setConfirmDisconnect(null),
-    });
-  };
-
-  const logs = historyData?.logs ?? [];
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="material-symbols-outlined text-slate-400 text-xl">sync</span>
-        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-          {ig.title}
-        </h2>
-      </div>
-      <p className="text-sm text-slate-400 mb-6">{ig.subtitle}</p>
-
-      {/* CRM Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {CRM_CARDS.map((crm) => {
-          const conn = connMap.get(crm.provider);
-          const isConnected = !!conn;
-
-          return (
-            <div
-              key={crm.provider}
-              className={`relative rounded-xl border-2 p-5 transition-all ${
-                isConnected
-                  ? "border-emerald-200 bg-emerald-50/30"
-                  : "border-slate-100 bg-slate-50/30 hover:border-slate-200"
-              }`}
-            >
-              {/* Header */}
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: crm.color + "18" }}
-                >
-                  <span
-                    className="material-symbols-outlined text-xl"
-                    style={{ color: crm.color }}
-                  >
-                    {crm.icon}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{crm.name}</p>
-                  <p className="text-[11px] text-slate-400">{crm.desc}</p>
-                </div>
-              </div>
-
-              {isConnected ? (
-                <div>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <span className="material-symbols-outlined text-emerald-600 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      check_circle
-                    </span>
-                    <span className="text-xs font-semibold text-emerald-700">{ig.connected}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mb-3">
-                    {ig.connectedSince}{" "}
-                    {new Date(conn.connectedAt).toLocaleDateString()}
-                  </p>
-
-                  {confirmDisconnect === crm.provider ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-slate-500">{ig.confirmDisconnect}</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleDisconnect(crm.provider)}
-                          disabled={disconnectMutation.isPending}
-                          className="px-3 py-1.5 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
-                        >
-                          {ig.disconnect}
-                        </button>
-                        <button
-                          onClick={() => setConfirmDisconnect(null)}
-                          className="px-3 py-1.5 border border-slate-200 text-xs font-medium text-slate-600 rounded-lg hover:bg-slate-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmDisconnect(crm.provider)}
-                      className="text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      {ig.disconnect}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => handleConnect(crm.provider)}
-                  disabled={intLoading}
-                  className="w-full px-4 py-2.5 text-white text-sm font-semibold rounded-lg transition-colors hover:opacity-90 disabled:opacity-50"
-                  style={{ backgroundColor: crm.color }}
-                >
-                  {ig.connect} {crm.name}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Sync History */}
-      {logs.length > 0 && (
-        <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-            {ig.syncHistory}
-          </h3>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {logs.slice(0, 8).map((log) => (
-              <div
-                key={log.id}
-                className="flex items-center gap-3 text-xs py-2 border-b border-slate-50 last:border-0"
-              >
-                <span
-                  className={`material-symbols-outlined text-sm ${
-                    log.status === "success"
-                      ? "text-emerald-500"
-                      : "text-red-500"
-                  }`}
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  {log.status === "success" ? "check_circle" : "error"}
-                </span>
-                <span className="font-medium text-slate-600 capitalize">
-                  {log.connection.provider}
-                </span>
-                <span className="text-slate-400">{log.action.replace(/_/g, " ")}</span>
-                <span className="ml-auto text-slate-400">
-                  {new Date(log.createdAt).toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1070,7 +926,17 @@ export default function SettingsPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
+  // Deep-link via ?tab= (e.g., OAuth callback redirects to ?tab=integrations)
+  // Must use useEffect to avoid hydration mismatch — server always renders "profile"
   const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    const valid: SettingsSection[] = ["profile", "password", "brand", "team", "notifications", "language", "integrations", "subscription", "danger"];
+    if (tab && valid.includes(tab as SettingsSection)) {
+      setActiveSection(tab as SettingsSection);
+    }
+  }, []);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["account", "workspace", "billing"]));
 
   const toggleGroup = (group: string) => {
@@ -1120,7 +986,7 @@ export default function SettingsPage() {
       items: [
         { key: "brand", label: st.brand.title, icon: Building2 },
         { key: "team", label: st.team.title, icon: UsersRound },
-        // { key: "integrations", label: (t.integrations as { title: string }).title, icon: Plug },
+        { key: "integrations", label: (t.integrations as { title: string }).title, icon: Plug },
       ],
     },
     {
@@ -2202,7 +2068,7 @@ export default function SettingsPage() {
         </div>}
 
         {/* ── CRM Integrations ─────────────────────────────────────────── */}
-        {/* {activeSection === "integrations" && <CrmIntegrationsSection />} */}
+        {activeSection === "integrations" && <CrmIntegrationsSectionComponent />}
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
         {activeSection === "subscription" && <SubscriptionSection />}

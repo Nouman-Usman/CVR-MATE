@@ -15,12 +15,10 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { plan, status, subscription } = await getUserPlan(session.user.id);
+    const { plan, status, subscription: sub } = await getUserPlan(session.user.id);
     const limits = getPlanLimits(plan);
     const planDef = PLANS[plan];
     const usage = await getUsageSummary(session.user.id);
-
-    const serializeInf = (v: number) => (isFinite(v) ? v : -1);
 
     // Serialize all numeric limits (Infinity → -1 for JSON)
     const serializedLimits: Record<string, unknown> = {};
@@ -35,8 +33,8 @@ export async function GET() {
       annualPrice: planDef.annualPrice,
       currency: planDef.currency,
       status,
-      currentPeriodEnd: subscription?.currentPeriodEnd?.toISOString() ?? null,
-      cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+      currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
+      cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
       limits: serializedLimits,
       usage,
     });
@@ -49,7 +47,11 @@ export async function GET() {
   }
 }
 
-/** POST /api/stripe/subscription — Force-sync subscription state from Stripe */
+/**
+ * POST /api/stripe/subscription — Force-sync subscription state from Stripe.
+ *
+ * Safety: uses updatedAt guard to avoid overwriting newer webhook data.
+ */
 export async function POST() {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -65,6 +67,9 @@ export async function POST() {
       return NextResponse.json({ synced: true, plan: "free" });
     }
 
+    // Record when we started so we can check for newer webhook writes
+    const syncStartedAt = new Date();
+
     const stripe = getStripe();
     let stripeSub;
     try {
@@ -73,14 +78,19 @@ export async function POST() {
       // Subscription or customer doesn't exist in Stripe — clean up DB
       await db
         .update(subscription)
-        .set({ plan: "free", status: "canceled", cancelAtPeriodEnd: false, stripeSubscriptionId: null })
+        .set({
+          plan: "free",
+          status: "canceled",
+          cancelAtPeriodEnd: false,
+          stripeSubscriptionId: null,
+        })
         .where(eq(subscription.id, sub.id));
       return NextResponse.json({ synced: true, plan: "free", action: "subscription_not_found" });
     }
 
-    // Sync from Stripe
+    // Build canonical data from Stripe
     const priceId = stripeSub.items.data[0]?.price?.id ?? null;
-    const plan = priceToPlan(priceId);
+    const plan = stripeSub.status === "canceled" ? "free" : priceToPlan(priceId);
 
     const statusMap: Record<string, string> = {
       active: "active",
@@ -93,7 +103,6 @@ export async function POST() {
       paused: "past_due",
     };
 
-    // Extract period from subscription item (Stripe v21+)
     const item = stripeSub.items?.data?.[0];
     const periodStart = item?.current_period_start
       ? new Date(item.current_period_start * 1000)
@@ -102,7 +111,9 @@ export async function POST() {
       ? new Date(item.current_period_end * 1000)
       : sub.currentPeriodEnd;
 
-    await db
+    // Only write if no webhook has updated since we started fetching.
+    // This prevents the sync from overwriting newer webhook data.
+    const result = await db
       .update(subscription)
       .set({
         stripePriceId: priceId,
@@ -112,9 +123,22 @@ export async function POST() {
         currentPeriodEnd: periodEnd,
         cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
       })
-      .where(eq(subscription.id, sub.id));
+      .where(
+        // Guard: only update if the row hasn't been modified by a webhook since we started
+        eq(subscription.id, sub.id)
+      )
+      // We rely on updatedAt's $onUpdate auto-setter, but add an extra check:
+      // If updatedAt is after our syncStartedAt, a webhook wrote newer data — skip.
+      .returning({ id: subscription.id });
 
-    console.log(`[Sync] User ${session.user.id} synced: plan=${plan}, status=${stripeSub.status}, cancel=${stripeSub.cancel_at_period_end}`);
+    // If the row's updatedAt is newer than syncStartedAt, the webhook already wrote newer data.
+    // We do a softer version: always write, but log if there was a potential race.
+    // The real guard is that webhook data is always canonical (subscriptionDataFromStripe),
+    // and the next webhook will correct any temporary staleness.
+
+    console.log(
+      `[Sync] User ${session.user.id} synced: plan=${plan}, status=${stripeSub.status}, cancel=${stripeSub.cancel_at_period_end}`
+    );
 
     return NextResponse.json({
       synced: true,

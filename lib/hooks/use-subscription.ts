@@ -66,13 +66,7 @@ export function useCheckout() {
       const data = await res.json();
 
       if (res.status === 409) {
-        const portalRes = await fetch("/api/stripe/portal", { method: "POST" });
-        const portalData = await portalRes.json();
-        if (portalRes.ok && portalData.url) {
-          window.location.href = portalData.url;
-          return portalData;
-        }
-        throw new Error(portalData.error || "Failed to open billing portal");
+        throw new Error(data.error || "Cancel your current plan first to switch.");
       }
 
       if (!res.ok) throw new Error(data.error || "Failed to create checkout");
@@ -116,50 +110,6 @@ export function useResumeSubscription() {
       const res = await fetch("/api/stripe/resume", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to resume subscription");
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
-    },
-  });
-}
-
-export function useChangePlan() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (targetPlan: PlanId) => {
-      const res = await fetch("/api/stripe/change-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetPlan }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to change plan");
-
-      if (data.action === "checkout" && data.priceId) {
-        const checkoutRes = await fetch("/api/stripe/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceId: data.priceId }),
-        });
-        const checkoutData = await checkoutRes.json();
-
-        // 409 = already has subscription — redirect to billing portal to manage
-        if (checkoutRes.status === 409) {
-          const portalRes = await fetch("/api/stripe/portal", { method: "POST" });
-          const portalData = await portalRes.json();
-          if (portalRes.ok && portalData.url) {
-            window.location.href = portalData.url;
-            return portalData;
-          }
-          throw new Error("Please manage your subscription from the billing portal.");
-        }
-
-        if (!checkoutRes.ok) throw new Error(checkoutData.error || "Failed to create checkout");
-        if (checkoutData.url) window.location.href = checkoutData.url;
-        return checkoutData;
-      }
-
       return data;
     },
     onSuccess: () => {
