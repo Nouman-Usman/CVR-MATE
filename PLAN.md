@@ -1,364 +1,411 @@
-# GoHighLevel (GHL) CRM Integration — Setup Guide & Production Plan
+# Email Infrastructure — SendGrid + Gmail Fallback
 
 ## Context
 
-**Replacing Salesforce with GoHighLevel (GHL)** as the third CRM provider alongside HubSpot and Pipedrive. GHL is a better fit for CVR-MATE's SMB/agency target market:
+CVR-MATE needs a transactional email system for three use cases:
+1. **Auth emails** — verification and password reset (Better Auth hooks are ready but no sender is wired)
+2. **Team management** — invitation emails when a user is added to an organization (Better Auth org plugin)
+3. **Notification emails** — daily lead trigger digests and weekly summaries (user-opt-in, async via QStash)
 
-- **Custom fields are API-creatable** (like HubSpot) — no manual admin setup
-- **Simpler OAuth** — standard authorization_code, no `prompt=consent` hack, no `instance_url` routing
-- **REST-based search** — no SOQL queries
-- **Higher rate limits** — 200K/day + 100 req/10s burst
-- **Growing user base** — very popular with agencies and SMBs
-
-**What needs to happen**:
-1. Replace `salesforce` provider with `leadconnector` across the codebase
-2. Create the GHL provider implementation (`lib/crm/providers/leadconnector.ts`)
-3. Update types, client factory, health checks, UI, and OAuth config
-4. Set up GHL Marketplace app for OAuth credentials
-
-### GHL API Summary (from [official docs](https://marketplace.gohighlevel.com/docs/)):
-
-| Detail | Value |
-|--------|-------|
-| **Base URL** | `https://services.leadconnectorhq.com` |
-| **Auth URL** | `https://marketplace.gohighlevel.com/oauth/chooselocation` |
-| **Token URL** | `https://services.leadconnectorhq.com/oauth/token` |
-| **API version header** | `Version: 2021-07-28` |
-| **Token expiry** | ~24 hours (86,399 seconds) |
-| **Refresh tokens** | Single-use (new one issued on every refresh, like Pipedrive) |
-| **Rate limits** | 100 req/10s burst, 200K/day per app per resource |
-| **Contacts** | `POST/PUT/GET /contacts/` with `locationId` required |
-| **Custom fields** | API-creatable via `/locations/{locationId}/customFields` |
-| **Notes** | Via `POST /contacts/{contactId}/notes` (contact-level) |
-| **Search** | `GET /contacts/search?query=...&locationId=...` |
+The design mirrors the existing `lib/crm/` architecture: a provider interface with two concrete implementations (SendGrid primary, Gmail/SMTP fallback) behind a single `sendEmail()` function. QStash is already installed and proven; notification emails go through it. All sends are logged to a new `emailLog` DB table.
 
 ---
 
-## Part A: GHL Marketplace App Setup Guide
-
-### Step 1: Create a GHL Developer Account
-
-1. Go to **https://marketplace.gohighlevel.com/** and sign in
-2. Click **"My Apps"** → **"Create App"**
-3. Select **"Private App"** (for internal use) or **"Public App"** if distributing
-4. Fill in:
-   - **App Name**: `CVR-MATE`
-   - **Description**: `Danish CRM sync for company data, contacts, and AI enrichment`
-
-### Step 2: Configure OAuth & Scopes
-
-Under the **"Settings"** tab of your app:
-
-1. Set the **Redirect URI(s)**:
-   - Local dev: `http://localhost:3000/api/integrations/leadconnector/callback`
-   - Production: `https://YOUR_PRODUCTION_DOMAIN/api/integrations/leadconnector/callback`
-
-2. Enable these **scopes**:
-   - `contacts.write` — create/update contacts
-   - `contacts.readonly` — search/read contacts
-   - `businesses.write` — create/update businesses (company-level data)
-   - `businesses.readonly` — read businesses
-   - `locations/customFields.write` — auto-create custom fields
-   - `locations/customFields.readonly` — read custom fields
-   - `locations.readonly` — access location details (needed for locationId)
-
-3. Set **Distribution Type**: `Sub-Account` (Location level access)
-
-### Step 3: Copy Credentials
-
-After saving, the app page shows:
-- **Client ID** — copy this
-- **Client Secret** — copy this
-
-### Step 4: Add to Environment
-
-Add to your `.env` file:
-```bash
-LEADCONNECTOR_CLIENT_ID=<your_client_id_here>
-LEADCONNECTOR_CLIENT_SECRET=<your_client_secret_here>
-```
-
-**Already set** (no action needed):
-- `CRM_TOKEN_ENCRYPTION_KEY` — shared across all CRM providers
-
-### Step 5: Production Deployment (Vercel)
+## Package Installs
 
 ```bash
-vercel env add LEADCONNECTOR_CLIENT_ID production
-vercel env add LEADCONNECTOR_CLIENT_SECRET production
+pnpm add @sendgrid/mail nodemailer @react-email/components react-email
+pnpm add -D @types/nodemailer
 ```
 
 ---
 
-## Part B: Code Changes Required
+## File Structure
 
-Unlike Pipedrive (which was already implemented), GHL requires **new code** to replace Salesforce.
+```
+lib/email/
+  types.ts                    ← EmailProvider interface + shared payload types
+  mailer.ts                   ← sendEmail() with fallback chain + emailLog write
+  queue.ts                    ← queueNotificationEmail() via QStash
+  providers/
+    sendgrid.ts               ← @sendgrid/mail implementation
+    gmail.ts                  ← nodemailer SMTP / OAuth2 implementation
+  senders/
+    verification.ts           ← thin wrapper: template + subject + templateId
+    reset-password.ts
+    welcome.ts
+    team-invitation.ts
+    daily-lead-update.ts
+    weekly-summary.ts
+  templates/
+    verification.tsx          ← React Email component
+    reset-password.tsx
+    welcome.tsx
+    team-invitation.tsx
+    daily-lead-update.tsx
+    weekly-summary.tsx
 
-### B1. Update `lib/crm/types.ts`
-
-Replace the `salesforce` provider config:
-
-```typescript
-// REMOVE salesforce, ADD leadconnector
-export type CrmProvider = "hubspot" | "leadconnector" | "pipedrive";
-
-// In CRM_PROVIDERS:
-leadconnector: {
-  name: "LeadConnector",
-  icon: "rocket_launch",
-  color: "#FF6B35",
-  authUrl: "https://marketplace.gohighlevel.com/oauth/chooselocation",
-  tokenUrl: "https://services.leadconnectorhq.com/oauth/token",
-  scopes: "contacts.write contacts.readonly businesses.write businesses.readonly locations/customFields.write locations/customFields.readonly locations.readonly",
-  clientIdEnv: "LEADCONNECTOR_CLIENT_ID",
-  clientSecretEnv: "LEADCONNECTOR_CLIENT_SECRET",
-},
+app/api/email/
+  webhook/route.ts            ← SendGrid delivery/bounce webhook (POST, nodejs runtime)
+  notify/route.ts             ← QStash receiver for async notification emails (POST, nodejs runtime)
 ```
 
-### B2. Create `lib/crm/providers/leadconnector.ts`
+---
 
-New provider implementing the full `CrmClient` interface:
+## Interface (`lib/email/types.ts`)
 
-**Base URL**: `https://services.leadconnectorhq.com`
-
-**Required headers on ALL requests**:
 ```typescript
-{
-  Authorization: `Bearer ${accessToken}`,
-  "Content-Type": "application/json",
-  Version: "2021-07-28",
+export type EmailProvider = "sendgrid" | "gmail";
+
+export type EmailTemplateId =
+  | "email_verification"
+  | "password_reset"
+  | "welcome"
+  | "team_invitation"
+  | "daily_lead_update"
+  | "weekly_summary";
+
+export interface SendEmailOptions {
+  to: string | string[];
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+  headers?: Record<string, string>;
+  templateId?: EmailTemplateId;   // stored in emailLog
+  userId?: string;                // stored in emailLog
+}
+
+export interface SendEmailResult {
+  provider: EmailProvider;
+  messageId?: string;
+}
+
+export interface EmailProviderClient {
+  send(opts: SendEmailOptions): Promise<SendEmailResult>;
+}
+
+// QStash payload for /api/email/notify
+export interface EmailQueuePayload {
+  templateId: "daily_lead_update" | "weekly_summary";
+  userId: string;
+  data: DailyLeadUpdateData | WeeklySummaryData;
+}
+
+export interface DailyLeadUpdateData {
+  triggerName: string;
+  triggerId: string;
+  matchCount: number;
+  companies: { vat: string; name: string; city: string; industry: string }[];
+}
+
+export interface WeeklySummaryData {
+  periodStart: string;  // ISO date
+  periodEnd: string;
+  totalLeads: number;
+  topTriggers: { name: string; count: number }[];
+  savedCompaniesCount: number;
+}
+
+export interface SendGridWebhookEvent {
+  email: string;
+  timestamp: number;
+  event: "delivered" | "bounce" | "dropped" | "deferred" | "open" | "click" | "unsubscribe" | "spamreport";
+  sg_message_id?: string;
+  reason?: string;
+  status?: string;
 }
 ```
 
-**Key difference from other providers**: GHL requires `locationId` on every contact/custom-field operation. The `locationId` is returned in the OAuth token response and must be stored (use the `instanceUrl` column in `crmConnection` to store it — same pattern as Salesforce).
+---
 
-**Company mapping** — GHL uses "contacts" as the primary entity (not a separate Company object). A company is represented as a contact with `companyName` set:
+## Fallback Mailer (`lib/email/mailer.ts`)
 
-| CVR-MATE Field | GHL Contact Field |
-|---------------|-------------------|
-| `name` | `companyName` |
-| `vat` | custom field (auto-created) |
-| `phone` | `phone` |
-| `email` | `email` |
-| `website` | `website` |
-| `address` | `address1` |
-| `city` | `city` |
-| `zipcode` | `postalCode` |
-| `tags` | `tags` (array) |
-
-**Contact mapping** — People pushed as separate contacts linked via `companyName`:
-
-| CVR-MATE Field | GHL Contact Field |
-|---------------|-------------------|
-| `firstName` | `firstName` |
-| `lastName` | `lastName` |
-| `jobTitle` | custom field |
-| `roles` | custom field |
-| `participantNumber` | custom field |
-
-**Custom fields** — auto-created via API:
-- `POST /locations/{locationId}/customFields` with `{ name, dataType: "TEXT", model: "contact" }`
-- Fields to create: `CVR Number`, `Job Title`, `CVR Roles`, `CVR Participant Number`
-
-**Search/dedup** — find existing contacts:
-- `GET /contacts/search?query={vat}&locationId={locationId}` for company by VAT
-- `GET /contacts/search?query={name}&locationId={locationId}` for person by name
-
-**Notes** — attached to contacts:
-- `POST /contacts/{contactId}/notes` with `{ body: "..." }`
-
-### B3. Update `lib/crm/index.ts`
-
-Replace the Salesforce case:
 ```typescript
-case "leadconnector":
-  if (!tokens.instanceUrl) throw new Error("GHL connection missing locationId");
-  return createLeadConnectorClient(tokens.accessToken, tokens.instanceUrl); // instanceUrl stores locationId
-```
+import "server-only";
+import { render } from "@react-email/render";
 
-### B4. Update `lib/crm/health.ts`
+export async function sendEmail(
+  template: React.ReactElement,
+  opts: Omit<SendEmailOptions, "html" | "text">
+): Promise<SendEmailResult> {
+  const html = await render(template);
+  const text = await render(template, { plainText: true });
+  const fullOpts = { ...opts, html, text };
 
-Replace the Salesforce health check:
-```typescript
-case "leadconnector":
-  healthUrl = "https://services.leadconnectorhq.com/locations/" + tokens.instanceUrl;
-  // Use locationId from instanceUrl column
-  break;
-```
+  let result: SendEmailResult | null = null;
+  let lastError: unknown;
 
-### B5. Update `lib/crm/rich-push.ts`
+  // 1. Try SendGrid
+  if (process.env.SENDGRID_API_KEY) {
+    try { result = await createSendGridProvider().send(fullOpts); }
+    catch (err) { lastError = err; console.error("[email] SendGrid failed:", err); }
+  }
 
-Replace `salesforce` entity type mapping:
-```typescript
-leadconnector: { company: "contact", contact: "contact", note: "note" },
-```
+  // 2. Fall back to Gmail/SMTP
+  if (!result && (process.env.SMTP_USER || process.env.GMAIL_OAUTH2_CLIENT_ID)) {
+    try { result = await createGmailProvider().send(fullOpts); }
+    catch (err) { lastError = err; console.error("[email] Gmail fallback failed:", err); }
+  }
 
-### B6. Update OAuth callback (`app/api/integrations/[provider]/callback/route.ts`)
+  if (!result) {
+    await writeEmailLog(fullOpts, null, null, "failed", String(lastError));
+    throw new Error(`[email] All providers failed: ${lastError}`);
+  }
 
-GHL returns `locationId` in the token response. Store it in the `instanceUrl` column:
-```typescript
-if (provider === "leadconnector") {
-  instanceUrl = tokenData.locationId; // Store locationId for API calls
+  await writeEmailLog(fullOpts, result.provider, result.messageId, "sent", null);
+  return result;
 }
 ```
 
-### B7. Update OAuth connect (`app/api/integrations/[provider]/connect/route.ts`)
+`writeEmailLog` inserts into `emailLog` table — always called regardless of which provider succeeded or failed.
 
-Remove the Salesforce `prompt=consent` special case (GHL doesn't need it).
+---
 
-### B8. Update Settings UI (`components/settings/crm-integrations-section.tsx`)
+## DB Schema Additions (`db/app-schema.ts`)
 
-Replace the Salesforce card:
+### New table: `emailLog`
+
 ```typescript
-{
-  provider: "leadconnector",
-  name: "LeadConnector",
-  color: "#FF6B35",
-  icon: "rocket_launch",
-  desc: "Push leads to LeadConnector CRM",
-  descDa: "Send leads til LeadConnector CRM",
+export const emailLog = pgTable(
+  "email_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    to: text("to").notNull(),
+    subject: text("subject").notNull(),
+    templateId: text("template_id"),
+    provider: text("provider"),               // 'sendgrid' | 'gmail' | null on failure
+    messageId: text("message_id"),            // provider message ID (used by webhook)
+    status: text("status").default("sent").notNull(),
+    deliveryStatus: text("delivery_status"),  // updated by SendGrid webhook
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
+    error: text("error"),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("email_log_user_idx").on(t.userId),
+    index("email_log_message_id_idx").on(t.messageId),
+    index("email_log_created_idx").on(t.createdAt),
+  ]
+);
+```
+
+### Add 4 columns to `userBrand` pgTable definition
+
+```typescript
+emailNotificationsEnabled: boolean("email_notifications_enabled").default(true).notNull(),
+dailyLeadEmails: boolean("daily_lead_emails").default(true).notNull(),
+weeklySummaryEmails: boolean("weekly_summary_emails").default(true).notNull(),
+emailNotificationHour: integer("email_notification_hour").default(8).notNull(),
+```
+
+Add `emailLogRelations` and add `emailLogs: many(emailLog)` to `userRelations`.
+
+Run: `pnpm drizzle-kit generate && pnpm drizzle-kit migrate`
+
+---
+
+## Better Auth Wiring (`lib/auth.ts`)
+
+Import the sender wrappers from `lib/email/senders/` and wire all 4 Better Auth callbacks:
+
+```typescript
+import { sendVerificationEmail } from "@/lib/email/senders/verification";
+import { sendPasswordResetEmail } from "@/lib/email/senders/reset-password";
+import { sendWelcomeEmail } from "@/lib/email/senders/welcome";
+import { sendTeamInvitationEmail } from "@/lib/email/senders/team-invitation";
+
+export const auth = betterAuth({
+  // ...existing config...
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 8,
+    autoSignIn: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendVerificationEmail({ to: user.email, userName: user.name, verificationUrl: url, userId: user.id });
+    },
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail({ to: user.email, userName: user.name, resetUrl: url, userId: user.id });
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          await sendWelcomeEmail({ to: user.email, userName: user.name, userId: user.id });
+        },
+      },
+    },
+  },
+  plugins: [
+    organization({
+      allowUserToCreateOrganization: true,
+      sendInvitationEmail: async ({ invitation, inviter, organization, url }) => {
+        await sendTeamInvitationEmail({
+          to: invitation.email,
+          inviterName: inviter.name,
+          organizationName: organization.name,
+          inviteUrl: url,
+          role: invitation.role,
+          expiresAt: invitation.expiresAt.toISOString(),
+        });
+      },
+    }),
+  ],
+});
+```
+
+---
+
+## QStash Integration
+
+### `lib/email/queue.ts`
+
+```typescript
+import { Client } from "@upstash/qstash";
+
+export async function queueNotificationEmail(payload: EmailQueuePayload): Promise<void> {
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "https://cvr-mate.vercel.app";
+  const client = new Client({ token: process.env.QSTASH_TOKEN! });
+  await client.publishJSON({
+    url: `${baseUrl}/api/email/notify`,
+    body: payload,
+    retries: 3,
+  });
 }
 ```
 
-### B9. Update `.env.example`
+### `app/api/email/notify/route.ts` (QStash receiver)
 
-Replace `SALESFORCE_*` vars with `LEADCONNECTOR_*`:
+```typescript
+export const runtime = "nodejs";
+
+export async function POST(req: NextRequest) {
+  if (!(await verifyQStashRequest(req))) return unauthorized();
+
+  const { templateId, userId, data }: EmailQueuePayload = await req.json();
+
+  // Fetch user + prefs, honor opt-out, then call the appropriate sender wrapper
+  // Returns { skipped: true, reason: "user_opted_out" } if emailNotificationsEnabled = false
+  //         or the specific template flag is false
+}
 ```
-LEADCONNECTOR_CLIENT_ID=
-LEADCONNECTOR_CLIENT_SECRET=
+
+### Integration in `app/api/cron/triggers/route.ts`
+
+After `createNotification(...)`, add:
+
+```typescript
+if ((trigger.notificationChannels as string[]).includes("email")) {
+  await queueNotificationEmail({
+    templateId: "daily_lead_update",
+    userId: trigger.userId,
+    data: { triggerName: trigger.name, triggerId: trigger.id, matchCount: unique.length, companies: summaries },
+  });
+}
 ```
 
-### B10. Database consideration
-
-No migration needed — the `crmConnection` table already supports:
-- `provider: text` — free-text, just stores `"leadconnector"` instead of `"salesforce"`
-- `instanceUrl: text` — reused to store GHL's `locationId`
-- Existing Salesforce connections in the DB will remain but become inert (no matching provider code)
+`notificationChannels` already exists on `leadTrigger` as a jsonb array — user sets `["in_app", "email"]` via settings UI.
 
 ---
 
-## Part C: Architecture Overview
+## SendGrid Webhook (`app/api/email/webhook/route.ts`)
 
-### Files to create/modify:
+- `export const runtime = "nodejs"`
+- Verify ECDSA signature via `crypto.createVerify("SHA256")` using `process.env.SENDGRID_WEBHOOK_PUBLIC_KEY`
+- Parse JSON body, switch on `event.event`, update `emailLog` row by `messageId`
+- Events handled: `delivered`, `bounce`, `dropped`, `open`, `click`, `unsubscribe`, `spamreport`
+- Always return `200` (same pattern as `app/api/stripe/webhook/route.ts`)
+- Future: on `unsubscribe`/`spamreport`, set `userBrand.emailNotificationsEnabled = false`
 
-| File | Action | Details |
-|------|--------|---------|
-| `lib/crm/providers/leadconnector.ts` | **CREATE** | Full CrmClient: contact CRUD, notes, custom fields |
-| `lib/crm/providers/salesforce.ts` | **DELETE** | No longer needed |
-| `lib/crm/types.ts` | **EDIT** | Replace `salesforce` with `leadconnector` in CrmProvider and CRM_PROVIDERS |
-| `lib/crm/index.ts` | **EDIT** | Replace Salesforce case with GHL client factory |
-| `lib/crm/health.ts` | **EDIT** | Replace Salesforce health endpoint |
-| `lib/crm/rich-push.ts` | **EDIT** | Replace `salesforce` entity mapping |
-| `app/api/integrations/[provider]/connect/route.ts` | **EDIT** | Remove `prompt=consent` Salesforce special case |
-| `app/api/integrations/[provider]/callback/route.ts` | **EDIT** | Extract `locationId` for GHL, remove Salesforce `instance_url` handling |
-| `lib/crm/token-manager.ts` | **EDIT** | Remove Salesforce instance_url token endpoint logic |
-| `components/settings/crm-integrations-section.tsx` | **EDIT** | Replace Salesforce card with GHL card |
-| `.env.example` | **EDIT** | Replace `SALESFORCE_*` with `LEADCONNECTOR_*` |
-
-### Data pushed on rich push:
-
-| Entity | GHL Object | Fields |
-|--------|-----------|--------|
-| Company | Contact (with companyName) | companyName, phone, email, website, address1, city, postalCode, tags, CVR Number (custom field) |
-| People (up to 25) | Contact | firstName, lastName, custom fields (Job Title, CVR Roles, Participant Number) |
-| AI Enrichment | Note (on company contact) | HTML body (GHL notes support HTML) |
-| User Notes | Note (on company contact) | Concatenated notes with timestamps |
-
-### GHL-specific behaviors:
-- **Companies are contacts** — GHL doesn't have a separate Company/Account object. Companies are represented as contacts with `companyName` populated
-- **locationId required** — every API call needs the `locationId` query param or in the body
-- **Custom fields auto-created** — via `/locations/{locationId}/customFields` (like HubSpot, unlike Salesforce)
-- **Version header required** — `Version: 2021-07-28` on all requests
-- **Token expiry ~24 hours** — much longer than Pipedrive (1hr) or Salesforce (2hr)
-- **Refresh tokens single-use** — new one on every refresh (like Pipedrive)
-- **Notes support HTML** — no stripping needed (unlike Salesforce)
+Register webhook URL in SendGrid dashboard: `https://cvr-mate.vercel.app/api/email/webhook`
 
 ---
 
-## Part D: Verification Checklist
+## Environment Variables
 
-### Phase A: OAuth Flow
-1. Navigate to Settings -> Integrations
-2. Click "Connect LeadConnector" -> verify redirect to location chooser
-3. Select a location (sub-account) and authorize
-4. Verify redirect back to `/settings?tab=integrations&connected=leadconnector`
-5. Verify LeadConnector card shows "Connected" with date
-6. Check DB: `crmConnection` row with `provider=leadconnector`, `isActive=true`, `instanceUrl` = locationId
+```bash
+# SendGrid (primary)
+SENDGRID_API_KEY=SG.xxx
+SENDGRID_WEBHOOK_PUBLIC_KEY=MFkwEwY...   # from SendGrid Event Webhook settings
 
-### Phase B: Health Check
-7. Click "Test Connection" on LeadConnector card
-8. Verify green status with latency in ms
+# Gmail/SMTP fallback (Option A: App Password — simpler for dev)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=noreply@yourdomain.com
+SMTP_PASS=xxxx xxxx xxxx xxxx
 
-### Phase C: Single Company Push
-9. Save a company with a Danish CVR number
-10. Push to LeadConnector via sync button
-11. Verify in LeadConnector: Contact created with companyName, address, CVR Number custom field
-12. Push same company again -> verify update (no duplicate)
+# Gmail/SMTP fallback (Option B: OAuth2 — more secure for prod)
+GMAIL_OAUTH2_CLIENT_ID=xxx.apps.googleusercontent.com
+GMAIL_OAUTH2_CLIENT_SECRET=GOCSPX-xxx
+GMAIL_OAUTH2_REFRESH_TOKEN=1//xxx
+GMAIL_USER=noreply@yourdomain.com
 
-### Phase D: Rich Push (Contacts + Notes)
-13. Push a company that has participants
-14. Verify in LeadConnector: Person contacts created with firstName, lastName
-15. Verify custom fields: Job Title, CVR Roles populated
-16. Verify enrichment note attached to company contact
-17. Verify user notes as separate note
+# Shared sender identity
+EMAIL_FROM_ADDRESS=noreply@cvr-mate.com
+EMAIL_FROM_NAME=CVR-MATE
 
-### Phase E: Bulk Push
-18. Select multiple companies -> trigger bulk push
-19. Verify all companies + contacts appear in LeadConnector
-20. Monitor for rate limit errors (100 req/10s)
-
-### Phase F: Token Refresh
-21. Wait 24 hours (or set `tokenExpiresAt` to past in DB)
-22. Trigger sync -> verify auto-refresh
-23. Verify new refresh token stored (GHL rotates them, like Pipedrive)
-
-### Phase G: Disconnect/Reconnect
-24. Click Disconnect -> confirm -> verify Connect button returns
-25. Reconnect -> verify new token stored, locationId updated
-
----
-
-## Part E: Known GHL API Limitations
-
-| Limitation | Impact | Mitigation |
-|-----------|--------|------------|
-| **Rate limit**: 100 req/10s per app per resource | Rich push with many contacts could hit it | 200ms inter-company delay + exponential backoff on 429 |
-| **Daily limit**: 200K req/day per app per resource | ~10K rich pushes/day — very generous | Monitor usage in logs |
-| **No separate Company object** | Companies are contacts with companyName | Use companyName field + CVR custom field for dedup |
-| **locationId required everywhere** | Must store and pass on every API call | Stored in `instanceUrl` column, passed to provider |
-| **Version header required** | Requests fail without it | Hardcoded in all requests |
-| **Custom field IDs are UUIDs** | Must discover/cache after creation | Cached per session (like Pipedrive's hash approach) |
-| **Notes are contact-level only** | No org-level notes | Attach to the company contact record |
+# QStash — already present from existing cron setup
+QSTASH_TOKEN=xxx
+QSTASH_CURRENT_SIGNING_KEY=sig_xxx
+QSTASH_NEXT_SIGNING_KEY=sig_xxx
+```
 
 ---
 
 ## Implementation Order
 
-1. **Create GHL Marketplace app** and obtain Client ID + Secret (Part A)
-2. **Add env vars** — `LEADCONNECTOR_CLIENT_ID` + `LEADCONNECTOR_CLIENT_SECRET` to `.env`
-3. **Delete** `lib/crm/providers/salesforce.ts`
-4. **Create** `lib/crm/providers/leadconnector.ts` — full CrmClient implementation
-5. **Update** `lib/crm/types.ts` — replace salesforce with leadconnector
-6. **Update** `lib/crm/index.ts`, `health.ts`, `rich-push.ts`, `token-manager.ts`
-7. **Update** OAuth routes (connect + callback) — remove Salesforce special cases, add GHL locationId handling
-8. **Update** Settings UI — replace Salesforce card with GHL card
-9. **Update** `.env.example`
-10. **Test locally** — run through Phases A-G of verification checklist
-11. **Deploy to Vercel** — add env vars
-12. **Test production** — re-run verification checklist
+**Phase 1 — Foundation**
+1. Install packages
+2. Add `emailLog` table + `userBrand` columns → generate + run migration
+3. Implement `lib/email/types.ts`, `providers/sendgrid.ts`, `providers/gmail.ts`, `mailer.ts`
+
+**Phase 2 — Auth emails** (unblocks signup UX)
+4. Build templates: `verification.tsx`, `reset-password.tsx`, `welcome.tsx`
+5. Build sender wrappers in `lib/email/senders/`
+6. Wire all Better Auth callbacks in `lib/auth.ts`
+
+**Phase 3 — Team invitations**
+7. Build `team-invitation.tsx` template + sender
+8. Wire `sendInvitationEmail` in `organization()` plugin config
+
+**Phase 4 — Async notification emails**
+9. Build `daily-lead-update.tsx`, `weekly-summary.tsx` templates + senders
+10. Implement `lib/email/queue.ts`
+11. Implement `app/api/email/notify/route.ts` (QStash receiver)
+12. Integrate `queueNotificationEmail` into `app/api/cron/triggers/route.ts`
+13. Add preferences API route: `app/api/preferences/email-notifications/route.ts`
+
+**Phase 5 — Delivery tracking**
+14. Implement `app/api/email/webhook/route.ts`
+15. Register webhook URL in SendGrid dashboard
 
 ---
 
-## Critical Files to Create/Modify
+## Critical Files to Modify
 
-1. **CREATE** `lib/crm/providers/leadconnector.ts` — full provider (contacts, notes, custom fields)
-2. **DELETE** `lib/crm/providers/salesforce.ts` — replaced by GHL
-3. **EDIT** `lib/crm/types.ts` — replace `salesforce` with `leadconnector` in type + config
-4. **EDIT** `lib/crm/index.ts` — replace Salesforce client factory with GHL
-5. **EDIT** `lib/crm/health.ts` — replace Salesforce health endpoint with GHL
-6. **EDIT** `lib/crm/rich-push.ts` — replace salesforce entity mapping
-7. **EDIT** `lib/crm/token-manager.ts` — remove Salesforce instance_url special handling
-8. **EDIT** `app/api/integrations/[provider]/connect/route.ts` — remove prompt=consent
-9. **EDIT** `app/api/integrations/[provider]/callback/route.ts` — extract locationId for GHL
-10. **EDIT** `components/settings/crm-integrations-section.tsx` — replace Salesforce card
-11. **EDIT** `.env.example` — replace SALESFORCE vars with LEADCONNECTOR vars
+| File | Change |
+|------|--------|
+| `db/app-schema.ts` | Add `emailLog` table + 4 `userBrand` columns |
+| `lib/auth.ts` | Wire 4 Better Auth email callbacks |
+| `app/api/cron/triggers/route.ts` | Call `queueNotificationEmail` when channel includes `"email"` |
+| `lib/qstash.ts` | Reused as-is for QStash signature verification in `/api/email/notify` |
+| `app/api/stripe/webhook/route.ts` | Used as structural template for SendGrid webhook route |
+
+---
+
+## Verification Checklist
+
+1. **Signup** → email/password signup → verify email arrives, link works, `emailVerified` flips to `true`
+2. **Password reset** → trigger forgot-password flow → reset email arrives, link works
+3. **Welcome email** → first signup → welcome email arrives after `databaseHooks.user.create.after`
+4. **Team invitation** → Settings → Team → Invite → email arrives with Accept button
+5. **Notification email** → set trigger `notificationChannels = ["in_app", "email"]` → trigger fires via QStash cron → daily update email arrives
+6. **Fallback** → set invalid `SENDGRID_API_KEY` → verify Gmail fallback sends successfully → `emailLog` shows `provider = "gmail"`
+7. **Opt-out** → set `dailyLeadEmails = false` → trigger fires → email NOT sent (`/api/email/notify` returns `{ skipped: true }`)
+8. **Bounce tracking** → simulate SendGrid bounce webhook → `emailLog.deliveryStatus` updated to `"bounced"`
+9. **TypeScript** → `pnpm tsc --noEmit` passes with zero errors
