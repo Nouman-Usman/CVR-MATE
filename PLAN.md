@@ -1,411 +1,294 @@
-# Email Infrastructure — SendGrid + Gmail Fallback
+# Enterprise Team Management — Implementation Plan
 
-## Context
+## Why This Exists
 
-CVR-MATE needs a transactional email system for three use cases:
-1. **Auth emails** — verification and password reset (Better Auth hooks are ready but no sender is wired)
-2. **Team management** — invitation emails when a user is added to an organization (Better Auth org plugin)
-3. **Notification emails** — daily lead trigger digests and weekly summaries (user-opt-in, async via QStash)
+Better Auth's organization plugin is wired but incomplete for enterprise use. Four gaps must be closed:
 
-The design mirrors the existing `lib/crm/` architecture: a provider interface with two concrete implementations (SendGrid primary, Gmail/SMTP fallback) behind a single `sendEmail()` function. QStash is already installed and proven; notification emails go through it. All sends are logged to a new `emailLog` DB table.
+| Gap | Risk |
+|-----|------|
+| No plan enforcement | Free users can create teams today — billing hole |
+| No server-side RBAC | Any member can call invite/remove endpoints directly |
+| Invites auto-accept | Invitee has no "preview before joining" — looks amateur |
+| No shared workspace | Team is cosmetic; data doesn't cross member boundaries |
 
----
-
-## Package Installs
-
-```bash
-pnpm add @sendgrid/mail nodemailer @react-email/components react-email
-pnpm add -D @types/nodemailer
-```
+**Chosen data model:** Shared workspace. `organizationId` (nullable FK) added to `leadTrigger`, `savedCompany`, `todo`. Personal rows keep `organizationId = null`; team rows set it to the org ID.
 
 ---
 
-## File Structure
+## Architecture Decisions
 
+### Permission Hierarchy
 ```
-lib/email/
-  types.ts                    ← EmailProvider interface + shared payload types
-  mailer.ts                   ← sendEmail() with fallback chain + emailLog write
-  queue.ts                    ← queueNotificationEmail() via QStash
-  providers/
-    sendgrid.ts               ← @sendgrid/mail implementation
-    gmail.ts                  ← nodemailer SMTP / OAuth2 implementation
-  senders/
-    verification.ts           ← thin wrapper: template + subject + templateId
-    reset-password.ts
-    welcome.ts
-    team-invitation.ts
-    daily-lead-update.ts
-    weekly-summary.ts
-  templates/
-    verification.tsx          ← React Email component
-    reset-password.tsx
-    welcome.tsx
-    team-invitation.tsx
-    daily-lead-update.tsx
-    weekly-summary.tsx
+owner  → everything (delete org, transfer ownership, change any role, all admin perms)
+admin  → invite members/admins, remove members (not admins or owner), cancel invites
+member → view team data, leave org — cannot invite or remove
+```
+An actor can only remove/demote a member whose role rank is strictly lower than their own.
 
-app/api/email/
-  webhook/route.ts            ← SendGrid delivery/bounce webhook (POST, nodejs runtime)
-  notify/route.ts             ← QStash receiver for async notification emails (POST, nodejs runtime)
-```
+### Invite Flow (replaces auto-accept)
+`inviteUrl` in `lib/auth.ts` will point to `/invite/[invitationId]` (custom page) instead of Better Auth's accept endpoint. The page shows org + inviter + role before accepting.
+
+### Seat Limits
+`teamMemberLimit` added to `PlanLimits`: `0` for free/starter/professional, `-1` (unlimited) for enterprise.
+
+### Active Org Context
+Better Auth's session already has `activeOrganizationId`. All list/create API routes read this field to include team-scoped resources.
 
 ---
 
-## Interface (`lib/email/types.ts`)
+## Phase 1 — Security Foundation
 
+> Must ship before any UI changes. Closes the billing and RBAC holes.
+
+### Files to create
+
+**`lib/team/permissions.ts`**
+- `assertPermission(userId, orgId, action)` — queries `member` table, throws if role insufficient
+- `assertCanActOnMember(actorRole, targetRole)` — enforces role hierarchy
+- `assertSeatAvailable(inviterId, orgId)` — checks plan `teamMemberLimit` vs current member + invite count
+
+**Custom API routes (replace direct Better Auth calls from settings page)**
+
+| Route | Method | Guards |
+|-------|--------|--------|
+| `/api/team/create` | POST | Session + Enterprise plan |
+| `/api/team/invite` | POST | Session + owner/admin + seat check |
+| `/api/team/members/[memberId]` | DELETE | Session + owner/admin + role hierarchy |
+| `/api/team/members/[memberId]/role` | PATCH | Session + owner only |
+| `/api/team/invitations/[invId]` | DELETE | Session + owner/admin |
+| `/api/team/leave` | POST | Session + not owner |
+| `/api/team/[orgId]` | DELETE | Session + owner |
+| `/api/team/[orgId]` | PATCH | Session + owner/admin |
+| `/api/team/transfer-ownership` | POST | Session + owner |
+
+Every route calls `auth.api.getSession({ headers: req.headers })` — never trusts request body for identity.
+
+### Files to modify
+
+**`lib/stripe/plans.ts`**
+- Add `teamMemberLimit: number` to `PlanLimits` interface
+- Set: `free: 0`, `starter: 0`, `professional: 0`, `enterprise: -1`
+
+**`db/app-schema.ts`** — new `orgAuditLog` table
 ```typescript
-export type EmailProvider = "sendgrid" | "gmail";
-
-export type EmailTemplateId =
-  | "email_verification"
-  | "password_reset"
-  | "welcome"
-  | "team_invitation"
-  | "daily_lead_update"
-  | "weekly_summary";
-
-export interface SendEmailOptions {
-  to: string | string[];
-  subject: string;
-  html: string;
-  text?: string;
-  replyTo?: string;
-  headers?: Record<string, string>;
-  templateId?: EmailTemplateId;   // stored in emailLog
-  userId?: string;                // stored in emailLog
-}
-
-export interface SendEmailResult {
-  provider: EmailProvider;
-  messageId?: string;
-}
-
-export interface EmailProviderClient {
-  send(opts: SendEmailOptions): Promise<SendEmailResult>;
-}
-
-// QStash payload for /api/email/notify
-export interface EmailQueuePayload {
-  templateId: "daily_lead_update" | "weekly_summary";
-  userId: string;
-  data: DailyLeadUpdateData | WeeklySummaryData;
-}
-
-export interface DailyLeadUpdateData {
-  triggerName: string;
-  triggerId: string;
-  matchCount: number;
-  companies: { vat: string; name: string; city: string; industry: string }[];
-}
-
-export interface WeeklySummaryData {
-  periodStart: string;  // ISO date
-  periodEnd: string;
-  totalLeads: number;
-  topTriggers: { name: string; count: number }[];
-  savedCompaniesCount: number;
-}
-
-export interface SendGridWebhookEvent {
-  email: string;
-  timestamp: number;
-  event: "delivered" | "bounce" | "dropped" | "deferred" | "open" | "click" | "unsubscribe" | "spamreport";
-  sg_message_id?: string;
-  reason?: string;
-  status?: string;
-}
+export const orgAuditLog = pgTable("org_audit_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: text("organization_id")
+    .references(() => organization.id, { onDelete: "cascade" }).notNull(),
+  actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  // actions: org_created | member_invited | invitation_accepted | invitation_declined
+  //          member_removed | role_changed | ownership_transferred | org_deleted | org_renamed
+  targetUserId: text("target_user_id").references(() => user.id, { onDelete: "set null" }),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("audit_org_idx").on(t.organizationId),
+  index("audit_created_idx").on(t.createdAt),
+]);
 ```
-
----
-
-## Fallback Mailer (`lib/email/mailer.ts`)
-
-```typescript
-import "server-only";
-import { render } from "@react-email/render";
-
-export async function sendEmail(
-  template: React.ReactElement,
-  opts: Omit<SendEmailOptions, "html" | "text">
-): Promise<SendEmailResult> {
-  const html = await render(template);
-  const text = await render(template, { plainText: true });
-  const fullOpts = { ...opts, html, text };
-
-  let result: SendEmailResult | null = null;
-  let lastError: unknown;
-
-  // 1. Try SendGrid
-  if (process.env.SENDGRID_API_KEY) {
-    try { result = await createSendGridProvider().send(fullOpts); }
-    catch (err) { lastError = err; console.error("[email] SendGrid failed:", err); }
-  }
-
-  // 2. Fall back to Gmail/SMTP
-  if (!result && (process.env.SMTP_USER || process.env.GMAIL_OAUTH2_CLIENT_ID)) {
-    try { result = await createGmailProvider().send(fullOpts); }
-    catch (err) { lastError = err; console.error("[email] Gmail fallback failed:", err); }
-  }
-
-  if (!result) {
-    await writeEmailLog(fullOpts, null, null, "failed", String(lastError));
-    throw new Error(`[email] All providers failed: ${lastError}`);
-  }
-
-  await writeEmailLog(fullOpts, result.provider, result.messageId, "sent", null);
-  return result;
-}
-```
-
-`writeEmailLog` inserts into `emailLog` table — always called regardless of which provider succeeded or failed.
-
----
-
-## DB Schema Additions (`db/app-schema.ts`)
-
-### New table: `emailLog`
-
-```typescript
-export const emailLog = pgTable(
-  "email_log",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
-    to: text("to").notNull(),
-    subject: text("subject").notNull(),
-    templateId: text("template_id"),
-    provider: text("provider"),               // 'sendgrid' | 'gmail' | null on failure
-    messageId: text("message_id"),            // provider message ID (used by webhook)
-    status: text("status").default("sent").notNull(),
-    deliveryStatus: text("delivery_status"),  // updated by SendGrid webhook
-    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
-    openedAt: timestamp("opened_at", { withTimezone: true }),
-    clickedAt: timestamp("clicked_at", { withTimezone: true }),
-    error: text("error"),
-    metadata: jsonb("metadata").default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (t) => [
-    index("email_log_user_idx").on(t.userId),
-    index("email_log_message_id_idx").on(t.messageId),
-    index("email_log_created_idx").on(t.createdAt),
-  ]
-);
-```
-
-### Add 4 columns to `userBrand` pgTable definition
-
-```typescript
-emailNotificationsEnabled: boolean("email_notifications_enabled").default(true).notNull(),
-dailyLeadEmails: boolean("daily_lead_emails").default(true).notNull(),
-weeklySummaryEmails: boolean("weekly_summary_emails").default(true).notNull(),
-emailNotificationHour: integer("email_notification_hour").default(8).notNull(),
-```
-
-Add `emailLogRelations` and add `emailLogs: many(emailLog)` to `userRelations`.
 
 Run: `pnpm drizzle-kit generate && pnpm drizzle-kit migrate`
 
 ---
 
-## Better Auth Wiring (`lib/auth.ts`)
+## Phase 2 — Invite Acceptance UX
 
-Import the sender wrappers from `lib/email/senders/` and wire all 4 Better Auth callbacks:
+> Transforms the invite from "silent auto-join" to a branded, enterprise-quality handoff.
 
+### Files to modify
+
+**`lib/auth.ts`**
 ```typescript
-import { sendVerificationEmail } from "@/lib/email/senders/verification";
-import { sendPasswordResetEmail } from "@/lib/email/senders/reset-password";
-import { sendWelcomeEmail } from "@/lib/email/senders/welcome";
-import { sendTeamInvitationEmail } from "@/lib/email/senders/team-invitation";
-
-export const auth = betterAuth({
-  // ...existing config...
-  emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
-    autoSignIn: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      await sendVerificationEmail({ to: user.email, userName: user.name, verificationUrl: url, userId: user.id });
-    },
-    sendResetPassword: async ({ user, url }) => {
-      await sendPasswordResetEmail({ to: user.email, userName: user.name, resetUrl: url, userId: user.id });
-    },
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          await sendWelcomeEmail({ to: user.email, userName: user.name, userId: user.id });
-        },
-      },
-    },
-  },
-  plugins: [
-    organization({
-      allowUserToCreateOrganization: true,
-      sendInvitationEmail: async ({ invitation, inviter, organization, url }) => {
-        await sendTeamInvitationEmail({
-          to: invitation.email,
-          inviterName: inviter.name,
-          organizationName: organization.name,
-          inviteUrl: url,
-          role: invitation.role,
-          expiresAt: invitation.expiresAt.toISOString(),
-        });
-      },
-    }),
-  ],
-});
+// Change this line:
+inviteUrl: `${resolvedBaseURL}/api/auth/organization/accept-invitation/${invitation.id}`
+// To:
+inviteUrl: `${resolvedBaseURL}/invite/${invitation.id}`
 ```
+
+### Files to create
+
+**`app/invite/[invitationId]/page.tsx`** — server component
+
+States to handle:
+
+| State | Condition | UI |
+|-------|-----------|-----|
+| Unauthenticated | No session | Redirect to `/login?callbackUrl=/invite/[id]` |
+| New user | No account | "Create account to join [OrgName]" → `/signup?callbackUrl=/invite/[id]` |
+| Already member | userId in org members | Redirect to `/` |
+| Expired | `expiresAt < now` | "This invitation has expired. Contact the team admin." |
+| Invalid ID | Not found in DB | 404 message |
+| Valid + pending | All good | Preview card (see below) |
+
+**Preview card content:**
+- Org name + slug
+- "[InviterName] invited you to join as [Role]"
+- Expiry: "Expires in X days"
+- **Accept** button → `authClient.organization.acceptInvitation({ invitationId })` → redirect to `/`
+- **Decline** button → client-side dismiss toast (invitations expire automatically — no explicit decline endpoint needed)
 
 ---
 
-## QStash Integration
+## Phase 3 — Shared Workspace
 
-### `lib/email/queue.ts`
+> Org members see each other's triggers, saved companies, and tasks.
 
-```typescript
-import { Client } from "@upstash/qstash";
+### DB changes (`db/app-schema.ts`)
 
-export async function queueNotificationEmail(payload: EmailQueuePayload): Promise<void> {
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "https://cvr-mate.vercel.app";
-  const client = new Client({ token: process.env.QSTASH_TOKEN! });
-  await client.publishJSON({
-    url: `${baseUrl}/api/email/notify`,
-    body: payload,
-    retries: 3,
-  });
-}
-```
-
-### `app/api/email/notify/route.ts` (QStash receiver)
+Add nullable `organizationId` FK + index to three tables:
 
 ```typescript
-export const runtime = "nodejs";
-
-export async function POST(req: NextRequest) {
-  if (!(await verifyQStashRequest(req))) return unauthorized();
-
-  const { templateId, userId, data }: EmailQueuePayload = await req.json();
-
-  // Fetch user + prefs, honor opt-out, then call the appropriate sender wrapper
-  // Returns { skipped: true, reason: "user_opted_out" } if emailNotificationsEnabled = false
-  //         or the specific template flag is false
-}
+// leadTrigger, savedCompany, todo — same pattern on each:
+organizationId: text("organization_id")
+  .references(() => organization.id, { onDelete: "set null" }),
 ```
 
-### Integration in `app/api/cron/triggers/route.ts`
+Add `index("table_org_idx").on(t.organizationId)` for each.
 
-After `createNotification(...)`, add:
+Run: `pnpm drizzle-kit generate && pnpm drizzle-kit migrate`
 
+### API routes to update
+
+**Pattern applied to all three resource types:**
 ```typescript
-if ((trigger.notificationChannels as string[]).includes("email")) {
-  await queueNotificationEmail({
-    templateId: "daily_lead_update",
-    userId: trigger.userId,
-    data: { triggerName: trigger.name, triggerId: trigger.id, matchCount: unique.length, companies: summaries },
-  });
-}
+const session = await auth.api.getSession({ headers: req.headers });
+const activeOrgId = session?.session?.activeOrganizationId ?? null;
+
+// List query:
+.where(
+  or(
+    eq(table.userId, session.user.id),
+    activeOrgId ? eq(table.organizationId, activeOrgId) : sql`false`
+  )
+)
+
+// Create: attach organizationId if client sends scope: "team"
+// or if session.activeOrganizationId is set and no explicit personal scope
 ```
 
-`notificationChannels` already exists on `leadTrigger` as a jsonb array — user sets `["in_app", "email"]` via settings UI.
+**Routes to update:**
+
+| Route | Change |
+|-------|--------|
+| `app/api/triggers/route.ts` | GET list + POST create — org-scoped |
+| `app/api/triggers/[id]/route.ts` | PATCH/DELETE — verify ownership or admin role |
+| `app/api/saved-companies/route.ts` | GET list + POST create — org-scoped |
+| `app/api/todos/route.ts` | GET list + POST create — org-scoped |
+| `app/api/cron/triggers/route.ts` | Include org triggers; notifications fire to `trigger.userId` only |
+
+### Active org context wiring
+
+In settings page `loadOrg()`, after loading the org, call:
+```typescript
+await authClient.organization.setActive({ organizationId: orgs[0].id });
+```
+This persists `activeOrganizationId` to the session so all subsequent API calls see the org context.
 
 ---
 
-## SendGrid Webhook (`app/api/email/webhook/route.ts`)
+## Phase 4 — Settings UI (`app/settings/page.tsx`)
 
-- `export const runtime = "nodejs"`
-- Verify ECDSA signature via `crypto.createVerify("SHA256")` using `process.env.SENDGRID_WEBHOOK_PUBLIC_KEY`
-- Parse JSON body, switch on `event.event`, update `emailLog` row by `messageId`
-- Events handled: `delivered`, `bounce`, `dropped`, `open`, `click`, `unsubscribe`, `spamreport`
-- Always return `200` (same pattern as `app/api/stripe/webhook/route.ts`)
-- Future: on `unsubscribe`/`spamreport`, set `userBrand.emailNotificationsEnabled = false`
+> Replace raw `fetch("/api/auth/organization/...")` with custom `/api/team/...` routes and add new management controls.
 
-Register webhook URL in SendGrid dashboard: `https://cvr-mate.vercel.app/api/email/webhook`
+### New UI elements to add
 
----
-
-## Environment Variables
-
-```bash
-# SendGrid (primary)
-SENDGRID_API_KEY=SG.xxx
-SENDGRID_WEBHOOK_PUBLIC_KEY=MFkwEwY...   # from SendGrid Event Webhook settings
-
-# Gmail/SMTP fallback (Option A: App Password — simpler for dev)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=noreply@yourdomain.com
-SMTP_PASS=xxxx xxxx xxxx xxxx
-
-# Gmail/SMTP fallback (Option B: OAuth2 — more secure for prod)
-GMAIL_OAUTH2_CLIENT_ID=xxx.apps.googleusercontent.com
-GMAIL_OAUTH2_CLIENT_SECRET=GOCSPX-xxx
-GMAIL_OAUTH2_REFRESH_TOKEN=1//xxx
-GMAIL_USER=noreply@yourdomain.com
-
-# Shared sender identity
-EMAIL_FROM_ADDRESS=noreply@cvr-mate.com
-EMAIL_FROM_NAME=CVR-MATE
-
-# QStash — already present from existing cron setup
-QSTASH_TOKEN=xxx
-QSTASH_CURRENT_SIGNING_KEY=sig_xxx
-QSTASH_NEXT_SIGNING_KEY=sig_xxx
+**Seat usage meter** (shows above member list)
 ```
+Team members  3 active · 1 pending
+[████████░░░░░░░░░░░░]  Enterprise — Unlimited seats
+```
+
+**Role management** (owner only)
+- Each member row gets a role `<select>` (member ↔ admin)
+- Owner row shows "Owner" badge — no dropdown
+- On change → `PATCH /api/team/members/[memberId]/role`
+
+**Transfer ownership** (owner only)
+- Button at bottom of member list
+- Confirmation modal: "Transfer ownership to [Name]? You will become an admin."
+- On confirm → `POST /api/team/transfer-ownership`
+
+**Leave organization** (members + admins — not owner)
+- In Danger Zone section, shown only to non-owners in a team
+- Warning: "You will lose access to all shared team resources."
+- On confirm → `POST /api/team/leave`
+
+**Delete organization** (owner only)
+- In Danger Zone section, owner only
+- Requires typing org name to confirm (prevents mis-click)
+- On confirm → `DELETE /api/team/[orgId]`
+
+**Rename organization** (owner/admin)
+- Inline editable org name at top of Team section
+- On blur with changed value → `PATCH /api/team/[orgId]`
+
+**Plan gate** (non-enterprise users)
+- If `subscription.data?.plan !== "enterprise"`, show upgrade CTA instead of team controls
+- "Team features require the Enterprise plan → [Upgrade]"
+- Server-side enforcement in Phase 1 backs this up
 
 ---
 
 ## Implementation Order
 
-**Phase 1 — Foundation**
-1. Install packages
-2. Add `emailLog` table + `userBrand` columns → generate + run migration
-3. Implement `lib/email/types.ts`, `providers/sendgrid.ts`, `providers/gmail.ts`, `mailer.ts`
-
-**Phase 2 — Auth emails** (unblocks signup UX)
-4. Build templates: `verification.tsx`, `reset-password.tsx`, `welcome.tsx`
-5. Build sender wrappers in `lib/email/senders/`
-6. Wire all Better Auth callbacks in `lib/auth.ts`
-
-**Phase 3 — Team invitations**
-7. Build `team-invitation.tsx` template + sender
-8. Wire `sendInvitationEmail` in `organization()` plugin config
-
-**Phase 4 — Async notification emails**
-9. Build `daily-lead-update.tsx`, `weekly-summary.tsx` templates + senders
-10. Implement `lib/email/queue.ts`
-11. Implement `app/api/email/notify/route.ts` (QStash receiver)
-12. Integrate `queueNotificationEmail` into `app/api/cron/triggers/route.ts`
-13. Add preferences API route: `app/api/preferences/email-notifications/route.ts`
-
-**Phase 5 — Delivery tracking**
-14. Implement `app/api/email/webhook/route.ts`
-15. Register webhook URL in SendGrid dashboard
+```
+1. db/app-schema.ts      → orgAuditLog table
+2. lib/stripe/plans.ts   → teamMemberLimit
+3. migrate               → pnpm drizzle-kit generate && migrate
+4. lib/team/permissions  → RBAC helpers (pure logic, no UI deps)
+5. /api/team/* routes    → All 9 Phase 1 routes
+6. lib/auth.ts           → change inviteUrl
+7. app/invite/[id]/page  → invite acceptance page
+8. db/app-schema.ts      → organizationId FKs on 3 tables + migrate
+9. API list/create routes → org-scoped queries (Phase 3)
+10. app/api/cron/triggers → include org triggers
+11. app/settings/page.tsx → Phase 4 + Phase 5 UI
+```
 
 ---
 
-## Critical Files to Modify
+## File Index
 
-| File | Change |
-|------|--------|
-| `db/app-schema.ts` | Add `emailLog` table + 4 `userBrand` columns |
-| `lib/auth.ts` | Wire 4 Better Auth email callbacks |
-| `app/api/cron/triggers/route.ts` | Call `queueNotificationEmail` when channel includes `"email"` |
-| `lib/qstash.ts` | Reused as-is for QStash signature verification in `/api/email/notify` |
-| `app/api/stripe/webhook/route.ts` | Used as structural template for SendGrid webhook route |
+### New files
+- `lib/team/permissions.ts`
+- `app/invite/[invitationId]/page.tsx`
+- `app/api/team/create/route.ts`
+- `app/api/team/invite/route.ts`
+- `app/api/team/members/[memberId]/route.ts`
+- `app/api/team/members/[memberId]/role/route.ts`
+- `app/api/team/invitations/[invId]/route.ts`
+- `app/api/team/leave/route.ts`
+- `app/api/team/transfer-ownership/route.ts`
+- `app/api/team/[orgId]/route.ts`
+
+### Modified files
+- `lib/stripe/plans.ts`
+- `lib/auth.ts`
+- `db/app-schema.ts`
+- `app/settings/page.tsx`
+- `app/api/triggers/route.ts`
+- `app/api/triggers/[id]/route.ts`
+- `app/api/saved-companies/route.ts`
+- `app/api/todos/route.ts`
+- `app/api/cron/triggers/route.ts`
 
 ---
 
 ## Verification Checklist
 
-1. **Signup** → email/password signup → verify email arrives, link works, `emailVerified` flips to `true`
-2. **Password reset** → trigger forgot-password flow → reset email arrives, link works
-3. **Welcome email** → first signup → welcome email arrives after `databaseHooks.user.create.after`
-4. **Team invitation** → Settings → Team → Invite → email arrives with Accept button
-5. **Notification email** → set trigger `notificationChannels = ["in_app", "email"]` → trigger fires via QStash cron → daily update email arrives
-6. **Fallback** → set invalid `SENDGRID_API_KEY` → verify Gmail fallback sends successfully → `emailLog` shows `provider = "gmail"`
-7. **Opt-out** → set `dailyLeadEmails = false` → trigger fires → email NOT sent (`/api/email/notify` returns `{ skipped: true }`)
-8. **Bounce tracking** → simulate SendGrid bounce webhook → `emailLog.deliveryStatus` updated to `"bounced"`
-9. **TypeScript** → `pnpm tsc --noEmit` passes with zero errors
+- [ ] Free user → Settings → Team → sees upgrade CTA, cannot create org
+- [ ] Enterprise user creates org → `orgAuditLog` row: `org_created`
+- [ ] Admin invites user → email link opens `/invite/[id]` preview page
+- [ ] Invitee accepts → joins org → `invitation_accepted` audit row
+- [ ] Invitee clicks Decline → nothing changes in DB, invitation expires naturally
+- [ ] Member calls `POST /api/team/invite` directly → 403
+- [ ] Admin cannot remove another admin or owner → 403
+- [ ] Owner changes member → admin → role updates in settings UI
+- [ ] Owner transfers ownership → roles swap, old owner becomes admin
+- [ ] Non-owner member leaves → removed from list, loses team data visibility
+- [ ] Enterprise user creates trigger (team scope) → team member sees it in trigger list
+- [ ] Personal trigger (`organizationId = null`) not visible to team members
+- [ ] Cron runs org trigger → notification fires to `trigger.userId` only (not all members)
+- [ ] Owner types org name and deletes org → all members lose team data
+- [ ] Every action above produces correct `orgAuditLog` row
