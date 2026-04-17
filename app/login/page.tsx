@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowRight, Eye, EyeOff, Globe, Star, AlertCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Globe, Star, AlertCircle, MailCheck } from "lucide-react";
 
 export default function LoginPage() {
   return (
@@ -32,17 +32,23 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setEmailNotVerified(false);
     setLoading(true);
 
     const { error: authError } = await signIn.email({ email, password });
 
     if (authError) {
-      setError(authError.message || "Login failed");
+      if ((authError as { code?: string }).code === "EMAIL_NOT_VERIFIED") {
+        setEmailNotVerified(true);
+      } else {
+        setError(authError.message || "Login failed");
+      }
       setLoading(false);
       return;
     }
@@ -122,6 +128,24 @@ function LoginForm() {
           </header>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
+            {emailNotVerified && (
+              <Alert className="border-amber-300 bg-amber-50 text-amber-900 [&>svg]:text-amber-700">
+                <MailCheck className="size-4" />
+                <AlertDescription>
+                  {locale === "da"
+                    ? "Din e-mail er ikke verificeret. Vi har sendt dig en ny bekræftelsesmail — tjek din indbakke."
+                    : "Your email isn't verified yet. We've sent you a new verification email — check your inbox."}
+                  {" "}
+                  <button
+                    type="button"
+                    className="font-semibold underline underline-offset-2 hover:opacity-80"
+                    onClick={() => router.push(`/verify-email?state=pending&email=${encodeURIComponent(email)}`)}
+                  >
+                    {locale === "da" ? "Åbn bekræftelsessiden" : "Open verification page"}
+                  </button>
+                </AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="size-4" />
