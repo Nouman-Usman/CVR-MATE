@@ -37,8 +37,11 @@ export interface PlanLimits {
   aiTaskSuggestPerMonth: number;
   bulkPushPerMonth: number;
 
-  // Boolean features
+  // Team
   teamFeatures: boolean;
+  teamMemberLimit: number; // 0 = no teams, -1 = unlimited
+
+  // Boolean features
   brandPersonalization: boolean;
   calendarExport: boolean;
   contextMenus: boolean;
@@ -62,6 +65,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     aiTaskSuggestPerMonth: 3,
     bulkPushPerMonth: 0,
     teamFeatures: false,
+    teamMemberLimit: 0,
     brandPersonalization: false,
     calendarExport: true,
     contextMenus: true,
@@ -83,6 +87,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     aiTaskSuggestPerMonth: 20,
     bulkPushPerMonth: 0,
     teamFeatures: false,
+    teamMemberLimit: 0,
     brandPersonalization: true,
     calendarExport: true,
     contextMenus: true,
@@ -104,6 +109,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     aiTaskSuggestPerMonth: Infinity,
     bulkPushPerMonth: 30,
     teamFeatures: false,
+    teamMemberLimit: 0,
     brandPersonalization: true,
     calendarExport: true,
     contextMenus: true,
@@ -125,6 +131,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     aiTaskSuggestPerMonth: Infinity,
     bulkPushPerMonth: Infinity,
     teamFeatures: true,
+    teamMemberLimit: -1, // unlimited
     brandPersonalization: true,
     calendarExport: true,
     contextMenus: true,

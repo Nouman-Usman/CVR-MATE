@@ -28,10 +28,8 @@ import { searchCompanies } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
 import { dispatchNotificationEmail } from "@/lib/email/dispatch";
 
-// Hard block: this route must never be reachable in production
-if (process.env.NODE_ENV === "production") {
-  throw new Error("DEV test endpoint loaded in production — this should never happen");
-}
+// Hard block: this route returns 404 in production instead of throwing
+// (top-level throw crashes Next.js build)
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

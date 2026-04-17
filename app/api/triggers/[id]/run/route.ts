@@ -8,6 +8,7 @@ import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
 import { dispatchNotificationEmail } from "@/lib/email/dispatch";
+import { getOrgMembership } from "@/lib/team/permissions";
 
 // Maps trigger filter keys to CVR API search params
 function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
@@ -47,15 +48,22 @@ export async function POST(
 
     const { id } = await params;
 
-    // Fetch the trigger
+    // Fetch the trigger — allow personal triggers (owner) or team triggers (org member)
     const trigger = await db.query.leadTrigger.findFirst({
-      where: and(
-        eq(leadTrigger.id, id),
-        eq(leadTrigger.userId, session.user.id)
-      ),
+      where: eq(leadTrigger.id, id),
     });
 
     if (!trigger) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Access check: personal trigger requires ownership; team trigger requires membership
+    if (trigger.organizationId) {
+      const membership = await getOrgMembership(session.user.id, trigger.organizationId);
+      if (!membership) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+    } else if (trigger.userId !== session.user.id) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

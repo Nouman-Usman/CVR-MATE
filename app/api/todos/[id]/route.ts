@@ -7,6 +7,30 @@ import { headers } from "next/headers";
 import { cacheDel } from "@/lib/redis";
 import { cacheKey } from "@/lib/cache";
 import { getCompanyByVat } from "@/lib/cvr-api";
+import {
+  assertCanMutateResource,
+  validateActiveOrg,
+  TeamPermissionError,
+  teamErrorToStatus,
+} from "@/lib/team/permissions";
+
+/**
+ * Find a todo by ID that the user can access (personal or team-scoped).
+ */
+async function findAccessibleTodo(id: string, userId: string) {
+  const t = await db.query.todo.findFirst({
+    where: eq(todo.id, id),
+  });
+  if (!t) return null;
+
+  // Personal todo — must be the owner
+  if (!t.organizationId) {
+    return t.userId === userId ? t : null;
+  }
+
+  // Team todo — caller will check with assertCanMutateResource
+  return t;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -20,6 +44,25 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
+
+    const existing = await findAccessibleTodo(id, session.user.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    }
+
+    // Resource-level auth
+    try {
+      await assertCanMutateResource(session.user.id, {
+        userId: existing.userId,
+        organizationId: existing.organizationId,
+      });
+    } catch (err) {
+      if (err instanceof TeamPermissionError) {
+        return NextResponse.json({ error: err.message }, { status: teamErrorToStatus(err) });
+      }
+      throw err;
+    }
+
     const { title, description, isCompleted, priority, companyId, cvr, dueDate } =
       body;
 
@@ -38,14 +81,13 @@ export async function PATCH(
         updateData.companyId = null;
       } else {
         const trimmedCvr = cvr.trim();
-        const existing = await db.query.company.findFirst({
+        const existingCompany = await db.query.company.findFirst({
           where: eq(company.vat, trimmedCvr),
           columns: { id: true },
         });
-        if (existing) {
-          updateData.companyId = existing.id;
+        if (existingCompany) {
+          updateData.companyId = existingCompany.id;
         } else {
-          // Fetch from external CVR API and upsert locally
           try {
             const cvrData = await getCompanyByVat(Number(trimmedCvr));
             const [newCompany] = await db
@@ -91,7 +133,7 @@ export async function PATCH(
     const [updated] = await db
       .update(todo)
       .set(updateData)
-      .where(and(eq(todo.id, id), eq(todo.userId, session.user.id)))
+      .where(eq(todo.id, id))
       .returning();
 
     if (!updated) {
@@ -105,7 +147,14 @@ export async function PATCH(
     });
 
     // Invalidate cache
+    const activeOrgId = await validateActiveOrg(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
     await cacheDel(cacheKey.todos(session.user.id));
+    if (activeOrgId) {
+      await cacheDel(`${cacheKey.todos(session.user.id)}:org:${activeOrgId}`);
+    }
 
     return NextResponse.json({ todo: todoWithCompany });
   } catch (error) {
@@ -129,17 +178,35 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const [deleted] = await db
-      .delete(todo)
-      .where(and(eq(todo.id, id), eq(todo.userId, session.user.id)))
-      .returning();
-
-    if (!deleted) {
+    const existing = await findAccessibleTodo(id, session.user.id);
+    if (!existing) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
+    // Resource-level auth
+    try {
+      await assertCanMutateResource(session.user.id, {
+        userId: existing.userId,
+        organizationId: existing.organizationId,
+      });
+    } catch (err) {
+      if (err instanceof TeamPermissionError) {
+        return NextResponse.json({ error: err.message }, { status: teamErrorToStatus(err) });
+      }
+      throw err;
+    }
+
+    await db.delete(todo).where(eq(todo.id, id));
+
     // Invalidate cache
+    const activeOrgId = await validateActiveOrg(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
     await cacheDel(cacheKey.todos(session.user.id));
+    if (activeOrgId) {
+      await cacheDel(`${cacheKey.todos(session.user.id)}:org:${activeOrgId}`);
+    }
 
     return NextResponse.json({ message: "Todo deleted" });
   } catch (error) {

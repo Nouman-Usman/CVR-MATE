@@ -577,6 +577,18 @@ export default function SettingsPage() {
   const [inviteSending, setInviteSending] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [orgCreating, setOrgCreating] = useState(false);
+  const [editingOrgName, setEditingOrgName] = useState(false);
+  const [orgNameDraft, setOrgNameDraft] = useState("");
+  const [orgNameSaving, setOrgNameSaving] = useState(false);
+  const [roleChanging, setRoleChanging] = useState<string | null>(null);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<OrgMember | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [showDeleteOrgModal, setShowDeleteOrgModal] = useState(false);
+  const [deleteOrgConfirmName, setDeleteOrgConfirmName] = useState("");
+  const [deletingOrg, setDeletingOrg] = useState(false);
+  const [leavingOrg, setLeavingOrg] = useState(false);
+  const { data: subData } = useSubscription();
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -660,7 +672,9 @@ export default function SettingsPage() {
       if (!orgsRes.ok) { setOrg(null); setOrgLoading(false); return; }
       const orgs = await orgsRes.json();
       if (Array.isArray(orgs) && orgs.length > 0) {
-        // Set active org and get full details
+        // Set active org context (so API queries include team data)
+        authClient.organization.setActive({ organizationId: orgs[0].id }).catch(() => {});
+        // Get full details
         const fullRes = await fetch(
           `/api/auth/organization/get-full-organization?organizationId=${orgs[0].id}`,
           { method: "GET", credentials: "include" }
@@ -813,32 +827,26 @@ export default function SettingsPage() {
     if (!newOrgName.trim()) return;
     setOrgCreating(true);
     try {
-      const slug = newOrgName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-      const res = await fetch("/api/auth/organization/create", {
+      const res = await fetch("/api/team/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: newOrgName.trim(),
-          slug: slug || `org-${Date.now()}`,
-        }),
+        body: JSON.stringify({ name: newOrgName.trim() }),
       });
+      const data = await res.json();
       if (res.ok) {
         showToast(st.team.created);
         setNewOrgName("");
+        // Set active org
+        if (data.id) {
+          authClient.organization.setActive({ organizationId: data.id }).catch(() => {});
+        }
         await loadOrg();
       } else {
-        showToast(locale === "da" ? "Kunne ikke oprette" : "Failed to create", "error");
+        showToast(data.error || (locale === "da" ? "Kunne ikke oprette" : "Failed to create"), "error");
       }
     } catch {
-      showToast(
-        locale === "da" ? "Kunne ikke oprette" : "Failed to create",
-        "error"
-      );
+      showToast(locale === "da" ? "Kunne ikke oprette" : "Failed to create", "error");
     } finally {
       setOrgCreating(false);
     }
@@ -850,22 +858,19 @@ export default function SettingsPage() {
     if (!inviteEmail.trim() || !org) return;
     setInviteSending(true);
     try {
-      const res = await fetch("/api/auth/organization/invite-member", {
+      const res = await fetch("/api/team/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          email: inviteEmail.trim(),
-          role: inviteRole,
-          organizationId: org.id,
-        }),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, organizationId: org.id }),
       });
+      const data = await res.json();
       if (res.ok) {
         showToast(st.team.sent);
         setInviteEmail("");
         await loadOrg();
       } else {
-        showToast(st.team.inviteError, "error");
+        showToast(data.error || st.team.inviteError, "error");
       }
     } catch {
       showToast(st.team.inviteError, "error");
@@ -876,28 +881,23 @@ export default function SettingsPage() {
 
   // ── Remove member ───────────────────────────────────────────────────────
 
-  const handleRemoveMember = async (memberIdOrEmail: string) => {
+  const handleRemoveMember = async (memberId: string) => {
     if (!org) return;
     if (!window.confirm(st.team.removeConfirm)) return;
     try {
-      const res = await fetch("/api/auth/organization/remove-member", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch(`/api/team/members/${memberId}`, {
+        method: "DELETE",
         credentials: "include",
-        body: JSON.stringify({
-          memberIdOrEmail,
-          organizationId: org.id,
-        }),
       });
       if (res.ok) {
         showToast(st.team.removed);
         await loadOrg();
+      } else {
+        const data = await res.json();
+        showToast(data.error || (locale === "da" ? "Kunne ikke fjerne" : "Failed to remove"), "error");
       }
     } catch {
-      showToast(
-        locale === "da" ? "Kunne ikke fjerne" : "Failed to remove",
-        "error"
-      );
+      showToast(locale === "da" ? "Kunne ikke fjerne" : "Failed to remove", "error");
     }
   };
 
@@ -906,21 +906,152 @@ export default function SettingsPage() {
   const handleCancelInvite = async (invitationId: string) => {
     if (!window.confirm(st.team.cancelConfirm)) return;
     try {
-      const res = await fetch("/api/auth/organization/cancel-invitation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch(`/api/team/invitations/${invitationId}`, {
+        method: "DELETE",
         credentials: "include",
-        body: JSON.stringify({ invitationId }),
       });
       if (res.ok) {
         showToast(st.team.cancelled);
         await loadOrg();
       }
     } catch {
-      showToast(
-        locale === "da" ? "Kunne ikke annullere" : "Failed to cancel",
-        "error"
-      );
+      showToast(locale === "da" ? "Kunne ikke annullere" : "Failed to cancel", "error");
+    }
+  };
+
+  // ── Change member role ──────────────────────────────────────────────────
+
+  const handleRoleChange = async (memberId: string, newRole: string) => {
+    setRoleChanging(memberId);
+    try {
+      const res = await fetch(`/api/team/members/${memberId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) {
+        showToast(locale === "da" ? "Rolle opdateret" : "Role updated");
+        await loadOrg();
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed", "error");
+      }
+    } catch {
+      showToast("Failed", "error");
+    } finally {
+      setRoleChanging(null);
+    }
+  };
+
+  // ── Rename org ──────────────────────────────────────────────────────────
+
+  const handleRenameOrg = async () => {
+    if (!org || !orgNameDraft.trim() || orgNameDraft.trim() === org.name) {
+      setEditingOrgName(false);
+      return;
+    }
+    setOrgNameSaving(true);
+    try {
+      const res = await fetch(`/api/team/${org.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: orgNameDraft.trim() }),
+      });
+      if (res.ok) {
+        showToast(locale === "da" ? "Navn opdateret" : "Name updated");
+        await loadOrg();
+      }
+    } catch {
+      showToast("Failed", "error");
+    } finally {
+      setOrgNameSaving(false);
+      setEditingOrgName(false);
+    }
+  };
+
+  // ── Transfer ownership ──────────────────────────────────────────────────
+
+  const handleTransferOwnership = async () => {
+    if (!org || !transferTarget) return;
+    setTransferring(true);
+    try {
+      const res = await fetch("/api/team/transfer-ownership", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ organizationId: org.id, newOwnerId: transferTarget.userId }),
+      });
+      if (res.ok) {
+        showToast(locale === "da" ? "Ejerskab overført" : "Ownership transferred");
+        setShowTransferModal(false);
+        setTransferTarget(null);
+        await loadOrg();
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed", "error");
+      }
+    } catch {
+      showToast("Failed", "error");
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  // ── Leave org ───────────────────────────────────────────────────────────
+
+  const handleLeaveOrg = async () => {
+    if (!org) return;
+    if (!window.confirm(locale === "da"
+      ? "Er du sikker? Du mister adgang til delte team-ressourcer, og dine team-triggers deaktiveres."
+      : "Are you sure? You will lose access to shared team resources and your team triggers will be deactivated."
+    )) return;
+    setLeavingOrg(true);
+    try {
+      const res = await fetch("/api/team/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ organizationId: org.id }),
+      });
+      if (res.ok) {
+        showToast(locale === "da" ? "Du har forladt teamet" : "You left the team");
+        setOrg(null);
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed", "error");
+      }
+    } catch {
+      showToast("Failed", "error");
+    } finally {
+      setLeavingOrg(false);
+    }
+  };
+
+  // ── Delete org ──────────────────────────────────────────────────────────
+
+  const handleDeleteOrg = async () => {
+    if (!org) return;
+    setDeletingOrg(true);
+    try {
+      const res = await fetch(`/api/team/${org.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        showToast(locale === "da" ? "Organisation slettet" : "Organization deleted");
+        setShowDeleteOrgModal(false);
+        setDeleteOrgConfirmName("");
+        setOrg(null);
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed", "error");
+      }
+    } catch {
+      showToast("Failed", "error");
+    } finally {
+      setDeletingOrg(false);
     }
   };
 
@@ -1710,186 +1841,206 @@ export default function SettingsPage() {
         </div>}
 
         {/* ── Team / Organization ──────────────────────────────────────── */}
-        {activeSection === "team" && <div className={cardClass}>
+        {activeSection === "team" && (() => {
+          const isEnterprise = subData?.plan === "enterprise";
+          const myRole = org?.members?.find((m) => m.userId === session?.user?.id)?.role;
+          const isOwner = myRole === "owner";
+          const isAdminOrOwner = myRole === "owner" || myRole === "admin";
+          const memberCount = org?.members?.length ?? 0;
+          const pendingCount = org?.invitations?.filter((i) => i.status === "pending").length ?? 0;
+
+          return (
+          <div className={cardClass}>
+          {/* Header — org name (editable by owner/admin) */}
           <div className="flex items-center gap-2 mb-2">
-            <span className="material-symbols-outlined text-slate-400 text-xl">
-              groups
-            </span>
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              {st.team.title}
-            </h2>
+            <span className="material-symbols-outlined text-slate-400 text-xl">groups</span>
+            {org && editingOrgName ? (
+              <div className="flex items-center gap-2 flex-1">
+                <input
+                  className="text-sm font-bold text-slate-900 uppercase tracking-wider bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  value={orgNameDraft}
+                  onChange={(e) => setOrgNameDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRenameOrg(); if (e.key === "Escape") setEditingOrgName(false); }}
+                  autoFocus
+                />
+                <button onClick={handleRenameOrg} disabled={orgNameSaving} className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer">
+                  {orgNameSaving ? <Loader2 className="size-3 animate-spin" /> : (locale === "da" ? "Gem" : "Save")}
+                </button>
+                <button onClick={() => setEditingOrgName(false)} className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer">
+                  {locale === "da" ? "Annuller" : "Cancel"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 flex-1">
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  {org ? org.name : st.team.title}
+                </h2>
+                {org && isAdminOrOwner && (
+                  <button
+                    onClick={() => { setOrgNameDraft(org.name); setEditingOrgName(true); }}
+                    className="text-slate-300 hover:text-slate-500 cursor-pointer"
+                    title={locale === "da" ? "Omd\u00f8b" : "Rename"}
+                  >
+                    <span className="material-symbols-outlined text-sm">edit</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <p className="text-xs text-slate-400 mb-6">{st.team.subtitle}</p>
 
-          {orgLoading ? (
+          {/* Plan gate — non-enterprise sees upgrade CTA */}
+          {!isEnterprise && !org ? (
+            <div className="bg-slate-50 rounded-xl p-6 text-center">
+              <span className="material-symbols-outlined text-4xl text-slate-300 mb-3 block">lock</span>
+              <p className="text-sm font-semibold text-slate-900 mb-1">
+                {locale === "da" ? "Team-funktioner kr\u00e6ver Enterprise" : "Team features require Enterprise"}
+              </p>
+              <p className="text-xs text-slate-400 mb-4">
+                {locale === "da"
+                  ? "Opgrader til Enterprise for at oprette teams, invitere medlemmer og dele data."
+                  : "Upgrade to Enterprise to create teams, invite members, and share data."}
+              </p>
+              <button
+                onClick={() => setActiveSection("subscription")}
+                className={btnPrimary}
+              >
+                {locale === "da" ? "Se planer" : "View plans"}
+              </button>
+            </div>
+          ) : orgLoading ? (
             <div className="flex items-center justify-center py-8">
-              <span className="material-symbols-outlined animate-spin text-2xl text-slate-300">
-                progress_activity
-              </span>
+              <Loader2 className="size-6 text-slate-300 animate-spin" />
             </div>
           ) : !org ? (
             /* No org — create one */
             <div className="bg-slate-50 rounded-xl p-6">
               <div className="flex items-start gap-3 mb-5">
-                <span className="material-symbols-outlined text-blue-500 text-2xl shrink-0">
-                  group_add
-                </span>
+                <span className="material-symbols-outlined text-blue-500 text-2xl shrink-0">group_add</span>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {st.team.createOrg}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {st.team.createOrgDesc}
-                  </p>
+                  <p className="text-sm font-semibold text-slate-900">{st.team.createOrg}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{st.team.createOrgDesc}</p>
                 </div>
               </div>
               <div className="flex gap-2">
-                <input
-                  className={`flex-1 ${inputClass}`}
-                  placeholder={st.team.orgNamePlaceholder}
-                  value={newOrgName}
-                  onChange={(e) => setNewOrgName(e.target.value)}
-                />
-                <button
-                  onClick={handleCreateOrg}
-                  disabled={orgCreating || !newOrgName.trim()}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
-                >
-                  {orgCreating ? (
-                    <>
-                      <span className="material-symbols-outlined animate-spin text-sm">
-                        progress_activity
-                      </span>
-                      {st.team.creating}
-                    </>
-                  ) : (
-                    st.team.create
-                  )}
+                <input className={`flex-1 ${inputClass}`} placeholder={st.team.orgNamePlaceholder} value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} />
+                <button onClick={handleCreateOrg} disabled={orgCreating || !newOrgName.trim()} className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2">
+                  {orgCreating ? (<><Loader2 className="size-4 animate-spin" />{st.team.creating}</>) : st.team.create}
                 </button>
               </div>
             </div>
           ) : (
-            /* Has org — show members + invite */
+            /* Has org — full team management */
             <div className="space-y-6">
-              {/* Invite form */}
+              {/* Downgrade warning — org exists but plan lost team features */}
+              {!isEnterprise && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-amber-500 text-lg mt-0.5 shrink-0">warning</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {locale === "da" ? "Team-funktioner er begr\u00e6nset" : "Team features are limited"}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {locale === "da"
+                        ? "Din nuv\u00e6rende plan inkluderer ikke team-funktioner. Nye invitationer er blokeret. Opgrader til Enterprise for fuld adgang."
+                        : "Your current plan does not include team features. New invitations are blocked. Upgrade to Enterprise for full access."}
+                    </p>
+                    <button
+                      onClick={() => setActiveSection("subscription")}
+                      className="mt-2 text-xs font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                    >
+                      {locale === "da" ? "Opgrader plan" : "Upgrade plan"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Seat meter */}
+              <div className="bg-slate-50 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-slate-400 text-lg">group</span>
+                  <span className="text-sm font-medium text-slate-700">
+                    {memberCount} {locale === "da" ? "aktive" : "active"}
+                    {pendingCount > 0 && <span className="text-slate-400"> &middot; {pendingCount} {locale === "da" ? "ventende" : "pending"}</span>}
+                  </span>
+                </div>
+                <span className={`text-xs font-semibold ${isEnterprise ? "text-emerald-600" : "text-amber-600"}`}>
+                  {isEnterprise
+                    ? `Enterprise \u2014 ${locale === "da" ? "Ubegr\u00e6nsede pladser" : "Unlimited seats"}`
+                    : `${(subData?.planName ?? "Free")} \u2014 ${locale === "da" ? "Opgradering p\u00e5kr\u00e6vet" : "Upgrade required"}`
+                  }
+                </span>
+              </div>
+
+              {/* Invite form — owner/admin + enterprise only */}
+              {isAdminOrOwner && isEnterprise && (
               <div className="bg-slate-50 rounded-xl p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-blue-500 text-lg">
-                    person_add
-                  </span>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {st.team.invite}
-                  </p>
+                  <span className="material-symbols-outlined text-blue-500 text-lg">person_add</span>
+                  <p className="text-sm font-semibold text-slate-900">{st.team.invite}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="relative flex-1">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <span className="material-symbols-outlined text-lg">
-                        mail
-                      </span>
+                      <span className="material-symbols-outlined text-lg">mail</span>
                     </div>
-                    <input
-                      className="w-full bg-white border border-slate-200 rounded-lg py-2.5 pl-10 pr-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                      type="email"
-                      placeholder={st.team.emailPlaceholder}
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                    />
+                    <input className="w-full bg-white border border-slate-200 rounded-lg py-2.5 pl-10 pr-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none" type="email" placeholder={st.team.emailPlaceholder} value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
                   </div>
-                  <select
-                    className="bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 outline-none appearance-none sm:w-32"
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value)}
-                  >
+                  <select className="bg-white border border-slate-200 rounded-lg py-2.5 px-3 text-sm text-slate-900 outline-none appearance-none sm:w-32" value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
                     <option value="member">{st.team.member}</option>
                     <option value="admin">{st.team.admin}</option>
                   </select>
-                  <button
-                    onClick={handleInvite}
-                    disabled={inviteSending || !inviteEmail.trim()}
-                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
-                  >
-                    {inviteSending ? (
-                      <>
-                        <span className="material-symbols-outlined animate-spin text-sm">
-                          progress_activity
-                        </span>
-                        {st.team.sending}
-                      </>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-sm">
-                          send
-                        </span>
-                        {st.team.send}
-                      </>
-                    )}
+                  <button onClick={handleInvite} disabled={inviteSending || !inviteEmail.trim()} className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2">
+                    {inviteSending ? (<><Loader2 className="size-4 animate-spin" />{st.team.sending}</>) : (<><span className="material-symbols-outlined text-sm">send</span>{st.team.send}</>)}
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Members list */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
-                  {st.team.members}
-                </h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">{st.team.members}</h3>
                 {org.members && org.members.length > 0 ? (
                   <div className="divide-y divide-slate-100">
                     {org.members.map((m) => {
-                      const mInitials = (m.user.name || m.user.email)
-                        .split(" ")
-                        .map((w) => w[0])
-                        .join("")
-                        .slice(0, 2)
-                        .toUpperCase();
+                      const mInitials = (m.user.name || m.user.email).split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
                       const isCurrentUser = m.userId === session?.user?.id;
-                      const roleLabel =
-                        m.role === "owner"
-                          ? st.team.owner
-                          : m.role === "admin"
-                            ? st.team.admin
-                            : st.team.member;
                       return (
-                        <div
-                          key={m.id}
-                          className="flex items-center gap-3 py-3"
-                        >
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                            {mInitials}
-                          </div>
+                        <div key={m.id} className="flex items-center gap-3 py-3">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shrink-0">{mInitials}</div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-slate-900 truncate">
                               {m.user.name || m.user.email}
-                              {isCurrentUser && (
-                                <span className="text-xs text-slate-400 ml-1.5 font-normal">
-                                  ({locale === "da" ? "dig" : "you"})
-                                </span>
-                              )}
+                              {isCurrentUser && <span className="text-xs text-slate-400 ml-1.5 font-normal">({locale === "da" ? "dig" : "you"})</span>}
                             </p>
-                            <p className="text-xs text-slate-400 truncate">
-                              {m.user.email}
-                            </p>
+                            <p className="text-xs text-slate-400 truncate">{m.user.email}</p>
                           </div>
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
-                              m.role === "owner"
-                                ? "bg-amber-50 text-amber-700"
-                                : m.role === "admin"
-                                  ? "bg-blue-50 text-blue-700"
-                                  : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {roleLabel}
-                          </span>
-                          {!isCurrentUser && m.role !== "owner" && (
-                            <button
-                              onClick={() => handleRemoveMember(m.id)}
-                              className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer shrink-0"
-                              title={st.team.remove}
+                          {/* Role badge or dropdown */}
+                          {m.role === "owner" ? (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 bg-amber-50 text-amber-700">{st.team.owner}</span>
+                          ) : isOwner && !isCurrentUser ? (
+                            <select
+                              value={m.role}
+                              onChange={(e) => handleRoleChange(m.id, e.target.value)}
+                              disabled={roleChanging === m.id}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 outline-none cursor-pointer appearance-none ${
+                                m.role === "admin" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"
+                              } ${roleChanging === m.id ? "opacity-50" : ""}`}
                             >
-                              <span className="material-symbols-outlined text-lg">
-                                close
-                              </span>
+                              <option value="member">{st.team.member}</option>
+                              <option value="admin">{st.team.admin}</option>
+                            </select>
+                          ) : (
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                              m.role === "admin" ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {m.role === "admin" ? st.team.admin : st.team.member}
+                            </span>
+                          )}
+                          {/* Remove button — owner/admin can remove lower roles */}
+                          {!isCurrentUser && m.role !== "owner" && isAdminOrOwner && (
+                            <button onClick={() => handleRemoveMember(m.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer shrink-0" title={st.team.remove}>
+                              <X className="size-4" />
                             </button>
                           )}
                         </div>
@@ -1897,63 +2048,157 @@ export default function SettingsPage() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400 py-3">
-                    {st.team.noMembers}
-                  </p>
+                  <p className="text-sm text-slate-400 py-3">{st.team.noMembers}</p>
                 )}
               </div>
 
               {/* Pending invitations */}
-              {org.invitations &&
-                org.invitations.filter((i) => i.status === "pending").length >
-                  0 && (
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
-                      {st.team.pendingInvites}
-                    </h3>
-                    <div className="divide-y divide-slate-100">
-                      {org.invitations
-                        .filter((i) => i.status === "pending")
-                        .map((inv) => (
-                          <div
-                            key={inv.id}
-                            className="flex items-center gap-3 py-3"
-                          >
-                            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                              <span className="material-symbols-outlined text-lg">
-                                mail
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-700 truncate">
-                                {inv.email}
-                              </p>
-                              <p className="text-xs text-slate-400">
-                                {inv.role === "admin"
-                                  ? st.team.admin
-                                  : st.team.member}
-                              </p>
-                            </div>
-                            <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0">
-                              {locale === "da" ? "Ventende" : "Pending"}
-                            </span>
-                            <button
-                              onClick={() => handleCancelInvite(inv.id)}
-                              className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer shrink-0"
-                              title={st.team.cancel}
-                            >
-                              <span className="material-symbols-outlined text-lg">
-                                close
-                              </span>
-                            </button>
-                          </div>
-                        ))}
-                    </div>
+              {org.invitations && org.invitations.filter((i) => i.status === "pending").length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">{st.team.pendingInvites}</h3>
+                  <div className="divide-y divide-slate-100">
+                    {org.invitations.filter((i) => i.status === "pending").map((inv) => (
+                      <div key={inv.id} className="flex items-center gap-3 py-3">
+                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                          <span className="material-symbols-outlined text-lg">mail</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 truncate">{inv.email}</p>
+                          <p className="text-xs text-slate-400">{inv.role === "admin" ? st.team.admin : st.team.member}</p>
+                        </div>
+                        <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0">
+                          {locale === "da" ? "Ventende" : "Pending"}
+                        </span>
+                        {isAdminOrOwner && (
+                          <button onClick={() => handleCancelInvite(inv.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1 cursor-pointer shrink-0" title={st.team.cancel}>
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
+
+              {/* Transfer ownership — owner only */}
+              {isOwner && org.members && org.members.filter((m) => m.role !== "owner").length > 0 && (
+                <div className="border-t border-slate-100 pt-5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
+                    {locale === "da" ? "Overf\u00f8r ejerskab" : "Transfer ownership"}
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-3">
+                    {locale === "da"
+                      ? "Overf\u00f8r ejerskab til et andet teammedlem. Du bliver admin."
+                      : "Transfer ownership to another team member. You will become an admin."}
+                  </p>
+                  <select
+                    className="bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm text-slate-900 outline-none appearance-none"
+                    value={transferTarget?.id ?? ""}
+                    onChange={(e) => {
+                      const m = org.members?.find((m) => m.id === e.target.value);
+                      setTransferTarget(m ?? null);
+                    }}
+                  >
+                    <option value="">{locale === "da" ? "V\u00e6lg medlem..." : "Select member..."}</option>
+                    {org.members.filter((m) => m.role !== "owner").map((m) => (
+                      <option key={m.id} value={m.id}>{m.user.name || m.user.email} ({m.role})</option>
+                    ))}
+                  </select>
+                  {transferTarget && !showTransferModal && (
+                    <button onClick={() => setShowTransferModal(true)} className="ml-3 px-4 py-2 bg-amber-50 text-amber-700 font-bold text-xs rounded-lg hover:bg-amber-100 transition-colors cursor-pointer">
+                      {locale === "da" ? "Overf\u00f8r" : "Transfer"}
+                    </button>
+                  )}
+                  {showTransferModal && transferTarget && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-3">
+                      <p className="text-sm text-amber-800 font-semibold mb-1">
+                        {locale === "da" ? "Bekr\u00e6ft overf\u00f8rsel" : "Confirm transfer"}
+                      </p>
+                      <p className="text-xs text-amber-700 mb-3">
+                        {locale === "da"
+                          ? `Overf\u00f8r ejerskab til ${transferTarget.user.name || transferTarget.user.email}? Du bliver admin. Dette kan ikke fortrydes uden den nye ejers medvirken.`
+                          : `Transfer ownership to ${transferTarget.user.name || transferTarget.user.email}? You will become an admin. This cannot be undone without the new owner's cooperation.`}
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={handleTransferOwnership} disabled={transferring} className="px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-full hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-50">
+                          {transferring ? <Loader2 className="size-3 animate-spin inline mr-1" /> : null}
+                          {locale === "da" ? "Bekr\u00e6ft" : "Confirm"}
+                        </button>
+                        <button onClick={() => { setShowTransferModal(false); setTransferTarget(null); }} className="px-4 py-2 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                          {locale === "da" ? "Annuller" : "Cancel"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Leave org — non-owners */}
+              {!isOwner && myRole && (
+                <div className="border-t border-slate-100 pt-5">
+                  <button
+                    onClick={handleLeaveOrg}
+                    disabled={leavingOrg}
+                    className="px-4 py-2 border-2 border-red-200 text-red-500 font-bold text-xs rounded-full hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {leavingOrg ? <Loader2 className="size-3 animate-spin inline mr-1" /> : null}
+                    {locale === "da" ? "Forlad organisation" : "Leave organization"}
+                  </button>
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    {locale === "da"
+                      ? "Du mister adgang til delte team-ressourcer."
+                      : "You will lose access to shared team resources."}
+                  </p>
+                </div>
+              )}
+
+              {/* Delete org — owner only */}
+              {isOwner && (
+                <div className="border-t border-slate-100 pt-5">
+                  <button
+                    onClick={() => setShowDeleteOrgModal(true)}
+                    className="px-4 py-2 border-2 border-red-500 text-red-600 font-bold text-xs rounded-full hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                  >
+                    {locale === "da" ? "Slet organisation" : "Delete organization"}
+                  </button>
+                  {showDeleteOrgModal && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-5 mt-3">
+                      <h3 className="text-sm font-bold text-red-800 mb-1">
+                        {locale === "da" ? "Slet organisation permanent" : "Delete organization permanently"}
+                      </h3>
+                      <p className="text-xs text-red-600 mb-3">
+                        {locale === "da"
+                          ? `Skriv "${org.name}" for at bekr\u00e6fte. Alle team-data vil blive slettet.`
+                          : `Type "${org.name}" to confirm. All team data will be deleted.`}
+                      </p>
+                      <input
+                        className="w-full bg-white border border-red-200 rounded-lg py-2 px-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-red-500/20 mb-3"
+                        placeholder={org.name}
+                        value={deleteOrgConfirmName}
+                        onChange={(e) => setDeleteOrgConfirmName(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDeleteOrg}
+                          disabled={deletingOrg || deleteOrgConfirmName !== org.name}
+                          className="px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-full hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {deletingOrg ? <Loader2 className="size-3 animate-spin inline mr-1" /> : null}
+                          {locale === "da" ? "Slet permanent" : "Delete permanently"}
+                        </button>
+                        <button onClick={() => { setShowDeleteOrgModal(false); setDeleteOrgConfirmName(""); }} className="px-4 py-2 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                          {locale === "da" ? "Annuller" : "Cancel"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
-        </div>}
+        </div>
+        );
+        })()}
 
         {/* ── Notifications ────────────────────────────────────────────── */}
         {activeSection === "notifications" && <div className={cardClass}>

@@ -302,6 +302,36 @@ export const companyNote = pgTable(
   ]
 );
 
+// ─── ORG AUDIT LOG (team management audit trail) ───────────────────────────
+
+export const orgAuditLog = pgTable(
+  "org_audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    // Actions: org_created | org_renamed | org_deleted
+    //          member_invited | invitation_accepted | invitation_declined | invite_revoked
+    //          member_removed | member_left
+    //          role_changed | ownership_transferred
+    //          seat_limit_reached | permission_denied
+    targetUserId: text("target_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("audit_org_idx").on(t.organizationId),
+    index("audit_actor_idx").on(t.actorId),
+    index("audit_created_idx").on(t.createdAt),
+    index("audit_action_idx").on(t.organizationId, t.action),
+  ]
+);
+
 // ─── ENTERPRISE INQUIRY ─────────────────────────────────────────────────────
 
 export const enterpriseInquiry = pgTable("enterprise_inquiry", {
@@ -847,6 +877,11 @@ export const userBrandRelations = relations(userBrand, ({ one }) => ({
 
 export const emailLogRelations = relations(emailLog, ({ one }) => ({
   user: one(user, { fields: [emailLog.userId], references: [user.id] }),
+}));
+
+export const orgAuditLogRelations = relations(orgAuditLog, ({ one }) => ({
+  actor: one(user, { fields: [orgAuditLog.actorId], references: [user.id] }),
+  targetUser: one(user, { fields: [orgAuditLog.targetUserId], references: [user.id] }),
 }));
 
 export const companyBriefingRelations = relations(companyBriefing, ({ one }) => ({

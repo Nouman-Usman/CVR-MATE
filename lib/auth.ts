@@ -107,7 +107,7 @@ export const auth = betterAuth({
           to: invitation.email,
           inviterName: inviter.user.name,
           organizationName: org.name,
-          inviteUrl: `${resolvedBaseURL}/api/auth/organization/accept-invitation/${invitation.id}`,
+          inviteUrl: `${resolvedBaseURL}/invite/${invitation.id}`,
           role: invitation.role,
           expiresAt: invitation.expiresAt.toISOString(),
         });

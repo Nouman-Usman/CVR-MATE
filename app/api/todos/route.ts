@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, asc, desc, count } from "drizzle-orm";
+import { eq, asc, desc, count, or, and, isNull, sql } from "drizzle-orm";
 import { todo, company } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
@@ -8,6 +8,7 @@ import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
+import { validateActiveOrg } from "@/lib/team/permissions";
 
 export async function GET() {
   try {
@@ -16,7 +17,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const key = cacheKey.todos(session.user.id);
+    // Validate active org
+    const activeOrgId = await validateActiveOrg(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+
+    // Cache key includes org context to avoid cross-org leaks
+    const key = activeOrgId
+      ? `${cacheKey.todos(session.user.id)}:org:${activeOrgId}`
+      : cacheKey.todos(session.user.id);
 
     // Check Redis cache first
     const cached = await cacheGet<{ todos: unknown[] }>(key);
@@ -24,8 +34,12 @@ export async function GET() {
       return NextResponse.json(cached);
     }
 
+    // Personal todos (userId = me, no org) + team todos (org = activeOrg)
     const todos = await db.query.todo.findMany({
-      where: eq(todo.userId, session.user.id),
+      where: or(
+        and(eq(todo.userId, session.user.id), isNull(todo.organizationId)),
+        activeOrgId ? eq(todo.organizationId, activeOrgId) : sql`false`
+      ),
       with: { company: true },
       orderBy: [asc(todo.isCompleted), desc(todo.createdAt)],
     });
@@ -50,22 +64,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check task limit
+    // Check task limit (only personal tasks count against quota)
     const [{ value: taskCount }] = await db
       .select({ value: count() })
       .from(todo)
-      .where(eq(todo.userId, session.user.id));
+      .where(and(eq(todo.userId, session.user.id), isNull(todo.organizationId)));
 
     const { allowed, limit } = await checkUsageEntitlement(session.user.id, "tasks", taskCount);
-    if (!allowed) {
+
+    const body = await req.json();
+    const { title, description, priority, companyId, cvr, dueDate, scope } = body;
+
+    // Determine org scope
+    const activeOrgId = await validateActiveOrg(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+    const organizationId = scope === "team" && activeOrgId ? activeOrgId : null;
+
+    // Personal tasks check plan limits; team tasks don't count against personal quota
+    if (!organizationId && !allowed) {
       return NextResponse.json(
         { error: `Task limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
         { status: 403 }
       );
     }
-
-    const body = await req.json();
-    const { title, description, priority, companyId, cvr, dueDate } = body;
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json(
@@ -128,6 +151,7 @@ export async function POST(req: NextRequest) {
       .insert(todo)
       .values({
         userId: session.user.id,
+        organizationId,
         title: title.trim(),
         description: description ?? null,
         priority: priority ?? "medium",
@@ -142,8 +166,11 @@ export async function POST(req: NextRequest) {
       with: { company: true },
     });
 
-    // Invalidate cache
+    // Invalidate cache (both personal and org-scoped)
     await cacheDel(cacheKey.todos(session.user.id));
+    if (activeOrgId) {
+      await cacheDel(`${cacheKey.todos(session.user.id)}:org:${activeOrgId}`);
+    }
 
     return NextResponse.json({ todo: todoWithCompany }, { status: 201 });
   } catch (error) {
