@@ -1219,11 +1219,21 @@ export default function CompanyDetailPage() {
                       founder: cd.founder,
                       director: cd.director,
                       owner: cd.owner,
+                      real_owner: cd.realOwner,
                       accountant: cd.accountant,
                       board_member: cd.boardMember,
                       board: cd.boardMember,
+                      supervisory_board: cd.supervisoryBoard,
+                      daily_management: cd.dailyManagement,
+                      branch_manager: cd.branchManager,
+                      liquidator: cd.liquidator,
+                      fully_responsible_participant: cd.fullyResponsible,
                     };
-                    const roles = Array.isArray(p.roles) ? p.roles : [];
+                    const roles: ParticipantRole[] = Array.isArray(p.roles)
+                      ? p.roles
+                      : p.roles && typeof p.roles === "object" && "type" in (p.roles as Record<string, unknown>)
+                        ? [p.roles as ParticipantRole]
+                        : [];
                     const personLink = p.company && p.vat
                       ? `/company/${p.vat}`
                       : p.participantnumber
@@ -1263,11 +1273,14 @@ export default function CompanyDetailPage() {
                               <div key={ri} className="flex items-center gap-2 flex-wrap">
                                 <span
                                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                    role.type === "owner" ? "bg-amber-50 text-amber-700" :
-                                    role.type === "director" ? "bg-blue-50 text-blue-700" :
+                                    role.type === "owner" || role.type === "real_owner" ? "bg-amber-50 text-amber-700" :
+                                    role.type === "director" || role.type === "daily_management" ? "bg-blue-50 text-blue-700" :
                                     role.type === "founder" ? "bg-violet-50 text-violet-700" :
                                     role.type === "accountant" ? "bg-emerald-50 text-emerald-700" :
-                                    role.type === "board" ? "bg-cyan-50 text-cyan-700" :
+                                    role.type === "board" || role.type === "board_member" || role.type === "supervisory_board" ? "bg-cyan-50 text-cyan-700" :
+                                    role.type === "branch_manager" ? "bg-indigo-50 text-indigo-700" :
+                                    role.type === "liquidator" ? "bg-red-50 text-red-700" :
+                                    role.type === "fully_responsible_participant" ? "bg-orange-50 text-orange-700" :
                                     "bg-slate-50 text-slate-600"
                                   }`}
                                 >

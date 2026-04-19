@@ -98,9 +98,39 @@ export interface CvrCompany {
     purpose: string | null;
   };
   participants?: {
-    participantnumber: number;
-    life: { name: string; profession: string | null };
-    roles: { type: string; life: { title: string } };
+    participantnumber?: number;
+    vat?: number;
+    slug?: string;
+    address?: {
+      street?: string | null;
+      zipcode?: number | null;
+      cityname?: string | null;
+      countrycode?: string | null;
+      freetext?: string | null;
+      unlisted?: boolean;
+    };
+    life: {
+      name: string;
+      profession?: string | null;
+      deceased?: boolean;
+      adprotected?: boolean;
+    };
+    roles: {
+      type: string;
+      life: {
+        start?: string | null;
+        end?: string | null;
+        title?: string | null;
+        election_format?: string | null;
+        owner_capital_classes?: string | null;
+        owner_percent?: number | null;
+        owner_voting_percent?: number | null;
+        special_ownership?: string | null;
+        special_ownership_description?: string | null;
+        substitute_member_for_id?: number | null;
+        substitute_member_for_name?: string | null;
+      };
+    };
   }[];
 }
 
@@ -208,7 +238,11 @@ export interface CvrParticipantRaw {
     profession?: string | null;
     deceased?: boolean;
   };
-  // Participations — all companies this person is involved with (returned by CVR API)
+  // The CVR API returns the participant's company affiliations under the
+  // confusingly-named `roles` field — each entry is a full CvrParticipation
+  // (company info + that person's roles in that company). The `participations`
+  // alias is kept for backward compat in case the API ever exposes it.
+  roles?: CvrParticipation[];
   participations?: CvrParticipation[];
 }
 
@@ -266,6 +300,53 @@ export async function getParticipantByNumber(participantnumber: number): Promise
 export async function getCompanyParticipations(vat: number): Promise<CvrParticipation[]> {
   const company = await getCompanyByVat(vat);
   return ((company as unknown as Record<string, unknown>).participations ?? []) as CvrParticipation[];
+}
+
+/** CVR API may return `roles` as a single object or an array. Normalize to array. */
+export function normalizeRoles(roles: unknown): CvrParticipation["roles"] {
+  if (Array.isArray(roles)) return roles;
+  if (roles && typeof roles === "object" && "type" in (roles as Record<string, unknown>))
+    return [roles as CvrParticipation["roles"][0]];
+  return [];
+}
+
+/**
+ * Given a full company response and a participant number, extract that
+ * participant's roles and build a CvrParticipation entry for this company.
+ *
+ * A person with multiple roles may appear as multiple entries in participants[].
+ * This function merges all entries into a single CvrParticipation with a roles array.
+ */
+export function extractParticipantFromCompany(
+  company: CvrCompany,
+  participantnumber: number
+): CvrParticipation | null {
+  const raw = company as unknown as Record<string, unknown>;
+  const participants = (raw.participants ?? []) as {
+    participantnumber?: number;
+    vat?: number;
+    roles: unknown;
+  }[];
+
+  const matches = participants.filter(
+    (p) => p.participantnumber === participantnumber
+  );
+
+  if (matches.length === 0) return null;
+
+  const mergedRoles: CvrParticipation["roles"] = [];
+  for (const m of matches) {
+    mergedRoles.push(...normalizeRoles(m.roles));
+  }
+
+  return {
+    vat: company.vat,
+    slug: company.slug,
+    companyform: company.companyform,
+    companystatus: company.companystatus,
+    life: company.life,
+    roles: mergedRoles,
+  };
 }
 
 // --- Change Feed ---
