@@ -5,6 +5,31 @@ import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { computeNextRun, buildCronExpression } from "@/lib/cron";
+import {
+  assertCanMutateResource,
+  TeamPermissionError,
+  teamErrorToStatus,
+} from "@/lib/team/permissions";
+
+/**
+ * Find a trigger by ID that the user can see:
+ * - Personal trigger they own, OR
+ * - Team trigger in any org they belong to
+ */
+async function findAccessibleTrigger(id: string, userId: string) {
+  const trigger = await db.query.leadTrigger.findFirst({
+    where: eq(leadTrigger.id, id),
+  });
+  if (!trigger) return null;
+
+  // Personal trigger — must be the owner
+  if (!trigger.organizationId) {
+    return trigger.userId === userId ? trigger : null;
+  }
+
+  // Team trigger — assertCanMutateResource will check membership + role
+  return trigger;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -19,15 +44,22 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
 
-    const existing = await db.query.leadTrigger.findFirst({
-      where: and(
-        eq(leadTrigger.id, id),
-        eq(leadTrigger.userId, session.user.id)
-      ),
-    });
-
+    const existing = await findAccessibleTrigger(id, session.user.id);
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Resource-level auth: member can only edit own; admin/owner can edit any
+    try {
+      await assertCanMutateResource(session.user.id, {
+        userId: existing.userId,
+        organizationId: existing.organizationId,
+      });
+    } catch (err) {
+      if (err instanceof TeamPermissionError) {
+        return NextResponse.json({ error: err.message }, { status: teamErrorToStatus(err) });
+      }
+      throw err;
     }
 
     const updates: Record<string, unknown> = {};
@@ -73,9 +105,7 @@ export async function PATCH(
     const [updated] = await db
       .update(leadTrigger)
       .set(updates)
-      .where(
-        and(eq(leadTrigger.id, id), eq(leadTrigger.userId, session.user.id))
-      )
+      .where(eq(leadTrigger.id, id))
       .returning();
 
     return NextResponse.json({ trigger: updated });
@@ -100,22 +130,25 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const existing = await db.query.leadTrigger.findFirst({
-      where: and(
-        eq(leadTrigger.id, id),
-        eq(leadTrigger.userId, session.user.id)
-      ),
-    });
-
+    const existing = await findAccessibleTrigger(id, session.user.id);
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    await db
-      .delete(leadTrigger)
-      .where(
-        and(eq(leadTrigger.id, id), eq(leadTrigger.userId, session.user.id))
-      );
+    // Resource-level auth
+    try {
+      await assertCanMutateResource(session.user.id, {
+        userId: existing.userId,
+        organizationId: existing.organizationId,
+      });
+    } catch (err) {
+      if (err instanceof TeamPermissionError) {
+        return NextResponse.json({ error: err.message }, { status: teamErrorToStatus(err) });
+      }
+      throw err;
+    }
+
+    await db.delete(leadTrigger).where(eq(leadTrigger.id, id));
 
     return NextResponse.json({ success: true });
   } catch (error) {

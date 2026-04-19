@@ -79,7 +79,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/onboarding");
+      router.push(`/verify-email?state=pending&email=${encodeURIComponent(email)}`);
     } catch {
       setError(
         locale === "da"
@@ -343,12 +343,13 @@ export default function SignupPage() {
             </Button>
 
             {/* Divider */}
-            <div className="relative flex items-center py-3 sm:py-4">
-              <Separator className="flex-grow" />
-              <span className="flex-shrink mx-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                {a.or}
-              </span>
-              <Separator className="flex-grow" />
+            <div className="relative py-3 sm:py-4">
+              <Separator />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="bg-background px-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  {a.or}
+                </span>
+              </div>
             </div>
 
             {/* Google */}

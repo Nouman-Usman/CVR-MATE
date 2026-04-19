@@ -3,8 +3,10 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { subscription } from "@/db/schema";
+import { member } from "@/db/auth-schema";
+import { notification } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { priceToPlan } from "@/lib/stripe/plans";
+import { priceToPlan, PLAN_LIMITS } from "@/lib/stripe/plans";
 
 export const runtime = "nodejs";
 
@@ -77,6 +79,37 @@ function subscriptionDataFromStripe(stripeSub: Stripe.Subscription) {
     cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
     // pendingPlanChange is deprecated (cancel-first flow has no inline plan swaps)
   };
+}
+
+/**
+ * Check if a user is being downgraded from a plan that allowed teams to one that
+ * doesn't. If they own organizations, send a warning notification. The org is NOT
+ * auto-deleted — the user must act (dissolve team or re-upgrade).
+ */
+async function checkTeamDowngrade(userId: string, newPlan: string) {
+  const newLimits = PLAN_LIMITS[newPlan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
+  if (newLimits.teamFeatures) return; // Still has team features — nothing to do
+
+  // Check if user owns any orgs
+  const ownedOrgs = await db.query.member.findMany({
+    where: eq(member.userId, userId),
+  });
+  const ownerOrgs = ownedOrgs.filter((m) => m.role === "owner");
+  if (ownerOrgs.length === 0) return;
+
+  // User owns orgs but is losing team features — send warning notification
+  await db.insert(notification).values({
+    userId,
+    type: "system",
+    title: "Team features downgraded",
+    message:
+      "Your plan no longer includes team features. Your organization is still active, " +
+      "but new invitations are blocked. Upgrade to Enterprise or dissolve your team in Settings.",
+    priority: "high",
+    link: "/settings?tab=team",
+  });
+
+  console.log(`[Stripe Webhook] User ${userId} downgraded with ${ownerOrgs.length} org(s) — warning sent`);
 }
 
 /**
@@ -245,6 +278,11 @@ async function handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
     .where(eq(subscription.id, existing.id));
 
   console.log(`[Stripe Webhook] Subscription ${stripeSub.id} updated: plan=${data.plan}, status=${data.status}`);
+
+  // Check for team downgrade (async, non-blocking)
+  checkTeamDowngrade(existing.userId, data.plan).catch((err) =>
+    console.error("[Stripe Webhook] Team downgrade check failed:", err)
+  );
 }
 
 async function handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
@@ -267,6 +305,11 @@ async function handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
     .where(eq(subscription.id, existing.id));
 
   console.log(`[Stripe Webhook] Subscription ${stripeSub.id} deleted, user downgraded to free`);
+
+  // Check for team downgrade
+  checkTeamDowngrade(existing.userId, "free").catch((err) =>
+    console.error("[Stripe Webhook] Team downgrade check failed:", err)
+  );
 }
 
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {

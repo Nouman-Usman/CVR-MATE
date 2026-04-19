@@ -6,6 +6,7 @@ import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
 import { verifyQStashRequest } from "@/lib/qstash";
+import { dispatchNotificationEmail } from "@/lib/email/dispatch";
 
 // Cron endpoint: processes all active triggers that are due.
 // Secured via QStash signature (production) or CRON_SECRET Bearer token (local/manual).
@@ -107,21 +108,47 @@ async function processTriggers() {
           .set({ lastRunAt: now, nextRunAt: nextRun })
           .where(eq(leadTrigger.id, trigger.id));
 
-        // Send notification
+        // Dispatch notifications according to the trigger's notificationChannels setting.
+        // Each channel is opt-in: ["in_app"] | ["email"] | ["in_app", "email"]
         if (unique.length > 0) {
-          await createNotification({
-            userId: trigger.userId,
-            type: "trigger",
-            title: `${trigger.name}: ${unique.length} matches`,
-            message:
-              unique
-                .slice(0, 3)
-                .map((c) => c.life?.name ?? "")
-                .filter(Boolean)
-                .join(", ") +
-              (unique.length > 3 ? ` +${unique.length - 3} more` : ""),
-            link: `/triggers`,
-          });
+          const channels = (trigger.notificationChannels ?? ["in_app"]) as string[];
+
+          if (channels.includes("in_app")) {
+            await createNotification({
+              userId: trigger.userId,
+              type: "trigger",
+              title: `${trigger.name}: ${unique.length} matches`,
+              message:
+                unique
+                  .slice(0, 3)
+                  .map((c) => c.life?.name ?? "")
+                  .filter(Boolean)
+                  .join(", ") +
+                (unique.length > 3 ? ` +${unique.length - 3} more` : ""),
+              link: `/triggers`,
+            });
+          }
+
+          if (channels.includes("email")) {
+            // Queue async — don't block the cron response if email fails
+            dispatchNotificationEmail({
+              templateId: "daily_lead_update",
+              userId: trigger.userId,
+              data: {
+                triggerName: trigger.name,
+                triggerId: trigger.id,
+                matchCount: unique.length,
+                companies: companySummaries.map((c) => ({
+                  vat: String(c.vat),
+                  name: c.name,
+                  city: c.city,
+                  industry: c.industry,
+                })),
+              },
+            }).catch((err) =>
+              console.error(`[email] Failed to queue for trigger ${trigger.id}:`, err)
+            );
+          }
         }
 
         results.push({ triggerId: trigger.id, matchCount: unique.length });

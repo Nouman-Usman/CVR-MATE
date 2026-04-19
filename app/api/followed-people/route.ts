@@ -12,6 +12,7 @@ import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
 import {
   getCompanyByVat,
   getParticipantByNumber,
+  normalizeRoles,
   type CvrParticipation,
 } from "@/lib/cvr-api";
 
@@ -207,49 +208,56 @@ async function backfillPersonData(
 
   let companies: CvrParticipation[] = [];
 
-  // Get companies from the originating company (if provided)
-  if (fromVat && /^\d{8}$/.test(fromVat)) {
+  // Primary source: participant endpoint returns ALL companies in `roles[]`
+  // (each entry is a CvrParticipation: company info + that person's roles).
+  try {
+    const participantRaw = await getParticipantByNumber(Number(participantNumber));
+    const sourceList: CvrParticipation[] | undefined =
+      (Array.isArray(participantRaw.roles) && participantRaw.roles.length > 0
+        ? participantRaw.roles
+        : undefined) ??
+      (Array.isArray(participantRaw.participations) &&
+      participantRaw.participations.length > 0
+        ? participantRaw.participations
+        : undefined);
+    if (sourceList) {
+      companies = sourceList.map((p) => ({
+        ...p,
+        roles: normalizeRoles(p.roles),
+      }));
+    }
+  } catch (err) {
+    console.error("Backfill: failed to fetch participant", participantNumber, err);
+  }
+
+  // Fallback: if the participant endpoint didn't return company data,
+  // extract from the originating company's participants[] array.
+  if (companies.length === 0 && fromVat && /^\d{8}$/.test(fromVat)) {
     try {
       const companyData = await getCompanyByVat(Number(fromVat));
       const raw = companyData as unknown as Record<string, unknown>;
-      const participations = (raw.participations ?? []) as CvrParticipation[];
-      if (participations.length > 0) {
-        companies = participations;
-      }
-
-      // Also add the originating company if this participant has roles there
       const participants = (raw.participants ?? []) as {
         participantnumber?: number;
-        roles: CvrParticipation["roles"];
+        roles: unknown;
       }[];
-      const thisParticipant = participants.find(
+      const matches = participants.filter(
         (p) => p.participantnumber === Number(participantNumber)
       );
-      if (thisParticipant) {
-        const alreadyIncluded = companies.some(
-          (c) => c.vat === Number(fromVat)
-        );
-        if (!alreadyIncluded) {
-          companies.unshift({
-            vat: companyData.vat,
-            slug: companyData.slug,
-            companyform: companyData.companyform,
-            companystatus: companyData.companystatus,
-            life: companyData.life,
-            roles: thisParticipant.roles,
-          });
-        }
+      if (matches.length > 0) {
+        const mergedRoles: CvrParticipation["roles"] = [];
+        for (const m of matches) mergedRoles.push(...normalizeRoles(m.roles));
+        companies.push({
+          vat: companyData.vat,
+          slug: companyData.slug,
+          companyform: companyData.companyform,
+          companystatus: companyData.companystatus,
+          life: companyData.life,
+          roles: mergedRoles,
+        });
       }
     } catch (err) {
       console.error("Backfill: failed to fetch originating company", fromVat, err);
     }
-  }
-
-  // Also try participant endpoint directly for basic info
-  try {
-    await getParticipantByNumber(Number(participantNumber));
-  } catch {
-    // Non-critical — we just want to warm the cache
   }
 
   if (companies.length === 0) return;

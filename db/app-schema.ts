@@ -302,6 +302,36 @@ export const companyNote = pgTable(
   ]
 );
 
+// ─── ORG AUDIT LOG (team management audit trail) ───────────────────────────
+
+export const orgAuditLog = pgTable(
+  "org_audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    // Actions: org_created | org_renamed | org_deleted
+    //          member_invited | invitation_accepted | invitation_declined | invite_revoked
+    //          member_removed | member_left
+    //          role_changed | ownership_transferred
+    //          seat_limit_reached | permission_denied
+    targetUserId: text("target_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("audit_org_idx").on(t.organizationId),
+    index("audit_actor_idx").on(t.actorId),
+    index("audit_created_idx").on(t.createdAt),
+    index("audit_action_idx").on(t.organizationId, t.action),
+  ]
+);
+
 // ─── ENTERPRISE INQUIRY ─────────────────────────────────────────────────────
 
 export const enterpriseInquiry = pgTable("enterprise_inquiry", {
@@ -334,6 +364,10 @@ export const userBrand = pgTable(
     targetAudience: text("target_audience"),
     tone: text("tone").default("formal").notNull(),
     preferredEmailClient: text("preferred_email_client").default("default").notNull(), // 'default' | 'gmail' | 'outlook'
+    emailNotificationsEnabled: boolean("email_notifications_enabled").default(true).notNull(),
+    dailyLeadEmails: boolean("daily_lead_emails").default(true).notNull(),
+    weeklySummaryEmails: boolean("weekly_summary_emails").default(true).notNull(),
+    emailNotificationHour: integer("email_notification_hour").default(8).notNull(), // 0–23
     aiEnrichment: jsonb("ai_enrichment"), // BrandAiEnrichment | null
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -343,6 +377,36 @@ export const userBrand = pgTable(
   },
   (table) => [
     uniqueIndex("user_brand_user_idx").on(table.userId),
+  ]
+);
+
+// ─── EMAIL LOG (outbound email audit trail) ──────────────────────────────────
+
+export const emailLog = pgTable(
+  "email_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    to: text("to").notNull(),
+    subject: text("subject").notNull(),
+    templateId: text("template_id"), // EmailTemplateId
+    provider: text("provider"), // 'sendgrid' | 'gmail' | null on failure
+    messageId: text("message_id"), // provider's message ID (used by SendGrid webhook)
+    status: text("status").default("sent").notNull(), // 'sent' | 'failed'
+    deliveryStatus: text("delivery_status"), // updated by SendGrid webhook: 'delivered' | 'bounced' | 'dropped' | 'opened' | 'clicked'
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
+    error: text("error"),
+    metadata: jsonb("metadata").default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("email_log_user_idx").on(t.userId),
+    index("email_log_message_id_idx").on(t.messageId),
+    index("email_log_status_idx").on(t.status),
+    index("email_log_created_idx").on(t.createdAt),
+    index("email_log_template_idx").on(t.templateId),
   ]
 );
 
@@ -811,6 +875,15 @@ export const userBrandRelations = relations(userBrand, ({ one }) => ({
   user: one(user, { fields: [userBrand.userId], references: [user.id] }),
 }));
 
+export const emailLogRelations = relations(emailLog, ({ one }) => ({
+  user: one(user, { fields: [emailLog.userId], references: [user.id] }),
+}));
+
+export const orgAuditLogRelations = relations(orgAuditLog, ({ one }) => ({
+  actor: one(user, { fields: [orgAuditLog.actorId], references: [user.id] }),
+  targetUser: one(user, { fields: [orgAuditLog.targetUserId], references: [user.id] }),
+}));
+
 export const companyBriefingRelations = relations(companyBriefing, ({ one }) => ({
   user: one(user, { fields: [companyBriefing.userId], references: [user.id] }),
 }));
@@ -881,4 +954,5 @@ export const userRelations = relations(user, ({ many, one }) => ({
   activities: many(activity),
   usageRecords: many(usageRecord),
   followedPeople: many(followedPerson),
+  emailLogs: many(emailLog),
 }));

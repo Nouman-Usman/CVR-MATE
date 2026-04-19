@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getParticipantByNumber,
   getCompanyByVat,
+  extractParticipantFromCompany,
+  normalizeRoles,
   type CvrParticipant,
   type CvrParticipation,
 } from "@/lib/cvr-api";
@@ -9,7 +11,7 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const id = req.nextUrl.searchParams.get("id");
-    const fromVat = req.nextUrl.searchParams.get("fromVat"); // originating company
+    const fromVat = req.nextUrl.searchParams.get("fromVat");
 
     if (!id || !/^\d+$/.test(id)) {
       return NextResponse.json(
@@ -18,50 +20,48 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 1. Fetch participant data from CVR API — may include participations[]
-    const participantRaw = await getParticipantByNumber(Number(id));
+    const participantNumber = Number(id);
 
-    // 2. Extract participations directly from the participant response (source of truth)
-    let companies: CvrParticipation[] = participantRaw.participations ?? [];
+    // 1. Fetch participant data from CVR API
+    //    Despite the official docs only documenting personal info, the API
+    //    actually returns the participant's full list of company affiliations
+    //    in the `roles` field (each entry is a CvrParticipation). The
+    //    `participations` alias is checked as a future-proof fallback.
+    const participantRaw = await getParticipantByNumber(participantNumber);
 
-    // 3. If participant endpoint didn't return participations, fall back to originating company
+    let companies: CvrParticipation[] = [];
+
+    const sourceList: CvrParticipation[] | undefined =
+      (Array.isArray(participantRaw.roles) && participantRaw.roles.length > 0
+        ? participantRaw.roles
+        : undefined) ??
+      (Array.isArray(participantRaw.participations) &&
+      participantRaw.participations.length > 0
+        ? participantRaw.participations
+        : undefined);
+
+    if (sourceList) {
+      companies = sourceList.map((p) => ({
+        ...p,
+        roles: normalizeRoles(p.roles),
+      }));
+    }
+
+    // 2. Fallback: if the participant endpoint didn't return company data,
+    //    extract from the originating company's participants[] array.
+    //    This only yields the originating company, but it's better than nothing.
     if (companies.length === 0 && fromVat && /^\d{8}$/.test(fromVat)) {
       const company = await getCompanyByVat(Number(fromVat));
-      const raw = company as unknown as Record<string, unknown>;
-
-      const participations = (raw.participations ?? []) as CvrParticipation[];
-      if (participations.length > 0) {
-        companies = participations;
-      }
-
-      // Also add the originating company itself with this participant's roles
-      const participants = (raw.participants ?? []) as {
-        participantnumber?: number;
-        vat?: number;
-        roles: CvrParticipation["roles"];
-      }[];
-      const thisParticipant = participants.find(
-        (p) => p.participantnumber === Number(id)
+      const companyEntry = extractParticipantFromCompany(
+        company,
+        participantNumber
       );
-
-      if (thisParticipant) {
-        const alreadyIncluded = companies.some(
-          (c) => c.vat === Number(fromVat)
-        );
-        if (!alreadyIncluded) {
-          companies.unshift({
-            vat: company.vat,
-            slug: company.slug,
-            companyform: company.companyform,
-            companystatus: company.companystatus,
-            life: company.life,
-            roles: thisParticipant.roles,
-          });
-        }
+      if (companyEntry) {
+        companies.push(companyEntry);
       }
     }
 
-    // 4. Deduplicate companies by VAT (participant endpoint + originating company may overlap)
+    // 3. Deduplicate by VAT
     const seen = new Set<number>();
     companies = companies.filter((c) => {
       if (seen.has(c.vat)) return false;

@@ -7,6 +7,8 @@ import { headers } from "next/headers";
 import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
+import { dispatchNotificationEmail } from "@/lib/email/dispatch";
+import { getOrgMembership } from "@/lib/team/permissions";
 
 // Maps trigger filter keys to CVR API search params
 function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
@@ -46,15 +48,22 @@ export async function POST(
 
     const { id } = await params;
 
-    // Fetch the trigger
+    // Fetch the trigger — allow personal triggers (owner) or team triggers (org member)
     const trigger = await db.query.leadTrigger.findFirst({
-      where: and(
-        eq(leadTrigger.id, id),
-        eq(leadTrigger.userId, session.user.id)
-      ),
+      where: eq(leadTrigger.id, id),
     });
 
     if (!trigger) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Access check: personal trigger requires ownership; team trigger requires membership
+    if (trigger.organizationId) {
+      const membership = await getOrgMembership(session.user.id, trigger.organizationId);
+      if (!membership) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+    } else if (trigger.userId !== session.user.id) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -113,16 +122,45 @@ export async function POST(
       .set({ lastRunAt: new Date(), nextRunAt: nextRun })
       .where(eq(leadTrigger.id, id));
 
-    // Create a real-time notification (pushed via SSE)
+    // Dispatch notifications according to the trigger's notificationChannels setting
     if (unique.length > 0) {
-      await createNotification({
-        userId: session.user.id,
-        type: "trigger",
-        title: `${trigger.name}: ${unique.length} matches`,
-        message: unique.slice(0, 3).map((c) => c.life?.name ?? "").filter(Boolean).join(", ") +
-          (unique.length > 3 ? ` +${unique.length - 3} more` : ""),
-        link: `/triggers`,
-      });
+      const channels = (trigger.notificationChannels ?? ["in_app"]) as string[];
+
+      if (channels.includes("in_app")) {
+        await createNotification({
+          userId: session.user.id,
+          type: "trigger",
+          title: `${trigger.name}: ${unique.length} matches`,
+          message:
+            unique
+              .slice(0, 3)
+              .map((c) => c.life?.name ?? "")
+              .filter(Boolean)
+              .join(", ") +
+            (unique.length > 3 ? ` +${unique.length - 3} more` : ""),
+          link: `/triggers`,
+        });
+      }
+
+      if (channels.includes("email")) {
+        dispatchNotificationEmail({
+          templateId: "daily_lead_update",
+          userId: session.user.id,
+          data: {
+            triggerName: trigger.name,
+            triggerId: trigger.id,
+            matchCount: unique.length,
+            companies: companySummaries.map((c) => ({
+              vat: String(c.vat),
+              name: c.name,
+              city: c.city,
+              industry: c.industry,
+            })),
+          },
+        }).catch((err) =>
+          console.error(`[email] Failed to queue for trigger ${trigger.id}:`, err)
+        );
+      }
     }
 
     return NextResponse.json({
