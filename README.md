@@ -42,7 +42,7 @@ CVR-MATE combines CVR data access, lead monitoring, notifications, and AI toolin
 
 ### Product Experience
 - Landing page with 3D hero/animation stack
-- Danish/English custom i18n context
+- Custom Danish/English i18n context
 
 ## Tech Stack
 
@@ -232,7 +232,7 @@ This repo uses Drizzle with PostgreSQL (`drizzle.config.ts`, `db/schema.ts`).
 - Real-time stream endpoint: `/api/notifications/stream`
 - Uses Server-Sent Events with heartbeat keepalive
 - Current fan-out is in-process (`lib/notifications.ts`) and works for single-instance deployments
-- If you scale to multiple app instances, move fan-out to shared pub/sub (e.g., Redis pub/sub)
+- Known limitation: in horizontally scaled multi-instance deployments, move fan-out to shared pub/sub (e.g., Redis pub/sub)
 
 ## AI Features (Gemini)
 
