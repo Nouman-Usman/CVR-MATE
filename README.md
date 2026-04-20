@@ -1,6 +1,6 @@
 # CVR-MATE
 
-CVR-MATE is an automated B2B lead intelligence platform for Danish companies.  
+CVR-MATE is an automated B2B lead intelligence platform for Danish companies.
 It helps teams search, track, and manage company data from the Danish CVR registry, with AI-assisted workflows for research and outreach.
 
 ## Overview
@@ -142,7 +142,7 @@ App runs at `http://localhost:3000`.
 
 Copy `.env.example` to `.env.local` and fill in values.
 
-> ⚠️ Do not commit secrets.  
+> ⚠️ Do not commit secrets.
 
 ### Core
 
