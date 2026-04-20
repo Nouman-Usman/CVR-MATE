@@ -264,10 +264,6 @@ pnpm db:push
 pnpm db:studio
 ```
 
-Notes:
-- No dedicated `test` script is currently defined.
-- No dedicated `format` script is currently defined.
-
 ## Billing (Stripe) Local Webhook
 
 Stripe is actively used in this repository (`app/api/stripe/*`, `lib/stripe/*`).
