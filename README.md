@@ -143,7 +143,6 @@ App runs at `http://localhost:3000`.
 Copy `.env.example` to `.env.local` and fill in values.
 
 > ⚠️ Do not commit secrets.  
-> TODO: add team-specific production values/documentation if your deployment differs.
 
 ### Core
 
