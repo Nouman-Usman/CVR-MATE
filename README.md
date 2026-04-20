@@ -231,8 +231,8 @@ This repo uses Drizzle with PostgreSQL (`drizzle.config.ts`, `db/schema.ts`).
 
 - Real-time stream endpoint: `/api/notifications/stream`
 - Uses Server-Sent Events with heartbeat keepalive
-- Current fan-out is in-process (`lib/notifications.ts`)
-  - For multi-instance deployments, move fan-out to shared pub/sub (e.g., Redis pub/sub)
+- Current fan-out is in-process (`lib/notifications.ts`) and works for single-instance deployments
+- If you scale to multiple app instances, move fan-out to shared pub/sub (e.g., Redis pub/sub)
 
 ## AI Features (Gemini)
 
