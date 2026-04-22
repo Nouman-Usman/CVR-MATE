@@ -9,6 +9,7 @@ import crypto from "crypto";
 import {
   assertPermission,
   assertSeatAvailable,
+  assertOrgPlanActive,
   TeamPermissionError,
   teamErrorToStatus,
 } from "@/lib/team/permissions";
@@ -31,6 +32,16 @@ export async function POST(req: NextRequest) {
   if (!organizationId) return badRequest("Organization ID is required");
 
   const memberRole = role === "admin" ? "admin" : "member";
+
+  // Plan check — inviting requires an active Enterprise subscription
+  try {
+    await assertOrgPlanActive(organizationId);
+  } catch (err) {
+    if (err instanceof TeamPermissionError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 402 });
+    }
+    throw err;
+  }
 
   // RBAC check — only owner/admin can invite
   try {

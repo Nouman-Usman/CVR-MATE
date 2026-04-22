@@ -4,7 +4,7 @@ import { render, toPlainText } from "@react-email/render";
 import type { ReactElement } from "react";
 import { db } from "@/db";
 import { emailLog } from "@/db/schema";
-import { createSendGridProvider } from "./providers/sendgrid";
+import { createResendProvider } from "./providers/resend";
 import { createGmailProvider } from "./providers/gmail";
 import type { EmailProvider, SendEmailOptions, SendEmailResult } from "./types";
 
@@ -31,9 +31,19 @@ async function writeEmailLog(
   }
 }
 
+/** True when at least one Gmail credential is configured. */
+function isGmailConfigured(): boolean {
+  return !!(
+    process.env.SMTP_USER ||
+    process.env.GMAIL_USER ||
+    process.env.GMAIL_OAUTH2_CLIENT_ID
+  );
+}
+
 /**
- * Send a transactional email with automatic SendGrid → Gmail fallback.
- * All sends (success and failure) are logged to the email_log table.
+ * Send a transactional email.
+ * Tries Resend first; falls back to Gmail (nodemailer) if Resend fails or is
+ * not configured. Both attempts are logged to the email_log table.
  *
  * @param template  A React Email component instance (e.g. <VerificationEmail ... />)
  * @param opts      Recipient, subject, templateId for logging
@@ -46,35 +56,35 @@ export async function sendEmail(
   const text = toPlainText(html);
   const fullOpts: SendEmailOptions = { ...opts, html, text };
 
-  let result: SendEmailResult | null = null;
-  let lastError: unknown;
-
-  // 1. Try SendGrid (primary)
-  if (process.env.SENDGRID_API_KEY) {
+  // ── Primary: Resend ────────────────────────────────────────────────────────
+  if (process.env.RESEND_API_KEY) {
     try {
-      result = await createSendGridProvider().send(fullOpts);
+      const result = await createResendProvider().send(fullOpts);
+      await writeEmailLog(fullOpts, result.provider, result.messageId, "sent", null);
+      return result;
     } catch (err) {
-      lastError = err;
-      console.error("[email] SendGrid failed, falling back to Gmail:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[email] Resend failed, falling back to Gmail: ${errMsg}`);
+      await writeEmailLog(fullOpts, "resend", null, "failed", errMsg);
+      // fall through to Gmail
     }
   }
 
-  // 2. Fall back to Gmail/SMTP
-  if (!result && (process.env.SMTP_USER || process.env.GMAIL_OAUTH2_CLIENT_ID)) {
+  // ── Fallback: Gmail / SMTP ─────────────────────────────────────────────────
+  if (isGmailConfigured()) {
     try {
-      result = await createGmailProvider().send(fullOpts);
+      const result = await createGmailProvider().send(fullOpts);
+      await writeEmailLog(fullOpts, result.provider, result.messageId, "sent", null);
+      return result;
     } catch (err) {
-      lastError = err;
-      console.error("[email] Gmail fallback also failed:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      await writeEmailLog(fullOpts, "gmail", null, "failed", errMsg);
+      throw new Error(`[email] All providers failed. Gmail error: ${errMsg}`);
     }
   }
 
-  if (!result) {
-    const errMsg = String(lastError ?? "No email provider configured");
-    await writeEmailLog(fullOpts, null, null, "failed", errMsg);
-    throw new Error(`[email] All providers failed. Last error: ${errMsg}`);
-  }
-
-  await writeEmailLog(fullOpts, result.provider, result.messageId, "sent", null);
-  return result;
+  // ── No provider configured ─────────────────────────────────────────────────
+  const noProviderMsg = "No email provider configured. Set RESEND_API_KEY or Gmail credentials.";
+  await writeEmailLog(fullOpts, null, null, "failed", noProviderMsg);
+  throw new Error(`[email] ${noProviderMsg}`);
 }

@@ -1,4 +1,4 @@
-export type EmailProvider = "sendgrid" | "gmail";
+export type EmailProvider = "resend" | "gmail";
 
 export type EmailTemplateId =
   | "email_verification"
@@ -51,22 +51,28 @@ export interface WeeklySummaryData {
   savedCompaniesCount: number;
 }
 
-// ─── SendGrid webhook event (subset we handle) ────────────────────────────
+// ─── Resend webhook event (subset we handle) ──────────────────────────────
 
-export interface SendGridWebhookEvent {
-  email: string;
-  timestamp: number;
-  event:
-    | "delivered"
-    | "bounce"
-    | "dropped"
-    | "deferred"
-    | "open"
-    | "click"
-    | "unsubscribe"
-    | "spamreport";
-  sg_message_id?: string;
-  reason?: string;
-  status?: string;
-  url?: string;
+export type ResendWebhookEventType =
+  | "email.sent"
+  | "email.delivered"
+  | "email.delivery_delayed"
+  | "email.complained"
+  | "email.bounced"
+  | "email.opened"
+  | "email.clicked";
+
+export interface ResendWebhookEvent {
+  type: ResendWebhookEventType;
+  created_at: string;
+  data: {
+    email_id: string;
+    from: string;
+    to: string[];
+    subject: string;
+    // bounce-specific
+    bounce?: { message?: string };
+    // click-specific
+    click?: { link?: string };
+  };
 }

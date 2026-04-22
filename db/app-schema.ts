@@ -390,10 +390,10 @@ export const emailLog = pgTable(
     to: text("to").notNull(),
     subject: text("subject").notNull(),
     templateId: text("template_id"), // EmailTemplateId
-    provider: text("provider"), // 'sendgrid' | 'gmail' | null on failure
-    messageId: text("message_id"), // provider's message ID (used by SendGrid webhook)
+    provider: text("provider"), // 'resend' | null on failure
+    messageId: text("message_id"), // Resend email ID (used by webhook to correlate events)
     status: text("status").default("sent").notNull(), // 'sent' | 'failed'
-    deliveryStatus: text("delivery_status"), // updated by SendGrid webhook: 'delivered' | 'bounced' | 'dropped' | 'opened' | 'clicked'
+    deliveryStatus: text("delivery_status"), // updated by Resend webhook: 'delivered' | 'bounced' | 'deferred' | 'opened' | 'clicked' | 'spam'
     bouncedAt: timestamp("bounced_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }),
     clickedAt: timestamp("clicked_at", { withTimezone: true }),
