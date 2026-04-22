@@ -10,6 +10,8 @@ import { getCompanyByVat } from "@/lib/cvr-api";
 import {
   assertCanMutateResource,
   validateActiveOrg,
+  getOrgMembership,
+  assertOrgPlanActive,
   TeamPermissionError,
   teamErrorToStatus,
 } from "@/lib/team/permissions";
@@ -63,7 +65,7 @@ export async function PATCH(
       throw err;
     }
 
-    const { title, description, isCompleted, priority, companyId, cvr, dueDate } =
+    const { title, description, isCompleted, priority, companyId, cvr, dueDate, assignedUserId } =
       body;
 
     const updateData: Record<string, unknown> = {};
@@ -72,6 +74,40 @@ export async function PATCH(
     if (isCompleted !== undefined) updateData.isCompleted = isCompleted;
     if (priority !== undefined) updateData.priority = priority;
     if (dueDate !== undefined) updateData.dueDate = dueDate;
+
+    // Validate assignment change: Enterprise gate for team task assignment
+    if (assignedUserId !== undefined) {
+      // Enterprise plan required for team task assignment
+      if (existing.organizationId) {
+        try {
+          await assertOrgPlanActive(existing.organizationId);
+        } catch (err) {
+          if (err instanceof TeamPermissionError) {
+            return NextResponse.json({ error: err.message }, { status: teamErrorToStatus(err) });
+          }
+          throw err;
+        }
+      }
+
+      // Role gate for assigning to other members
+      if (assignedUserId && assignedUserId !== session.user.id) {
+        // Assigning to someone else — requires admin/owner role
+        if (!existing.organizationId) {
+          return NextResponse.json(
+            { error: "Cannot assign personal tasks to other members" },
+            { status: 403 }
+          );
+        }
+        const membership = await getOrgMembership(session.user.id, existing.organizationId);
+        if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+          return NextResponse.json(
+            { error: "Only admins and owners can assign tasks to other members" },
+            { status: 403 }
+          );
+        }
+      }
+      updateData.assignedUserId = assignedUserId ?? null;
+    }
 
     // Resolve company: direct companyId takes priority, then CVR lookup
     if (companyId !== undefined) {
@@ -140,10 +176,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
-    // Re-fetch with company relation
+    // Re-fetch with company and assignedUser relations
     const todoWithCompany = await db.query.todo.findFirst({
       where: eq(todo.id, updated.id),
-      with: { company: true },
+      with: {
+        company: true,
+        assignedUser: { columns: { id: true, name: true, image: true } },
+      },
     });
 
     // Invalidate cache

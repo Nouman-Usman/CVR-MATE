@@ -8,7 +8,7 @@ import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
-import { validateActiveOrg } from "@/lib/team/permissions";
+import { validateActiveOrg, getOrgMembership } from "@/lib/team/permissions";
 
 export async function GET() {
   try {
@@ -40,7 +40,10 @@ export async function GET() {
         and(eq(todo.userId, session.user.id), isNull(todo.organizationId)),
         activeOrgId ? eq(todo.organizationId, activeOrgId) : sql`false`
       ),
-      with: { company: true },
+      with: {
+        company: true,
+        assignedUser: { columns: { id: true, name: true, image: true } },
+      },
       orderBy: [asc(todo.isCompleted), desc(todo.createdAt)],
     });
 
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
     const { allowed, limit } = await checkUsageEntitlement(session.user.id, "tasks", taskCount);
 
     const body = await req.json();
-    const { title, description, priority, companyId, cvr, dueDate, scope } = body;
+    const { title, description, priority, companyId, cvr, dueDate, scope, assignedUserId } = body;
 
     // Determine org scope
     const activeOrgId = await validateActiveOrg(
@@ -81,6 +84,28 @@ export async function POST(req: NextRequest) {
       session.session?.activeOrganizationId
     );
     const organizationId = scope === "team" && activeOrgId ? activeOrgId : null;
+
+    // Validate assignment: only admin/owner can assign to other members
+    let resolvedAssignedUserId: string | null = null;
+    if (assignedUserId) {
+      if (assignedUserId !== session.user.id) {
+        // Assigning to someone else — requires admin/owner role
+        if (!organizationId) {
+          return NextResponse.json(
+            { error: "Cannot assign personal tasks to other members" },
+            { status: 403 }
+          );
+        }
+        const membership = await getOrgMembership(session.user.id, organizationId);
+        if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+          return NextResponse.json(
+            { error: "Only admins and owners can assign tasks to other members" },
+            { status: 403 }
+          );
+        }
+      }
+      resolvedAssignedUserId = assignedUserId;
+    }
 
     // Personal tasks check plan limits; team tasks don't count against personal quota
     if (!organizationId && !allowed) {
@@ -156,14 +181,18 @@ export async function POST(req: NextRequest) {
         description: description ?? null,
         priority: priority ?? "medium",
         companyId: resolvedCompanyId,
+        assignedUserId: resolvedAssignedUserId,
         dueDate: dueDate ?? null,
       })
       .returning();
 
-    // Re-fetch with company relation
+    // Re-fetch with company and assignedUser relations
     const todoWithCompany = await db.query.todo.findFirst({
       where: eq(todo.id, newTodo.id),
-      with: { company: true },
+      with: {
+        company: true,
+        assignedUser: { columns: { id: true, name: true, image: true } },
+      },
     });
 
     // Invalidate cache (both personal and org-scoped)

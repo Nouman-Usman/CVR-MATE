@@ -254,6 +254,7 @@ export const todo = pgTable(
     companyId: uuid("company_id").references(() => company.id, {
       onDelete: "set null",
     }),
+    assignedUserId: text("assigned_user_id").references(() => user.id, { onDelete: "set null" }),
     dueDate: date("due_date"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -861,6 +862,7 @@ export const notificationRelations = relations(notification, ({ one }) => ({
 export const todoRelations = relations(todo, ({ one }) => ({
   user: one(user, { fields: [todo.userId], references: [user.id] }),
   company: one(company, { fields: [todo.companyId], references: [company.id] }),
+  assignedUser: one(user, { fields: [todo.assignedUserId], references: [user.id] }),
 }));
 
 export const companyNoteRelations = relations(companyNote, ({ one }) => ({

@@ -16,6 +16,7 @@ import {
   useResumeSubscription,
 } from "@/lib/hooks/use-subscription";
 import { useEmailClientValue, useSetEmailClient, type EmailClient } from "@/lib/hooks/use-email-client";
+import { useOrganization } from "@/lib/hooks/use-team";
 import { cn } from "@/lib/utils";
 import {
   User,
@@ -763,6 +764,10 @@ export default function SettingsPage() {
     });
   };
 
+  // Check if user is an org member (non-owner)
+  const { data: teamData } = useOrganization(session?.user?.id);
+  const isOrgMember = !!teamData?.myRole && !teamData?.isOwner;
+
   const userEmail = session?.user?.email || "";
   const initials = (session?.user?.name || userEmail)
     .split(" ")
@@ -808,7 +813,7 @@ export default function SettingsPage() {
       key: "billing",
       label: locale === "da" ? "Betaling" : "Billing",
       items: [
-        { key: "subscription", label: (st.subscription as { title: string }).title, icon: CreditCard },
+        ...(isOrgMember ? [] : [{ key: "subscription" as SettingsSection, label: (st.subscription as { title: string }).title, icon: CreditCard }]),
         { key: "danger", label: st.danger.title, icon: AlertTriangle },
       ],
     },
@@ -1644,7 +1649,21 @@ export default function SettingsPage() {
         {activeSection === "integrations" && <CrmIntegrationsSectionComponent />}
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
-        {activeSection === "subscription" && <SubscriptionSection />}
+        {activeSection === "subscription" && isOrgMember && (
+          <div className={cardClass}>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">
+                {locale === "da" ? "Betaling håndteres af organisationen" : "Covered by your organization"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {locale === "da"
+                  ? `Dit abonnement styres af ${teamData?.org?.name}. Kontakt organisationens ejer for at ændre planer.`
+                  : `Your subscription is managed by ${teamData?.org?.name}. Contact the org owner to change plans.`}
+              </p>
+            </div>
+          </div>
+        )}
+        {activeSection === "subscription" && !isOrgMember && <SubscriptionSection />}
 
         {/* ── Danger zone ──────────────────────────────────────────────── */}
         {activeSection === "danger" && <div className="bg-red-50/50 rounded-2xl border border-red-100 p-4 sm:p-6 md:p-8">

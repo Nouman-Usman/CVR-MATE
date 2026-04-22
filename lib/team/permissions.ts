@@ -65,16 +65,30 @@ export async function getOrgMembership(
 }
 
 /**
- * Validate that activeOrganizationId from session is still legitimate.
- * Returns the orgId if valid, null if the user is no longer a member.
+ * Validate or auto-discover the user's active organization.
+ *
+ * If activeOrgId provided, verify membership.
+ * If null, auto-discover user's first org from DB (by createdAt).
+ * Returns orgId if valid, null if no membership found.
  */
 export async function validateActiveOrg(
   userId: string,
   activeOrgId: string | null | undefined
 ): Promise<string | null> {
-  if (!activeOrgId) return null;
-  const membership = await getOrgMembership(userId, activeOrgId);
-  return membership ? activeOrgId : null;
+  // If session has activeOrgId, validate it
+  if (activeOrgId) {
+    const membership = await getOrgMembership(userId, activeOrgId);
+    return membership ? activeOrgId : null;
+  }
+
+  // Auto-discover: get user's first org (oldest by createdAt)
+  const firstOrg = await db.query.member.findFirst({
+    where: eq(member.userId, userId),
+    orderBy: asc(member.createdAt),
+    columns: { organizationId: true },
+  });
+
+  return firstOrg?.organizationId ?? null;
 }
 
 /**

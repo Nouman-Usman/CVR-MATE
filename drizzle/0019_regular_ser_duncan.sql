@@ -1,0 +1,2 @@
+ALTER TABLE "todo" ADD COLUMN "assigned_user_id" text;--> statement-breakpoint
+ALTER TABLE "todo" ADD CONSTRAINT "todo_assigned_user_id_user_id_fk" FOREIGN KEY ("assigned_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;
