@@ -1,4 +1,4 @@
-export type EmailProvider = "resend" | "gmail";
+export type EmailProvider = "resend";
 
 export type EmailTemplateId =
   | "email_verification"
