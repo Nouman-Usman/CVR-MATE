@@ -16,6 +16,7 @@ import {
   useResumeSubscription,
 } from "@/lib/hooks/use-subscription";
 import { useEmailClientValue, useSetEmailClient, type EmailClient } from "@/lib/hooks/use-email-client";
+import { useSetLanguage } from "@/lib/hooks/use-language";
 import { useOrganization } from "@/lib/hooks/use-team";
 import { cn } from "@/lib/utils";
 import {
@@ -497,6 +498,9 @@ export default function SettingsPage() {
   // Email client preference
   const emailClient = useEmailClientValue();
   const setEmailClientMutation = useSetEmailClient();
+
+  // Language preference
+  const setLanguageMutation = useSetLanguage();
 
   // Profile
   const [name, setName] = useState(session?.user?.name || "");
@@ -1596,7 +1600,13 @@ export default function SettingsPage() {
             <label className={labelClass}>{st.language.label}</label>
             <div className="flex bg-slate-50 rounded-full p-1 gap-1">
               <button
-                onClick={() => locale !== "da" && toggleLocale()}
+                onClick={() => {
+                  if (locale !== "da") {
+                    toggleLocale();
+                    setLanguageMutation.mutate("da");
+                  }
+                }}
+                disabled={setLanguageMutation.isPending}
                 className={`flex-1 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
                   locale === "da"
                     ? "bg-white text-blue-600 shadow-sm"
@@ -1606,7 +1616,13 @@ export default function SettingsPage() {
                 {st.language.danish}
               </button>
               <button
-                onClick={() => locale !== "en" && toggleLocale()}
+                onClick={() => {
+                  if (locale !== "en") {
+                    toggleLocale();
+                    setLanguageMutation.mutate("en");
+                  }
+                }}
+                disabled={setLanguageMutation.isPending}
                 className={`flex-1 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
                   locale === "en"
                     ? "bg-white text-blue-600 shadow-sm"

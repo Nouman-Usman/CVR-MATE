@@ -27,7 +27,7 @@ export async function sendNotificationEmail(
 
   // ── Fetch user ─────────────────────────────────────────────────────────
   const [userRow] = await db
-    .select({ id: user.id, email: user.email, name: user.name })
+    .select({ id: user.id, email: user.email, name: user.name, language: user.language })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1);
@@ -65,6 +65,7 @@ export async function sendNotificationEmail(
       userName: userRow.name,
       userId,
       data: data as DailyLeadUpdateData,
+      language: (userRow.language as "en" | "da") || "en",
     });
   } else if (templateId === "weekly_summary") {
     result = await sendWeeklySummaryEmail({
@@ -72,6 +73,7 @@ export async function sendNotificationEmail(
       userName: userRow.name,
       userId,
       data: data as WeeklySummaryData,
+      language: (userRow.language as "en" | "da") || "en",
     });
   } else {
     throw new Error(`[email/dispatch] Unknown templateId: ${templateId}`);

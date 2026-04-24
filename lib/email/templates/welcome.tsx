@@ -11,17 +11,26 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { en, da } from "@/lib/i18n";
 
 interface WelcomeEmailProps {
   userName: string;
   dashboardUrl: string;
+  language?: "en" | "da";
 }
 
-export function WelcomeEmail({ userName, dashboardUrl }: WelcomeEmailProps) {
+export function WelcomeEmail({
+  userName,
+  dashboardUrl,
+  language = "en",
+}: WelcomeEmailProps) {
+  const t = language === "da" ? da : en;
+  const lang = language === "da" ? "da" : "en";
+
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head />
-      <Preview>Welcome to CVR-MATE — your Danish lead intelligence platform</Preview>
+      <Preview>{t.email.welcome.preview}</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={logoSection}>
@@ -29,21 +38,32 @@ export function WelcomeEmail({ userName, dashboardUrl }: WelcomeEmailProps) {
           </Section>
 
           <Section style={content}>
-            <Heading style={heading}>Welcome, {userName}!</Heading>
-            <Text style={paragraph}>
-              Your account is ready. CVR-MATE gives you real-time intelligence on 700,000+
-              Danish companies — so you can find the right leads at the right time.
-            </Text>
+            <Heading style={heading}>
+              {t.email.welcome.greeting.replace("{name}", userName)}
+            </Heading>
+            <Text style={paragraph}>{t.email.welcome.intro}</Text>
 
             <Section style={stepsContainer}>
-              <Step number="1" title="Search companies" description="Filter by industry, size, location, and financial health to build your ideal prospect list." />
-              <Step number="2" title="Set up triggers" description="Get notified when companies matching your criteria change — new hires, growth signals, and more." />
-              <Step number="3" title="Push to your CRM" description="Sync enriched company data and contacts directly to HubSpot, Pipedrive, or GoHighLevel." />
+              <Step
+                number="1"
+                title={t.email.welcome.step1Title}
+                description={t.email.welcome.step1Desc}
+              />
+              <Step
+                number="2"
+                title={t.email.welcome.step2Title}
+                description={t.email.welcome.step2Desc}
+              />
+              <Step
+                number="3"
+                title={t.email.welcome.step3Title}
+                description={t.email.welcome.step3Desc}
+              />
             </Section>
 
             <Section style={buttonContainer}>
               <Button style={button} href={dashboardUrl}>
-                Go to your dashboard
+                {t.email.welcome.button}
               </Button>
             </Section>
           </Section>
@@ -52,7 +72,7 @@ export function WelcomeEmail({ userName, dashboardUrl }: WelcomeEmailProps) {
 
           <Section style={footer}>
             <Text style={footerText}>
-              &copy; {new Date().getFullYear()} CVR-MATE. All rights reserved.
+              {t.email.welcome.copyright.replace("{year}", new Date().getFullYear().toString())}
             </Text>
           </Section>
         </Container>

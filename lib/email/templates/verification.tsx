@@ -12,17 +12,26 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { en, da } from "@/lib/i18n";
 
 interface VerificationEmailProps {
   userName: string;
   verificationUrl: string;
+  language?: "en" | "da";
 }
 
-export function VerificationEmail({ userName, verificationUrl }: VerificationEmailProps) {
+export function VerificationEmail({
+  userName,
+  verificationUrl,
+  language = "en",
+}: VerificationEmailProps) {
+  const t = language === "da" ? da : en;
+  const lang = language === "da" ? "da" : "en";
+
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head />
-      <Preview>Verify your CVR-MATE email address</Preview>
+      <Preview>{t.email.verification.preview}</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={logoSection}>
@@ -30,36 +39,28 @@ export function VerificationEmail({ userName, verificationUrl }: VerificationEma
           </Section>
 
           <Section style={content}>
-            <Heading style={heading}>Verify your email address</Heading>
-            <Text style={paragraph}>Hi {userName},</Text>
-            <Text style={paragraph}>
-              Thanks for signing up for CVR-MATE. Please verify your email address to activate
-              your account and start finding leads.
-            </Text>
+            <Heading style={heading}>{t.email.verification.heading}</Heading>
+            <Text style={paragraph}>{t.email.verification.greeting.replace("{name}", userName)}</Text>
+            <Text style={paragraph}>{t.email.verification.intro}</Text>
 
             <Section style={buttonContainer}>
               <Button style={button} href={verificationUrl}>
-                Verify email address
+                {t.email.verification.button}
               </Button>
             </Section>
 
-            <Text style={hint}>
-              This link expires in 24 hours. If you didn&apos;t create an account, you can safely
-              ignore this email.
-            </Text>
+            <Text style={hint}>{t.email.verification.hint}</Text>
           </Section>
 
           <Hr style={divider} />
 
           <Section style={footer}>
-            <Text style={footerText}>
-              If the button above doesn&apos;t work, copy and paste this link into your browser:
-            </Text>
+            <Text style={footerText}>{t.email.verification.fallback}</Text>
             <Link href={verificationUrl} style={footerLink}>
               {verificationUrl}
             </Link>
             <Text style={footerText}>
-              &copy; {new Date().getFullYear()} CVR-MATE. All rights reserved.
+              {t.email.verification.copyright.replace("{year}", new Date().getFullYear().toString())}
             </Text>
           </Section>
         </Container>

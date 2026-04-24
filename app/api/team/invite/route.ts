@@ -133,10 +133,13 @@ export async function POST(req: NextRequest) {
     await sendTeamInvitationEmail({
       to: email.trim(),
       inviterName: session.user.name,
+      inviterEmail: session.user.email,
+      recipientName: email.trim().split("@")[0], // Use first part of email as name
       organizationName: org.name,
       inviteUrl: `${baseUrl}/invite/${invitationId}`,
       role: memberRole,
       expiresAt: expiresAt.toISOString(),
+      inviterId: session.user.id,
     });
   } catch (err) {
     console.error("[team/invite] Email send failed:", err);

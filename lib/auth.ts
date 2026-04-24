@@ -106,10 +106,13 @@ export const auth = betterAuth({
         await sendTeamInvitationEmail({
           to: invitation.email,
           inviterName: inviter.user.name,
+          inviterEmail: inviter.user.email,
+          recipientName: invitation.email.split("@")[0],
           organizationName: org.name,
           inviteUrl: `${resolvedBaseURL}/invite/${invitation.id}`,
           role: invitation.role,
           expiresAt: invitation.expiresAt.toISOString(),
+          inviterId: inviter.user.id,
         });
       },
     }),
