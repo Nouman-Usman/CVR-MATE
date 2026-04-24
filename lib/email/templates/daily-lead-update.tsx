@@ -13,12 +13,14 @@ import {
 } from "@react-email/components";
 import * as React from "react";
 import type { DailyLeadUpdateData } from "../types";
+import { en, da } from "@/lib/i18n";
 
 interface DailyLeadUpdateEmailProps {
   userName: string;
   baseUrl: string;
   triggersUrl: string;
   data: DailyLeadUpdateData;
+  language?: "en" | "da";
 }
 
 export function DailyLeadUpdateEmail({
@@ -26,14 +28,18 @@ export function DailyLeadUpdateEmail({
   baseUrl,
   triggersUrl,
   data,
+  language = "en",
 }: DailyLeadUpdateEmailProps) {
-  const preview =
-    data.matchCount === 1
-      ? `1 new company matched "${data.triggerName}"`
-      : `${data.matchCount} new companies matched "${data.triggerName}"`;
+  const t = language === "da" ? da : en;
+  const lang = language === "da" ? "da" : "en";
+
+  const previewTemplate = t.email.dailyLeadUpdate.preview;
+  const preview = previewTemplate
+    .replace("{triggerName}", data.triggerName)
+    .replace("{matchCount}", String(data.matchCount));
 
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head />
       <Preview>{preview}</Preview>
       <Body style={body}>
@@ -45,15 +51,14 @@ export function DailyLeadUpdateEmail({
 
           <Section style={content}>
             <Heading style={heading}>
-              {data.matchCount} new{" "}
-              {data.matchCount === 1 ? "match" : "matches"}
+              {data.matchCount} {language === "da" ? "nye" : "new"}{" "}
+              {data.matchCount === 1 ? (language === "da" ? "match" : "match") : (language === "da" ? "matches" : "matches")}
             </Heading>
             <Text style={paragraph}>
-              Hi {userName}, your trigger{" "}
-              <strong>&ldquo;{data.triggerName}&rdquo;</strong> found{" "}
-              {data.matchCount} new{" "}
-              {data.matchCount === 1 ? "company" : "companies"} since your last
-              update.
+              {language === "da" ? "Hej" : "Hi"} {userName}, {language === "da" ? "din trigger" : "your trigger"}{" "}
+              <strong>&ldquo;{data.triggerName}&rdquo;</strong> {language === "da" ? "fandt" : "found"}{" "}
+              {data.matchCount} {language === "da" ? "nye" : "new"}{" "}
+              {data.matchCount === 1 ? (language === "da" ? "virksomhed" : "company") : (language === "da" ? "virksomheder" : "companies")} {language === "da" ? "siden din sidste opdatering." : "since your last update."}
             </Text>
 
             {/* Company cards — each links to /company/[vat] */}
@@ -75,13 +80,13 @@ export function DailyLeadUpdateEmail({
 
             {data.matchCount > 10 && (
               <Text style={moreText}>
-                +{data.matchCount - 10} more companies in the app
+                +{data.matchCount - 10} {language === "da" ? "flere virksomheder i appen" : "more companies in the app"}
               </Text>
             )}
 
             <Section style={buttonContainer}>
               <Button style={button} href={triggersUrl}>
-                View all matches
+                {t.email.dailyLeadUpdate.viewAll}
               </Button>
             </Section>
           </Section>
@@ -90,9 +95,7 @@ export function DailyLeadUpdateEmail({
 
           <Section style={footer}>
             <Text style={footerText}>
-              You&apos;re receiving this because you enabled email notifications
-              for triggers. &nbsp;·&nbsp;{" "}
-              &copy; {new Date().getFullYear()} CVR-MATE
+              {t.email.dailyLeadUpdate.copyright.replace("{year}", new Date().getFullYear().toString())}
             </Text>
           </Section>
         </Container>

@@ -8,5 +8,6 @@ export type {
   EmailQueuePayload,
   DailyLeadUpdateData,
   WeeklySummaryData,
-  SendGridWebhookEvent,
+  ResendWebhookEvent,
+  ResendWebhookEventType,
 } from "./types";

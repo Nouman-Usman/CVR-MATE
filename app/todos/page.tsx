@@ -3,11 +3,13 @@
 import { useCallback, useRef, useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/auth-client";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo } from "@/lib/hooks/use-todos";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
+import { useOrganization } from "@/lib/hooks/use-team";
 import { useTodoStore, type TodoFilter, type TodoSortKey } from "@/lib/stores/todo-store";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -80,6 +82,7 @@ interface Company {
 
 interface Todo {
   id: string;
+  userId: string;
   title: string;
   description: string | null;
   isCompleted: boolean;
@@ -89,6 +92,8 @@ interface Todo {
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
+  assignedUserId: string | null;
+  assignedUser: { id: string; name: string; image: string | null } | null;
 }
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -438,6 +443,7 @@ export default function TodosPage() {
   const { t, locale } = useLanguage();
   const router = useRouter();
   const d = t.todos;
+  const { data: session } = useSession();
 
   const store = useTodoStore();
 
@@ -447,6 +453,11 @@ export default function TodosPage() {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
   }, []);
+
+  // Team context for role-based UI and assignment
+  const { data: teamData } = useOrganization(session?.user?.id);
+  const isAdminOrOwner = teamData?.isAdminOrOwner ?? false;
+  const activeOrgMembers = teamData?.org?.members ?? [];
 
   // TanStack Query
   const { data: todosData, isLoading: loading } = useTodos();
@@ -459,6 +470,10 @@ export default function TodosPage() {
 
   // Detail view dialog
   const [viewingTodo, setViewingTodo] = useState<Todo | null>(null);
+
+  // Assignment dialog
+  const [assigningTodoId, setAssigningTodoId] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
 
   // Derived data
   const activeCount = todos.filter((t) => !t.isCompleted).length;
@@ -707,6 +722,66 @@ export default function TodosPage() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Assignment Dialog ──────────────────────────────── */}
+      <Dialog open={assigningTodoId !== null} onOpenChange={(open) => { if (!open) setAssigningTodoId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{locale === "da" ? "Tildel opgave" : "Assign Task"}</DialogTitle>
+            <DialogDescription>
+              {locale === "da" ? "Vælg et teammedlem at tildele denne opgave til" : "Select a team member to assign this task to"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-foreground">
+                {locale === "da" ? "Medlem" : "Member"}
+              </label>
+              <select
+                value={selectedMemberId}
+                onChange={(e) => setSelectedMemberId(e.target.value)}
+                className="w-full border border-input rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-ring bg-background cursor-pointer"
+              >
+                <option value="">{locale === "da" ? "Ikke tildelt" : "Unassigned"}</option>
+                {activeOrgMembers.map((member: any) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.user?.name || member.userId} ({member.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" className="rounded-xl" />}>
+              {d.cancel}
+            </DialogClose>
+            <Button
+              className="rounded-xl"
+              onClick={() => {
+                if (assigningTodoId) {
+                  updateMut.mutate(
+                    { id: assigningTodoId, assignedUserId: selectedMemberId || null },
+                    {
+                      onSuccess: () => {
+                        setAssigningTodoId(null);
+                        setSelectedMemberId("");
+                        showToast(locale === "da" ? "Opgave tildelt" : "Task assigned");
+                      },
+                      onError: (err: any) => {
+                        showToast(err?.message || d.updateError);
+                      },
+                    }
+                  );
+                }
+              }}
+              disabled={submitting}
+            >
+              {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              {locale === "da" ? "Tildel" : "Assign"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -998,6 +1073,9 @@ export default function TodosPage() {
                 <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell">
                   {d.company}
                 </TableHead>
+                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell w-32">
+                  {locale === "da" ? "Tildelt" : "Assigned"}
+                </TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -1159,6 +1237,20 @@ export default function TodosPage() {
                         )}
                       </TableCell>
 
+                      {/* Assigned User */}
+                      <TableCell className="py-3.5 hidden lg:table-cell text-xs">
+                        {todo.assignedUser ? (
+                          <div className="flex items-center gap-1.5">
+                            {todo.assignedUser.image && (
+                              <img src={todo.assignedUser.image} alt={todo.assignedUser.name} className="w-5 h-5 rounded-full" />
+                            )}
+                            <span className="text-foreground">{todo.assignedUser.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/40">{locale === "da" ? "Ikke tildelt" : "Unassigned"}</span>
+                        )}
+                      </TableCell>
+
                       {/* Actions */}
                       <TableCell className="py-3.5 pr-4">
                         <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1171,15 +1263,17 @@ export default function TodosPage() {
                           >
                             <Eye className="size-3.5" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="rounded-full text-muted-foreground/50 hover:text-foreground hover:bg-muted/50"
-                            onClick={() => store.startEdit(todo as Parameters<typeof store.startEdit>[0])}
-                            title={d.edit}
-                          >
-                            <Pencil className="size-3.5" />
-                          </Button>
+                          {(isAdminOrOwner || todo.userId === session?.user?.id) && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="rounded-full text-muted-foreground/50 hover:text-foreground hover:bg-muted/50"
+                              onClick={() => store.startEdit(todo as Parameters<typeof store.startEdit>[0])}
+                              title={d.edit}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </ContextMenuTrigger>
@@ -1208,10 +1302,22 @@ export default function TodosPage() {
                         )}
                       </ContextMenuItem>
 
-                      <ContextMenuItem onClick={() => store.startEdit(todo as Parameters<typeof store.startEdit>[0])}>
-                        <Pencil className="size-4" />
-                        {d.edit}
-                      </ContextMenuItem>
+                      {(isAdminOrOwner || todo.userId === session?.user?.id) && (
+                        <ContextMenuItem onClick={() => store.startEdit(todo as Parameters<typeof store.startEdit>[0])}>
+                          <Pencil className="size-4" />
+                          {d.edit}
+                        </ContextMenuItem>
+                      )}
+
+                      {isAdminOrOwner && teamData?.org && (
+                        <ContextMenuItem onClick={() => {
+                          setAssigningTodoId(todo.id);
+                          setSelectedMemberId(todo.assignedUser?.id || "");
+                        }}>
+                          <MousePointerClick className="size-4" />
+                          {locale === "da" ? "Tildel medlem" : "Assign member"}
+                        </ContextMenuItem>
+                      )}
 
                       <ContextMenuItem onClick={() => { navigator.clipboard.writeText(todo.title); showToast(locale === "da" ? "Kopieret" : "Copied"); }}>
                         <Copy className="size-4" />
@@ -1233,11 +1339,15 @@ export default function TodosPage() {
                         </>
                       )}
 
-                      <ContextMenuSeparator />
-                      <ContextMenuItem variant="destructive" onClick={() => deleteTodo(todo.id)}>
-                        <Trash2 className="size-4" />
-                        {d.delete}
-                      </ContextMenuItem>
+                      {(isAdminOrOwner || todo.userId === session?.user?.id) && (
+                        <>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem variant="destructive" onClick={() => deleteTodo(todo.id)}>
+                            <Trash2 className="size-4" />
+                            {d.delete}
+                          </ContextMenuItem>
+                        </>
+                      )}
                     </ContextMenuContent>
                   </ContextMenu>
                 );

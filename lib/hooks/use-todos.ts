@@ -11,7 +11,10 @@ interface Todo {
   companyId: string | null;
   dueDate: string | null;
   createdAt: string;
+  updatedAt: string;
+  assignedUserId: string | null;
   company?: Record<string, unknown> | null;
+  assignedUser?: { id: string; name: string; image: string | null } | null;
 }
 
 interface TodosResponse {

@@ -12,17 +12,26 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { en, da } from "@/lib/i18n";
 
 interface ResetPasswordEmailProps {
   userName: string;
   resetUrl: string;
+  language?: "en" | "da";
 }
 
-export function ResetPasswordEmail({ userName, resetUrl }: ResetPasswordEmailProps) {
+export function ResetPasswordEmail({
+  userName,
+  resetUrl,
+  language = "en",
+}: ResetPasswordEmailProps) {
+  const t = language === "da" ? da : en;
+  const lang = language === "da" ? "da" : "en";
+
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head />
-      <Preview>Reset your CVR-MATE password</Preview>
+      <Preview>{t.email.passwordReset.preview}</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={logoSection}>
@@ -30,39 +39,30 @@ export function ResetPasswordEmail({ userName, resetUrl }: ResetPasswordEmailPro
           </Section>
 
           <Section style={content}>
-            <Heading style={heading}>Reset your password</Heading>
-            <Text style={paragraph}>Hi {userName},</Text>
-            <Text style={paragraph}>
-              We received a request to reset the password for your CVR-MATE account. Click the
-              button below to choose a new password.
-            </Text>
+            <Heading style={heading}>{t.email.passwordReset.heading}</Heading>
+            <Text style={paragraph}>{t.email.passwordReset.greeting.replace("{name}", userName)}</Text>
+            <Text style={paragraph}>{t.email.passwordReset.intro}</Text>
 
             <Section style={buttonContainer}>
               <Button style={button} href={resetUrl}>
-                Reset password
+                {t.email.passwordReset.button}
               </Button>
             </Section>
 
             <Section style={warningBox}>
-              <Text style={warningText}>
-                This link expires in <strong>1 hour</strong>. If you didn&apos;t request a
-                password reset, you can safely ignore this email — your password will not be
-                changed.
-              </Text>
+              <Text style={warningText}>{t.email.passwordReset.hint}</Text>
             </Section>
           </Section>
 
           <Hr style={divider} />
 
           <Section style={footer}>
-            <Text style={footerText}>
-              If the button above doesn&apos;t work, copy and paste this link into your browser:
-            </Text>
+            <Text style={footerText}>{t.email.passwordReset.fallback}</Text>
             <Link href={resetUrl} style={footerLink}>
               {resetUrl}
             </Link>
             <Text style={footerText}>
-              &copy; {new Date().getFullYear()} CVR-MATE. All rights reserved.
+              {t.email.passwordReset.copyright.replace("{year}", new Date().getFullYear().toString())}
             </Text>
           </Section>
         </Container>

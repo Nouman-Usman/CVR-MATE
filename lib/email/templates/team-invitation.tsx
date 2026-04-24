@@ -12,34 +12,45 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { en, da } from "@/lib/i18n";
 
 interface TeamInvitationEmailProps {
   inviterName: string;
+  inviterEmail: string;
+  recipientName: string;
   organizationName: string;
   inviteUrl: string;
   role: string;
   expiresAt: string; // ISO date string
+  language?: "en" | "da";
 }
 
 export function TeamInvitationEmail({
   inviterName,
+  inviterEmail,
+  recipientName,
   organizationName,
   inviteUrl,
   role,
   expiresAt,
+  language = "en",
 }: TeamInvitationEmailProps) {
+  const t = language === "da" ? da : en;
+  const lang = language === "da" ? "da" : "en";
+
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
-  const expiryDate = new Date(expiresAt).toLocaleDateString("en-GB", {
+  const locale = language === "da" ? "da-DK" : "en-GB";
+  const expiryDate = new Date(expiresAt).toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head />
       <Preview>
-        {inviterName} invited you to join {organizationName} on CVR-MATE
+        {t.email.teamInvitation.preview.replace("{inviterName}", inviterName)}
       </Preview>
       <Body style={body}>
         <Container style={container}>
@@ -48,40 +59,35 @@ export function TeamInvitationEmail({
           </Section>
 
           <Section style={content}>
-            <Heading style={heading}>You&apos;ve been invited</Heading>
+            <Heading style={heading}>{t.email.teamInvitation.greeting.replace("{recipientName}", recipientName)}</Heading>
             <Text style={paragraph}>
-              <strong>{inviterName}</strong> has invited you to join{" "}
-              <strong>{organizationName}</strong> on CVR-MATE as a{" "}
-              <strong>{roleLabel}</strong>.
+              {t.email.teamInvitation.intro
+                .replace("{inviterName}", inviterName)
+                .replace("{inviterEmail}", inviterEmail)
+                .replace("{role}", roleLabel)}
             </Text>
-            <Text style={paragraph}>
-              CVR-MATE gives your team shared access to Danish company intelligence, lead
-              triggers, CRM sync, and collaborative workspaces.
-            </Text>
+            <Text style={paragraph}>{t.email.teamInvitation.message}</Text>
 
             <Section style={buttonContainer}>
               <Button style={button} href={inviteUrl}>
-                Accept invitation
+                {t.email.teamInvitation.button}
               </Button>
             </Section>
 
             <Text style={hint}>
-              This invitation expires on {expiryDate}. If you weren&apos;t expecting this
-              invitation, you can safely ignore this email.
+              {t.email.teamInvitation.hint}
             </Text>
           </Section>
 
           <Hr style={divider} />
 
           <Section style={footer}>
-            <Text style={footerText}>
-              If the button above doesn&apos;t work, copy and paste this link into your browser:
-            </Text>
+            <Text style={footerText}>{t.email.teamInvitation.fallback}</Text>
             <Link href={inviteUrl} style={footerLink}>
               {inviteUrl}
             </Link>
             <Text style={footerText}>
-              &copy; {new Date().getFullYear()} CVR-MATE. All rights reserved.
+              {t.email.teamInvitation.copyright.replace("{year}", new Date().getFullYear().toString())}
             </Text>
           </Section>
         </Container>

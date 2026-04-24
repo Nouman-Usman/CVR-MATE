@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, or, isNull, sql } from "drizzle-orm";
 import { company, savedCompany } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
+import { validateActiveOrg } from "@/lib/team/permissions";
 
-// GET /api/cvr/saved — list saved companies for the current user
+// GET /api/cvr/saved — list saved companies for the current user + organization
 export async function GET() {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -14,8 +15,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const activeOrgId = await validateActiveOrg(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+
     const saved = await db.query.savedCompany.findMany({
-      where: eq(savedCompany.userId, session.user.id),
+      where: or(
+        and(eq(savedCompany.userId, session.user.id), isNull(savedCompany.organizationId)),
+        activeOrgId ? eq(savedCompany.organizationId, activeOrgId) : sql`false`
+      ),
       with: { company: true },
       orderBy: (sc, { desc }) => [desc(sc.createdAt)],
     });
@@ -39,13 +48,18 @@ export async function GET() {
   }
 }
 
-// POST /api/cvr/saved — save a company
+// POST /api/cvr/saved — save a company (personal or to active org)
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const activeOrgId = await validateActiveOrg(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
 
     // Check saved companies limit
     const [{ value: savedCount }] = await db
@@ -134,11 +148,12 @@ export async function POST(req: NextRequest) {
       companyId = newCompany.id;
     }
 
-    // Check if already saved
+    // Check if already saved (in same scope: personal or org)
     const alreadySaved = await db.query.savedCompany.findFirst({
       where: and(
         eq(savedCompany.userId, session.user.id),
-        eq(savedCompany.cvr, String(vat))
+        eq(savedCompany.cvr, String(vat)),
+        activeOrgId ? eq(savedCompany.organizationId, activeOrgId) : isNull(savedCompany.organizationId)
       ),
     });
 
@@ -148,6 +163,7 @@ export async function POST(req: NextRequest) {
 
     await db.insert(savedCompany).values({
       userId: session.user.id,
+      organizationId: activeOrgId ?? null,
       companyId,
       cvr: String(vat),
       note: typeof note === "string" && note.trim() ? note.trim() : null,

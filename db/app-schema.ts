@@ -254,6 +254,7 @@ export const todo = pgTable(
     companyId: uuid("company_id").references(() => company.id, {
       onDelete: "set null",
     }),
+    assignedUserId: text("assigned_user_id").references(() => user.id, { onDelete: "set null" }),
     dueDate: date("due_date"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -390,10 +391,10 @@ export const emailLog = pgTable(
     to: text("to").notNull(),
     subject: text("subject").notNull(),
     templateId: text("template_id"), // EmailTemplateId
-    provider: text("provider"), // 'sendgrid' | 'gmail' | null on failure
-    messageId: text("message_id"), // provider's message ID (used by SendGrid webhook)
+    provider: text("provider"), // 'resend' | null on failure
+    messageId: text("message_id"), // Resend email ID (used by webhook to correlate events)
     status: text("status").default("sent").notNull(), // 'sent' | 'failed'
-    deliveryStatus: text("delivery_status"), // updated by SendGrid webhook: 'delivered' | 'bounced' | 'dropped' | 'opened' | 'clicked'
+    deliveryStatus: text("delivery_status"), // updated by Resend webhook: 'delivered' | 'bounced' | 'deferred' | 'opened' | 'clicked' | 'spam'
     bouncedAt: timestamp("bounced_at", { withTimezone: true }),
     openedAt: timestamp("opened_at", { withTimezone: true }),
     clickedAt: timestamp("clicked_at", { withTimezone: true }),
@@ -861,6 +862,7 @@ export const notificationRelations = relations(notification, ({ one }) => ({
 export const todoRelations = relations(todo, ({ one }) => ({
   user: one(user, { fields: [todo.userId], references: [user.id] }),
   company: one(company, { fields: [todo.companyId], references: [company.id] }),
+  assignedUser: one(user, { fields: [todo.assignedUserId], references: [user.id] }),
 }));
 
 export const companyNoteRelations = relations(companyNote, ({ one }) => ({

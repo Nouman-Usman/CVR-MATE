@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/db";
 import { member, invitation, organization } from "@/db/auth-schema";
 import { subscription } from "@/db/app-schema";
-import { eq, and, count, or, gt } from "drizzle-orm";
+import { eq, and, count, or, gt, asc } from "drizzle-orm";
 import { PLAN_LIMITS, priceToPlan, type PlanId } from "@/lib/stripe/plans";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -65,16 +65,30 @@ export async function getOrgMembership(
 }
 
 /**
- * Validate that activeOrganizationId from session is still legitimate.
- * Returns the orgId if valid, null if the user is no longer a member.
+ * Validate or auto-discover the user's active organization.
+ *
+ * If activeOrgId provided, verify membership.
+ * If null, auto-discover user's first org from DB (by createdAt).
+ * Returns orgId if valid, null if no membership found.
  */
 export async function validateActiveOrg(
   userId: string,
   activeOrgId: string | null | undefined
 ): Promise<string | null> {
-  if (!activeOrgId) return null;
-  const membership = await getOrgMembership(userId, activeOrgId);
-  return membership ? activeOrgId : null;
+  // If session has activeOrgId, validate it
+  if (activeOrgId) {
+    const membership = await getOrgMembership(userId, activeOrgId);
+    return membership ? activeOrgId : null;
+  }
+
+  // Auto-discover: get user's first org (oldest by createdAt)
+  const firstOrg = await db.query.member.findFirst({
+    where: eq(member.userId, userId),
+    orderBy: asc(member.createdAt),
+    columns: { organizationId: true },
+  });
+
+  return firstOrg?.organizationId ?? null;
 }
 
 /**
@@ -205,6 +219,48 @@ export async function assertSeatAvailable(
     throw new TeamPermissionError(
       "SEAT_LIMIT_REACHED",
       `Organization has reached its seat limit (${limit}). Upgrade to add more members.`
+    );
+  }
+}
+
+/**
+ * Assert the organization's owner still has an active Enterprise subscription.
+ * Call this in every org-scoped data route after confirming membership.
+ *
+ * Throws PLAN_NOT_ALLOWED if the subscription is absent, cancelled, unpaid,
+ * or on a plan that doesn't include teamFeatures.
+ */
+export async function assertOrgPlanActive(orgId: string): Promise<void> {
+  const ownerMember = await db.query.member.findFirst({
+    where: and(eq(member.organizationId, orgId), eq(member.role, "owner")),
+  });
+
+  if (!ownerMember) {
+    throw new TeamPermissionError("FORBIDDEN", "Organization has no owner");
+  }
+
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.userId, ownerMember.userId),
+  });
+
+  const expired =
+    !sub ||
+    sub.status === "canceled" ||
+    sub.status === "unpaid" ||
+    sub.status === "incomplete";
+
+  if (expired) {
+    throw new TeamPermissionError(
+      "PLAN_NOT_ALLOWED",
+      "Your organization's Enterprise plan has expired. Renew to access team data."
+    );
+  }
+
+  const plan: PlanId = sub.stripePriceId ? priceToPlan(sub.stripePriceId) : "free";
+  if (!PLAN_LIMITS[plan].teamFeatures) {
+    throw new TeamPermissionError(
+      "PLAN_NOT_ALLOWED",
+      "Team features require the Enterprise plan."
     );
   }
 }

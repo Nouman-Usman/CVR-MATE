@@ -12,54 +12,80 @@ import {
 } from "@react-email/components";
 import * as React from "react";
 import type { WeeklySummaryData } from "../types";
+import { en, da } from "@/lib/i18n";
 
 interface WeeklySummaryEmailProps {
   userName: string;
   dashboardUrl: string;
   data: WeeklySummaryData;
+  language?: "en" | "da";
 }
 
 export function WeeklySummaryEmail({
   userName,
   dashboardUrl,
   data,
+  language = "en",
 }: WeeklySummaryEmailProps) {
-  const periodLabel = `${formatDate(data.periodStart)} – ${formatDate(data.periodEnd)}`;
+  const t = language === "da" ? da : en;
+  const lang = language === "da" ? "da" : "en";
+
+  const periodLabel = `${formatDate(data.periodStart, lang)} – ${formatDate(data.periodEnd, lang)}`;
 
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head />
       <Preview>
-        {`Your CVR-MATE weekly summary: ${data.totalLeads} leads found (${periodLabel})`}
+        {language === "da"
+          ? `Din CVR-MATE ugentlige sammenfatning: ${data.totalLeads} leads fundet (${periodLabel})`
+          : `Your CVR-MATE weekly summary: ${data.totalLeads} leads found (${periodLabel})`}
       </Preview>
       <Body style={body}>
         <Container style={container}>
           {/* Header */}
           <Section style={header}>
             <Text style={logoText}>CVR-MATE</Text>
-            <Text style={headerSubtitle}>Weekly summary</Text>
+            <Text style={headerSubtitle}>
+              {language === "da" ? "Ugentlig sammenfatning" : "Weekly summary"}
+            </Text>
           </Section>
 
           <Section style={content}>
-            <Heading style={heading}>Your week in leads</Heading>
+            <Heading style={heading}>
+              {language === "da" ? "Din uge i leads" : "Your week in leads"}
+            </Heading>
             <Text style={paragraph}>
-              Hi {userName}, here&apos;s what happened on CVR-MATE this week ({periodLabel}).
+              {language === "da"
+                ? `Hej ${userName}, her er hvad der skete på CVR-MATE denne uge (${periodLabel}).`
+                : `Hi ${userName}, here's what happened on CVR-MATE this week (${periodLabel}).`}
             </Text>
 
             {/* Stat cards */}
             <Section style={statsRow}>
-                      <StatCard value={String(data.totalLeads)} label="Total leads found" color="#1D4ED8" />
-              <StatCard value={String(data.savedCompaniesCount)} label="Saved companies" color="#0891B2" />
+              <StatCard
+                value={String(data.totalLeads)}
+                label={t.email.weeklySummary.totalLeads}
+                color="#1D4ED8"
+              />
+              <StatCard
+                value={String(data.savedCompaniesCount)}
+                label={t.email.weeklySummary.savedCompanies}
+                color="#0891B2"
+              />
             </Section>
 
             {/* Top triggers */}
             {data.topTriggers.length > 0 && (
               <>
-                <Text style={sectionLabel}>Top performing triggers</Text>
+                <Text style={sectionLabel}>
+                  {t.email.weeklySummary.topTriggers}
+                </Text>
                 {data.topTriggers.slice(0, 5).map((t, i) => (
                   <Section key={i} style={triggerRow}>
                     <Text style={triggerName}>{t.name}</Text>
-                    <Text style={triggerCount}>{t.count} matches</Text>
+                    <Text style={triggerCount}>
+                      {t.count} {language === "da" ? "matches" : "matches"}
+                    </Text>
                   </Section>
                 ))}
               </>
@@ -67,7 +93,7 @@ export function WeeklySummaryEmail({
 
             <Section style={buttonContainer}>
               <Button style={button} href={dashboardUrl}>
-                Go to your dashboard
+                {t.email.weeklySummary.viewDashboard}
               </Button>
             </Section>
           </Section>
@@ -76,8 +102,7 @@ export function WeeklySummaryEmail({
 
           <Section style={footer}>
             <Text style={footerText}>
-              You&apos;re receiving this weekly summary because you enabled email
-              notifications. &nbsp;·&nbsp; &copy; {new Date().getFullYear()} CVR-MATE
+              {t.email.weeklySummary.copyright.replace("{year}", new Date().getFullYear().toString())}
             </Text>
           </Section>
         </Container>
@@ -115,9 +140,10 @@ function StatCard({ value, label, color }: { value: string; label: string; color
   );
 }
 
-function formatDate(iso: string) {
+function formatDate(iso: string, lang: "en" | "da" = "en") {
   try {
-    return new Date(iso).toLocaleDateString("en-GB", {
+    const locale = lang === "da" ? "da-DK" : "en-GB";
+    return new Date(iso).toLocaleDateString(locale, {
       day: "numeric",
       month: "short",
     });
