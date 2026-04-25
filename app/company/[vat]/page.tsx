@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useCompany } from "@/lib/hooks/use-company";
@@ -440,20 +439,20 @@ export default function CompanyDetailPage() {
       {!loading && !error && company && (
         <>
           {/* Back + Actions */}
-          <div className="flex items-center justify-between mb-6 gap-4">
-            <Link
-              href="/search"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 md:mb-6 gap-3 md:gap-4">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center justify-center md:justify-start gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors w-full md:w-auto"
             >
               <span className="material-symbols-outlined text-lg">
                 arrow_back
               </span>
               {cd.backToSearch}
-            </Link>
-            <div className="flex items-center gap-2">
+            </button>
+            <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto">
               <button
                 onClick={() => setShowOutreach(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 w-full md:w-auto"
               >
                 <span className="material-symbols-outlined text-lg">edit_note</span>
                 {ai.outreach.button}
@@ -461,7 +460,7 @@ export default function CompanyDetailPage() {
               <button
                 onClick={handleSaveToggle}
                 disabled={saving}
-                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer disabled:opacity-50 ${
+                className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer disabled:opacity-50 w-full md:w-auto ${
                   isSaved
                     ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                     : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
@@ -482,7 +481,7 @@ export default function CompanyDetailPage() {
 
               <button
                 onClick={() => { setShowQuickTask(true); setQuickTaskTitle(""); setQuickTaskPriority("medium"); setQuickTaskDue(""); }}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 w-full md:w-auto"
               >
                 <span className="material-symbols-outlined text-lg">task_alt</span>
                 {locale === "da" ? "Opret opgave" : "Create task"}
@@ -494,7 +493,7 @@ export default function CompanyDetailPage() {
                   <button
                     onClick={() => !pushToCrm.isPending && setShowCrmMenu(!showCrmMenu)}
                     disabled={pushToCrm.isPending}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed w-full md:w-auto"
                   >
                     {pushToCrm.isPending ? (
                       <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>

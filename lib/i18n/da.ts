@@ -1056,7 +1056,7 @@ const da = {
   },
   companyDetail: {
     title: "Virksomhedsdetaljer",
-    backToSearch: "Tilbage til søgning",
+    backToSearch: "Tilbage",
     save: "Gem virksomhed",
     saved: "Gemt",
     unsave: "Fjern fra gemte",
@@ -1147,7 +1147,7 @@ const da = {
   },
   personDetail: {
     title: "Personprofil",
-    backToCompany: "Tilbage til virksomhed",
+    backToCompany: "Tilbage",
     relations: "Virksomhedsrelationer",
     noRelations: "Ingen virksomhedsrelationer fundet.",
     loading: "Indlæser persondata...",

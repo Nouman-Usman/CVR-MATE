@@ -1058,7 +1058,7 @@ const en: Dictionary = {
   },
   companyDetail: {
     title: "Company details",
-    backToSearch: "Back to search",
+    backToSearch: "Back",
     save: "Save company",
     saved: "Saved",
     unsave: "Remove from saved",
@@ -1149,7 +1149,7 @@ const en: Dictionary = {
   },
   personDetail: {
     title: "Person profile",
-    backToCompany: "Back to company",
+    backToCompany: "Back",
     relations: "Company relations",
     noRelations: "No company relations found.",
     loading: "Loading person data...",
