@@ -10,6 +10,8 @@ import {
 } from "@/lib/hooks/use-integrations";
 import { useSubscription } from "@/lib/hooks/use-subscription";
 import { Loader2, ArrowUpRight, Lock, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Plug } from "lucide-react";
+import { COMING_SOON_FEATURES } from "@/lib/constants";
+import { ComingSoonOverlay } from "@/components/ui/coming-soon";
 
 const CRM_CARDS: {
   provider: "hubspot" | "leadconnector" | "pipedrive";
@@ -90,6 +92,27 @@ export default function CrmIntegrationsSection() {
       },
     });
   };
+
+  // Coming Soon gate
+  if (COMING_SOON_FEATURES.has("crm")) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/60 p-4 sm:p-6 md:p-8 relative">
+          <div className="flex items-center gap-2 mb-2">
+            <Plug className="w-5 h-5 text-slate-400" />
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              {ig.title}
+            </h2>
+          </div>
+          <p className="text-sm text-slate-400 mb-6">{ig.subtitle}</p>
+          <ComingSoonOverlay
+            feature="crm"
+            description="HubSpot, Pipedrive, and LeadConnector integrations are coming soon."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
