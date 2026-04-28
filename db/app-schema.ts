@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -11,6 +11,7 @@ import {
   index,
   uniqueIndex,
   date,
+  check,
 } from "drizzle-orm/pg-core";
 import { user, session, account, organization } from "./auth-schema";
 
@@ -813,6 +814,95 @@ export const usageRecord = pgTable(
   ]
 );
 
+// ─── FEATURES (video explainer registry) ────────────────────────────────────
+
+export const features = pgTable(
+  "features",
+  {
+    key: text("key").primaryKey(),
+    name: text("name").notNull(),
+    route: text("route").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("features_route_idx").on(table.route),
+  ]
+);
+
+// ─── FEATURE VIDEO (versioned video metadata) ──────────────────────────────
+
+export const featureVideo = pgTable(
+  "feature_video",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    featureKey: text("feature_key")
+      .notNull()
+      .references(() => features.key, { onDelete: "restrict" }),
+    locale: text("locale").notNull(),
+    version: integer("version").default(1).notNull(),
+    status: text("status").default("draft").notNull(),
+    isCurrent: boolean("is_current").default(true).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    videoPath: text("video_path").notNull(),
+    thumbnailPath: text("thumbnail_path"),
+    durationSeconds: integer("duration_seconds"),
+    autoShow: boolean("auto_show").default(true).notNull(),
+    triggerType: text("trigger_type").default("auto").notNull(),
+    triggerConfig: jsonb("trigger_config"),
+    goal: text("goal"),
+    priority: integer("priority").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("feature_video_key_locale_version_idx").on(
+      table.featureKey,
+      table.locale,
+      table.version
+    ),
+    index("feature_video_key_locale_current_idx").on(
+      table.featureKey,
+      table.locale,
+      table.isCurrent
+    ),
+    check(
+      "status_is_current_check",
+      sql`(${table.status} = 'published' AND ${table.isCurrent} = true) OR (${table.isCurrent} = false)`
+    ),
+  ]
+);
+
+// ─── USER VIDEO VIEW (engagement tracking) ─────────────────────────────────
+
+export const userVideoView = pgTable(
+  "user_video_view",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    featureKey: text("feature_key")
+      .notNull()
+      .references(() => features.key, { onDelete: "restrict" }),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    viewCount: integer("view_count").default(1).notNull(),
+    lastPositionSeconds: integer("last_position_seconds"),
+    lastSeenVersion: integer("last_seen_version").notNull(),
+    dismissed: boolean("dismissed").default(false).notNull(),
+    totalWatchTimeSeconds: integer("total_watch_time_seconds").default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_video_view_user_feature_idx").on(table.userId, table.featureKey),
+    index("user_video_view_user_idx").on(table.userId),
+  ]
+);
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
@@ -944,6 +1034,26 @@ export const profileEnrichmentRelations = relations(profileEnrichment, ({ one })
 
 export const followedPersonRelations = relations(followedPerson, ({ one }) => ({
   user: one(user, { fields: [followedPerson.userId], references: [user.id] }),
+}));
+
+export const featuresRelations = relations(features, ({ many }) => ({
+  videos: many(featureVideo),
+  userViews: many(userVideoView),
+}));
+
+export const featureVideoRelations = relations(featureVideo, ({ one }) => ({
+  feature: one(features, {
+    fields: [featureVideo.featureKey],
+    references: [features.key],
+  }),
+}));
+
+export const userVideoViewRelations = relations(userVideoView, ({ one }) => ({
+  user: one(user, { fields: [userVideoView.userId], references: [user.id] }),
+  feature: one(features, {
+    fields: [userVideoView.featureKey],
+    references: [features.key],
+  }),
 }));
 
 // Defined here (not in auth-schema.ts) to avoid circular imports
