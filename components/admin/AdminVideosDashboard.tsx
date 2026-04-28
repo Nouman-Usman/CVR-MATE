@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
 import { AlertCircle, Upload, Trash2, CheckCircle2, Circle } from "lucide-react";
 
 interface AdminFeatureRow {
@@ -206,7 +205,7 @@ export function AdminVideosDashboard() {
                       if (open) setUploadFeature(feature.key);
                       setUploadOpen(open);
                     }}>
-                      <DialogTrigger asChild>
+                      <DialogTrigger>
                         <Button
                           size="sm"
                           variant="outline"
@@ -282,7 +281,14 @@ export function AdminVideosDashboard() {
                                     {uploadStep === "saving" && "Saving to database..."}
                                     {uploadStep === "error" && "Upload failed"}
                                   </div>
-                                  {uploadStep === "uploading" && <Progress value={uploadProgress} />}
+                                  {uploadStep === "uploading" && (
+                                    <div className="w-full h-2 bg-slate-200 rounded overflow-hidden">
+                                      <div
+                                        className="h-full bg-blue-500 transition-all"
+                                        style={{ width: `${uploadProgress}%` }}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </>
