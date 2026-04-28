@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 @AGENTS.md
 claude --resume "team-features-frontend-implementation"
 
-
+claude -r bce5148a-70ad-42fe-9900-b32ace16ed59          
 ---
 
 ## Project Overview

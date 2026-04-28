@@ -12,11 +12,11 @@
 
 # testing
 /coverage
-
+/.superpowers/
 # next.js
 /.next/
 /out/
-
+/docs/
 # production
 /build
 
@@ -44,3 +44,6 @@ AGENTS.md
 CLAUDE.md
 dummy_copmany_api_data.json
 Search in companies – CVR API v2.0.0.pdf
+/cypress/
+CLAUDE_PROMPTS.md
+CLAUDE.md
