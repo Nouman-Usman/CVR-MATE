@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-store";
@@ -446,9 +447,10 @@ function SearchPage() {
   }, [industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
 
   return (
-    <DashboardLayout>
-      {/* ── Header ───────────────────────────────────────────── */}
-      <div className="mb-6">
+    <VideoTrigger featureKey="search">
+      <DashboardLayout>
+        {/* ── Header ───────────────────────────────────────────── */}
+        <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
           {s.title}
         </h1>
@@ -831,6 +833,7 @@ function SearchPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useSavedSearches, useDeleteSearch } from "@/lib/hooks/use-saved-searches";
@@ -105,9 +106,10 @@ export default function SavedSearchesPage() {
   }, 0);
 
   return (
-    <DashboardLayout>
-      {/* ── Header ────────────────────────────────────────────── */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+    <VideoTrigger featureKey="saved-searches">
+      <DashboardLayout>
+        {/* ── Header ────────────────────────────────────────────── */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {ss.title}
@@ -365,6 +367,7 @@ export default function SavedSearchesPage() {
           </Table>
         </Card>
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

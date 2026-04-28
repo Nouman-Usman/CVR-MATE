@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useSavedCompanies, useUnsaveCompany, useUpdateSavedNote, useUpdateSavedTags } from "@/lib/hooks/use-saved-companies";
@@ -375,9 +376,10 @@ export default function SavedPage() {
   const taggedCount = companies.filter(c => (c.tags ?? []).length > 0).length;
 
   return (
-    <DashboardLayout>
-      {/* Unified toast */}
-      {toast && (
+    <VideoTrigger featureKey="saved">
+      <DashboardLayout>
+        {/* Unified toast */}
+        {toast && (
         <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle className="size-4 text-emerald-400" />
           {toast}
@@ -1475,6 +1477,7 @@ export default function SavedPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

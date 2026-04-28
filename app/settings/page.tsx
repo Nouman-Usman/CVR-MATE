@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
 import { authClient } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
 import CrmIntegrationsSectionComponent from "@/components/settings/crm-integrations-section";
@@ -829,9 +830,10 @@ export default function SettingsPage() {
   ];
 
   return (
-    <DashboardLayout>
-      {/* Toast */}
-      {toast && (
+    <VideoTrigger featureKey="settings">
+      <DashboardLayout>
+        {/* Toast */}
+        {toast && (
         <div
           className={cn(
             "fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300",
@@ -1716,6 +1718,7 @@ export default function SettingsPage() {
         </div>}
         </div>
       </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

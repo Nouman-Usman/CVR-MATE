@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSession } from "@/lib/auth-client";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useDashboard } from "@/lib/hooks/use-dashboard";
@@ -127,9 +128,10 @@ export default function DashboardPage() {
       : (locale === "da" ? "God aften" : "Good evening");
 
   return (
-    <DashboardLayout>
-      {/* ── Hero header with greeting ────────────────────────────── */}
-      <div className="mb-8 sm:mb-10">
+    <VideoTrigger featureKey="dashboard">
+      <DashboardLayout>
+        {/* ── Hero header with greeting ────────────────────────────── */}
+        <div className="mb-8 sm:mb-10">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
@@ -427,6 +429,7 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

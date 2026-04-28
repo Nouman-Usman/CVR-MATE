@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useCompany } from "@/lib/hooks/use-company";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
@@ -412,9 +413,10 @@ export default function CompanyDetailPage() {
       : "bg-amber-50 text-amber-700";
 
   return (
-    <DashboardLayout>
-      {/* Loading */}
-      {loading && <InlineLoader message={cd.loading} />}
+    <VideoTrigger featureKey="company">
+      <DashboardLayout>
+        {/* Loading */}
+        {loading && <InlineLoader message={cd.loading} />}
 
       {/* Error */}
       {!loading && error && (
@@ -2084,6 +2086,7 @@ export default function CompanyDetailPage() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

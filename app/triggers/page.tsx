@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import {
@@ -238,9 +239,10 @@ export default function TriggersPage() {
   const activeCount = triggers.filter(t => t.isActive).length;
 
   return (
-    <DashboardLayout>
-      {/* ── Header ───────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
+    <VideoTrigger featureKey="triggers">
+      <DashboardLayout>
+        {/* ── Header ───────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-8 gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {tr.title}
@@ -717,6 +719,7 @@ export default function TriggersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

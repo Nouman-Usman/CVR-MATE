@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
@@ -302,9 +303,10 @@ export default function ExportsPage() {
 
   /* ── Render ────────────────────────────────────────────────────────────── */
   return (
-    <DashboardLayout>
-      {/* Toast */}
-      {toast && (
+    <VideoTrigger featureKey="exports">
+      <DashboardLayout>
+        {/* Toast */}
+        {toast && (
         <div className={cn(
           "fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300",
           toast.type === "success" ? "bg-emerald-600 text-white" : "bg-foreground text-background"
@@ -699,6 +701,7 @@ export default function ExportsPage() {
           </div>
         </>
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }

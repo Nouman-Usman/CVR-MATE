@@ -4,6 +4,7 @@ import { useCallback, useRef, useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
+import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -595,9 +596,10 @@ export default function TodosPage() {
   ];
 
   return (
-    <DashboardLayout>
-      {/* Toast */}
-      {toast && (
+    <VideoTrigger featureKey="todos">
+      <DashboardLayout>
+        {/* Toast */}
+        {toast && (
         <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle2 className="size-4 text-emerald-400" />
           {toast}
@@ -1363,6 +1365,7 @@ export default function TodosPage() {
         </div>
         </>
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </VideoTrigger>
   );
 }
