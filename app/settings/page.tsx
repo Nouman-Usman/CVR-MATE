@@ -8,6 +8,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
 import CrmIntegrationsSectionComponent from "@/components/settings/crm-integrations-section";
 import TeamSection from "@/components/settings/team-section";
+import { SettingsVideosSection } from "@/components/settings/SettingsVideosSection";
 import {
   useSubscription,
   useCheckout,
@@ -32,6 +33,7 @@ import {
   ChevronDown,
   Loader2,
   X,
+  Film,
 } from "lucide-react";
 
 type SettingsSection =
@@ -43,6 +45,7 @@ type SettingsSection =
   | "language"
   | "integrations"
   | "subscription"
+  | "videos"
   | "danger";
 
 function Toggle({
@@ -771,6 +774,7 @@ export default function SettingsPage() {
   // Check if user is an org member (non-owner)
   const { data: teamData } = useOrganization(session?.user?.id);
   const isOrgMember = !!teamData?.myRole && !teamData?.isOwner;
+  const isOwner = teamData?.isOwner === true;
 
   const userEmail = session?.user?.email || "";
   const initials = (session?.user?.name || userEmail)
@@ -818,6 +822,7 @@ export default function SettingsPage() {
       label: locale === "da" ? "Betaling" : "Billing",
       items: [
         ...(isOrgMember ? [] : [{ key: "subscription" as SettingsSection, label: (st.subscription as { title: string }).title, icon: CreditCard }]),
+        ...(isOwner ? [{ key: "videos" as SettingsSection, label: locale === "da" ? "Videoer" : "Videos", icon: Film }] : []),
         { key: "danger", label: st.danger.title, icon: AlertTriangle },
       ],
     },
@@ -1680,6 +1685,19 @@ export default function SettingsPage() {
           </div>
         )}
         {activeSection === "subscription" && !isOrgMember && <SubscriptionSection />}
+
+        {/* ── Videos ───────────────────────────────────────────────────── */}
+        {activeSection === "videos" && isOwner && <div className={cardClass}>
+          <div className="flex items-center gap-2 mb-6">
+            <span className="material-symbols-outlined text-slate-400 text-xl">
+              movie
+            </span>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Videos
+            </h2>
+          </div>
+          <SettingsVideosSection />
+        </div>}
 
         {/* ── Danger zone ──────────────────────────────────────────────── */}
         {activeSection === "danger" && <div className="bg-red-50/50 rounded-2xl border border-red-100 p-4 sm:p-6 md:p-8">
