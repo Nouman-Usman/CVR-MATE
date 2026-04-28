@@ -5,6 +5,7 @@ import { features, featureVideo } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getOrgMembership } from "@/lib/team/permissions";
+import { v4 as uuid } from "uuid";
 
 export async function GET() {
   try {
@@ -74,6 +75,103 @@ export async function GET() {
     console.error("Failed to fetch admin videos:", error);
     return NextResponse.json(
       { error: "Failed to fetch videos" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const org = session.session?.activeOrganizationId;
+    if (!org) {
+      return NextResponse.json(
+        { error: "No organization context" },
+        { status: 403 }
+      );
+    }
+
+    const membership = await getOrgMembership(session.user.id, org);
+    if (!membership || membership.role !== "owner") {
+      return NextResponse.json(
+        { error: "Only owners can manage videos" },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { featureKey, locale, title, videoPath, thumbnailPath, description, durationSeconds, autoShow, triggerType, goal } = body;
+
+    // Validate required fields
+    if (!featureKey || !locale || !title || !videoPath) {
+      return NextResponse.json(
+        { error: "Missing required fields: featureKey, locale, title, videoPath" },
+        { status: 400 }
+      );
+    }
+
+    if (locale !== "da" && locale !== "en") {
+      return NextResponse.json(
+        { error: "Locale must be 'da' or 'en'" },
+        { status: 400 }
+      );
+    }
+
+    // Check feature exists
+    const feature = await db.query.features.findFirst({
+      where: eq(features.key, featureKey),
+    });
+
+    if (!feature) {
+      return NextResponse.json(
+        { error: `Feature '${featureKey}' not found` },
+        { status: 404 }
+      );
+    }
+
+    // Calculate next version
+    const existingVideos = await db.query.featureVideo.findMany({
+      where: eq(featureVideo.featureKey, featureKey),
+    });
+
+    const maxVersion = Math.max(...existingVideos.map((v) => v.version), 0);
+    const nextVersion = maxVersion + 1;
+
+    // Insert new draft video
+    const id = uuid();
+    const now = new Date();
+
+    await db.insert(featureVideo).values({
+      id,
+      featureKey,
+      locale,
+      title,
+      description: description || null,
+      videoPath,
+      thumbnailPath: thumbnailPath || null,
+      durationSeconds: durationSeconds || null,
+      version: nextVersion,
+      status: "draft",
+      isCurrent: false,
+      autoShow: autoShow ?? true,
+      triggerType: triggerType || "auto",
+      goal: goal || null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return NextResponse.json(
+      { id, version: nextVersion, status: "draft" },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Failed to create video:", error);
+    return NextResponse.json(
+      { error: "Failed to create video" },
       { status: 500 }
     );
   }
