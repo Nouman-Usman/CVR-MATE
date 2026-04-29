@@ -52,7 +52,7 @@ export async function POST(
       // Publish new
       await tx
         .update(featureVideo)
-        .set({ status: "published", isCurrent: true })
+        .set({ status: "published", isCurrent: true, isActive: true })
         .where(eq(featureVideo.id, id));
     });
 

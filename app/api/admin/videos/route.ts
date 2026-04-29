@@ -24,8 +24,10 @@ export async function GET() {
         (v) => v.featureKey === feature.key
       );
 
-      const daVideo = videos.find((v) => v.locale === "da" && v.isCurrent);
-      const enVideo = videos.find((v) => v.locale === "en" && v.isCurrent);
+      const daVideos = videos.filter((v) => v.locale === "da").sort((a, b) => b.version - a.version);
+      const enVideos = videos.filter((v) => v.locale === "en").sort((a, b) => b.version - a.version);
+      const daVideo = daVideos.find((v) => v.isCurrent) ?? daVideos[0] ?? null;
+      const enVideo = enVideos.find((v) => v.isCurrent) ?? enVideos[0] ?? null;
 
       return {
         key: feature.key,
@@ -38,6 +40,7 @@ export async function GET() {
               status: daVideo.status,
               title: daVideo.title,
               updatedAt: daVideo.updatedAt,
+              videoPath: daVideo.videoPath,
             }
           : null,
         en: enVideo
@@ -47,6 +50,7 @@ export async function GET() {
               status: enVideo.status,
               title: enVideo.title,
               updatedAt: enVideo.updatedAt,
+              videoPath: enVideo.videoPath,
             }
           : null,
       };

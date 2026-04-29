@@ -30,12 +30,13 @@ export async function GET(
       ),
     });
 
-    // Fallback to English if locale not found
-    if (!video && locale !== "en") {
+    // Fallback to the other locale if requested locale not found
+    if (!video) {
+      const fallbackLocale = locale === "en" ? "da" : "en";
       video = await db.query.featureVideo.findFirst({
         where: and(
           eq(featureVideo.featureKey, key),
-          eq(featureVideo.locale, "en"),
+          eq(featureVideo.locale, fallbackLocale),
           eq(featureVideo.status, "published"),
           eq(featureVideo.isCurrent, true),
           eq(featureVideo.isActive, true)

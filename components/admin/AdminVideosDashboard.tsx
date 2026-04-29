@@ -1,29 +1,112 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertCircle, Upload, Trash2, CheckCircle2, Circle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Circle } from "lucide-react";
 
 interface AdminFeatureRow {
   key: string;
   name: string;
   route: string;
-  da: { id: string; version: number; status: string; title: string; updatedAt: string } | null;
-  en: { id: string; version: number; status: string; title: string; updatedAt: string } | null;
+  da: { id: string; version: number; status: string; title: string; updatedAt: string; videoPath?: string } | null;
+  en: { id: string; version: number; status: string; title: string; updatedAt: string; videoPath?: string } | null;
 }
 
 type UploadStep = "idle" | "signing" | "uploading" | "saving" | "done" | "error";
+type Toast = { message: string; type: "success" | "error" } | null;
+
+const COLORS = {
+  bg: "#0f172a",
+  surface: "#1e293b",
+  border: "#334155",
+  text: "#f1f5f9",
+  textSecondary: "#64748b",
+  blue: "#3b82f6",
+  green: "#10b981",
+  emerald: "#14532d",
+  amber: "#fbbf24",
+  amberBg: "#2d1f07",
+  red: "#f87171",
+  redBg: "#3f1d1d",
+  purple: "#a78bfa",
+  purpleBg: "#1e1e3f",
+};
+
+const Toast = ({ toast }: { toast: Toast }) => {
+  if (!toast) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "20px",
+        right: "20px",
+        background: toast.type === "success" ? COLORS.emerald : COLORS.redBg,
+        border: `1px solid ${toast.type === "success" ? COLORS.green : COLORS.red}`,
+        borderRadius: "6px",
+        padding: "12px 16px",
+        color: toast.type === "success" ? COLORS.green : COLORS.red,
+        fontSize: "13px",
+        display: "flex",
+        gap: "8px",
+        alignItems: "center",
+        zIndex: 1000,
+      }}
+    >
+      {toast.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+      <span>{toast.message}</span>
+    </div>
+  );
+};
+
+const StatusBadge = ({ status }: { status: string | null }) => {
+  if (!status) {
+    return (
+      <span style={{ background: COLORS.redBg, color: COLORS.red, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", display: "inline-block" }}>
+        missing
+      </span>
+    );
+  }
+  if (status === "draft") {
+    return (
+      <span style={{ background: COLORS.amberBg, color: COLORS.amber, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", display: "inline-block" }}>
+        draft
+      </span>
+    );
+  }
+  if (status === "published") {
+    return (
+      <span style={{ background: COLORS.emerald, color: COLORS.green, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", display: "inline-block" }}>
+        published
+      </span>
+    );
+  }
+  return null;
+};
 
 export function AdminVideosDashboard() {
   const queryClient = useQueryClient();
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFeature, setUploadFeature] = useState<string>("");
+  const [uploadLocale, setUploadLocale] = useState<"da" | "en">("da");
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
+  const [uploadError, setUploadError] = useState<string>("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewVideo, setPreviewVideo] = useState<{ path?: string; title: string } | null>(null);
+  const [testTriggerOpen, setTestTriggerOpen] = useState(false);
+  const [testFeature, setTestFeature] = useState<AdminFeatureRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string>("");
+  const [toast, setToast] = useState<Toast>(null);
 
-  // Feature list query
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const { data: features = [], isLoading } = useQuery({
     queryKey: ["admin-videos"],
     queryFn: async () => {
@@ -33,35 +116,33 @@ export function AdminVideosDashboard() {
     },
   });
 
-  // Upload dialog state
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadFeature, setUploadFeature] = useState<string>("");
-  const [uploadLocale, setUploadLocale] = useState<"da" | "en">("da");
-  const [uploadTitle, setUploadTitle] = useState("");
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
-  const [uploadError, setUploadError] = useState<string>("");
-
-  // Publish mutation
   const publishMutation = useMutation({
     mutationFn: async (videoId: string) => {
       const res = await fetch(`/api/admin/videos/${videoId}/publish`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to publish");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-videos"] }),
+    onSuccess: () => {
+      setToast({ message: "Video published successfully", type: "success" });
+      queryClient.invalidateQueries({ queryKey: ["admin-videos"] });
+    },
+    onError: (err) => {
+      setToast({ message: err instanceof Error ? err.message : "Publish failed", type: "error" });
+    },
   });
 
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (videoId: string) => {
       const res = await fetch(`/api/admin/videos/${videoId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Failed to delete");
-      }
+      if (!res.ok) throw new Error("Failed to delete");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-videos"] }),
+    onSuccess: () => {
+      setToast({ message: "Video deleted", type: "success" });
+      setDeleteConfirm("");
+      queryClient.invalidateQueries({ queryKey: ["admin-videos"] });
+    },
+    onError: (err) => {
+      setToast({ message: err instanceof Error ? err.message : "Delete failed", type: "error" });
+    },
   });
 
   const handleUploadSubmit = async () => {
@@ -74,7 +155,6 @@ export function AdminVideosDashboard() {
       setUploadError("");
       setUploadStep("signing");
 
-      // Step 1: Get signed URL
       const ext = uploadFile.name.split(".").pop() || "mp4";
       const storagePath = `features/${uploadFeature}/${uploadLocale}/v${Date.now()}.${ext}`;
 
@@ -90,35 +170,26 @@ export function AdminVideosDashboard() {
       if (!signRes.ok) throw new Error("Failed to get upload URL");
       const { uploadUrl, path } = await signRes.json();
 
-      // Step 2: Upload file to Supabase
       setUploadStep("uploading");
       setUploadProgress(0);
 
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             setUploadProgress(Math.round((e.loaded / e.total) * 100));
           }
         };
-
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed with status ${xhr.status}`));
         };
-
         xhr.onerror = () => reject(new Error("Upload failed"));
-
         xhr.open("PUT", uploadUrl);
         xhr.setRequestHeader("Content-Type", uploadFile.type || "video/mp4");
         xhr.send(uploadFile);
       });
 
-      // Step 3: Save record
       setUploadStep("saving");
 
       const saveRes = await fetch("/api/admin/videos", {
@@ -137,11 +208,10 @@ export function AdminVideosDashboard() {
         throw new Error(err.error ?? "Failed to save");
       }
 
-      // Step 4: Success
       setUploadStep("done");
+      setToast({ message: "Video uploaded successfully", type: "success" });
       await queryClient.invalidateQueries({ queryKey: ["admin-videos"] });
 
-      // Close dialog after brief delay
       setTimeout(() => {
         setUploadOpen(false);
         setUploadFeature("");
@@ -159,225 +229,461 @@ export function AdminVideosDashboard() {
     }
   };
 
-  const statusBadge = (status: string | null) => {
-    if (!status) return <Badge variant="outline">No video</Badge>;
-    if (status === "draft") return <Badge variant="secondary">Draft</Badge>;
-    if (status === "published") return <Badge variant="default">Published</Badge>;
-    return <Badge variant="outline">{status}</Badge>;
-  };
+  const daCoverage = features.filter((f) => f.da?.status === "published").length;
+  const enCoverage = features.filter((f) => f.en?.status === "published").length;
+  const drafts = features.filter((f) => f.da?.status === "draft" || f.en?.status === "draft").length;
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Video Management</h1>
-          <p className="text-sm text-slate-600">Upload, manage, and publish onboarding videos</p>
+    <div style={{ background: COLORS.bg, minHeight: "100vh", padding: "12px" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ marginBottom: "24px" }}>
+          <h1 style={{ color: COLORS.text, fontSize: "24px", fontWeight: "600", margin: "0 0 4px 0" }}>Feature Videos</h1>
+          <p style={{ color: COLORS.textSecondary, fontSize: "12px", margin: 0 }}>Contextual tutorials shown to users · owner only</p>
         </div>
-      </div>
 
-      {isLoading ? (
-        <div className="text-center py-8 text-slate-500">Loading features...</div>
-      ) : features.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
-          No features found
+        {/* Coverage Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px", marginBottom: "24px" }}>
+          <div style={{ background: COLORS.surface, borderRadius: "8px", padding: "10px 16px", border: `1px solid ${COLORS.border}` }}>
+            <div style={{ color: COLORS.textSecondary, fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>DA Coverage</div>
+            <div style={{ color: COLORS.green, fontSize: "18px", fontWeight: "700", marginTop: "2px" }}>
+              {daCoverage}/{features.length}
+            </div>
+          </div>
+          <div style={{ background: COLORS.surface, borderRadius: "8px", padding: "10px 16px", border: `1px solid ${COLORS.border}` }}>
+            <div style={{ color: COLORS.textSecondary, fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>EN Coverage</div>
+            <div style={{ color: COLORS.amber, fontSize: "18px", fontWeight: "700", marginTop: "2px" }}>
+              {enCoverage}/{features.length}
+            </div>
+          </div>
+          <div style={{ background: COLORS.surface, borderRadius: "8px", padding: "10px 16px", border: `1px solid ${COLORS.border}` }}>
+            <div style={{ color: COLORS.textSecondary, fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Drafts</div>
+            <div style={{ color: "#f472b6", fontSize: "18px", fontWeight: "700", marginTop: "2px" }}>
+              {drafts} pending
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead>Feature</TableHead>
-                <TableHead>Route</TableHead>
-                <TableHead>Danish</TableHead>
-                <TableHead>English</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {features.map((feature) => (
-                <TableRow key={feature.key} className="hover:bg-slate-50">
-                  <TableCell className="font-medium text-slate-900">{feature.name}</TableCell>
-                  <TableCell className="text-sm text-slate-600">{feature.route}</TableCell>
-                  <TableCell>{statusBadge(feature.da?.status ?? null)}</TableCell>
-                  <TableCell>{statusBadge(feature.en?.status ?? null)}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Dialog open={uploadOpen && uploadFeature === feature.key} onOpenChange={(open) => {
-                      if (open) setUploadFeature(feature.key);
-                      setUploadOpen(open);
-                    }}>
-                      <DialogTrigger>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setUploadFeature(feature.key)}
-                        >
-                          <Upload className="w-4 h-4 mr-1" /> Upload
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Upload Video — {feature.name}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          {uploadError && (
-                            <div className="flex items-start gap-2 rounded bg-red-50 p-3 text-sm text-red-900">
-                              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                              <div>{uploadError}</div>
-                            </div>
-                          )}
 
-                          {uploadStep === "done" ? (
-                            <div className="flex items-center gap-2 rounded bg-green-50 p-4 text-green-900">
-                              <CheckCircle2 className="w-5 h-5" />
-                              <span>Video uploaded successfully!</span>
-                            </div>
+        {/* Features Grid */}
+        {isLoading ? (
+          <div style={{ textAlign: "center", padding: "32px", color: COLORS.textSecondary }}>Loading features...</div>
+        ) : features.length === 0 ? (
+          <div style={{ background: COLORS.surface, borderRadius: "8px", padding: "24px", textAlign: "center", color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` }}>
+            No features found
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
+            {features.map((feature) => (
+              <div key={feature.key} style={{ background: COLORS.surface, borderRadius: "8px", border: `1px solid ${COLORS.border}`, padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div>
+                  <h3 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600", margin: "0 0 4px 0" }}>{feature.name}</h3>
+                  <p style={{ color: COLORS.textSecondary, fontSize: "11px", margin: 0 }}>
+                    {feature.key} · {feature.route}
+                  </p>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div style={{ background: COLORS.bg, padding: "8px", borderRadius: "6px" }}>
+                    <div style={{ fontSize: "9px", color: COLORS.textSecondary, marginBottom: "4px" }}>DA</div>
+                    <StatusBadge status={feature.da?.status ?? null} />
+                  </div>
+                  <div style={{ background: COLORS.bg, padding: "8px", borderRadius: "6px" }}>
+                    <div style={{ fontSize: "9px", color: COLORS.textSecondary, marginBottom: "4px" }}>EN</div>
+                    <StatusBadge status={feature.en?.status ?? null} />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {feature.da ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setPreviewVideo({ path: feature.da?.videoPath, title: feature.da?.title || "Video" });
+                          setPreviewOpen(true);
+                        }}
+                        style={{ background: "transparent", border: "none", color: COLORS.purple, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left" }}
+                      >
+                        👁 Preview
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTestFeature(feature);
+                          setTestTriggerOpen(true);
+                        }}
+                        style={{ background: "transparent", border: "none", color: COLORS.amber, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left" }}
+                      >
+                        ⚡ Test
+                      </button>
+                      {feature.da.status === "draft" && (
+                        <>
+                          <button
+                            onClick={() => publishMutation.mutate(feature.da!.id)}
+                            disabled={publishMutation.isPending}
+                            style={{ background: "transparent", border: "none", color: COLORS.green, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left", fontWeight: "600" }}
+                          >
+                            ✓ Publish DA
+                          </button>
+                          {deleteConfirm !== feature.da.id ? (
+                            <button
+                              onClick={() => setDeleteConfirm(feature.da!.id)}
+                              style={{ background: "transparent", border: "none", color: COLORS.red, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left" }}
+                            >
+                              🗑️ Delete
+                            </button>
                           ) : (
                             <>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                  Locale
-                                </label>
-                                <Select value={uploadLocale} onValueChange={(v) => setUploadLocale(v as "da" | "en")}>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="da">Danish (Dansk)</SelectItem>
-                                    <SelectItem value="en">English</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                  Title
-                                </label>
-                                <Input
-                                  placeholder="e.g., Search Feature Walkthrough"
-                                  value={uploadTitle}
-                                  onChange={(e) => setUploadTitle(e.target.value)}
-                                  disabled={uploadStep !== "idle"}
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                  Video File
-                                </label>
-                                <Input
-                                  type="file"
-                                  accept="video/*"
-                                  onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                                  disabled={uploadStep !== "idle"}
-                                />
-                              </div>
-
-                              {uploadStep !== "idle" && (
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                                    <Circle className="w-4 h-4 animate-spin" />
-                                    {uploadStep === "signing" && "Getting upload URL..."}
-                                    {uploadStep === "uploading" && `Uploading... ${uploadProgress}%`}
-                                    {uploadStep === "saving" && "Saving to database..."}
-                                    {uploadStep === "error" && "Upload failed"}
-                                  </div>
-                                  {uploadStep === "uploading" && (
-                                    <div className="w-full h-2 bg-slate-200 rounded overflow-hidden">
-                                      <div
-                                        className="h-full bg-blue-500 transition-all"
-                                        style={{ width: `${uploadProgress}%` }}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                              <button
+                                onClick={() => deleteMutation.mutate(feature.da!.id)}
+                                disabled={deleteMutation.isPending}
+                                style={{ background: "transparent", border: "none", color: COLORS.red, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left", fontWeight: "600" }}
+                              >
+                                Confirm Delete
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm("")}
+                                style={{ background: "transparent", border: "none", color: COLORS.textSecondary, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left" }}
+                              >
+                                Cancel
+                              </button>
                             </>
                           )}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setUploadFeature(feature.key);
+                        setUploadLocale("da");
+                        setUploadOpen(true);
+                      }}
+                      style={{ background: "transparent", border: "none", color: COLORS.green, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left" }}
+                    >
+                      + Upload DA
+                    </button>
+                  )}
 
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setUploadOpen(false);
-                                setUploadError("");
-                                setUploadStep("idle");
-                              }}
-                            >
-                              {uploadStep === "done" ? "Close" : "Cancel"}
-                            </Button>
-                            {uploadStep !== "done" && uploadStep !== "error" && (
-                              <Button
-                                onClick={handleUploadSubmit}
-                                disabled={uploadStep !== "idle" || !uploadTitle || !uploadFile}
-                              >
-                                Upload
-                              </Button>
-                            )}
-                            {uploadStep === "error" && (
-                              <Button
-                                onClick={() => {
-                                  setUploadError("");
-                                  setUploadStep("idle");
-                                }}
-                              >
-                                Try Again
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                  {feature.en ? (
+                    <>
+                      {feature.en.status === "draft" && (
+                        <button
+                          onClick={() => publishMutation.mutate(feature.en!.id)}
+                          disabled={publishMutation.isPending}
+                          style={{ background: "transparent", border: "none", color: COLORS.green, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left", fontWeight: "600" }}
+                        >
+                          ✓ Publish EN
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setUploadFeature(feature.key);
+                        setUploadLocale("en");
+                        setUploadOpen(true);
+                      }}
+                      style={{ background: "transparent", border: "none", color: COLORS.green, cursor: "pointer", fontSize: "12px", padding: "4px 0", textAlign: "left" }}
+                    >
+                      + Upload EN
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-                    {feature.da?.status === "draft" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => publishMutation.mutate(feature.da!.id)}
-                        disabled={publishMutation.isPending}
-                      >
-                        {publishMutation.isPending ? "Publishing..." : "Publish DA"}
-                      </Button>
-                    )}
-
-                    {feature.en?.status === "draft" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => publishMutation.mutate(feature.en!.id)}
-                        disabled={publishMutation.isPending}
-                      >
-                        {publishMutation.isPending ? "Publishing..." : "Publish EN"}
-                      </Button>
-                    )}
-
-                    {feature.da?.status === "draft" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => deleteMutation.mutate(feature.da!.id)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-
-                    {feature.en?.status === "draft" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => deleteMutation.mutate(feature.en!.id)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      {/* Preview Modal */}
+      {previewOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: "12px",
+          }}
+          onClick={() => setPreviewOpen(false)}
+        >
+          <div
+            style={{
+              background: COLORS.surface,
+              borderRadius: "8px",
+              overflow: "hidden",
+              maxWidth: "600px",
+              width: "100%",
+              border: `1px solid ${COLORS.border}`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ background: COLORS.bg, padding: "12px 16px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600", margin: 0 }}>{previewVideo?.title}</h2>
+              <button onClick={() => setPreviewOpen(false)} style={{ background: "transparent", border: "none", color: COLORS.textSecondary, cursor: "pointer", fontSize: "20px" }}>
+                ×
+              </button>
+            </div>
+            <div style={{ background: COLORS.bg, padding: "20px", minHeight: "300px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {previewVideo?.path ? (
+                <video src={`${previewVideo.path}?timestamp=${Date.now()}`} controls style={{ maxWidth: "100%", maxHeight: "400px", borderRadius: "4px" }}>
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <div style={{ color: COLORS.textSecondary, textAlign: "center" }}>
+                  <p>No video path available</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Test Trigger Modal */}
+      {testTriggerOpen && testFeature && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: "12px",
+          }}
+          onClick={() => setTestTriggerOpen(false)}
+        >
+          <div
+            style={{
+              background: COLORS.surface,
+              borderRadius: "8px",
+              padding: "20px",
+              maxWidth: "400px",
+              width: "100%",
+              border: `1px solid ${COLORS.border}`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600", marginTop: 0, marginBottom: "8px" }}>Test Trigger — {testFeature.name}</h2>
+            <p style={{ color: COLORS.textSecondary, fontSize: "11px", marginBottom: "12px" }}>Simulate what a user would experience under different conditions</p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {[
+                { label: "First-time visitor (never seen)", emoji: "👁️" },
+                { label: "Returning user (seen v1, now v2)", emoji: "↩️" },
+                { label: "User who dismissed video", emoji: "🚫" },
+                { label: "Manual trigger (button-only)", emoji: "🔘" },
+              ].map((scenario, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setToast({ message: `Simulated: ${scenario.label}`, type: "success" });
+                    setTestTriggerOpen(false);
+                  }}
+                  style={{
+                    background: COLORS.bg,
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: "6px",
+                    padding: "8px 12px",
+                    color: COLORS.textSecondary,
+                    cursor: "pointer",
+                    fontSize: "11px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span>{scenario.label}</span>
+                  <span style={{ color: COLORS.blue }}>▶ Run</span>
+                </button>
+              ))}
+            </div>
+
+            <p style={{ color: COLORS.textSecondary, fontSize: "10px", marginTop: "10px", marginBottom: 0 }}>Simulations don't write to DB — safe to run anytime</p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px" }}>
+              <button
+                onClick={() => setTestTriggerOpen(false)}
+                style={{
+                  background: COLORS.bg,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: "4px",
+                  padding: "6px 12px",
+                  color: COLORS.text,
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Modal */}
+      {uploadOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: "12px",
+          }}
+          onClick={() => !uploadStep || uploadStep === "idle" || uploadStep === "done" || uploadStep === "error" ? setUploadOpen(false) : null}
+        >
+          <div
+            style={{
+              background: COLORS.surface,
+              borderRadius: "8px",
+              padding: "20px",
+              maxWidth: "400px",
+              width: "100%",
+              border: `1px solid ${COLORS.border}`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ color: COLORS.text, fontSize: "16px", fontWeight: "600", marginTop: 0, marginBottom: "12px" }}>Upload Video — {features.find((f) => f.key === uploadFeature)?.name}</h2>
+
+            {uploadError && (
+              <div style={{ background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: "6px", padding: "8px 12px", marginBottom: "12px", color: COLORS.red, fontSize: "12px", display: "flex", gap: "8px" }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            {uploadStep === "done" ? (
+              <div style={{ background: "#14532d", borderRadius: "6px", padding: "12px", marginBottom: "12px", color: COLORS.green, display: "flex", gap: "8px", alignItems: "center" }}>
+                <CheckCircle2 size={20} />
+                <span>Video uploaded successfully!</span>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: COLORS.text, marginBottom: "4px" }}>Locale</label>
+                  <select
+                    value={uploadLocale}
+                    onChange={(e) => setUploadLocale(e.target.value as "da" | "en")}
+                    disabled={uploadStep !== "idle"}
+                    style={{
+                      width: "100%",
+                      background: COLORS.bg,
+                      border: `1px solid ${COLORS.border}`,
+                      borderRadius: "4px",
+                      padding: "6px 8px",
+                      color: COLORS.text,
+                      fontSize: "12px",
+                    }}
+                  >
+                    <option value="da">Danish (Dansk)</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: COLORS.text, marginBottom: "4px" }}>Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Feature Overview"
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                    disabled={uploadStep !== "idle"}
+                    style={{ width: "100%", background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: "4px", padding: "6px 8px", color: COLORS.text, fontSize: "12px", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: COLORS.text, marginBottom: "4px" }}>Video File</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                    disabled={uploadStep !== "idle"}
+                    style={{ width: "100%", fontSize: "12px", color: COLORS.text }}
+                  />
+                </div>
+
+                {uploadStep !== "idle" && (
+                  <div style={{ marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: COLORS.textSecondary }}>
+                      <Circle size={14} style={{ animation: "spin 1s linear infinite" }} />
+                      {uploadStep === "signing" && "Getting upload URL..."}
+                      {uploadStep === "uploading" && `Uploading... ${uploadProgress}%`}
+                      {uploadStep === "saving" && "Saving to database..."}
+                      {uploadStep === "error" && "Upload failed"}
+                    </div>
+                    {uploadStep === "uploading" && (
+                      <div style={{ width: "100%", height: "4px", background: COLORS.bg, borderRadius: "2px", marginTop: "4px", overflow: "hidden" }}>
+                        <div style={{ height: "100%", background: COLORS.blue, width: `${uploadProgress}%`, transition: "width 0.3s" }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                onClick={() => {
+                  setUploadOpen(false);
+                  setUploadError("");
+                  setUploadStep("idle");
+                }}
+                style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: "4px", padding: "6px 12px", color: COLORS.text, fontSize: "12px", cursor: "pointer" }}
+              >
+                {uploadStep === "done" ? "Close" : "Cancel"}
+              </button>
+              {uploadStep !== "done" && uploadStep !== "error" && (
+                <button
+                  onClick={handleUploadSubmit}
+                  disabled={uploadStep !== "idle" || !uploadTitle || !uploadFile}
+                  style={{
+                    background: COLORS.blue,
+                    border: "none",
+                    borderRadius: "4px",
+                    padding: "6px 12px",
+                    color: "white",
+                    fontSize: "12px",
+                    cursor: uploadStep === "idle" && uploadTitle && uploadFile ? "pointer" : "not-allowed",
+                    opacity: uploadStep === "idle" && uploadTitle && uploadFile ? 1 : 0.5,
+                  }}
+                >
+                  Upload
+                </button>
+              )}
+              {uploadStep === "error" && (
+                <button
+                  onClick={() => {
+                    setUploadError("");
+                    setUploadStep("idle");
+                  }}
+                  style={{ background: COLORS.blue, border: "none", borderRadius: "4px", padding: "6px 12px", color: "white", fontSize: "12px", cursor: "pointer" }}
+                >
+                  Try Again
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toast toast={toast} />
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      `}</style>
     </div>
   );
 }
