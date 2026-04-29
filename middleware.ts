@@ -40,7 +40,6 @@ const PROTECTED_ROUTES = [
   "/company",
   "/todos",
   "/onboarding",
-  "/admin",
 ];
 
 const AUTH_ROUTES = ["/login", "/signup"];
@@ -64,6 +63,15 @@ export function middleware(req: NextRequest) {
     if (!checkInviteRateLimit(ip)) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
+  }
+
+  // Admin routes (independent of Better Auth): check admin-session cookie
+  if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
+    const hasAdminCookie = req.cookies.has("admin-session");
+    if (!hasAdminCookie) {
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
+    return NextResponse.next();
   }
 
   // Authenticated users trying to access login/signup → redirect to dashboard

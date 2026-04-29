@@ -1,35 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { db } from "@/db";
 import { featureVideo } from "@/db/schema";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { getOrgMembership } from "@/lib/team/permissions";
+import { verifyAdminToken } from "@/lib/admin/auth";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) {
+    const adminCookie = (await cookies()).get("admin-session")?.value;
+    const adminEmail = await verifyAdminToken(adminCookie);
+    if (!adminEmail) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const org = session.session?.activeOrganizationId;
-    if (!org) {
-      return NextResponse.json(
-        { error: "No organization context" },
-        { status: 403 }
-      );
-    }
-
-    const membership = await getOrgMembership(session.user.id, org);
-    if (!membership || membership.role !== "owner") {
-      return NextResponse.json(
-        { error: "Only owners can publish videos" },
-        { status: 403 }
-      );
     }
 
     const { id } = await params;
