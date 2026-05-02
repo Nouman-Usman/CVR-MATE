@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyAdminToken } from "@/lib/admin/auth";
+import { AdminShell } from "@/components/admin/AdminShell";
 
 export default async function AdminLayout({
   children,
@@ -15,5 +16,5 @@ export default async function AdminLayout({
     redirect("/admin/login");
   }
 
-  return <>{children}</>;
+  return <AdminShell>{children}</AdminShell>;
 }

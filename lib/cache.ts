@@ -12,6 +12,7 @@ export const CACHE_TTL = {
   aiPipeline: 1800,   // 30 minutes
   todos: 120,          // 2 minutes
   enrichment: 86400,   // 24 hours
+  adminOverview: 60,   // 1 minute (near-real-time for ops)
 } as const;
 
 /** Build a deterministic cache key from a path and sorted params */
@@ -48,4 +49,5 @@ export const cacheKey = {
   todos: (userId: string) => `todos:${userId}`,
   enrichment: (type: string, entityId: string, userId: string) =>
     `enrichment:${type}:${entityId}:${userId}`,
+  adminOverview: () => "admin:overview",
 };

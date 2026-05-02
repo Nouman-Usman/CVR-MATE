@@ -30,14 +30,6 @@ export async function DELETE(
       );
     }
 
-    // Only allow deletion of non-current videos
-    if (video.isCurrent) {
-      return NextResponse.json(
-        { error: "Cannot delete current version" },
-        { status: 400 }
-      );
-    }
-
     // Delete from Supabase Storage
     if (video.videoPath) {
       await supabaseAdmin.storage
