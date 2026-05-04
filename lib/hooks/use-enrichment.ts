@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUpgradePrompt } from "./use-upgrade-prompt";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,10 +50,11 @@ export function useSavedEnrichment<T>(type: "company" | "person", id: string | u
 
 export function useCompanyEnrichment() {
   const queryClient = useQueryClient();
+  const { triggerUpgrade } = useUpgradePrompt();
 
   return useMutation<
     { enrichment: CompanyEnrichment },
-    Error,
+    Error & { upgrade?: boolean },
     { vat: string; locale: string; companyData?: Record<string, unknown> }
   >({
     mutationFn: async ({ vat, locale, companyData }) => {
@@ -71,6 +73,10 @@ export function useCompanyEnrichment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["enrichment", "company", variables.vat] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+    onError: (err) => {
+      if (err.upgrade) triggerUpgrade("enrichment");
     },
   });
 }
@@ -79,10 +85,11 @@ export function useCompanyEnrichment() {
 
 export function usePersonEnrichment() {
   const queryClient = useQueryClient();
+  const { triggerUpgrade } = useUpgradePrompt();
 
   return useMutation<
     { enrichment: PersonEnrichment },
-    Error,
+    Error & { upgrade?: boolean },
     {
       participantNumber: string;
       personName: string;
@@ -107,6 +114,10 @@ export function usePersonEnrichment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["enrichment", "person", variables.participantNumber] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+    onError: (err) => {
+      if (err.upgrade) triggerUpgrade("enrichment");
     },
   });
 }

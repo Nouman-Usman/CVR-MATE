@@ -3,11 +3,21 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Video, LogOut, Shield, Menu, X } from "lucide-react";
+import { LayoutDashboard, Video, LogOut, Shield, Menu, X, ArrowRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 
 const NAV = [
   { label: "Overview", href: "/admin/overview", icon: LayoutDashboard },
@@ -24,53 +34,76 @@ function SidebarContent({
   onNav?: () => void;
 }) {
   return (
-    <div className="flex flex-col h-full py-5 px-3">
+    <div className="flex flex-col h-full py-8 px-4 font-[family-name:var(--font-manrope)]">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 px-3 mb-6">
-        <div className="w-7 h-7 rounded-lg bg-[#2563eb] flex items-center justify-center shrink-0">
-          <Shield size={14} className="text-white" />
+      <div className="flex items-center gap-3 px-3 mb-10">
+        <div className="size-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
+          <Shield size={18} className="text-white" />
         </div>
         <div>
-          <p className="font-bold text-[#191c1e] text-sm leading-tight">CVR-MATE</p>
-          <p className="text-[10px] text-[#64748b] uppercase tracking-wider">Admin</p>
+          <p className="font-black text-slate-900 text-lg tracking-tight leading-none">CVR-MATE</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Admin Panel</p>
         </div>
       </div>
 
-      <p className="px-3 mb-2 text-[10px] font-semibold text-[#64748b] uppercase tracking-widest">
-        Platform
-      </p>
-
-      {NAV.map(({ label, href, icon: Icon }) => {
-        const active = pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNav}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm mb-0.5 transition-colors",
-              active
-                ? "bg-[#eff6ff] text-[#2563eb] font-semibold"
-                : "text-[#64748b] hover:text-[#191c1e] hover:bg-[#f1f5f9]"
-            )}
-          >
-            <Icon size={15} />
-            {label}
-          </Link>
-        );
-      })}
-
-      <div className="mt-auto pt-5 border-t border-[#e2e8f0]">
-        <p className="px-3 mb-2 text-[10px] font-semibold text-[#64748b] uppercase tracking-widest">
-          System
+      <div className="space-y-1">
+        <p className="px-4 mb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          Platform
         </p>
-        <button
-          onClick={onLogout}
-          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm w-full text-left text-[#64748b] hover:text-red-600 hover:bg-red-50 transition-colors"
-        >
-          <LogOut size={15} />
-          Logout
-        </button>
+
+        {NAV.map(({ label, href, icon: Icon }) => {
+          const active = pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNav}
+              className={cn(
+                "group flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-all duration-300",
+                active
+                  ? "bg-white text-blue-600 font-extrabold shadow-sm border border-slate-100 shadow-blue-600/5"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+              )}
+            >
+              <div className={cn(
+                "p-1.5 rounded-lg transition-colors",
+                active ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm"
+              )}>
+                <Icon size={16} />
+              </div>
+              <span className="flex-1">{label}</span>
+              {active && <ArrowRight size={14} className="opacity-40" />}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mt-auto pt-8 border-t border-slate-100">
+        <DropdownMenu>
+          <DropdownMenuTrigger 
+            render={
+              <button className="flex items-center gap-3 px-4 py-3 rounded-2xl w-full text-left hover:bg-slate-50 transition-all group outline-none" />
+            }
+          >
+            <Avatar className="size-9 border-2 border-white shadow-sm">
+              <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">AD</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-slate-900 truncate">System Admin</p>
+              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Verified</p>
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-xl border-slate-100">
+            <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 py-1.5">My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-slate-50" />
+            <DropdownMenuItem 
+              className="rounded-lg font-medium text-rose-600 focus:text-rose-600 cursor-pointer"
+              onClick={onLogout}
+            >
+              <LogOut size={14} className="mr-2" /> Logout Session
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -87,39 +120,51 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f9fb] flex flex-col">
+    <div className="min-h-screen bg-[#fafbfc] flex flex-col font-[family-name:var(--font-manrope)]">
       {/* ── Top navbar ── */}
-      <header className="sticky top-0 z-50 bg-white border-b border-[#e2e8f0] h-14 flex items-center px-4 md:px-6 gap-3 shadow-sm">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 h-16 flex items-center px-6 gap-4">
         {/* Mobile hamburger */}
-        <button
-          className="md:hidden p-1.5 rounded-md text-[#64748b] hover:bg-[#f1f5f9] transition-colors"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open menu"
-        >
-          <Menu size={20} />
-        </button>
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetTrigger 
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden rounded-xl text-slate-500 hover:bg-slate-50"
+              />
+            }
+          >
+            <Menu size={22} />
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 p-0 border-none shadow-2xl bg-[#fafbfc]">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Admin Navigation</SheetTitle>
+            </SheetHeader>
+            <SidebarContent
+              pathname={pathname}
+              onLogout={() => { setMobileOpen(false); logout(); }}
+              onNav={() => setMobileOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
 
-        {/* Desktop brand */}
-        <div className="hidden md:flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-[#2563eb] flex items-center justify-center">
-            <Shield size={14} className="text-white" />
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div className="size-8 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20 md:hidden">
+            <Shield size={16} className="text-white" />
           </div>
-          <span className="font-bold text-[#191c1e] text-sm">CVR-MATE</span>
-          <span className="text-[#94a3b8] text-sm">Admin</span>
+          <div className="hidden md:flex items-center gap-2">
+            <span className="font-black text-slate-900 text-lg tracking-tight">Admin Console</span>
+            <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-none text-[9px] font-black uppercase tracking-wider h-5 px-1.5">
+              v2.1
+            </Badge>
+          </div>
         </div>
 
-        {/* Mobile brand (centered) */}
-        <div className="flex md:hidden items-center gap-2 flex-1 justify-center">
-          <div className="w-6 h-6 rounded-md bg-[#2563eb] flex items-center justify-center">
-            <Shield size={12} className="text-white" />
-          </div>
-          <span className="font-bold text-[#191c1e] text-sm">CVR-MATE Admin</span>
-        </div>
+        <div className="flex-1" />
 
-        <Separator orientation="vertical" className="h-5 mx-1 hidden md:block" />
-
-        {/* Desktop nav links */}
-        <nav className="hidden md:flex gap-1 flex-1">
+        {/* Desktop nav shortcuts */}
+        <nav className="hidden md:flex items-center gap-1">
           {NAV.map(({ label, href }) => {
             const active = pathname.startsWith(href);
             return (
@@ -127,10 +172,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
                   active
-                    ? "bg-[#eff6ff] text-[#2563eb]"
-                    : "text-[#64748b] hover:text-[#191c1e] hover:bg-[#f1f5f9]"
+                    ? "text-blue-600 bg-blue-50/50"
+                    : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"
                 )}
               >
                 {label}
@@ -139,40 +184,49 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Desktop logout */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={logout}
-          className="hidden md:flex text-[#64748b] text-xs gap-1.5 hover:text-red-600 hover:bg-red-50"
-        >
-          <LogOut size={13} />
-          Logout
-        </Button>
-      </header>
+        <Separator orientation="vertical" className="h-6 mx-2 hidden md:block opacity-50" />
 
-      {/* ── Mobile Sheet sidebar ── */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 p-0 bg-[#f8fafc] border-r border-[#e2e8f0]">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SidebarContent
-            pathname={pathname}
-            onLogout={() => { setMobileOpen(false); logout(); }}
-            onNav={() => setMobileOpen(false)}
-          />
-        </SheetContent>
-      </Sheet>
+        {/* User status */}
+        <DropdownMenu>
+          <DropdownMenuTrigger 
+            render={
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-white shadow-sm p-0 outline-none" />
+            }
+          >
+            <Avatar className="h-full w-full">
+              <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">AD</AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-xl border-slate-100">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-bold leading-none">System Admin</p>
+                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest leading-none mt-1">Verified Account</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-slate-50" />
+            <DropdownMenuItem 
+              className="rounded-lg font-medium text-rose-600 focus:text-rose-600 cursor-pointer"
+              onClick={logout}
+            >
+              <LogOut size={14} className="mr-2" /> Logout Session
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
 
       {/* ── Body ── */}
       <div className="flex flex-1 min-h-0">
         {/* Desktop sidebar */}
-        <aside className="w-52 shrink-0 bg-[#f8fafc] border-r border-[#e2e8f0] hidden md:block">
+        <aside className="w-64 shrink-0 bg-[#fafbfc] border-r border-slate-100 hidden md:block">
           <SidebarContent pathname={pathname} onLogout={logout} />
         </aside>
 
         {/* Main */}
         <main className="flex-1 overflow-auto min-w-0">
-          {children}
+          <div className="h-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

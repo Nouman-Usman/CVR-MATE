@@ -3,12 +3,21 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand } from "@/lib/get-user-brand";
+import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade your plan for more.`, upgrade: true },
+        { status: 403 }
+      );
     }
 
     const brand = await getUserBrand(session.user.id);
@@ -73,6 +82,7 @@ Each question should be:
 
     const questions = Array.isArray(data.questions) ? data.questions : Array.isArray(data) ? data : [];
 
+    await recordUsage(session.user.id, "ai_usage");
     return NextResponse.json({ questions });
   } catch (error) {
     console.error("Brand enrichment questions error:", error);

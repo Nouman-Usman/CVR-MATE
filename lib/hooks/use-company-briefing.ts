@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useUpgradePrompt } from "./use-upgrade-prompt";
 
 interface BriefingResponse {
   id?: string;
@@ -22,8 +23,9 @@ export interface SavedBriefing {
 
 export function useCompanyBriefing() {
   const queryClient = useQueryClient();
+  const { triggerUpgrade } = useUpgradePrompt();
 
-  return useMutation<BriefingResponse, Error, { vat: string; locale: string; companyData?: Record<string, unknown> }>({
+  return useMutation<BriefingResponse, Error & { upgrade?: boolean }, { vat: string; locale: string; companyData?: Record<string, unknown> }>({
     mutationFn: async ({ vat, locale, companyData }) => {
       const res = await fetch("/api/ai/company-briefing", {
         method: "POST",
@@ -31,11 +33,19 @@ export function useCompanyBriefing() {
         body: JSON.stringify({ vat, locale, companyData }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate briefing");
+      if (!res.ok) {
+        const err = new Error(data.error || "Failed to generate briefing") as Error & { upgrade?: boolean };
+        if (data.upgrade) err.upgrade = true;
+        throw err;
+      }
       return data;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["briefings", variables.vat] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+    onError: (err) => {
+      if (err.upgrade) triggerUpgrade("ai_usage");
     },
   });
 }

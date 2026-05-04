@@ -16,6 +16,7 @@ import {
   useNotificationStream,
 } from "@/lib/hooks/use-notifications";
 import { cn } from "@/lib/utils";
+import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -605,6 +606,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <UpgradeModal />
     </div>
   );
 }

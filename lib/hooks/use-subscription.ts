@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { PlanId } from "@/lib/stripe/plans";
+import { useUpgradePrompt } from "./use-upgrade-prompt";
 
 export interface UsageQuota {
   used: number;
@@ -17,6 +18,8 @@ export interface SubscriptionData {
   status: string;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  stripePriceId: string | null;
+  billingInterval: "monthly" | "annual";
   limits: {
     savedCompanies: number;
     triggers: number;
@@ -119,12 +122,44 @@ export function useResumeSubscription() {
 }
 
 export function useExportCheck() {
+  const queryClient = useQueryClient();
+  const { triggerUpgrade } = useUpgradePrompt();
+
   return useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/exports/check", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Export not allowed");
+      if (!res.ok) {
+        const err = new Error(data.error || "Export not allowed") as Error & { upgrade?: boolean };
+        if (data.upgrade || res.status === 403) err.upgrade = true;
+        throw err;
+      }
       return data as { allowed: boolean; used: number; limit: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+    onError: (err: Error & { upgrade?: boolean }) => {
+      if (err.upgrade) triggerUpgrade("export");
+    },
+  });
+}
+
+export function useChangePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (priceId: string) => {
+      const res = await fetch("/api/stripe/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to change plan");
+      return data as { success: boolean; plan: string; effective: "immediate" | "period_end" };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
   });
 }

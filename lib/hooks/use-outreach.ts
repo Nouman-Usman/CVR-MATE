@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useUpgradePrompt } from "./use-upgrade-prompt";
 
 interface OutreachResponse {
   id?: string;
@@ -34,8 +35,9 @@ export interface SavedOutreachMessage {
 
 export function useOutreach() {
   const queryClient = useQueryClient();
+  const { triggerUpgrade } = useUpgradePrompt();
 
-  return useMutation<OutreachResponse, Error, OutreachParams>({
+  return useMutation<OutreachResponse, Error & { upgrade?: boolean }, OutreachParams>({
     mutationFn: async (params) => {
       const res = await fetch("/api/ai/draft-outreach", {
         method: "POST",
@@ -43,12 +45,25 @@ export function useOutreach() {
         body: JSON.stringify(params),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate outreach");
+      if (!res.ok) {
+        const err = new Error(data.error || "Failed to generate outreach") as Error & { upgrade?: boolean };
+        if (data.upgrade) err.upgrade = true;
+        throw err;
+      }
       return data;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate saved messages so the new one shows up in history
       queryClient.invalidateQueries({ queryKey: ["outreach-messages", variables.vat] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
+    },
+    onError: (err, variables) => {
+      if (err.upgrade) {
+        const featureKey =
+          variables.type === "email" ? "email_draft"
+          : variables.type === "linkedin" ? "linkedin_draft"
+          : "phone_draft";
+        triggerUpgrade(featureKey);
+      }
     },
   });
 }

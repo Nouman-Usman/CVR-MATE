@@ -26,6 +26,17 @@ export async function GET() {
       serializedLimits[key] = typeof value === "number" && !isFinite(value) ? -1 : value;
     }
 
+    // Determine billing interval from the current price ID
+    const annualPriceIds = [
+      process.env.NEXT_PUBLIC_STRIPE_STARTER_ANNUAL_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_PRO_ANNUAL_PRICE_ID,
+      process.env.NEXT_PUBLIC_STRIPE_ENT_ANNUAL_PRICE_ID,
+    ].filter(Boolean);
+    const billingInterval: "monthly" | "annual" =
+      sub?.stripePriceId && annualPriceIds.includes(sub.stripePriceId)
+        ? "annual"
+        : "monthly";
+
     return NextResponse.json({
       plan,
       planName: planDef.name,
@@ -35,6 +46,8 @@ export async function GET() {
       status,
       currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
+      stripePriceId: sub?.stripePriceId ?? null,
+      billingInterval,
       limits: serializedLimits,
       usage,
     });

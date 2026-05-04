@@ -106,7 +106,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     linkedinDraftsPerMonth: 30,
     phoneDraftsPerMonth: 30,
     exportsPerMonth: 30,
-    aiTaskSuggestPerMonth: Infinity,
+    aiTaskSuggestPerMonth: 50,
     bulkPushPerMonth: 30,
     teamFeatures: false,
     teamMemberLimit: 0,
