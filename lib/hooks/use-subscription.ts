@@ -145,21 +145,3 @@ export function useExportCheck() {
   });
 }
 
-export function useChangePlan() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (priceId: string) => {
-      const res = await fetch("/api/stripe/change-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to change plan");
-      return data as { success: boolean; plan: string; effective: "immediate" | "period_end" };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription"] });
-    },
-  });
-}
