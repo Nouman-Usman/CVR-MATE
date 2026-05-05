@@ -80,11 +80,11 @@ export async function POST(req: NextRequest) {
     const isUpgrade = (PLAN_ORDER[newPlan] ?? 0) > (PLAN_ORDER[currentPlan] ?? 0);
 
     // Update the Stripe subscription
-    // - Upgrades: create_prorations charges the difference immediately
+    // - Upgrades: always_invoice creates a prorated invoice and charges it immediately
     // - Downgrades / interval changes: none means no proration credit; new price starts next cycle
     await stripe.subscriptions.update(sub.stripeSubscriptionId, {
       items: [{ id: item.id, price: priceId }],
-      proration_behavior: isUpgrade ? "create_prorations" : "none",
+      proration_behavior: isUpgrade ? "always_invoice" : "none",
       // Clear any pending cancellation so the subscription continues
       cancel_at_period_end: false,
     });

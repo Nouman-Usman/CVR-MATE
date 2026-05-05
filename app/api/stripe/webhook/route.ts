@@ -343,12 +343,16 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   });
   if (!existing) return;
 
+  // Fetch live sub and write canonical data — same pattern as handlePaymentSucceeded.
+  // Avoids leaving stale plan data when an upgrade invoice fails to charge.
+  const stripe = getStripe();
+  const stripeSub = await stripe.subscriptions.retrieve(subId);
+  const data = subscriptionDataFromStripe(stripeSub);
+
   await db
     .update(subscription)
-    .set({
-      status: "past_due",
-    })
+    .set(data)
     .where(eq(subscription.id, existing.id));
 
-  console.log(`[Stripe Webhook] Payment failed for subscription ${subId}, marked as past_due`);
+  console.log(`[Stripe Webhook] Payment failed for subscription ${subId}, status=${data.status}`);
 }
