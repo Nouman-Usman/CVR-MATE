@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useLanguage } from "@/lib/i18n/language-context";
 import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
@@ -14,28 +13,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Search,
-  X,
-  RefreshCw,
-  Loader2,
-  AlertCircle,
-  Building2,
-  Heart,
-  ChevronLeft,
-  ChevronRight,
-  ArrowRight,
-  Calendar,
-  MapPin,
-  Users,
-  Sparkles,
-  TrendingUp,
-  Eye,
-  Copy,
-  ExternalLink,
-  Trash2,
-} from "lucide-react";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -45,6 +30,24 @@ import {
   ContextMenuGroup,
   ContextMenuLabel,
 } from "@/components/ui/context-menu";
+import {
+  Search,
+  X,
+  RefreshCw,
+  AlertCircle,
+  Building2,
+  Heart,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  MapPin,
+  Users,
+  Sparkles,
+  TrendingUp,
+  Eye,
+  Copy,
+  Loader2,
+} from "lucide-react";
 
 const PAGE_SIZE = 20;
 
@@ -77,7 +80,7 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
     industry: comp.industry?.primary?.text ?? "",
     status: comp.companystatus?.text ?? "",
     founded: comp.life?.start ?? "",
-    employees: latestEmployment != null ? String(latestEmployment) : "\u2013",
+    employees: latestEmployment != null ? String(latestEmployment) : "–",
   };
 }
 
@@ -92,7 +95,10 @@ export default function RecentCompaniesPage() {
   const { data, isLoading, error: fetchError, forceRefresh, isFetching } = useRecentCompanies(7);
   const rawResults = data?.results ?? [];
 
-  const allCompanies = useMemo(() => rawResults.map(r => mapCvrCompany(r as unknown as Record<string, unknown>)), [rawResults]);
+  const allCompanies = useMemo(
+    () => rawResults.map((row) => mapCvrCompany(row as unknown as Record<string, unknown>)),
+    [rawResults]
+  );
 
   const filtered = useMemo(() => {
     if (!filter.trim()) return allCompanies;
@@ -128,6 +134,7 @@ export default function RecentCompaniesPage() {
       saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult });
     }
   };
+
   const savingCvr = saveCompanyMutation.isPending
     ? (saveCompanyMutation.variables?.vat ?? null)
     : unsaveCompanyMutation.isPending
@@ -140,25 +147,27 @@ export default function RecentCompaniesPage() {
   };
 
   const [toast, setToast] = useState("");
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  };
 
   return (
     <DashboardLayout>
       {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
           {toast}
         </div>
       )}
-      {/* ── Header ────────────────────────────────────────────── */}
+
+      {/* ── Header ──────────────────────────────────────────────── */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-[family-name:var(--font-manrope)]">
             {r.title}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            {r.subtitle}
-          </p>
+          <p className="text-sm text-muted-foreground mt-1.5">{r.subtitle}</p>
         </div>
         <Button
           variant="outline"
@@ -171,7 +180,7 @@ export default function RecentCompaniesPage() {
         </Button>
       </div>
 
-      {/* ── Stats row ─────────────────────────────────────────── */}
+      {/* ── Stats row ───────────────────────────────────────────── */}
       {!isLoading && !fetchError && allCompanies.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Card className="border-0 shadow-sm py-0">
@@ -196,7 +205,7 @@ export default function RecentCompaniesPage() {
               </div>
               <div>
                 <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
-                  {new Set(allCompanies.map(c => c.city).filter(Boolean)).size}
+                  {new Set(allCompanies.map((c) => c.city).filter(Boolean)).size}
                 </p>
                 <p className="text-[11px] text-muted-foreground font-medium">
                   {locale === "da" ? "Byer" : "Cities"}
@@ -211,7 +220,7 @@ export default function RecentCompaniesPage() {
               </div>
               <div>
                 <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
-                  {new Set(allCompanies.map(c => c.industry).filter(Boolean)).size}
+                  {new Set(allCompanies.map((c) => c.industry).filter(Boolean)).size}
                 </p>
                 <p className="text-[11px] text-muted-foreground font-medium">
                   {locale === "da" ? "Brancher" : "Industries"}
@@ -226,7 +235,7 @@ export default function RecentCompaniesPage() {
               </div>
               <div>
                 <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">
-                  {allCompanies.filter(c => savedCvrs.has(c.cvr)).length}
+                  {allCompanies.filter((c) => savedCvrs.has(c.cvr)).length}
                 </p>
                 <p className="text-[11px] text-muted-foreground font-medium">
                   {locale === "da" ? "Gemt" : "Saved"}
@@ -237,10 +246,10 @@ export default function RecentCompaniesPage() {
         </div>
       )}
 
-      {/* ── Search + count bar ────────────────────────────────── */}
+      {/* ── Search + count bar ──────────────────────────────────── */}
       <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search className="size-4 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2" />
+        <div className="relative w-full sm:max-w-md">
+          <Search className="size-4 text-muted-foreground/50 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
           <Input
             className="h-11 rounded-xl pl-11 pr-9 border-border/60 bg-muted/30 focus:bg-background transition-colors"
             placeholder={r.filterPlaceholder}
@@ -265,17 +274,19 @@ export default function RecentCompaniesPage() {
         )}
       </div>
 
-      {/* ── Loading ──────────────────────────────────────────── */}
+      {/* ── Loading ─────────────────────────────────────────────── */}
       {isLoading && <InlineLoader />}
 
-      {/* ── Error ─────────────────────────────────────────────── */}
+      {/* ── Error ───────────────────────────────────────────────── */}
       {!isLoading && fetchError && (
         <Card className="py-16 border-0 shadow-sm">
           <CardContent className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-destructive/5 flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="size-7 text-destructive/40" />
             </div>
-            <p className="text-foreground font-semibold mb-1">{locale === "da" ? "Noget gik galt" : "Something went wrong"}</p>
+            <p className="text-foreground font-semibold mb-1">
+              {locale === "da" ? "Noget gik galt" : "Something went wrong"}
+            </p>
             <p className="text-muted-foreground text-sm mb-5">{r.fetchError}</p>
             <Button variant="outline" onClick={() => forceRefresh()} className="rounded-xl gap-2">
               <RefreshCw className="size-4" />
@@ -285,7 +296,7 @@ export default function RecentCompaniesPage() {
         </Card>
       )}
 
-      {/* ── Empty / No filter match ───────────────────────────── */}
+      {/* ── Empty state ─────────────────────────────────────────── */}
       {!isLoading && !fetchError && companies.length === 0 && (
         <Card className="py-16 border-0 shadow-sm">
           <CardContent className="text-center">
@@ -308,144 +319,201 @@ export default function RecentCompaniesPage() {
         </Card>
       )}
 
-      {/* ── Company list (card-based rows) ────────────────────── */}
+      {/* ── Table ───────────────────────────────────────────────── */}
       {!isLoading && !fetchError && companies.length > 0 && (
         <>
-          <Card className="overflow-hidden border-0 shadow-sm py-0">
-            <div className="divide-y divide-border/30">
-              {companies.map((c, idx) => {
-                const color = companyColors[idx % companyColors.length];
-                const initials = c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-                const isSaved = savedCvrs.has(c.cvr);
-                const rawResult = rawResults.find(
-                  r => (r as unknown as { vat: number }).vat === Number(c.cvr)
-                ) as unknown as Record<string, unknown> | undefined;
+          <Card className="border-0 shadow-sm py-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-border/40">
+                  <TableHead className="pl-5 w-[40%]">{r.table.company}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{r.table.city}</TableHead>
+                  <TableHead className="hidden md:table-cell">{r.table.industry}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{r.table.founded}</TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">{r.table.employees}</TableHead>
+                  <TableHead className="w-16 text-center">{r.table.status}</TableHead>
+                  <TableHead className="w-12 pr-4 text-right">{/* save */}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {companies.map((c, idx) => {
+                  const color = companyColors[idx % companyColors.length];
+                  const initials = c.name
+                    .split(" ")
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase();
+                  const isSaved = savedCvrs.has(c.cvr);
+                  const rawResult = rawResults.find(
+                    (row) => (row as unknown as { vat: number }).vat === Number(c.cvr)
+                  ) as unknown as Record<string, unknown> | undefined;
 
-                return (
-                  <ContextMenu key={c.cvr}>
-                  <ContextMenuTrigger render={
-                  <div
-                    className="group flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/company/${c.cvr}`)}
-                  />
-                  }>
-                    {/* Avatar */}
-                    <div className={cn(
-                      "w-11 h-11 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm transition-shadow group-hover:shadow-md",
-                      color.bg
-                    )}>
-                      <span className={cn("text-xs font-bold", color.text)}>{initials}</span>
-                    </div>
-
-                    {/* Main info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                          {c.name}
-                        </p>
-                        <Badge variant="secondary" className="hidden sm:flex bg-emerald-50 text-emerald-700 border-0 text-[9px] font-bold uppercase tracking-wider h-5 shrink-0">
-                          {c.status || r.statusActive}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span className="tabular-nums">{c.cvr}</span>
-                        {c.city && (
-                          <span className="hidden sm:flex items-center gap-1">
-                            <MapPin className="size-3" />
-                            {c.city}
-                          </span>
-                        )}
-                        {c.employees !== "\u2013" && (
-                          <span className="hidden md:flex items-center gap-1">
-                            <Users className="size-3" />
-                            {c.employees}
-                          </span>
-                        )}
-                        {c.founded && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="size-3" />
-                            {new Date(c.founded).toLocaleDateString(
-                              locale === "da" ? "da-DK" : "en-US",
-                              { year: "numeric", month: "short", day: "numeric" }
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Industry badge */}
-                    {c.industry && (
-                      <Badge variant="secondary" className="hidden lg:flex border-0 text-[10px] font-medium max-w-[180px] truncate shrink-0 h-6">
-                        {c.industry}
-                      </Badge>
-                    )}
-
-                    {/* Save button */}
-                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-full"
-                        onClick={() => rawResult && handleSaveToggle(c, rawResult)}
-                        disabled={savingCvr === c.cvr}
+                  return (
+                    <ContextMenu key={c.cvr}>
+                      <ContextMenuTrigger
+                        render={<TableRow
+                          className="group cursor-pointer border-border/30 hover:bg-muted/40 transition-colors"
+                          onClick={() => router.push(`/company/${c.cvr}`)}
+                        />}
                       >
-                        <Heart className={cn(
-                          "size-4 transition-all duration-200",
-                          isSaved
-                            ? "text-red-500 fill-red-500"
-                            : "text-muted-foreground/30 group-hover:text-red-300"
-                        )} />
-                      </Button>
-                    </div>
+                        {/* Company name + CVR */}
+                        <TableCell className="pl-5 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={cn(
+                              "w-9 h-9 rounded-full flex items-center justify-center shrink-0 ring-2 ring-background shadow-sm",
+                              color.bg
+                            )}>
+                              <span className={cn("text-[10px] font-bold", color.text)}>{initials}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors leading-tight">
+                                {c.name}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+                                {c.cvr}
+                              </p>
+                              {/* Mobile-only: city + industry stacked under name */}
+                              <div className="flex flex-wrap gap-x-2 mt-1 sm:hidden">
+                                {c.city && (
+                                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                    <MapPin className="size-2.5 shrink-0" />{c.city}
+                                  </span>
+                                )}
+                                {c.industry && (
+                                  <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+                                    {c.industry}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
 
-                    {/* Arrow */}
-                    <ArrowRight className="size-4 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-all shrink-0" />
-                  </ContextMenuTrigger>
+                        {/* City */}
+                        <TableCell className="hidden sm:table-cell py-3">
+                          {c.city ? (
+                            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <MapPin className="size-3.5 shrink-0 text-muted-foreground/50" />
+                              {c.city}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/30">—</span>
+                          )}
+                        </TableCell>
 
-                  <ContextMenuContent className="w-56">
-                    <ContextMenuGroup>
-                      <ContextMenuLabel>
-                        {c.name.length > 30 ? c.name.slice(0, 30) + "..." : c.name}
-                      </ContextMenuLabel>
-                      <p className="px-1.5 pb-1 text-[11px] text-muted-foreground">
-                        CVR {c.cvr}{c.city && ` · ${c.city}`}
-                      </p>
-                    </ContextMenuGroup>
-                    <ContextMenuSeparator />
+                        {/* Industry */}
+                        <TableCell className="hidden md:table-cell py-3 max-w-[200px]">
+                          {c.industry ? (
+                            <span className="text-sm text-muted-foreground truncate block">{c.industry}</span>
+                          ) : (
+                            <span className="text-muted-foreground/30">—</span>
+                          )}
+                        </TableCell>
 
-                    <ContextMenuItem onClick={() => router.push(`/company/${c.cvr}`)}>
-                      <Eye className="size-4" />
-                      {locale === "da" ? "Vis virksomhed" : "View company"}
-                    </ContextMenuItem>
+                        {/* Founded */}
+                        <TableCell className="hidden lg:table-cell py-3">
+                          {c.founded ? (
+                            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Calendar className="size-3.5 shrink-0 text-muted-foreground/50" />
+                              {new Date(c.founded).toLocaleDateString(
+                                locale === "da" ? "da-DK" : "en-US",
+                                { year: "numeric", month: "short", day: "numeric" }
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/30">—</span>
+                          )}
+                        </TableCell>
 
-                    <ContextMenuItem onClick={() => { navigator.clipboard.writeText(c.cvr); showToast(locale === "da" ? "CVR kopieret" : "CVR copied"); }}>
-                      <Copy className="size-4" />
-                      {locale === "da" ? "Kopiér CVR" : "Copy CVR"}
-                    </ContextMenuItem>
+                        {/* Employees */}
+                        <TableCell className="hidden lg:table-cell py-3 text-center">
+                          {c.employees !== "–" ? (
+                            <span className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                              <Users className="size-3.5 shrink-0 text-muted-foreground/50" />
+                              {c.employees}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/30">—</span>
+                          )}
+                        </TableCell>
 
-                    <ContextMenuSeparator />
+                        {/* Status */}
+                        <TableCell className="py-3 text-center">
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-50 text-emerald-700 border-0 text-[9px] font-bold uppercase tracking-wider h-5"
+                          >
+                            {c.status || r.statusActive}
+                          </Badge>
+                        </TableCell>
 
-                    <ContextMenuItem onClick={() => rawResult && handleSaveToggle(c, rawResult)}>
-                      <Heart className={cn("size-4", isSaved && "text-red-500 fill-red-500")} />
-                      {isSaved
-                        ? (locale === "da" ? "Fjern fra gemte" : "Remove from saved")
-                        : (locale === "da" ? "Gem virksomhed" : "Save company")}
-                    </ContextMenuItem>
+                        {/* Save button */}
+                        <TableCell className="py-3 pr-4 text-right">
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-full h-8 w-8"
+                              onClick={() => rawResult && handleSaveToggle(c, rawResult)}
+                              disabled={savingCvr === c.cvr}
+                            >
+                              {savingCvr === c.cvr ? (
+                                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                              ) : (
+                                <Heart className={cn(
+                                  "size-4 transition-all duration-200",
+                                  isSaved
+                                    ? "text-red-500 fill-red-500"
+                                    : "text-muted-foreground/30 group-hover:text-red-300"
+                                )} />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </ContextMenuTrigger>
 
-                    {c.city && (
-                      <>
+                      <ContextMenuContent className="w-56">
+                        <ContextMenuGroup>
+                          <ContextMenuLabel>
+                            {c.name.length > 30 ? c.name.slice(0, 30) + "…" : c.name}
+                          </ContextMenuLabel>
+                          <p className="px-1.5 pb-1 text-[11px] text-muted-foreground">
+                            CVR {c.cvr}{c.city && ` · ${c.city}`}
+                          </p>
+                        </ContextMenuGroup>
                         <ContextMenuSeparator />
-                        <ContextMenuItem onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([c.city, "Denmark"].filter(Boolean).join(", "))}`, "_blank")}>
-                          <ExternalLink className="size-4" />
-                          {locale === "da" ? "Vis på kort" : "View on map"}
+
+                        <ContextMenuItem onClick={() => router.push(`/company/${c.cvr}`)}>
+                          <Eye className="size-4" />
+                          {locale === "da" ? "Vis virksomhed" : "View company"}
                         </ContextMenuItem>
-                      </>
-                    )}
-                  </ContextMenuContent>
-                  </ContextMenu>
-                );
-              })}
-            </div>
+
+                        <ContextMenuItem
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.cvr);
+                            showToast(locale === "da" ? "CVR kopieret" : "CVR copied");
+                          }}
+                        >
+                          <Copy className="size-4" />
+                          {locale === "da" ? "Kopiér CVR" : "Copy CVR"}
+                        </ContextMenuItem>
+
+                        <ContextMenuSeparator />
+
+                        <ContextMenuItem onClick={() => rawResult && handleSaveToggle(c, rawResult)}>
+                          <Heart className={cn("size-4", isSaved && "text-red-500 fill-red-500")} />
+                          {isSaved
+                            ? (locale === "da" ? "Fjern fra gemte" : "Remove from saved")
+                            : (locale === "da" ? "Gem virksomhed" : "Save company")}
+                        </ContextMenuItem>
+
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </Card>
 
           {/* ── Pagination ──────────────────────────────────────── */}
@@ -454,8 +522,10 @@ export default function RecentCompaniesPage() {
               {r.showing}{" "}
               <span className="font-semibold text-foreground">{(page - 1) * PAGE_SIZE + 1}</span>
               –
-              <span className="font-semibold text-foreground">{Math.min(page * PAGE_SIZE, filtered.length)}</span>
-              {" "}{r.of}{" "}
+              <span className="font-semibold text-foreground">
+                {Math.min(page * PAGE_SIZE, filtered.length)}
+              </span>{" "}
+              {r.of}{" "}
               <span className="font-semibold text-foreground">{filtered.length}</span>
             </p>
             <div className="flex items-center gap-1.5">
@@ -473,10 +543,7 @@ export default function RecentCompaniesPage() {
                   key={p}
                   variant={p === page ? "default" : "ghost"}
                   size="icon"
-                  className={cn(
-                    "rounded-full w-9 h-9 text-sm font-semibold",
-                    p === page && "shadow-sm"
-                  )}
+                  className={cn("rounded-full w-9 h-9 text-sm font-semibold", p === page && "shadow-sm")}
                   onClick={() => setPage(p)}
                 >
                   {p}
