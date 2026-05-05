@@ -14,6 +14,8 @@ import {
   useRunTrigger,
   type Trigger,
 } from "@/lib/hooks/use-triggers";
+import { useSubscription } from "@/lib/hooks/use-subscription";
+import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -104,6 +106,10 @@ export default function TriggersPage() {
   const { data, isLoading } = useTriggers();
   const triggers = (data?.triggers ?? []) as Trigger[];
 
+  const { data: sub } = useSubscription();
+  const { triggerUpgrade } = useUpgradePrompt();
+  const triggerLimit = sub?.limits?.triggers ?? 0;
+
   const createMutation = useCreateTrigger();
   const updateMutation = useUpdateTrigger();
   const deleteMutation = useDeleteTrigger();
@@ -181,6 +187,11 @@ export default function TriggersPage() {
   };
 
   const handleToggle = (trigger: Trigger) => {
+    const isActivating = !trigger.isActive;
+    if (isActivating && triggerLimit !== -1 && activeCount >= triggerLimit) {
+      triggerUpgrade("triggers");
+      return;
+    }
     updateMutation.mutate({ id: trigger.id, isActive: !trigger.isActive });
   };
 
@@ -249,10 +260,31 @@ export default function TriggersPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1.5">{tr.subtitle}</p>
         </div>
-        <Button variant="gradient" size="lg" className="self-start rounded-xl gap-2" onClick={openCreate}>
-          <Plus className="size-4" />
-          {tr.newTrigger}
-        </Button>
+        <div className="flex flex-col items-end gap-1.5 self-start">
+          <Button
+            variant="gradient"
+            size="lg"
+            className="rounded-xl gap-2"
+            onClick={() => {
+              if (triggerLimit !== -1 && activeCount >= triggerLimit) {
+                triggerUpgrade("triggers");
+                return;
+              }
+              openCreate();
+            }}
+          >
+            <Plus className="size-4" />
+            {tr.newTrigger}
+          </Button>
+          {triggerLimit > 0 && (
+            <p className={cn(
+              "text-xs font-medium tabular-nums",
+              activeCount >= triggerLimit ? "text-destructive" : "text-muted-foreground"
+            )}>
+              {activeCount} / {triggerLimit} {locale === "da" ? "aktive" : "active"}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* ── Stats ────────────────────────────────────────────── */}
@@ -275,7 +307,12 @@ export default function TriggersPage() {
                 <CheckCircle2 className="size-5 text-emerald-500" />
               </div>
               <div>
-                <p className="text-2xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)]">{activeCount}</p>
+                <p className={cn(
+                  "text-2xl font-black tabular-nums font-[family-name:var(--font-manrope)]",
+                  triggerLimit > 0 && activeCount >= triggerLimit ? "text-destructive" : "text-foreground"
+                )}>
+                  {activeCount}{triggerLimit > 0 ? <span className="text-base font-semibold text-muted-foreground"> / {triggerLimit}</span> : null}
+                </p>
                 <p className="text-[11px] text-muted-foreground font-medium">{locale === "da" ? "Aktive" : "Active"}</p>
               </div>
             </CardContent>
@@ -335,6 +372,10 @@ export default function TriggersPage() {
                     checked={trigger.isActive}
                     onCheckedChange={() => handleToggle(trigger)}
                     className="shrink-0"
+                    disabled={updateMutation.isPending && updateMutation.variables?.id === trigger.id}
+                    title={!trigger.isActive && triggerLimit > 0 && activeCount >= triggerLimit
+                      ? (locale === "da" ? `Grænse nået: ${activeCount}/${triggerLimit} aktive` : `Limit reached: ${activeCount}/${triggerLimit} active`)
+                      : undefined}
                   />
 
                   {/* Info */}

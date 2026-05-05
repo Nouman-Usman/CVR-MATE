@@ -53,11 +53,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check trigger limit (only personal triggers count against user quota)
+    // Check active trigger limit (only personal triggers count against user quota)
     const [{ value: triggerCount }] = await db
       .select({ value: count() })
       .from(leadTrigger)
-      .where(and(eq(leadTrigger.userId, session.user.id), isNull(leadTrigger.organizationId)));
+      .where(
+        and(
+          eq(leadTrigger.userId, session.user.id),
+          isNull(leadTrigger.organizationId),
+          eq(leadTrigger.isActive, true)
+        )
+      );
 
     const { allowed, limit } = await checkUsageEntitlement(
       session.user.id,
@@ -88,7 +94,7 @@ export async function POST(req: NextRequest) {
     // Personal triggers check plan limits; team triggers don't count against personal quota
     if (!organizationId && !allowed) {
       return NextResponse.json(
-        { error: `Trigger limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
+        { error: `Active trigger limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
         { status: 403 }
       );
     }

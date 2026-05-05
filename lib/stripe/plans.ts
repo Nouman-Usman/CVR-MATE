@@ -51,7 +51,7 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   free: {
     savedCompanies: 5,
-    triggers: 1,
+    triggers: 0,
     followedPeople: 0,
     tasks: 5,
     crmConnections: 0,
@@ -73,7 +73,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   },
   starter: {
     savedCompanies: 25,
-    triggers: 3,
+    triggers: 1,
     followedPeople: 0,
     tasks: 10,
     crmConnections: 0,
@@ -95,7 +95,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   },
   professional: {
     savedCompanies: 100,
-    triggers: 5,
+    triggers: 3,
     followedPeople: 10,
     tasks: Infinity,
     crmConnections: 1,
@@ -117,7 +117,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   },
   enterprise: {
     savedCompanies: Infinity,
-    triggers: Infinity,
+    triggers: 7,
     followedPeople: Infinity,
     tasks: Infinity,
     crmConnections: 3,

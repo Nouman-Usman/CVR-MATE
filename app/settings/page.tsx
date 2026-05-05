@@ -331,6 +331,13 @@ function SubscriptionSection() {
                 {sub.usageTitle as string}
               </h3>
               <div className="space-y-3">
+                {data.usage.activeTriggers?.limit !== 0 && (
+                  <UsageMeter
+                    label={locale === "da" ? "Aktive triggers" : "Active triggers"}
+                    used={data.usage.activeTriggers?.used ?? 0}
+                    limit={data.usage.activeTriggers?.limit ?? 0}
+                  />
+                )}
                 <UsageMeter
                   label={locale === "da" ? "Virksomhedssøgninger" : "Company searches"}
                   used={data.usage.companySearches?.used ?? 0}

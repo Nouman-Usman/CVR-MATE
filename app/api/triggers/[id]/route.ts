@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count, isNull } from "drizzle-orm";
 import { leadTrigger } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
@@ -10,6 +10,7 @@ import {
   TeamPermissionError,
   teamErrorToStatus,
 } from "@/lib/team/permissions";
+import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
 
 /**
  * Find a trigger by ID that the user can see:
@@ -60,6 +61,32 @@ export async function PATCH(
         return NextResponse.json({ error: err.message }, { status: teamErrorToStatus(err) });
       }
       throw err;
+    }
+
+    // Enforce active-trigger limit when a personal trigger is being activated
+    const isActivating = body.isActive === true && existing.isActive === false;
+    if (isActivating && !existing.organizationId) {
+      const [{ value: activeCount }] = await db
+        .select({ value: count() })
+        .from(leadTrigger)
+        .where(
+          and(
+            eq(leadTrigger.userId, session.user.id),
+            isNull(leadTrigger.organizationId),
+            eq(leadTrigger.isActive, true)
+          )
+        );
+      const { allowed, limit } = await checkUsageEntitlement(
+        session.user.id,
+        "triggers",
+        activeCount
+      );
+      if (!allowed) {
+        return NextResponse.json(
+          { error: `Active trigger limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
+          { status: 403 }
+        );
+      }
     }
 
     const updates: Record<string, unknown> = {};

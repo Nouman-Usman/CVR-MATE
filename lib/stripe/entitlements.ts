@@ -1,8 +1,8 @@
 import "server-only";
 
 import { db } from "@/db";
-import { subscription, usageRecord } from "@/db/schema";
-import { eq, and, gte, count } from "drizzle-orm";
+import { subscription, usageRecord, leadTrigger } from "@/db/schema";
+import { eq, and, gte, count, isNull } from "drizzle-orm";
 import { PLAN_LIMITS, priceToPlan, type PlanId, type PlanLimits } from "./plans";
 
 export interface UserPlan {
@@ -218,9 +218,24 @@ export async function getUsageSummary(userId: string): Promise<
     usageMap[row.feature] = row.value;
   }
 
+  const [{ value: activeTriggerCount }] = await db
+    .select({ value: count() })
+    .from(leadTrigger)
+    .where(
+      and(
+        eq(leadTrigger.userId, userId),
+        isNull(leadTrigger.organizationId),
+        eq(leadTrigger.isActive, true)
+      )
+    );
+
   const serializeLimit = (v: number) => (isFinite(v) ? v : -1);
 
   return {
+    activeTriggers: {
+      used: activeTriggerCount,
+      limit: serializeLimit(limits.triggers),
+    },
     aiUsages: {
       used: usageMap["ai_usage"] ?? 0,
       limit: serializeLimit(limits.aiUsagesPerMonth),
