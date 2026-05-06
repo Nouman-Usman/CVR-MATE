@@ -13,6 +13,7 @@ import {
   useUnfollowPerson,
 } from "@/lib/hooks/use-followed-people";
 import { usePersonEnrichment, useSavedEnrichment, type PersonEnrichment } from "@/lib/hooks/use-enrichment";
+import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 
 // Matches CvrParticipation from lib/cvr-api.ts (official CVR API v2 Participations schema)
 interface CompanyRelation {
@@ -107,6 +108,7 @@ function PersonDetailContent() {
   const followMutation = useFollowPerson();
   const unfollowMutation = useUnfollowPerson();
   const isFollowLoading = followMutation.isPending || unfollowMutation.isPending;
+  const { triggerUpgrade } = useUpgradePrompt();
 
   const handleToggleFollow = () => {
     if (!validId || !person) return;
@@ -123,8 +125,7 @@ function PersonDetailContent() {
           onError: (err) => {
             const e = err as Error & { upgrade?: boolean };
             if (e.upgrade) {
-              // Could show a toast/modal — for now, alert
-              alert(pd.followLimitReached);
+              triggerUpgrade("followedPeople");
             }
           },
         }

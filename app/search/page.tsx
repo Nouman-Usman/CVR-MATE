@@ -13,6 +13,7 @@ import { useSaveSearch } from "@/lib/hooks/use-saved-searches";
 
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,6 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -46,7 +46,6 @@ import {
   Heart,
   ExternalLink,
   Loader2,
-  AlertCircle,
   Building2,
   SearchX,
   Bookmark,
@@ -314,7 +313,6 @@ function SearchPage() {
   const saveSearchMutation = useSaveSearch();
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveSearchName, setSaveSearchName] = useState("");
-  const [localError, setLocalError] = useState("");
 
   const hydratedRef = useRef(false);
   useEffect(() => {
@@ -361,12 +359,16 @@ function SearchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (searchError) toast.error(s.searchError);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchError]);
+
   const handleSearch = useCallback(() => {
-    setLocalError("");
     clearSelected();
     const params = buildSearchParams();
     if (!params) {
-      setLocalError(s.noFilter);
+      toast.error(s.noFilter);
       return;
     }
     setHasSearched(true);
@@ -375,16 +377,21 @@ function SearchPage() {
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
-      unsaveCompanyMutation.mutate(c.cvr);
+      unsaveCompanyMutation.mutate(c.cvr, {
+        onSuccess: () => toast.success(locale === "da" ? "Fjernet fra gemte" : "Removed from saved"),
+        onError: () => toast.error(locale === "da" ? "Kunne ikke fjerne" : "Failed to remove"),
+      });
     } else {
-      saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult });
+      saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult }, {
+        onSuccess: () => toast.success(locale === "da" ? `${c.name} gemt` : `${c.name} saved`),
+        onError: () => toast.error(locale === "da" ? "Kunne ikke gemme" : "Failed to save"),
+      });
     }
-  }, [savedCvrs, saveCompanyMutation, unsaveCompanyMutation]);
+  }, [savedCvrs, saveCompanyMutation, unsaveCompanyMutation, locale]);
 
   const clearFilters = useCallback(() => {
     resetAll();
     setCommittedParams(null);
-    setLocalError("");
   }, [resetAll]);
 
   const toggleAll = useCallback(() => {
@@ -414,10 +421,12 @@ function SearchPage() {
         onSuccess: () => {
           setShowSaveModal(false);
           setSaveSearchName("");
+          toast.success(locale === "da" ? "Søgning gemt" : "Search saved");
         },
+        onError: () => toast.error(locale === "da" ? "Kunne ikke gemme søgning" : "Failed to save search"),
       }
     );
-  }, [saveSearchName, getCurrentFilters, saveSearchMutation]);
+  }, [saveSearchName, getCurrentFilters, saveSearchMutation, locale]);
 
   const foundedOptions = [
     { code: "all", label: locale === "da" ? "Vælg periode" : "Select period" },
@@ -427,7 +436,6 @@ function SearchPage() {
     { code: "last3y", label: locale === "da" ? "Sidste 3 år" : "Last 3 years" },
   ];
 
-  const error = localError || (searchError ? s.searchError : "");
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const savingCvr = saveCompanyMutation.isPending ? (saveCompanyMutation.variables?.vat ?? null) : (unsaveCompanyMutation.isPending ? unsaveCompanyMutation.variables ?? null : null);
 
@@ -611,14 +619,6 @@ function SearchPage() {
         </CardContent>
       </Card>
 
-      {/* ── Error alert ──────────────────────────────────────── */}
-      {error && (
-        <Alert variant="destructive" className="mb-4 animate-fade-in-up">
-          <AlertCircle className="size-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       {/* ── Loading state ────────────────────────────────────── */}
       {isLoading && <InlineLoader message={`${s.searchButton}...`} />}
 
@@ -784,7 +784,7 @@ function SearchPage() {
         </Card>
       )}
 
-      {!isLoading && hasSearched && results.length === 0 && !error && (
+      {!isLoading && hasSearched && results.length === 0 && !searchError && (
         <Card className="py-16 border-0 shadow-sm">
           <CardContent className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">

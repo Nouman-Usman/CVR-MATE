@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import { useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo } from "@/lib/hooks/use-todos";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
 import { useOrganization } from "@/lib/hooks/use-team";
+import { useSubscription } from "@/lib/hooks/use-subscription";
 import { useTodoStore, type TodoFilter, type TodoSortKey } from "@/lib/stores/todo-store";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -459,6 +460,8 @@ export default function TodosPage() {
   const { data: teamData } = useOrganization(session?.user?.id);
   const isAdminOrOwner = teamData?.isAdminOrOwner ?? false;
   const activeOrgMembers = teamData?.org?.members ?? [];
+  const { data: sub } = useSubscription();
+  const isEnterprise = sub?.plan === "enterprise";
 
   // TanStack Query
   const { data: todosData, isLoading: loading } = useTodos();
@@ -727,8 +730,8 @@ export default function TodosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Assignment Dialog ──────────────────────────────── */}
-      <Dialog open={assigningTodoId !== null} onOpenChange={(open) => { if (!open) setAssigningTodoId(null); }}>
+      {/* ── Assignment Dialog — enterprise only ──────────── */}
+      <Dialog open={isEnterprise && assigningTodoId !== null} onOpenChange={(open) => { if (!open) setAssigningTodoId(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>{locale === "da" ? "Tildel opgave" : "Assign Task"}</DialogTitle>
@@ -1075,9 +1078,11 @@ export default function TodosPage() {
                 <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell">
                   {d.company}
                 </TableHead>
-                <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell w-32">
-                  {locale === "da" ? "Tildelt" : "Assigned"}
-                </TableHead>
+                {isEnterprise && (
+                  <TableHead className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hidden lg:table-cell w-32">
+                    {locale === "da" ? "Tildelt" : "Assigned"}
+                  </TableHead>
+                )}
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -1239,19 +1244,21 @@ export default function TodosPage() {
                         )}
                       </TableCell>
 
-                      {/* Assigned User */}
-                      <TableCell className="py-3.5 hidden lg:table-cell text-xs">
-                        {todo.assignedUser ? (
-                          <div className="flex items-center gap-1.5">
-                            {todo.assignedUser.image && (
-                              <img src={todo.assignedUser.image} alt={todo.assignedUser.name} className="w-5 h-5 rounded-full" />
-                            )}
-                            <span className="text-foreground">{todo.assignedUser.name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/40">{locale === "da" ? "Ikke tildelt" : "Unassigned"}</span>
-                        )}
-                      </TableCell>
+                      {/* Assigned User — enterprise only */}
+                      {isEnterprise && (
+                        <TableCell className="py-3.5 hidden lg:table-cell text-xs">
+                          {todo.assignedUser ? (
+                            <div className="flex items-center gap-1.5">
+                              {todo.assignedUser.image && (
+                                <img src={todo.assignedUser.image} alt={todo.assignedUser.name} className="w-5 h-5 rounded-full" />
+                              )}
+                              <span className="text-foreground">{todo.assignedUser.name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground/40">{locale === "da" ? "Ikke tildelt" : "Unassigned"}</span>
+                          )}
+                        </TableCell>
+                      )}
 
                       {/* Actions */}
                       <TableCell className="py-3.5 pr-4">
@@ -1311,7 +1318,7 @@ export default function TodosPage() {
                         </ContextMenuItem>
                       )}
 
-                      {isAdminOrOwner && teamData?.org && (
+                      {isEnterprise && isAdminOrOwner && teamData?.org && (
                         <ContextMenuItem onClick={() => {
                           setAssigningTodoId(todo.id);
                           setSelectedMemberId(todo.assignedUser?.id || "");

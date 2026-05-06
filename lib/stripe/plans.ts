@@ -74,7 +74,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   starter: {
     savedCompanies: 25,
     triggers: 1,
-    followedPeople: 0,
+    followedPeople: 3,
     tasks: 10,
     crmConnections: 0,
     companySearchesPerMonth: 50,
@@ -118,7 +118,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   enterprise: {
     savedCompanies: Infinity,
     triggers: 7,
-    followedPeople: Infinity,
+    followedPeople: 50,
     tasks: Infinity,
     crmConnections: 3,
     companySearchesPerMonth: Infinity,
