@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { CookieConsent } from "@/components/cookie-consent";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -47,6 +48,7 @@ export default function RootLayout({
             </TooltipProvider>
           </QueryProvider>
         </LanguageProvider>
+        <CookieConsent />
         <Toaster richColors position="top-right" />
       </body>
     </html>

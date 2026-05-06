@@ -3,9 +3,9 @@ import "server-only";
 /** TTLs in seconds for each cache category */
 export const CACHE_TTL = {
   search: 300,     // 5 minutes
-  company: 3600,   // 1 hour
+  company: 86400,  // 24 hours (CVR registry data changes rarely)
   suggest: 600,    // 10 minutes
-  participant: 3600, // 1 hour
+  participant: 86400, // 24 hours (CVR registry data changes rarely)
   recent: 14400,   // 4 hours (key is date-scoped, refreshes daily)
   aiBriefing: 86400,  // 24 hours
   aiOutreach: 3600,   // 1 hour

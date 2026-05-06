@@ -155,6 +155,13 @@
       "when": 1777357199959,
       "tag": "0021_melted_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1746537600000,
+      "tag": "0022_enable_rls_all_tables",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,9 @@ import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+export const maxDuration = 60;
 
 interface ParsedFilters {
   query: string;

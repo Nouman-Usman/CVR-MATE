@@ -7,6 +7,9 @@ import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 import { db } from "@/db";
 import { outreachMessage } from "@/db/schema";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+export const maxDuration = 60;
 
 interface OutreachResponse {
   subject?: string;

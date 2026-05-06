@@ -6,79 +6,43 @@ import { subscription } from "@/db/schema";
 import { member } from "@/db/auth-schema";
 import { notification } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { priceToPlan, PLAN_LIMITS } from "@/lib/stripe/plans";
+import { PLAN_LIMITS } from "@/lib/stripe/plans";
+import {
+  STATUS_MAP,
+  getInvoiceSubscriptionId,
+  subscriptionDataFromStripe,
+} from "@/lib/stripe/webhook-helpers";
 
 export const runtime = "nodejs";
 
-// ─── Status mapping ────────────────────────────────────────────────────────
+// ─── Stripe IP allowlist ────────────────────────────────────────────────────
+// Source: https://stripe.com/files/ips/ips_webhooks.txt (updated 2025-01)
+// Set STRIPE_ENFORCE_IP_ALLOWLIST=true to block unknown IPs (default: warn only).
+const STRIPE_WEBHOOK_IPS = new Set([
+  "3.18.12.63",
+  "3.130.192.231",
+  "13.235.14.237",
+  "13.235.122.149",
+  "18.211.135.69",
+  "35.154.171.200",
+  "52.15.183.38",
+  "54.88.130.119",
+  "54.88.130.237",
+  "54.187.174.169",
+  "54.187.205.235",
+  "54.187.216.72",
+]);
 
-const STATUS_MAP: Record<string, string> = {
-  active: "active",
-  past_due: "past_due",
-  canceled: "canceled",
-  unpaid: "unpaid",
-  incomplete: "incomplete",
-  incomplete_expired: "canceled",
-  trialing: "incomplete",
-  paused: "past_due",
-};
+function checkStripeIp(req: NextRequest): void {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (!ip || STRIPE_WEBHOOK_IPS.has(ip)) return;
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/** Extract the subscription period from the first subscription item (Stripe v21+) */
-function getSubscriptionPeriod(sub: Stripe.Subscription): {
-  start: Date | null;
-  end: Date | null;
-} {
-  const item = sub.items?.data?.[0];
-  if (item?.current_period_start && item?.current_period_end) {
-    return {
-      start: new Date(item.current_period_start * 1000),
-      end: new Date(item.current_period_end * 1000),
-    };
+  if (process.env.STRIPE_ENFORCE_IP_ALLOWLIST === "true") {
+    throw new Error(`Blocked webhook from unknown IP: ${ip}`);
+  } else {
+    // Warn only — signature verification still protects us
+    console.warn(`[Stripe Webhook] Request from non-allowlisted IP: ${ip}`);
   }
-  return {
-    start: sub.start_date ? new Date(sub.start_date * 1000) : null,
-    end: sub.cancel_at ? new Date(sub.cancel_at * 1000) : null,
-  };
-}
-
-/** Extract subscription ID from an invoice (Stripe v21 nests it under parent) */
-function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
-  // Try the v21 nested path first
-  const parent = invoice.parent;
-  if (parent?.subscription_details?.subscription) {
-    const sub = parent.subscription_details.subscription;
-    return typeof sub === "string" ? sub : sub.id;
-  }
-  // Fallback to direct field (older API versions)
-  if ("subscription" in invoice && invoice.subscription) {
-    const sub = invoice.subscription;
-    return typeof sub === "string" ? sub : (sub as { id: string }).id;
-  }
-  return null;
-}
-
-/**
- * Build a canonical DB update payload from a Stripe subscription.
- * This is the ONLY function that derives plan/status/price from Stripe data.
- * Used by ALL webhook handlers to guarantee consistency.
- */
-function subscriptionDataFromStripe(stripeSub: Stripe.Subscription) {
-  const priceId = stripeSub.items.data[0]?.price?.id ?? null;
-  const plan = stripeSub.status === "canceled" ? "free" : priceToPlan(priceId);
-  const period = getSubscriptionPeriod(stripeSub);
-  const status = STATUS_MAP[stripeSub.status] ?? stripeSub.status;
-
-  return {
-    stripePriceId: priceId,
-    plan,
-    status,
-    currentPeriodStart: period.start,
-    currentPeriodEnd: period.end,
-    cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-    // pendingPlanChange is deprecated (cancel-first flow has no inline plan swaps)
-  };
 }
 
 /**
@@ -133,6 +97,13 @@ function isRetryableError(err: unknown): boolean {
 // ─── Main Handler ───────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  try {
+    checkStripeIp(req);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Forbidden";
+    return NextResponse.json({ error: msg }, { status: 403 });
+  }
+
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
 

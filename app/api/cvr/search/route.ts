@@ -8,6 +8,7 @@ import {
   type CvrCompany,
 } from "@/lib/cvr-api";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ─── Data extraction helpers (sorted for accuracy) ─────────────────────────
 
@@ -62,6 +63,14 @@ export async function GET(req: NextRequest) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = await checkRateLimit(session.user.id, "cvr_search", 30, 60);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Maximum 30 searches per minute." },
+        { status: 429 }
+      );
     }
 
     const quota = await checkMonthlyQuota(session.user.id, "company_search");

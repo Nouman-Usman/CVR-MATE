@@ -8,6 +8,9 @@ import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 import { db } from "@/db";
 import { company as companyTable } from "@/db/schema";
 import { inArray } from "drizzle-orm";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+export const maxDuration = 60;
 
 interface PrioritizedCompany {
   vat: string;

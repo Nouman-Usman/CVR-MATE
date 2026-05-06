@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 @AGENTS.md
-claude -r bce5148a-70ad-42fe-9900-b32ace16ed59
+claude --resume "Branched conversation (Branch)"
 
 ## Project Overview
 

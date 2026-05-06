@@ -6,6 +6,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+export const maxDuration = 60;
 
 // GET /api/ai/enrichment?type=company&id=28866984
 // Redis-first, Postgres fallback

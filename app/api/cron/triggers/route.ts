@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, lte, or, isNull } from "drizzle-orm";
+import { eq, and, lte, or, isNull, gte } from "drizzle-orm";
 import { leadTrigger, triggerResult } from "@/db/schema";
 import { db } from "@/db";
 import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
@@ -85,6 +85,22 @@ async function processTriggers() {
           industry: c.industry?.primary?.text ?? "",
           founded: c.life?.start ?? "",
         }));
+
+        // Idempotency guard: QStash may retry if this request times out.
+        // If a result was already recorded for this trigger in the last 5 minutes,
+        // skip the insert so a retry doesn't produce duplicate rows.
+        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+        const recentResult = await db.query.triggerResult.findFirst({
+          where: and(
+            eq(triggerResult.triggerId, trigger.id),
+            gte(triggerResult.createdAt, fiveMinutesAgo)
+          ),
+        });
+
+        if (recentResult) {
+          results.push({ triggerId: trigger.id, matchCount: recentResult.matchCount });
+          continue;
+        }
 
         await db.insert(triggerResult).values({
           triggerId: trigger.id,

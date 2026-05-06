@@ -7,6 +7,9 @@ import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 import { db } from "@/db";
 import { companyBriefing } from "@/db/schema";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+export const maxDuration = 60;
 
 interface BriefingResponse {
   id?: string;
