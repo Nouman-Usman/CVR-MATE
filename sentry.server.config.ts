@@ -1,19 +1,46 @@
-// This file configures the initialization of Sentry on the server.
-// The config you add here will be used whenever the server handles a request.
+// Server-side Sentry initialization (Node.js runtime).
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
 
+const isProd = process.env.NODE_ENV === "production";
+
 Sentry.init({
-  dsn: "https://22998f6a35f69926a3ace841daae1642@o4511341891485696.ingest.us.sentry.io/4511341892927488",
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+  environment: process.env.NEXT_PUBLIC_ENV ?? process.env.NODE_ENV,
 
-  // Enable logs to be sent to Sentry
+  // 10% of traces in production to stay within quota; 100% locally for full visibility.
+  tracesSampleRate: isProd ? 0.1 : 1.0,
+
+  // Always capture errors regardless of trace sampling.
+  sampleRate: 1.0,
+
   enableLogs: true,
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  // GDPR: do NOT forward HTTP cookies or IP addresses to Sentry (US servers).
+  // User identity is set explicitly via Sentry.setUser({ id }) after authentication.
+  sendDefaultPii: false,
+
+  ignoreErrors: [
+    "NetworkError",
+    "Failed to fetch",
+    "Load failed",
+    // Next.js throws these as control flow — not real errors
+    "NEXT_REDIRECT",
+    "NEXT_NOT_FOUND",
+  ],
+
+  // Strip residual sensitive headers before the event leaves the server
+  beforeSend(event) {
+    if (event.request) {
+      event.request.cookies = undefined;
+      if (event.request.headers && typeof event.request.headers === "object") {
+        const h = event.request.headers as Record<string, string>;
+        delete h["cookie"];
+        delete h["authorization"];
+      }
+    }
+    return event;
+  },
 });

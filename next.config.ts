@@ -14,9 +14,17 @@ import type { NextConfig } from "next";
 // TODO: Replace 'unsafe-inline' for script-src with nonce-based CSP via
 // Next.js middleware + generateBuildId. Eliminates the main XSS vector.
 
+const isDev = process.env.NODE_ENV === "development";
+
+// In dev, Turbopack and React's error overlay require the unsafe-eval CSP keyword
+// for stack reconstruction and HMR. Production builds never need it.
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com"
+  : "script-src 'self' 'unsafe-inline' https://js.stripe.com https://accounts.google.com";
+
 const ContentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://accounts.google.com",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",

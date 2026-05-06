@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { CookieConsent } from "@/components/cookie-consent";
+import { EnvBanner } from "@/components/env-banner";
+import { AnalyticsProvider } from "@/components/analytics-provider";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -41,6 +43,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
+        <EnvBanner />
         <LanguageProvider>
           <QueryProvider>
             <TooltipProvider>
@@ -49,6 +52,7 @@ export default function RootLayout({
           </QueryProvider>
         </LanguageProvider>
         <CookieConsent />
+        <AnalyticsProvider />
         <Toaster richColors position="top-right" />
       </body>
     </html>

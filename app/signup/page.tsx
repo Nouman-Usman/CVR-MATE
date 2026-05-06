@@ -3,17 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signIn, signUp } from "@/lib/auth-client";
+import { signUp } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
-import { GoogleIcon } from "@/components/google-icon";
 import { LogoFull } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { User, Mail, Lock, ShieldCheck, Globe, Star, AlertCircle, TriangleAlert, Loader2 } from "lucide-react";
+import { User, Mail, Lock, ShieldCheck, Globe, Star, AlertCircle, TriangleAlert, Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function SignupPage() {
   const { t, locale, toggleLocale } = useLanguage();
@@ -22,6 +20,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,30 +48,18 @@ export default function SignupPage() {
     setError("");
 
     if (password !== confirmPassword) {
-      setError(
-        locale === "da"
-          ? "Adgangskoderne matcher ikke"
-          : "Passwords do not match"
-      );
+      setError(locale === "da" ? "Adgangskoderne matcher ikke" : "Passwords do not match");
       return;
     }
     if (!agreedToTerms) {
-      setError(
-        locale === "da"
-          ? "Du skal acceptere vilkårene"
-          : "You must accept the terms"
-      );
+      setError(locale === "da" ? "Du skal acceptere vilkårene" : "You must accept the terms");
       return;
     }
 
     setLoading(true);
 
     try {
-      const { error: authError } = await signUp.email({
-        email,
-        password,
-        name,
-      });
+      const { error: authError } = await signUp.email({ email, password, name });
 
       if (authError) {
         setError(authError.message || "Sign up failed");
@@ -81,17 +69,9 @@ export default function SignupPage() {
 
       router.push(`/verify-email?state=pending&email=${encodeURIComponent(email)}`);
     } catch {
-      setError(
-        locale === "da"
-          ? "Noget gik galt. Prøv igen."
-          : "Something went wrong. Please try again."
-      );
+      setError(locale === "da" ? "Noget gik galt. Prøv igen." : "Something went wrong. Please try again.");
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignup = async () => {
-    await signIn.social({ provider: "google", callbackURL: "/onboarding" });
   };
 
   const a = t.auth.signup;
@@ -231,6 +211,7 @@ export default function SignupPage() {
 
             {/* Password + Confirm */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              {/* Password */}
               <div className="space-y-1.5">
                 <Label htmlFor="signup-password" className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
                   {a.password}
@@ -242,15 +223,25 @@ export default function SignupPage() {
                   <Input
                     id="signup-password"
                     placeholder={a.passwordPlaceholder}
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={8}
-                    className="pl-11 py-3 sm:py-3.5 h-auto bg-slate-100 border-none"
+                    className="pl-11 pr-11 py-3 sm:py-3.5 h-auto bg-slate-100 border-none"
                   />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
                 </div>
               </div>
+
+              {/* Confirm password */}
               <div className="space-y-1.5">
                 <Label htmlFor="confirm-password" className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
                   {a.confirmPassword}
@@ -262,12 +253,20 @@ export default function SignupPage() {
                   <Input
                     id="confirm-password"
                     placeholder={a.passwordPlaceholder}
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="pl-11 py-3 sm:py-3.5 h-auto bg-slate-100 border-none"
+                    className="pl-11 pr-11 py-3 sm:py-3.5 h-auto bg-slate-100 border-none"
                   />
+                  <button
+                    type="button"
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -301,9 +300,7 @@ export default function SignupPage() {
             {confirmPassword && password !== confirmPassword && (
               <p className="text-xs text-destructive px-1 flex items-center gap-1">
                 <TriangleAlert className="size-3.5" />
-                {locale === "da"
-                  ? "Adgangskoderne matcher ikke"
-                  : "Passwords do not match"}
+                {locale === "da" ? "Adgangskoderne matcher ikke" : "Passwords do not match"}
               </p>
             )}
 
@@ -317,7 +314,7 @@ export default function SignupPage() {
               />
               <Label htmlFor="terms" className="text-sm text-muted-foreground leading-tight font-normal cursor-pointer">
                 {a.terms}{" "}
-                <a className="text-primary font-semibold hover:underline" href="#">
+                <a className="text-primary font-semibold hover:underline" href="/terms" target="_blank" rel="noopener noreferrer">
                   {a.termsLink}
                 </a>{" "}
                 {a.termsEnd}
@@ -340,28 +337,6 @@ export default function SignupPage() {
               ) : (
                 a.submit
               )}
-            </Button>
-
-            {/* Divider */}
-            <div className="relative py-3 sm:py-4">
-              <Separator />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="bg-background px-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  {a.or}
-                </span>
-              </div>
-            </div>
-
-            {/* Google */}
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full py-3 sm:py-3.5 h-auto font-semibold shadow-sm"
-              type="button"
-              onClick={handleGoogleSignup}
-            >
-              <GoogleIcon />
-              <span>{a.google}</span>
             </Button>
           </form>
 

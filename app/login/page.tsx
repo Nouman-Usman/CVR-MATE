@@ -5,13 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
-import { GoogleIcon } from "@/components/google-icon";
 import { LogoFull } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowRight, Eye, EyeOff, Globe, Star, AlertCircle, MailCheck } from "lucide-react";
 
@@ -54,10 +52,6 @@ function LoginForm() {
     }
 
     router.push(callbackUrl);
-  };
-
-  const handleGoogleLogin = async () => {
-    await signIn.social({ provider: "google", callbackURL: callbackUrl });
   };
 
   const a = t.auth.login;
@@ -187,15 +181,14 @@ function LoginForm() {
                   required
                   className="px-4 py-3 h-auto bg-slate-50 pr-12"
                 />
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                </Button>
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
               </div>
             </div>
 
@@ -215,26 +208,6 @@ function LoginForm() {
             >
               <span>{loading ? "..." : a.submit}</span>
               {!loading && <ArrowRight className="size-4" />}
-            </Button>
-
-            <div className="relative py-4">
-              <Separator />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="bg-white px-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  {a.or}
-                </span>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full py-3 h-auto font-semibold"
-              type="button"
-              onClick={handleGoogleLogin}
-            >
-              <GoogleIcon />
-              <span>{a.google}</span>
             </Button>
           </form>
 
