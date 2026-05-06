@@ -22,6 +22,9 @@ export function UpgradeModal() {
   const quota = usageKey && sub?.usage ? sub.usage[usageKey] : null;
   const isUnlimited = quota?.limit === -1;
 
+  // limit === 0 means the feature is not included in the current plan at all
+  const notOnPlan = quota?.limit === 0;
+
   const pct =
     quota && !isUnlimited && quota.limit > 0
       ? Math.min(100, Math.round((quota.used / quota.limit) * 100))
@@ -33,16 +36,25 @@ export function UpgradeModal() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-slate-900">
             <Zap size={16} className="text-amber-500" />
-            Usage Limit Reached
+            {notOnPlan ? "Upgrade Required" : "Usage Limit Reached"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
           <p className="text-sm text-slate-600">
-            You&apos;ve used all your <strong>{label}</strong> for this billing period.
+            {notOnPlan ? (
+              <>
+                <strong>{label}</strong> are not included in your current plan.
+                Upgrade to unlock this feature.
+              </>
+            ) : (
+              <>
+                You&apos;ve used all your <strong>{label}</strong> for this billing period.
+              </>
+            )}
           </p>
 
-          {quota && !isUnlimited && (
+          {quota && !isUnlimited && !notOnPlan && (
             <div>
               <div className="flex justify-between text-xs text-slate-500 mb-1.5">
                 <span>{label}</span>
@@ -60,7 +72,9 @@ export function UpgradeModal() {
           )}
 
           <p className="text-xs text-slate-400">
-            Upgrade your plan to get more {label?.toLowerCase()}.
+            {notOnPlan
+              ? `Upgrade your plan to get access to ${label?.toLowerCase()}.`
+              : `Upgrade your plan to get more ${label?.toLowerCase()}.`}
           </p>
 
           <div className="flex gap-2 pt-1">

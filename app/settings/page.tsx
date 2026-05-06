@@ -327,10 +327,20 @@ function SubscriptionSection() {
           {/* Monthly usage meters */}
           {data?.usage && (
             <div className="bg-slate-50 rounded-xl p-5 mb-4">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
-                {sub.usageTitle as string}
-              </h3>
-              <div className="space-y-3">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  {sub.usageTitle as string}
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {locale === "da" ? "Nulstilles månedligt" : "Resets monthly"}
+                </span>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+                <UsageMeter
+                  label={locale === "da" ? "Virksomhedssøgninger" : "Company searches"}
+                  used={data.usage.companySearches?.used ?? 0}
+                  limit={data.usage.companySearches?.limit ?? 0}
+                />
                 {data.usage.activeTriggers?.limit !== 0 && (
                   <UsageMeter
                     label={locale === "da" ? "Aktive triggers" : "Active triggers"}
@@ -338,16 +348,6 @@ function SubscriptionSection() {
                     limit={data.usage.activeTriggers?.limit ?? 0}
                   />
                 )}
-                <UsageMeter
-                  label={locale === "da" ? "Virksomhedssøgninger" : "Company searches"}
-                  used={data.usage.companySearches?.used ?? 0}
-                  limit={data.usage.companySearches?.limit ?? 0}
-                />
-                <UsageMeter
-                  label={locale === "da" ? "AI brug" : "AI usages"}
-                  used={data.usage.aiUsages?.used ?? 0}
-                  limit={data.usage.aiUsages?.limit ?? 0}
-                />
                 <UsageMeter
                   label={locale === "da" ? "Berigelser" : "Enrichments"}
                   used={data.usage.enrichments?.used ?? 0}
@@ -359,10 +359,135 @@ function SubscriptionSection() {
                   limit={data.usage.emailDrafts?.limit ?? 0}
                 />
                 <UsageMeter
+                  label={locale === "da" ? "LinkedIn udkast" : "LinkedIn drafts"}
+                  used={data.usage.linkedinDrafts?.used ?? 0}
+                  limit={data.usage.linkedinDrafts?.limit ?? 0}
+                />
+                <UsageMeter
+                  label={locale === "da" ? "Telefon udkast" : "Phone drafts"}
+                  used={data.usage.phoneDrafts?.used ?? 0}
+                  limit={data.usage.phoneDrafts?.limit ?? 0}
+                />
+                <UsageMeter
                   label={locale === "da" ? "Eksport" : "Exports"}
                   used={data.usage.exports?.used ?? 0}
                   limit={data.usage.exports?.limit ?? 0}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Plan limits & features */}
+          {data?.limits && (
+            <div className="bg-slate-50 rounded-xl p-5 mb-4">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">
+                {locale === "da" ? "Plan-kapacitet" : "Plan capacity"}
+              </h3>
+
+              {/* Capacity numbers — 2-col grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+                {([
+                  {
+                    icon: "bookmark",
+                    da: "Gemte virksomheder",
+                    en: "Saved companies",
+                    value: data.limits.savedCompanies,
+                  },
+                  {
+                    icon: "bolt",
+                    da: "Triggers",
+                    en: "Triggers",
+                    value: data.limits.triggers,
+                  },
+                  {
+                    icon: "person_search",
+                    da: "Fulgte personer",
+                    en: "Followed people",
+                    value: data.limits.followedPeople,
+                  },
+                  {
+                    icon: "task_alt",
+                    da: "Opgaver",
+                    en: "Tasks",
+                    value: data.limits.tasks,
+                  },
+                  {
+                    icon: "hub",
+                    da: "CRM forbindelser",
+                    en: "CRM connections",
+                    value: data.limits.crmConnections,
+                  },
+                ] as { icon: string; da: string; en: string; value: number }[]).map((item) => (
+                  <div
+                    key={item.en}
+                    className="flex flex-col gap-1 bg-white rounded-lg border border-slate-100 px-3 py-2.5"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-slate-400 text-[14px]">{item.icon}</span>
+                      <span className="text-[10px] text-slate-500 font-medium leading-tight">
+                        {locale === "da" ? item.da : item.en}
+                      </span>
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900 pl-0.5">
+                      {item.value === -1
+                        ? locale === "da" ? "Ubegrænset" : "Unlimited"
+                        : item.value.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Feature flags */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                {([
+                  {
+                    icon: "group",
+                    da: "Team-funktioner",
+                    en: "Team features",
+                    active: data.limits.teamFeatures,
+                  },
+                  {
+                    icon: "palette",
+                    da: "Brand-personalisering",
+                    en: "Brand personalization",
+                    active: data.limits.brandPersonalization,
+                  },
+                  {
+                    icon: "calendar_month",
+                    da: "Kalender-eksport",
+                    en: "Calendar export",
+                    active: data.limits.calendarExport,
+                  },
+                  {
+                    icon: "menu_open",
+                    da: "Kontekst-menuer",
+                    en: "Context menus",
+                    active: data.limits.contextMenus,
+                  },
+                  {
+                    icon: "headset_mic",
+                    da: "Prioritets-support",
+                    en: "Priority support",
+                    active: data.limits.prioritySupport,
+                  },
+                ] as { icon: string; da: string; en: string; active: boolean }[]).map((feat) => (
+                  <div key={feat.en} className="flex items-center gap-2">
+                    <span
+                      className={`material-symbols-outlined text-[16px] ${
+                        feat.active ? "text-emerald-500" : "text-slate-300"
+                      }`}
+                    >
+                      {feat.active ? "check_circle" : "cancel"}
+                    </span>
+                    <span
+                      className={`text-xs font-medium ${
+                        feat.active ? "text-slate-700" : "text-slate-400"
+                      }`}
+                    >
+                      {locale === "da" ? feat.da : feat.en}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -12,6 +12,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   phone_draft: "Phone scripts",
   ai_task_suggest: "AI task suggestions",
   bulk_push: "Bulk push",
+  triggers: "Lead Triggers",
 };
 
 export const FEATURE_TO_USAGE_KEY: Record<string, string> = {
@@ -24,6 +25,7 @@ export const FEATURE_TO_USAGE_KEY: Record<string, string> = {
   phone_draft: "phoneDrafts",
   ai_task_suggest: "aiTaskSuggestions",
   bulk_push: "bulkPush",
+  triggers: "activeTriggers",
 };
 
 interface UpgradePromptState {
