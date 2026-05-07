@@ -14,10 +14,16 @@ Sentry.init({
 
   sampleRate: 1.0,
 
+  // Capture 10% of all sessions; capture 100% of sessions that contain an error.
+  replaysSessionSampleRate: isProd ? 0.1 : 0,
+  replaysOnErrorSampleRate: 1.0,
+
   enableLogs: true,
 
   // GDPR: no cookies or IPs forwarded automatically.
   sendDefaultPii: false,
+
+  integrations: [Sentry.replayIntegration()],
 
   ignoreErrors: [
     "NetworkError",

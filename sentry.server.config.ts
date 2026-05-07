@@ -16,6 +16,9 @@ Sentry.init({
   // Always capture errors regardless of trace sampling.
   sampleRate: 1.0,
 
+  // Include local variable values in stack frames for richer debugging context.
+  includeLocalVariables: true,
+
   enableLogs: true,
 
   // GDPR: do NOT forward HTTP cookies or IP addresses to Sentry (US servers).
