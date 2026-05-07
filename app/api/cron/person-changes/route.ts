@@ -189,66 +189,84 @@ async function processPersonChanges() {
     let eventsCreated = 0;
     let notificationsSent = 0;
 
-    for (const change of allChanges) {
-      const hash = computeEventHash(change);
+    if (allChanges.length > 0) {
+      // Map hashes to changes for later lookup
+      const changesWithHashes = allChanges.map((change) => ({
+        change,
+        hash: computeEventHash(change),
+      }));
 
-      // Insert event (dedup via unique hash)
-      try {
-        await db
+      const eventValues = changesWithHashes.map(({ change, hash }) => ({
+        participantNumber: change.participantNumber,
+        companyVat: change.companyVat,
+        companyName: change.companyName,
+        personName: change.personName,
+        eventType: change.eventType,
+        eventCategory: change.eventCategory,
+        role: change.role as Record<string, unknown> | null,
+        previousValue: change.previousValue,
+        newValue: change.newValue,
+        importance: change.importance,
+        eventHash: hash,
+      }));
+
+      // Insert events in batches to avoid parameter limits (Postgres limit ~65k)
+      const INSERT_BATCH_SIZE = 100;
+      const insertedEvents: (typeof personRoleEvent.$inferSelect)[] = [];
+
+      for (let i = 0; i < eventValues.length; i += INSERT_BATCH_SIZE) {
+        const batch = eventValues.slice(i, i + INSERT_BATCH_SIZE);
+        const result = await db
           .insert(personRoleEvent)
-          .values({
-            participantNumber: change.participantNumber,
-            companyVat: change.companyVat,
-            companyName: change.companyName,
-            personName: change.personName,
-            eventType: change.eventType,
-            eventCategory: change.eventCategory,
-            role: change.role as Record<string, unknown> | null,
-            previousValue: change.previousValue,
-            newValue: change.newValue,
-            importance: change.importance,
-            eventHash: hash,
-          })
-          .onConflictDoNothing();
-        eventsCreated++;
-      } catch {
-        // Duplicate hash — already processed, skip notification
-        continue;
+          .values(batch)
+          .onConflictDoNothing()
+          .returning();
+        insertedEvents.push(...result);
       }
 
-      // Send notifications to all followers of this participant
-      const followers = await db.query.followedPerson.findMany({
-        where: and(
-          eq(followedPerson.participantNumber, change.participantNumber),
-          eq(followedPerson.isActive, true)
-        ),
-      });
+      eventsCreated = insertedEvents.length;
 
-      for (const follower of followers) {
-        try {
-          await createNotification({
-            userId: follower.userId,
-            type: "person_follow",
-            title: formatEventTitle(change),
-            message: formatEventMessage(change),
-            link: `/person/${change.participantNumber}`,
-          });
-          notificationsSent++;
-        } catch (err) {
-          console.error(
-            `Failed to notify user ${follower.userId} about change:`,
-            err
-          );
+      // Map hash to original change for notification formatting
+      const hashToChange = new Map(changesWithHashes.map((item) => [item.hash, item.change]));
+
+      for (const event of insertedEvents) {
+        const change = hashToChange.get(event.eventHash);
+        if (!change) continue;
+
+        // Send notifications to all followers of this participant
+        const followers = await db.query.followedPerson.findMany({
+          where: and(
+            eq(followedPerson.participantNumber, event.participantNumber),
+            eq(followedPerson.isActive, true)
+          ),
+        });
+
+        for (const follower of followers) {
+          try {
+            await createNotification({
+              userId: follower.userId,
+              type: "person_follow",
+              title: formatEventTitle(change),
+              message: formatEventMessage(change),
+              link: `/person/${change.participantNumber}`,
+            });
+            notificationsSent++;
+          } catch (err) {
+            console.error(
+              `Failed to notify user ${follower.userId} about change:`,
+              err
+            );
+          }
         }
-      }
 
-      // Update lastCheckedAt for followers
-      if (followers.length > 0) {
-        const followerIds = followers.map((f) => f.id);
-        await db
-          .update(followedPerson)
-          .set({ lastCheckedAt: new Date() })
-          .where(inArray(followedPerson.id, followerIds));
+        // Update lastCheckedAt for followers
+        if (followers.length > 0) {
+          const followerIds = followers.map((f) => f.id);
+          await db
+            .update(followedPerson)
+            .set({ lastCheckedAt: new Date() })
+            .where(inArray(followedPerson.id, followerIds));
+        }
       }
     }
 
