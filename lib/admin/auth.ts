@@ -3,13 +3,13 @@
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 export const COOKIE_NAME = "admin-session";
 
-// Default session secret (can be overridden with ADMIN_SESSION_SECRET env var)
-const DEFAULT_SESSION_SECRET = "admin-default-secret-change-in-production";
-
 // ─── HMAC Key for cookie signing ──────────────────────────────────────────────
 
 async function getHmacKey(): Promise<CryptoKey> {
-  const secret = process.env.ADMIN_SESSION_SECRET || DEFAULT_SESSION_SECRET;
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret) {
+    throw new Error("ADMIN_SESSION_SECRET is not configured");
+  }
   const enc = new TextEncoder();
   return crypto.subtle.importKey(
     "raw",
@@ -91,7 +91,10 @@ export async function hashPassword(plain: string): Promise<string> {
     false,
     ["deriveBits"]
   );
-  const secret = process.env.ADMIN_SESSION_SECRET || DEFAULT_SESSION_SECRET;
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret) {
+    throw new Error("ADMIN_SESSION_SECRET is not configured");
+  }
   const salt = enc.encode(secret);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt, iterations: 100_000 },
