@@ -2,6 +2,7 @@
 
 import { createAuthClient } from "better-auth/react";
 import { organizationClient } from "better-auth/client/plugins";
+import * as Sentry from "@sentry/nextjs";
 
 // Always default to window.location.origin on the client so that requests hit the exact same domain
 const authBaseURL =
@@ -30,11 +31,12 @@ export const authClient = createAuthClient({
 
 export const { useSession, signIn, signUp, signOut: _signOut } = authClient;
 
-// Wrap signOut to clear cache
+// Wrap signOut to clear cache and Sentry user context
 export async function signOut() {
   try {
     sessionStorage.removeItem("cvr-mate-session-cache");
   } catch {}
+  Sentry.setUser(null);
   return _signOut();
 }
 

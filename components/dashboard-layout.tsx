@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { useSession, signOut, getCachedSession } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { LogoFull, LogoIcon } from "@/components/logo";
@@ -365,6 +366,14 @@ export default function DashboardLayout({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync authenticated user identity to Sentry so errors are linked to accounts
+  useEffect(() => {
+    const user = session?.user;
+    if (user) {
+      Sentry.setUser({ id: user.id, email: user.email, name: user.name ?? undefined });
+    }
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!mounted || !activeSession) return;
