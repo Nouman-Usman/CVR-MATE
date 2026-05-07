@@ -201,8 +201,6 @@ ${formatBrandContext(brand)}`;
       })),
     };
 
-    console.log(`[AI Pipeline] Done — ${result.prioritized.length} prioritized, ${result.segments.length} segments, ${result.nextActions.length} actions`);
-
     await recordUsage(session.user.id, "ai_usage");
     return NextResponse.json(result);
   } catch (error) {
