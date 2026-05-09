@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSession } from "@/lib/auth-client";
 import { LogoFull } from "@/components/logo";
@@ -17,6 +18,80 @@ const HeroScene = dynamic(() => import("@/components/landing/hero-scene"), {
   ssr: false,
   loading: () => <div className="absolute inset-0 bg-[#0a0f1e]" />,
 });
+
+/* ─── Glass Dashboard Preview ─────────────────────────────────────── */
+
+const GlassDashboard = () => {
+  const { t } = useLanguage();
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFrame((prev) => (prev + 1) % 100);
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  const companies = [
+    { name: "TECHCORP A/S", industry: t.hero.appPreview.ind_saas, status: t.hero.appPreview.status_growth, score: 98, growth: 28 },
+    { name: "NORDIC BI", industry: t.hero.appPreview.ind_data, status: t.hero.appPreview.status_new, score: 92, growth: 15 },
+    { name: "DATAFLOW ApS", industry: t.hero.appPreview.ind_fintech, status: t.hero.appPreview.status_stable, score: 85, growth: 5 },
+  ];
+
+  return (
+    <div className="w-full bg-[#0a0f1e]/80 backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 shadow-2xl shadow-blue-900/20 text-left">
+      {/* Header */}
+      <div className="flex justify-between items-center border-b border-white/[0.1] pb-4">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
+        </div>
+        <div className="font-mono text-xs text-slate-300 font-bold uppercase flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+          </span>
+          {t.hero.appPreview.liveFeed}
+        </div>
+      </div>
+      
+      {/* List */}
+      <div className="flex flex-col gap-3 pt-4">
+        {companies.map((c, i) => (
+          <div 
+            key={i} 
+            className="flex flex-col sm:flex-row justify-between sm:items-center bg-white/[0.03] border border-white/[0.05] rounded-xl p-4 hover:bg-white/[0.06] transition-all hover:scale-[1.02] gap-3"
+          >
+            <div className="flex flex-col">
+              <div className="font-semibold text-white text-sm sm:text-base">{c.name}</div>
+              <div className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">{c.industry}</div>
+            </div>
+            
+            <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+              <div className="flex items-center gap-3 w-28">
+                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" style={{ width: `${(c.growth / 30) * 100}%` }} />
+                </div>
+                <span className="font-mono text-xs font-bold text-emerald-400">+{c.growth}%</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md uppercase ${
+                  c.status === t.hero.appPreview.status_growth ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                  c.status === t.hero.appPreview.status_new ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-white/5 text-slate-300 border border-white/10'
+                }`}>
+                  {c.status}
+                </span>
+                <span className="font-mono font-bold text-lg w-8 text-right text-white">{c.score}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 /* ─── Glass Card ────────────────────────────────────────────────── */
 
@@ -34,6 +109,74 @@ function GlassCard({ children, className = "", glow = false }: {
         {children}
       </div>
     </div>
+  );
+}
+
+/* ─── Interactive Feature Card ─────────────────────────────────────── */
+
+function InteractiveFeatureCard({ children, className = "" }: { children: React.ReactNode, className?: string }) {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  const rotateX = useSpring(useMotionValue(0), { damping: 30, stiffness: 200, mass: 2 });
+  const rotateY = useSpring(useMotionValue(0), { damping: 30, stiffness: 200, mass: 2 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - left;
+    const y = e.clientY - top;
+    
+    mouseX.set(x);
+    mouseY.set(y);
+    
+    const xPct = (x / width - 0.5) * 2;
+    const yPct = (y / height - 0.5) * 2;
+    
+    rotateX.set(yPct * -10); // tilt up/down
+    rotateY.set(xPct * 10); // tilt left/right
+  };
+
+  const handleMouseLeave = () => {
+    rotateX.set(0);
+    rotateY.set(0);
+  };
+
+  return (
+    <motion.div
+      className={`relative group h-full ${className}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        rotateX,
+        rotateY,
+        transformStyle: "preserve-3d",
+        perspective: 1000,
+      }}
+    >
+      {/* Dynamic Spotlight Hover */}
+      <motion.div
+        className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition duration-500 group-hover:opacity-100 z-10"
+        style={{
+          background: useMotionTemplate`
+            radial-gradient(
+              600px circle at ${mouseX}px ${mouseY}px,
+              rgba(56, 189, 248, 0.15),
+              transparent 80%
+            )
+          `,
+        }}
+      />
+      {/* Outer static glow */}
+      <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-blue-500/20 via-cyan-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-md z-0" />
+      
+      {/* Actual Card */}
+      <div 
+        className="relative h-full bg-[#0a0f1e]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-8 z-10 transition-colors duration-500 group-hover:border-white/[0.15]"
+        style={{ transform: "translateZ(30px)" }}
+      >
+        {children}
+      </div>
+    </motion.div>
   );
 }
 
@@ -79,47 +222,60 @@ export default function Home() {
 
       // Features cards
       if (featuresRef.current) {
-        gsap.from(featuresRef.current.querySelectorAll(".feature-card"), {
-          scrollTrigger: {
-            trigger: featuresRef.current,
-            start: "top 80%",
-            toggleActions: "play none none none",
-          },
-          y: 80,
-          opacity: 0,
-          duration: 0.8,
-          stagger: 0.15,
-          ease: "power3.out",
-        });
+        gsap.fromTo(featuresRef.current.querySelectorAll(".feature-card"), 
+          { y: 100, opacity: 0, scale: 0.9, filter: "blur(10px)" },
+          {
+            scrollTrigger: {
+              trigger: featuresRef.current,
+              start: "top 80%",
+              toggleActions: "play none none reverse",
+            },
+            y: 0,
+            opacity: 1,
+            scale: 1,
+            filter: "blur(0px)",
+            duration: 1.2,
+            stagger: 0.15,
+            ease: "power4.out",
+          }
+        );
       }
 
       // Steps
       if (stepsRef.current) {
-        gsap.from(stepsRef.current.querySelectorAll(".step-item"), {
-          scrollTrigger: {
-            trigger: stepsRef.current,
-            start: "top 80%",
-            toggleActions: "play none none none",
-          },
-          y: 50,
-          opacity: 0,
-          duration: 0.7,
-          stagger: 0.2,
-          ease: "power3.out",
-        });
+        // Line reveal
+        gsap.fromTo(stepsRef.current.querySelectorAll(".step-line"), 
+          { clipPath: "inset(0 100% 0 0)" },
+          {
+            scrollTrigger: {
+              trigger: stepsRef.current,
+              start: "top 70%",
+              toggleActions: "play none none reverse",
+            },
+            clipPath: "inset(0 0% 0 0)",
+            duration: 1.8,
+            ease: "power3.inOut",
+          }
+        );
 
-        gsap.from(stepsRef.current.querySelectorAll(".step-line"), {
-          scrollTrigger: {
-            trigger: stepsRef.current,
-            start: "top 80%",
-            toggleActions: "play none none none",
-          },
-          scaleX: 0,
-          duration: 1.2,
-          stagger: 0.3,
-          ease: "power3.inOut",
-          delay: 0.5,
-        });
+        // Step items
+        gsap.fromTo(stepsRef.current.querySelectorAll(".step-item"), 
+          { y: 60, opacity: 0, scale: 0.85, filter: "blur(8px)" },
+          {
+            scrollTrigger: {
+              trigger: stepsRef.current,
+              start: "top 70%",
+              toggleActions: "play none none reverse",
+            },
+            y: 0,
+            opacity: 1,
+            scale: 1,
+            filter: "blur(0px)",
+            duration: 1,
+            stagger: 0.25,
+            ease: "back.out(1.2)", // Remotion "playful overshoot" feel
+          }
+        );
       }
 
       // Pricing
@@ -205,6 +361,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <button
               onClick={toggleLocale}
+              aria-label={locale === "da" ? "Skift til engelsk" : "Switch to Danish"}
               className="text-slate-400 hover:text-white hover:bg-white/[0.06] p-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span className="material-symbols-outlined text-lg">language</span>
@@ -234,6 +391,8 @@ export default function Home() {
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+              aria-expanded={mobileMenuOpen}
               className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-lg cursor-pointer"
             >
               <span className="material-symbols-outlined text-2xl">
@@ -320,7 +479,7 @@ export default function Home() {
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 transition-all group-hover:scale-105" />
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-blue-500 to-cyan-400" />
               <span className="relative z-10 flex items-center gap-2">
-                {t.hero.bookDemo}
+                {t.nav.getStarted}
                 <span className="material-symbols-outlined text-lg">arrow_forward</span>
               </span>
             </Link>
@@ -334,7 +493,7 @@ export default function Home() {
           </div>
 
           {/* Pills */}
-          <div className="flex flex-wrap justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3 mb-16">
             {t.hero.pills.map((pill: string) => (
               <span
                 key={pill}
@@ -344,6 +503,38 @@ export default function Home() {
                 {pill}
               </span>
             ))}
+          </div>
+
+          {/* Visualization Area */}
+          <div className="relative mt-8 flex items-center justify-center w-full max-w-4xl mx-auto">
+            <div className="w-full max-w-2xl z-20">
+              <GlassDashboard />
+            </div>
+
+            {/* Floating Elements */}
+            <div className="absolute -top-12 -right-4 lg:-right-12 hidden md:block z-30 animate-pulse" style={{ animationDuration: '4s' }}>
+              <GlassCard className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                  <span className="material-symbols-outlined text-xl text-emerald-400">trending_up</span>
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-slate-400 font-medium">{t.hero.appPreview.growthSignal}</div>
+                  <div className="text-lg font-bold text-white">+12.4%</div>
+                </div>
+              </GlassCard>
+            </div>
+
+            <div className="absolute -bottom-8 -left-4 lg:-left-12 hidden md:block z-30 animate-pulse" style={{ animationDuration: '5s', animationDelay: '0.5s' }}>
+              <GlassCard className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                  <span className="material-symbols-outlined text-xl text-cyan-400">database</span>
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-slate-400 font-medium">{t.hero.appPreview.liveFeed}</div>
+                  <div className="text-lg font-bold text-white">{t.hero.appPreview.speed}</div>
+                </div>
+              </GlassCard>
+            </div>
           </div>
         </div>
 
@@ -373,13 +564,13 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {features.map((f, i) => (
               <div key={i} className="feature-card">
-                <GlassCard glow>
+                <InteractiveFeatureCard>
                   <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-5 shadow-lg`}>
                     <span className="material-symbols-outlined text-2xl text-white">{f.icon}</span>
                   </div>
                   <h3 className="text-lg font-bold text-white mb-3 font-[family-name:var(--font-manrope)]">{f.title}</h3>
                   <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
-                </GlassCard>
+                </InteractiveFeatureCard>
               </div>
             ))}
           </div>
@@ -405,19 +596,24 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative">
             {/* Connecting lines (desktop only) */}
             <div className="hidden lg:block absolute top-16 left-[18%] right-[18%] h-[2px] z-0">
-              <div className="step-line w-full h-full bg-gradient-to-r from-blue-500/40 via-cyan-500/40 to-blue-500/40 origin-left" />
+              <div className="step-line w-full h-full bg-gradient-to-r from-blue-500/40 via-cyan-500/40 to-blue-500/40" />
             </div>
 
             {steps.map((step, i) => (
-              <div key={i} className="step-item relative z-10 text-center">
+              <motion.div 
+                key={i} 
+                className="step-item relative z-10 text-center group"
+                whileHover={{ y: -8 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
                 {/* Number circle */}
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-blue-500/20">
-                  <span className="material-symbols-outlined text-2xl text-white">{step.icon}</span>
+                <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-md flex items-center justify-center mx-auto mb-5 shadow-lg group-hover:bg-gradient-to-br group-hover:from-blue-600 group-hover:to-cyan-500 group-hover:border-transparent transition-all duration-500">
+                  <span className="material-symbols-outlined text-2xl text-white opacity-70 group-hover:opacity-100 transition-opacity">{step.icon}</span>
                 </div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400 mb-2">{step.num}</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400 mb-2 opacity-80 group-hover:opacity-100 transition-opacity">{step.num}</div>
                 <h3 className="text-base font-bold text-white mb-2 font-[family-name:var(--font-manrope)]">{step.label}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed max-w-[220px] mx-auto">{step.desc}</p>
-              </div>
+                <p className="text-sm text-slate-500 leading-relaxed max-w-[220px] mx-auto group-hover:text-slate-400 transition-colors">{step.desc}</p>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -669,9 +865,9 @@ export default function Home() {
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.platform}</h4>
               <div className="flex flex-col gap-3">
                 {t.footer.platformLinks.map((label: string) => (
-                  <a key={label} href="#" className="text-sm text-slate-500 hover:text-white transition-colors">
+                  <Link key={label} href="/" className="text-sm text-slate-500 hover:text-white transition-colors">
                     {label}
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -679,17 +875,17 @@ export default function Home() {
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.resources}</h4>
               <div className="flex flex-col gap-3">
                 {t.footer.resourceLinks.map((label: string) => (
-                  <a key={label} href="#" className="text-sm text-slate-500 hover:text-white transition-colors">
+                  <Link key={label} href="/" className="text-sm text-slate-500 hover:text-white transition-colors">
                     {label}
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>
             <div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.contact}</h4>
               <div className="flex flex-col gap-3">
-                <a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.privacy}</a>
-                <a href="#" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.terms}</a>
+                <Link href="/privacy" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.privacy}</Link>
+                <Link href="/terms" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.terms}</Link>
               </div>
             </div>
           </div>
