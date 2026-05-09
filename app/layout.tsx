@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Manrope, Geist } from "next/font/google";
+import { Inter, Manrope, Geist, JetBrains_Mono } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n/language-context";
 import { QueryProvider } from "@/lib/query-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +11,11 @@ import { EnvBanner } from "@/components/env-banner";
 import { AnalyticsProvider } from "@/components/analytics-provider";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+});
 
 const inter = Inter({
   variable: "--font-inter",
@@ -35,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="da" className={cn("antialiased", inter.variable, manrope.variable, "font-sans", geist.variable)} suppressHydrationWarning>
+    <html lang="da" className={cn("antialiased", inter.variable, manrope.variable, jetbrainsMono.variable, "font-sans", geist.variable)} suppressHydrationWarning>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
