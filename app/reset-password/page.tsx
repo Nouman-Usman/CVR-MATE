@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, ArrowRight, CheckCircle, Globe, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle, Globe, Eye, EyeOff, TriangleAlert } from "lucide-react";
 
 export default function ResetPasswordPage() {
   const { t, locale, toggleLocale } = useLanguage();
@@ -24,6 +24,28 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  const getPasswordStrength = () => {
+    if (!password) return 0;
+    let s = 0;
+    if (password.length >= 8) s++;
+    if (/[A-Z]/.test(password)) s++;
+    if (/[0-9]/.test(password)) s++;
+    if (/[^A-Za-z0-9]/.test(password)) s++;
+    return s;
+  };
+
+  const getStrengthLabel = (s: number) => {
+    const labels = {
+      da: { weak: "Svag", medium: "Middel", strong: "Stærk", veryStrong: "Meget stærk" },
+      en: { weak: "Weak", medium: "Medium", strong: "Strong", veryStrong: "Very strong" },
+    };
+    const l = labels[locale] || labels.en;
+    if (s <= 1) return l.weak;
+    if (s === 2) return l.medium;
+    if (s === 3) return l.strong;
+    return l.veryStrong;
+  };
 
   if (!token) {
     return (
@@ -222,12 +244,45 @@ export default function ResetPasswordPage() {
                 </div>
               </div>
 
+              {/* Password strength */}
+              {password && (
+                <div className="ml-1 space-y-2">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    {locale === "da" ? "Styrke" : "Strength"}: {getStrengthLabel(getPasswordStrength())}
+                  </span>
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex gap-0.5">
+                    {[...Array(4)].map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-full w-1/4 rounded-full transition-colors ${
+                          i < getPasswordStrength()
+                            ? getPasswordStrength() <= 1
+                              ? "bg-red-400"
+                              : getPasswordStrength() <= 2
+                                ? "bg-amber-400"
+                                : "bg-emerald-500"
+                            : "bg-slate-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Password mismatch warning */}
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-destructive ml-1 flex items-center gap-1">
+                  <TriangleAlert className="size-3.5" />
+                  {locale === "da" ? "Adgangskoderne matcher ikke" : "Passwords do not match"}
+                </p>
+              )}
+
               <Button
                 variant="gradient"
                 size="lg"
                 className="w-full py-3.5 h-auto font-bold text-base"
                 type="submit"
-                disabled={loading}
+                disabled={loading || (!!confirmPassword && password !== confirmPassword)}
               >
                 <span>{loading ? "..." : locale === "da" ? "Nulstil adgangskode" : "Reset password"}</span>
                 {!loading && <ArrowRight className="size-4" />}
