@@ -34,7 +34,7 @@ export async function sendWeeklySummaryEmail({
     }
   }
 
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "https://cvr-mate.vercel.app";
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "https://cvr-mate.dk";
   const dashboardUrl = `${baseUrl}/dashboard`;
 
   return sendEmail(

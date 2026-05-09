@@ -11,12 +11,12 @@ import { sendTeamInvitationEmail } from "@/lib/email/senders/team-invitation";
 // BETTER_AUTH_URL must be the canonical production URL with https://
 const resolvedBaseURL =
   process.env.BETTER_AUTH_URL?.replace(/\/$/, "") ||
-  "https://cvr-mate.vercel.app"; // Hardcode production URL to avoid Vercel branch domain issues
+  "https://cvr-mate.dk"; // Hardcode production URL to avoid Vercel branch domain issues
 
 export const auth = betterAuth({
   baseURL: resolvedBaseURL,
   trustedOrigins: [
-    "https://cvr-mate.vercel.app",
+    "https://cvr-mate.dk",
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
     "http://localhost:3000",
   ].filter(Boolean),

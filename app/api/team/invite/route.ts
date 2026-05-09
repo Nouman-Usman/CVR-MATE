@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
 
   // Send invitation email
   const baseUrl =
-    process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://cvr-mate.vercel.app";
+    process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://cvr-mate.dk";
 
   try {
     await sendTeamInvitationEmail({

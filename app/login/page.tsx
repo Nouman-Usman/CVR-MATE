@@ -167,9 +167,9 @@ function LoginForm() {
                 <Label htmlFor="password" className="text-muted-foreground font-semibold">
                   {a.password}
                 </Label>
-                <a className="text-xs font-bold text-primary hover:text-primary/80 transition-colors" href="#">
+                <Link className="text-xs font-bold text-primary hover:text-primary/80 transition-colors" href="/forgot-password">
                   {a.forgotPassword}
-                </a>
+                </Link>
               </div>
               <div className="relative">
                 <Input

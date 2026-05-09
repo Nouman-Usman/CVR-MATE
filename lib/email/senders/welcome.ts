@@ -25,7 +25,7 @@ export async function sendWelcomeEmail({ to, userName, userId }: SendWelcomeEmai
     }
   }
 
-  const dashboardUrl = `${process.env.BETTER_AUTH_URL ?? "https://cvr-mate.vercel.app"}/dashboard`;
+  const dashboardUrl = `${process.env.BETTER_AUTH_URL ?? "https://cvr-mate.dk"}/dashboard`;
 
   return sendEmail(React.createElement(WelcomeEmail, { userName, dashboardUrl, language }), {
     to,

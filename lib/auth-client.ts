@@ -6,7 +6,7 @@ import * as Sentry from "@sentry/nextjs";
 
 // Always default to window.location.origin on the client so that requests hit the exact same domain
 const authBaseURL =
-  (typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.replace(/\/$/, "")) || "https://cvr-mate.vercel.app";
+  (typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_BETTER_AUTH_URL?.replace(/\/$/, "")) || "https://cvr-mate.dk";
 
 export const authClient = createAuthClient({
   baseURL: authBaseURL,
@@ -23,7 +23,7 @@ export const authClient = createAuthClient({
               cachedAt: Date.now(),
             })
           );
-        } catch {}
+        } catch { }
       }
     },
   },
@@ -35,7 +35,7 @@ export const { useSession, signIn, signUp, signOut: _signOut } = authClient;
 export async function signOut() {
   try {
     sessionStorage.removeItem("cvr-mate-session-cache");
-  } catch {}
+  } catch { }
   Sentry.setUser(null);
   return _signOut();
 }

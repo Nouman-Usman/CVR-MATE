@@ -287,6 +287,15 @@ const en: Dictionary = {
         "Seamless CRM integration",
       ],
     },
+    forgotPassword: {
+      title: "Reset password",
+      subtitle: "Enter your email to receive a reset link",
+      submit: "Send reset link",
+      submitted: "We've sent a reset link to your email. Check your inbox.",
+      backToLogin: "Back to login",
+      remembered: "Remember your password?",
+      loginLink: "Log in",
+    },
     brandTagline: "Nordic B2B Lead Intelligence",
   },
   dashboard: {

@@ -285,6 +285,15 @@ const da = {
         "Sømløs CRM integration",
       ],
     },
+    forgotPassword: {
+      title: "Nulstil adgangskode",
+      subtitle: "Indtast din e-mail for at få et nulstillingslink",
+      submit: "Send nulstillingslink",
+      submitted: "Vi har sendt et nulstillingslink til din e-mail. Tjek din indbakke.",
+      backToLogin: "Tilbage til login",
+      remembered: "Husker du adgangskoden?",
+      loginLink: "Log ind",
+    },
     brandTagline: "Nordic B2B Lead Intelligence",
   },
   dashboard: {

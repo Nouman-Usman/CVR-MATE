@@ -15,7 +15,7 @@ export async function queueNotificationEmail(payload: EmailQueuePayload): Promis
     return;
   }
 
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "https://cvr-mate.vercel.app";
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "https://cvr-mate.dk";
   const client = new Client({ token: process.env.QSTASH_TOKEN });
 
   await client.publishJSON({

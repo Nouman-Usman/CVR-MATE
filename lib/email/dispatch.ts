@@ -92,7 +92,7 @@ export async function dispatchNotificationEmail(
   payload: EmailQueuePayload
 ): Promise<void> {
   const baseUrl =
-    process.env.BETTER_AUTH_URL ?? "https://cvr-mate.vercel.app";
+    process.env.BETTER_AUTH_URL ?? "https://cvr-mate.dk";
   const isLocal =
     baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1");
 

@@ -2,7 +2,7 @@
 // complaint events and writes them back to the emailLog table.
 //
 // Setup in Resend dashboard → Webhooks:
-//   1. Add endpoint: https://cvr-mate.vercel.app/api/email/webhook
+//   1. Add endpoint: https://cvr-mate.dk/api/email/webhook
 //   2. Select events: email.delivered, email.bounced, email.complained,
 //      email.opened, email.clicked, email.delivery_delayed
 //   3. Copy the signing secret → RESEND_WEBHOOK_SECRET env var
