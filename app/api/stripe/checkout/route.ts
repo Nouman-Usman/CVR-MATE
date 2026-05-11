@@ -8,6 +8,18 @@ import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.BETTER_AUTH_URL ||
+      process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: "Application base URL is not configured" },
+        { status: 500 }
+      );
+    }
+    const appUrl = baseUrl.replace(/\/$/, "");
+
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -120,15 +132,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000";
-
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/settings?checkout=success`,
-      cancel_url: `${origin}/settings?checkout=canceled`,
+      success_url: `${appUrl}/settings?checkout=success`,
+      cancel_url: `${appUrl}/settings?checkout=canceled`,
       metadata: { userId },
       subscription_data: {
         metadata: { userId },

@@ -2,9 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchCompanies } from "@/lib/cvr-api";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = await checkRateLimit(session.user.id, "cvr_recent", 10, 60);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Maximum 10 recent-company requests per minute." },
+        { status: 429 }
+      );
+    }
+
     const days = Number(req.nextUrl.searchParams.get("days") || "7");
     const safeDays = Math.min(Math.max(days, 1), 7); // max 1 week
 

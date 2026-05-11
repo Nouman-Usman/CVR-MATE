@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getStripe } from "@/lib/stripe";
@@ -6,8 +6,20 @@ import { db } from "@/db";
 import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.BETTER_AUTH_URL ||
+      process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: "Application base URL is not configured" },
+        { status: 500 }
+      );
+    }
+    const appUrl = baseUrl.replace(/\/$/, "");
+
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,11 +37,9 @@ export async function POST(req: NextRequest) {
     }
 
     const stripe = getStripe();
-    const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000";
-
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: sub.stripeCustomerId,
-      return_url: `${origin}/settings?tab=subscription`,
+      return_url: `${appUrl}/settings?tab=subscription`,
     });
 
     return NextResponse.json({ url: portalSession.url });

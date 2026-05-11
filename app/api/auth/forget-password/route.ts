@@ -7,6 +7,17 @@ import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.BETTER_AUTH_URL ||
+      process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: "Application base URL is not configured" },
+        { status: 500 }
+      );
+    }
+
     const { email } = await req.json();
 
     if (!email || typeof email !== "string") {
@@ -41,7 +52,7 @@ export async function POST(req: NextRequest) {
       expiresAt,
     });
 
-    const resetUrl = `${req.headers.get("origin") || process.env.NEXT_PUBLIC_BETTER_AUTH_URL}/reset-password?token=${token}`;
+    const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset-password?token=${token}`;
 
     // Send reset email
     await sendResetPasswordEmail({

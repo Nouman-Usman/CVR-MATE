@@ -4,7 +4,7 @@ import { notificationBus, getUnreadCount } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return new Response("Unauthorized", { status: 401 });
@@ -12,9 +12,12 @@ export async function GET() {
 
   const userId = session.user.id;
 
+  let cleanup: (() => void) | null = null;
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      let isClosed = false;
 
       const send = (data: unknown) => {
         try {
@@ -45,23 +48,24 @@ export async function GET() {
         send(event);
       });
 
-      // Cleanup when client disconnects
-      const cleanup = () => {
+      const doCleanup = () => {
+        if (isClosed) return;
+        isClosed = true;
         clearInterval(heartbeat);
         unsubscribe();
       };
 
-      // AbortSignal-based cleanup isn't available in all runtimes,
-      // but the stream error handler will fire when the client disconnects
-      controller.enqueue(encoder.encode(": stream started\n\n"));
+      cleanup = doCleanup;
 
-      // Store cleanup for cancel
-      (controller as unknown as { _cleanup: () => void })._cleanup = cleanup;
+      controller.enqueue(encoder.encode(": stream started\n\n"));
     },
     cancel() {
-      // Client disconnected — clean up via the stored function
-      // (The runtime calls this when the response is aborted)
+      cleanup?.();
     },
+  });
+
+  req.signal.addEventListener("abort", () => {
+    cleanup?.();
   });
 
   return new Response(stream, {

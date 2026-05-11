@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   getParticipantByNumber,
   getCompanyByVat,
@@ -10,6 +13,19 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = await checkRateLimit(session.user.id, "cvr_participant_lookup", 40, 60);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Maximum 40 participant lookups per minute." },
+        { status: 429 }
+      );
+    }
+
     const id = req.nextUrl.searchParams.get("id");
     const fromVat = req.nextUrl.searchParams.get("fromVat");
 
