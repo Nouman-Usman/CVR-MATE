@@ -10,6 +10,8 @@ import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-sto
 import { useSearchCompanies } from "@/lib/hooks/use-search";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
 import { useSaveSearch } from "@/lib/hooks/use-saved-searches";
+import { useSubscription } from "@/lib/hooks/use-subscription";
+import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
@@ -240,6 +242,9 @@ function SearchPage() {
   const urlParams = useSearchParams();
   const s = t.search;
 
+  const { data: sub } = useSubscription();
+  const { triggerUpgrade } = useUpgradePrompt();
+
   const store = useSearchStore();
   const {
     query, industryText, industryCode, companyForm, size,
@@ -360,11 +365,23 @@ function SearchPage() {
   }, []);
 
   useEffect(() => {
-    if (searchError) toast.error(s.searchError);
+    if (searchError) {
+      if ((searchError as any).upgrade) {
+        triggerUpgrade("company_search");
+      } else {
+        toast.error(s.searchError);
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchError]);
 
   const handleSearch = useCallback(() => {
+    const searchUsage = sub?.usage?.companySearches;
+    if (searchUsage && searchUsage.limit !== -1 && searchUsage.used >= searchUsage.limit) {
+      triggerUpgrade("company_search");
+      return;
+    }
+
     clearSelected();
     const params = buildSearchParams();
     if (!params) {
@@ -373,7 +390,7 @@ function SearchPage() {
     }
     setHasSearched(true);
     setCommittedParams(params);
-  }, [buildSearchParams, s, setHasSearched, clearSelected]);
+  }, [buildSearchParams, s, setHasSearched, clearSelected, sub, triggerUpgrade]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -382,12 +399,22 @@ function SearchPage() {
         onError: () => toast.error(locale === "da" ? "Kunne ikke fjerne" : "Failed to remove"),
       });
     } else {
+      if (sub && sub.limits.savedCompanies !== -1 && savedCvrs.size >= sub.limits.savedCompanies) {
+        triggerUpgrade("saved_company");
+        return;
+      }
       saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult }, {
         onSuccess: () => toast.success(locale === "da" ? `${c.name} gemt` : `${c.name} saved`),
-        onError: () => toast.error(locale === "da" ? "Kunne ikke gemme" : "Failed to save"),
+        onError: (err: any) => {
+          if (err.upgrade) {
+            triggerUpgrade("saved_company");
+          } else {
+            toast.error(locale === "da" ? "Kunne ikke gemme" : "Failed to save");
+          }
+        },
       });
     }
-  }, [savedCvrs, saveCompanyMutation, unsaveCompanyMutation, locale]);
+  }, [savedCvrs, saveCompanyMutation, unsaveCompanyMutation, locale, sub, triggerUpgrade]);
 
   const clearFilters = useCallback(() => {
     resetAll();

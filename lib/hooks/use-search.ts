@@ -21,7 +21,9 @@ export function useSearchCompanies(
       const res = await fetch(`/api/cvr/search?${paramString}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Search failed");
+        const err = new Error(data.error || "Search failed") as Error & { upgrade?: boolean };
+        if (data.upgrade || res.status === 403) err.upgrade = true;
+        throw err;
       }
       return res.json();
     },

@@ -56,7 +56,12 @@ export function useSaveCompany() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vat, name, rawData, note }),
       });
-      if (!res.ok) throw new Error("Failed to save company");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "Failed to save company") as Error & { upgrade?: boolean };
+        if (data.upgrade || res.status === 403) err.upgrade = true;
+        throw err;
+      }
       return res.json();
     },
     onSettled: () => {

@@ -7,6 +7,8 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { InlineLoader } from "@/components/loading-screen";
 import { useRecentCompanies } from "@/lib/hooks/use-recent-companies";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
+import { useSubscription } from "@/lib/hooks/use-subscription";
+import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 import { companyColors } from "@/lib/constants/colors";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -127,11 +129,35 @@ export default function RecentCompaniesPage() {
   const saveCompanyMutation = useSaveCompany();
   const unsaveCompanyMutation = useUnsaveCompany();
 
+  const { data: sub } = useSubscription();
+  const { triggerUpgrade } = useUpgradePrompt();
+
+  const [toastMsg, setToast] = useState("");
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  };
+
   const handleSaveToggle = (c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
       unsaveCompanyMutation.mutate(c.cvr);
     } else {
-      saveCompanyMutation.mutate({ vat: c.cvr, name: c.name, rawData: rawResult });
+      if (sub && sub.limits.savedCompanies !== -1 && savedCvrs.size >= sub.limits.savedCompanies) {
+        triggerUpgrade("saved_company");
+        return;
+      }
+      saveCompanyMutation.mutate(
+        { vat: c.cvr, name: c.name, rawData: rawResult },
+        {
+          onError: (err: any) => {
+            if (err.upgrade) {
+              triggerUpgrade("saved_company");
+            } else {
+              showToast(locale === "da" ? "Kunne ikke gemme" : "Failed to save");
+            }
+          }
+        }
+      );
     }
   };
 
@@ -146,18 +172,12 @@ export default function RecentCompaniesPage() {
     setPage(1);
   };
 
-  const [toast, setToast] = useState("");
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
-
   return (
     <DashboardLayout>
       {/* Toast */}
-      {toast && (
+      {toastMsg && (
         <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
-          {toast}
+          {toastMsg}
         </div>
       )}
 

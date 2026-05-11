@@ -15,6 +15,8 @@ import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/u
 import { useEmailClientValue, buildComposeUrl } from "@/lib/hooks/use-email-client";
 import { InlineLoader } from "@/components/loading-screen";
 import { useCompanyEnrichment, useSavedEnrichment, type CompanyEnrichment } from "@/lib/hooks/use-enrichment";
+import { useSubscription } from "@/lib/hooks/use-subscription";
+import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 
 interface AccountingSummary {
   revenue?: number | null;
@@ -314,6 +316,9 @@ export default function CompanyDetailPage() {
   const company = (companyData?.company as CompanyData) ?? null;
   const error = !validVat ? cd.notFound : fetchError ? cd.error : "";
 
+  const { data: sub } = useSubscription();
+  const { triggerUpgrade } = useUpgradePrompt();
+
   // Saved state via shared TanStack Query cache
   const savedCvrs = useSavedCvrSet();
   const saveMutation = useSaveCompany();
@@ -369,6 +374,10 @@ export default function CompanyDetailPage() {
     if (isSaved) {
       unsaveMutation.mutate(vat);
     } else {
+      if (sub && sub.limits.savedCompanies !== -1 && savedCvrs.size >= sub.limits.savedCompanies) {
+        triggerUpgrade("saved_company");
+        return;
+      }
       setSaveNote("");
       setShowNoteModal(true);
     }
@@ -385,6 +394,12 @@ export default function CompanyDetailPage() {
       },
       {
         onSuccess: () => setShowNoteModal(false),
+        onError: (err: any) => {
+          if (err.upgrade) {
+            setShowNoteModal(false);
+            triggerUpgrade("saved_company");
+          }
+        }
       }
     );
   };

@@ -5,6 +5,7 @@ import { create } from "zustand";
 export const FEATURE_LABELS: Record<string, string> = {
   ai_usage: "AI usages",
   company_search: "Company searches",
+  saved_company: "Saved companies",
   export: "Exports",
   enrichment: "Enrichments",
   email_draft: "Email drafts",
