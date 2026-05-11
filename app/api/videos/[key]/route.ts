@@ -45,7 +45,9 @@ export async function GET(
     }
 
     if (!video) {
-      return NextResponse.json(null, { status: 404 });
+      // Return 200 to avoid noisy client-side 404s when no video is configured
+      // for a given feature/locale in production.
+      return NextResponse.json({ video: null, userState: null });
     }
 
     // Get user view state

@@ -17,7 +17,7 @@ interface VideoData {
     isActive: boolean;
     autoShow: boolean;
     triggerType: string;
-  };
+  } | null;
   userState: {
     hasViewed: boolean;
     lastSeenVersion: number;
@@ -38,7 +38,6 @@ export function useFeatureVideo(featureKey: string | null) {
         `/api/videos/${featureKey}?locale=${locale}`
       );
 
-      if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch video");
 
       return res.json();

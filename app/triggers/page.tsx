@@ -108,7 +108,7 @@ export default function TriggersPage() {
 
   const { data: sub } = useSubscription();
   const { triggerUpgrade } = useUpgradePrompt();
-  const triggerLimit = sub?.limits?.triggers ?? 0;
+  const triggerLimit = sub?.limits?.triggers;
 
   const createMutation = useCreateTrigger();
   const updateMutation = useUpdateTrigger();
@@ -128,6 +128,12 @@ export default function TriggersPage() {
   const [scheduledMinute, setScheduledMinute] = useState(0);
   const [scheduledDayOfWeek, setScheduledDayOfWeek] = useState(1);
 
+  const activeCount = triggers.filter(t => t.isActive).length;
+  const hasTriggerLimit =
+    typeof triggerLimit === "number" && triggerLimit !== -1;
+  const isAtTriggerLimit =
+    hasTriggerLimit && activeCount >= (triggerLimit as number);
+
   const openCreate = () => {
     setEditing(null);
     setName("");
@@ -138,6 +144,14 @@ export default function TriggersPage() {
     setScheduledMinute(0);
     setScheduledDayOfWeek(1);
     setDialogOpen(true);
+  };
+
+  const handleCreateClick = () => {
+    if (isAtTriggerLimit) {
+      triggerUpgrade("triggers");
+      return;
+    }
+    openCreate();
   };
 
   const openEdit = (trigger: Trigger) => {
@@ -188,7 +202,7 @@ export default function TriggersPage() {
 
   const handleToggle = (trigger: Trigger) => {
     const isActivating = !trigger.isActive;
-    if (isActivating && triggerLimit !== -1 && activeCount >= triggerLimit) {
+    if (isActivating && isAtTriggerLimit) {
       triggerUpgrade("triggers");
       return;
     }
@@ -247,8 +261,6 @@ export default function TriggersPage() {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const minutes = [0, 15, 30, 45];
 
-  const activeCount = triggers.filter(t => t.isActive).length;
-
   return (
     <VideoTrigger featureKey="triggers">
       <DashboardLayout>
@@ -265,21 +277,15 @@ export default function TriggersPage() {
             variant="gradient"
             size="lg"
             className="rounded-xl gap-2"
-            onClick={() => {
-              if (triggerLimit !== -1 && activeCount >= triggerLimit) {
-                triggerUpgrade("triggers");
-                return;
-              }
-              openCreate();
-            }}
+            onClick={handleCreateClick}
           >
             <Plus className="size-4" />
             {tr.newTrigger}
           </Button>
-          {triggerLimit > 0 && (
+          {hasTriggerLimit && (
             <p className={cn(
               "text-xs font-medium tabular-nums",
-              activeCount >= triggerLimit ? "text-destructive" : "text-muted-foreground"
+              isAtTriggerLimit ? "text-destructive" : "text-muted-foreground"
             )}>
               {activeCount} / {triggerLimit} {locale === "da" ? "aktive" : "active"}
             </p>
@@ -309,9 +315,9 @@ export default function TriggersPage() {
               <div>
                 <p className={cn(
                   "text-2xl font-black tabular-nums font-[family-name:var(--font-manrope)]",
-                  triggerLimit > 0 && activeCount >= triggerLimit ? "text-destructive" : "text-foreground"
+                  isAtTriggerLimit ? "text-destructive" : "text-foreground"
                 )}>
-                  {activeCount}{triggerLimit > 0 ? <span className="text-base font-semibold text-muted-foreground"> / {triggerLimit}</span> : null}
+                  {activeCount}{hasTriggerLimit ? <span className="text-base font-semibold text-muted-foreground"> / {triggerLimit}</span> : null}
                 </p>
                 <p className="text-[11px] text-muted-foreground font-medium">{locale === "da" ? "Aktive" : "Active"}</p>
               </div>
@@ -343,7 +349,7 @@ export default function TriggersPage() {
             </div>
             <p className="text-foreground font-semibold text-lg mb-1.5">{locale === "da" ? "Ingen triggers endnu" : "No triggers yet"}</p>
             <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">{tr.noTriggers}</p>
-            <Button variant="gradient" size="lg" className="rounded-xl gap-2" onClick={openCreate}>
+            <Button variant="gradient" size="lg" className="rounded-xl gap-2" onClick={handleCreateClick}>
               <Plus className="size-4" />
               {tr.createFirst}
             </Button>
@@ -373,7 +379,7 @@ export default function TriggersPage() {
                     onCheckedChange={() => handleToggle(trigger)}
                     className="shrink-0"
                     disabled={updateMutation.isPending && updateMutation.variables?.id === trigger.id}
-                    title={!trigger.isActive && triggerLimit > 0 && activeCount >= triggerLimit
+                      title={!trigger.isActive && isAtTriggerLimit
                       ? (locale === "da" ? `Grænse nået: ${activeCount}/${triggerLimit} aktive` : `Limit reached: ${activeCount}/${triggerLimit} active`)
                       : undefined}
                   />
@@ -534,7 +540,19 @@ export default function TriggersPage() {
                         </p>
                         {latestResult.companies && latestResult.companies.length > 0 ? (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {latestResult.companies.slice(0, 10).map((c: { vat: number; name: string; city: string; industry: string }) => (
+                            {latestResult.companies.slice(0, 10).map((c: { vat: number; name?: string; city?: string; industry?: string }) => {
+                              const companyName = (c.name ?? "").trim() || `CVR ${c.vat}`;
+                              const companyInitials = companyName
+                                .split(" ")
+                                .filter(Boolean)
+                                .map((w) => w[0])
+                                .join("")
+                                .slice(0, 2)
+                                .toUpperCase();
+                              const companyMeta = [c.city?.trim(), c.industry?.trim()]
+                                .filter(Boolean)
+                                .join(" · ");
+                              return (
                               <Link
                                 key={c.vat}
                                 href={`/company/${c.vat}`}
@@ -542,18 +560,19 @@ export default function TriggersPage() {
                               >
                                 <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm">
                                   <span className="text-[10px] font-bold text-blue-600">
-                                    {c.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                                    {companyInitials}
                                   </span>
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{c.name}</p>
+                                  <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{companyName}</p>
                                   <p className="text-[10px] text-muted-foreground truncate">
-                                    {c.city}{c.industry ? ` · ${c.industry}` : ""}
+                                    {companyMeta}
                                   </p>
                                 </div>
                                 <ArrowRight className="size-3.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-all shrink-0" />
                               </Link>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground">{tr.noTriggers}</p>

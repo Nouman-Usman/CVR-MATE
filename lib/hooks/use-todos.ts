@@ -64,6 +64,19 @@ export function useUpdateTodo() {
       if (!res.ok) throw new Error("Failed to update todo");
       return res.json();
     },
+    onMutate: async ({ id, ...body }) => {
+      await qc.cancelQueries({ queryKey: ["todos"] });
+      const prev = qc.getQueryData<TodosResponse>(["todos"]);
+      if (prev) {
+        qc.setQueryData<TodosResponse>(["todos"], {
+          todos: prev.todos.map((t) => (t.id === id ? { ...t, ...body } : t)),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["todos"], ctx.prev);
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ["todos"] }),
   });
 }

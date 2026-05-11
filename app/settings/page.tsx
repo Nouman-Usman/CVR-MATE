@@ -109,7 +109,7 @@ function SubscriptionSection() {
   const { t, locale } = useLanguage();
   const st = t.settings;
   const sub = st.subscription as Record<string, unknown>;
-  const { data, isLoading } = useSubscription();
+  const { data, isLoading, isFetching, refetch } = useSubscription();
   const portalMutation = useCustomerPortal();
   const cancelMutation = useCancelSubscription();
   const resumeMutation = useResumeSubscription();
@@ -181,13 +181,24 @@ function SubscriptionSection() {
       </div>
     )}
     <div className={cardClass}>
-      <div className="flex items-center gap-2 mb-6">
-        <span className="material-symbols-outlined text-slate-400 text-xl">
-          credit_card
-        </span>
-        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-          {sub.title as string}
-        </h2>
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-slate-400 text-xl">
+            credit_card
+          </span>
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+            {sub.title as string}
+          </h2>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+          title={locale === "da" ? "Opdater forbrug fra database" : "Refresh usage from database"}
+        >
+          <Loader2 className={cn("size-3.5", isFetching && "animate-spin")} />
+          {locale === "da" ? "Opdater" : "Refresh"}
+        </button>
       </div>
 
       {isLoading ? (

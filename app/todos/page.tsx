@@ -471,6 +471,10 @@ export default function TodosPage() {
   const todos = (todosData?.todos ?? []) as Todo[];
 
   const submitting = createMut.isPending || updateMut.isPending;
+  const [bulkAction, setBulkAction] = useState<"completeAll" | "deleteCompleted" | null>(null);
+  const isBulkCompleting = bulkAction === "completeAll";
+  const isBulkDeleting = bulkAction === "deleteCompleted";
+  const isBulkBusy = isBulkCompleting || isBulkDeleting;
 
   // Detail view dialog
   const [viewingTodo, setViewingTodo] = useState<Todo | null>(null);
@@ -575,21 +579,27 @@ export default function TodosPage() {
   };
 
   const markAllComplete = async () => {
+    if (isBulkBusy) return;
     const active = todos.filter((t) => !t.isCompleted);
     if (active.length === 0) return;
+    setBulkAction("completeAll");
     try {
       await Promise.all(active.map((t) => updateMut.mutateAsync({ id: t.id, isCompleted: true })));
       showToast(`${active.length} ${d.bulkCompleted}`);
     } catch { showToast(d.updateError); }
+    finally { setBulkAction(null); }
   };
 
   const deleteCompleted = async () => {
+    if (isBulkBusy) return;
     const done = todos.filter((t) => t.isCompleted);
     if (done.length === 0) return;
+    setBulkAction("deleteCompleted");
     try {
       await Promise.all(done.map((t) => deleteMut.mutateAsync(t.id)));
       showToast(`${done.length} ${d.bulkDeleted}`);
     } catch { showToast(d.deleteError); }
+    finally { setBulkAction(null); }
   };
 
   const sortOptions: { key: TodoSortKey; label: string; icon: typeof Clock }[] = [
@@ -1011,18 +1021,39 @@ export default function TodosPage() {
           </div>
           <div className="flex items-center gap-1">
             {activeCount > 0 && (
-              <Button variant="ghost" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={markAllComplete}>
-                <CheckCheck className="size-3.5" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-xl gap-1.5 text-xs"
+                onClick={markAllComplete}
+                disabled={isBulkBusy}
+              >
+                {isBulkCompleting ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCheck className="size-3.5" />}
                 {d.markAllComplete}
               </Button>
             )}
             {completedCount > 0 && (
-              <Button variant="ghost" size="sm" className="rounded-xl gap-1.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5" onClick={deleteCompleted}>
-                <Trash className="size-3.5" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-xl gap-1.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                onClick={deleteCompleted}
+                disabled={isBulkBusy}
+              >
+                {isBulkDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash className="size-3.5" />}
                 {d.deleteCompleted}
               </Button>
             )}
           </div>
+        </div>
+      )}
+
+      {isBulkBusy && (
+        <div className="mb-4 inline-flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground animate-pulse">
+          <Loader2 className="size-3.5 animate-spin" />
+          {isBulkCompleting
+            ? (locale === "da" ? "Markerer opgaver som færdige..." : "Marking tasks as complete...")
+            : (locale === "da" ? "Sletter færdige opgaver..." : "Deleting completed tasks...")}
         </div>
       )}
 
