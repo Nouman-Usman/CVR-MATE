@@ -388,6 +388,7 @@ const da = {
     searchButton: "Søg",
     saveSearch: "Gem søgning",
     noFilter: "Angiv mindst ét søgekriterium.",
+    segmentationRequiresNativeFilter: "Segmentering på omsætning, bruttoavance og maksimum antal ansatte skal kombineres med mindst ét CVR-søgefilter, f.eks. navn, branche, lokation, virksomhedsform, stiftelsesdato eller minimum antal ansatte.",
     noResults: "Ingen virksomheder matcher dine kriterier.",
     noCompanies: "Ingen resultater fundet.",
     searchError: "Søgningen fejlede. Prøv igen.",

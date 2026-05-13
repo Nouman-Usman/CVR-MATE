@@ -1,22 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-
-export interface SearchFiltersState {
-  query: string;
-  industryText: string;
-  industryCode: string;
-  companyForm: string;
-  size: string;
-  zipcode: string;
-  region: string;
-  foundedPeriod: string;
-  revenueMin: number;
-  revenueMax: number;
-  profitMin: number;
-  profitMax: number;
-  employeesMin: number;
-  employeesMax: number;
-}
+import { DEFAULT_SEARCH_FILTERS, type SearchFiltersState } from "@/lib/search-filters";
+export type { SearchFiltersState } from "@/lib/search-filters";
 
 interface SearchUIState extends SearchFiltersState {
   // UI state
@@ -41,22 +26,7 @@ interface SearchUIState extends SearchFiltersState {
   resetAll: () => void;
 }
 
-const initialFilters: SearchFiltersState = {
-  query: "",
-  industryText: "",
-  industryCode: "all",
-  companyForm: "all",
-  size: "all",
-  zipcode: "",
-  region: "all",
-  foundedPeriod: "all",
-  revenueMin: 0,
-  revenueMax: 1000,
-  profitMin: 0,
-  profitMax: 1000,
-  employeesMin: 0,
-  employeesMax: 5000,
-};
+const initialFilters: SearchFiltersState = DEFAULT_SEARCH_FILTERS;
 
 export const useSearchStore = create<SearchUIState>()(
   persist(

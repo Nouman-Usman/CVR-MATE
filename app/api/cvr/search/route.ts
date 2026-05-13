@@ -56,6 +56,113 @@ function enrichResult(c: CvrCompany) {
   };
 }
 
+function normalizeText(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function isActiveCompany(c: CvrCompany): boolean {
+  const statusText = normalizeText(c.companystatus?.text);
+  const hasEnded = !!c.life?.end;
+
+  if (hasEnded) return false;
+  if (!statusText) return true;
+
+  return ["normal", "i drift", "active"].includes(statusText);
+}
+
+function getSearchableCompanyNames(c: CvrCompany): string[] {
+  const raw = c as CvrCompany & {
+    secondarynames?: string[];
+    subsidiaries?: { life?: { name?: string | null } }[];
+  };
+
+  return [
+    c.life?.name,
+    c.slug,
+    ...(raw.secondarynames ?? []),
+    ...(raw.subsidiaries ?? []).map((subsidiary) => subsidiary.life?.name),
+  ]
+    .map(normalizeText)
+    .filter(Boolean);
+}
+
+function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams): boolean {
+  if (searchParams.companystatus_code === "20" && !isActiveCompany(c)) {
+    return false;
+  }
+
+  if (searchParams.life_name) {
+    const query = normalizeText(searchParams.life_name);
+    const matchesVat = /^\d+$/.test(query) && String(c.vat).includes(query);
+    const matchesName = getSearchableCompanyNames(c).some((name) => name.includes(query));
+    if (!matchesVat && !matchesName) return false;
+  }
+
+  if (searchParams.companyform_code) {
+    const expected = Number(searchParams.companyform_code);
+    if (Number.isFinite(expected) && c.companyform?.code !== expected) return false;
+  }
+
+  if (searchParams.companyform_description) {
+    const actual = normalizeText(c.companyform?.description);
+    if (actual !== normalizeText(searchParams.companyform_description)) return false;
+  }
+
+  if (searchParams.industry_primary_code) {
+    const actual = String(c.industry?.primary?.code ?? "");
+    if (!actual.startsWith(searchParams.industry_primary_code)) return false;
+  }
+
+  if (searchParams.industry_primary_text) {
+    const actual = normalizeText(c.industry?.primary?.text);
+    if (!actual.includes(normalizeText(searchParams.industry_primary_text))) return false;
+  }
+
+  if (searchParams.address_zipcode) {
+    const actual = String(c.address?.zipcode ?? "");
+    if (actual !== searchParams.address_zipcode) return false;
+  }
+
+  if (searchParams.address_zipcode_list) {
+    const allowed = new Set(
+      searchParams.address_zipcode_list
+        .split(",")
+        .map((zip) => zip.trim())
+        .filter(Boolean)
+    );
+    const actual = String(c.address?.zipcode ?? "");
+    if (!allowed.has(actual)) return false;
+  }
+
+  if (searchParams.address_city) {
+    const actual = normalizeText(c.address?.cityname);
+    if (!actual.includes(normalizeText(searchParams.address_city))) return false;
+  }
+
+  if (searchParams.address_municipality) {
+    const actual = normalizeText(c.address?.municipalityname);
+    if (!actual.includes(normalizeText(searchParams.address_municipality))) return false;
+  }
+
+  if (searchParams.life_start) {
+    const founded = c.life?.start;
+    if (!founded || founded < searchParams.life_start) return false;
+  }
+
+  if (searchParams.life_end) {
+    const ended = c.life?.end;
+    if (!ended || ended > searchParams.life_end) return false;
+  }
+
+  if (searchParams.employment_interval_low) {
+    const min = Number(searchParams.employment_interval_low);
+    const count = getEmployeeCount(c);
+    if (Number.isFinite(min) && (count == null || count < min)) return false;
+  }
+
+  return true;
+}
+
 // ─── Route handler ──────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -123,6 +230,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Check for segmentation post-filters (not part of CVR API)
+    const segEmployeesMin = params.get("seg_employees_min");
     const segEmployeesMax = params.get("seg_employees_max");
     const segRevenueMin = params.get("seg_revenue_min");
     const segRevenueMax = params.get("seg_revenue_max");
@@ -134,6 +242,7 @@ export async function GET(req: NextRequest) {
     );
 
     const hasSegFilter = !!(
+      segEmployeesMin ||
       segEmployeesMax ||
       segRevenueMin ||
       segRevenueMax ||
@@ -148,9 +257,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Segmentation-only queries: inject a broad baseline so CVR API has something to work with
+    // CVR does not support match-all searches or financial segmentation.
+    // Require at least one native search filter instead of returning a misleading slice.
     if (!hasAnyFilter && hasSegFilter) {
-      searchParams.life_start = "1900-01-01";
+      return NextResponse.json(
+        {
+          error:
+            "At least one CVR search filter is required with segmentation. Add a name, industry, location, company form, founding date, or employee minimum.",
+        },
+        { status: 400 }
+      );
     }
 
     // CVR API returns a fixed ~10 results per search call. The `page` param
@@ -191,27 +307,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // For non-name searches, try with different status codes to broaden results
-    if (!nameQuery && hasAnyFilter) {
-      // Also search for OPHØRT (19) companies in addition to active (20)
-      variationCalls.push(
-        searchCompanies({ ...searchParams, companystatus_code: "19" }).catch(() => [])
-      );
-    }
-
     if (variationCalls.length > 0) {
       const batches = await Promise.all(variationCalls);
       for (const batch of batches) addBatch(batch);
     }
 
-    let pageResults = all;
+    // Suggestion/name-variation calls can return broader matches than the base
+    // CVR query. Re-apply native filters before app-only segmentation.
+    let pageResults = all.filter((c) => matchesNativeFilters(c, searchParams));
 
     // ─── Apply segmentation post-filters ───
-    if (segEmployeesMax) {
-      const max = Number(segEmployeesMax);
+    if (segEmployeesMin || segEmployeesMax) {
+      const min = segEmployeesMin ? Number(segEmployeesMin) : 0;
+      const max = segEmployeesMax ? Number(segEmployeesMax) : Infinity;
       pageResults = pageResults.filter((c) => {
         const count = getEmployeeCount(c);
-        return count == null || count <= max;
+        if (count == null) return false;
+        return count >= min && count <= max;
       });
     }
 
@@ -220,8 +332,8 @@ export async function GET(req: NextRequest) {
       const maxVal = segRevenueMax ? Number(segRevenueMax) * 1_000_000 : Infinity;
       pageResults = pageResults.filter((c) => {
         const summary = getLatestSummary(c);
-        const revenue = summary?.revenue ?? summary?.grossprofitloss;
-        if (revenue == null) return true;
+        const revenue = summary?.revenue;
+        if (revenue == null) return false;
         return revenue >= minVal && revenue <= maxVal;
       });
     }
@@ -232,7 +344,7 @@ export async function GET(req: NextRequest) {
       pageResults = pageResults.filter((c) => {
         const summary = getLatestSummary(c);
         const profit = summary?.grossprofitloss;
-        if (profit == null) return true;
+        if (profit == null) return false;
         return profit >= minVal && profit <= maxVal;
       });
     }

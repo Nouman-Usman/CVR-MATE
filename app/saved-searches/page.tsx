@@ -13,7 +13,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableHeader,
@@ -46,25 +45,43 @@ const filterLabelMap: Record<string, Record<string, string>> = {
     name: "Name",
     industry_text: "Industry",
     industry_code: "Industry code",
+    companyForm: "Company form",
     companyform_code: "Company form",
     zipcode: "Zip code",
     zipcode_list: "Region",
     municipality: "Municipality",
+    region: "Region",
+    foundedPeriod: "Founded",
     life_start: "Founded after",
     employment_interval_low: "Min employees",
     size: "Size",
+    employeesMin: "Min employees",
+    employeesMax: "Max employees",
+    revenueMin: "Min revenue",
+    revenueMax: "Max revenue",
+    profitMin: "Min gross profit",
+    profitMax: "Max gross profit",
   },
   da: {
     name: "Navn",
     industry_text: "Branche",
     industry_code: "Branchekode",
+    companyForm: "Virksomhedsform",
     companyform_code: "Virksomhedsform",
     zipcode: "Postnummer",
     zipcode_list: "Region",
     municipality: "Kommune",
+    region: "Region",
+    foundedPeriod: "Stiftet",
     life_start: "Stiftet efter",
     employment_interval_low: "Min. ansatte",
     size: "Størrelse",
+    employeesMin: "Min. ansatte",
+    employeesMax: "Maks. ansatte",
+    revenueMin: "Min. omsætning",
+    revenueMax: "Maks. omsætning",
+    profitMin: "Min. bruttoavance",
+    profitMax: "Maks. bruttoavance",
   },
 };
 
@@ -75,7 +92,10 @@ export default function SavedSearchesPage() {
 
   const { data, isLoading: loading } = useSavedSearches();
   const deleteMutation = useDeleteSearch();
-  const searches = (data?.results ?? []) as SavedSearchItem[];
+  const searches = useMemo(
+    () => (data?.results ?? []) as SavedSearchItem[],
+    [data?.results]
+  );
 
   const [filter, setFilter] = useState("");
 

@@ -390,6 +390,7 @@ const en: Dictionary = {
     searchButton: "Search",
     saveSearch: "Save search",
     noFilter: "Please enter at least one search criterion.",
+    segmentationRequiresNativeFilter: "Revenue, gross profit, and employee maximum segmentation must be combined with at least one CVR search filter, such as name, industry, location, company form, founding date, or employee minimum.",
     noResults: "No companies match your criteria.",
     noCompanies: "No results found.",
     searchError: "Search failed. Please try again.",
