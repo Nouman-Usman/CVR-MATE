@@ -47,12 +47,15 @@ const en: Dictionary = {
   features: {
     title: "More than company data: Full company intelligence",
     subtitle: "We connect the dots between data and sales potential.",
-    card1Title: "Full company intelligence",
+    card1Title: "AI-powered briefings",
     card1Desc:
-      "Go deeper than just name and address. Get insights into financials, management changes, and growth curves automatically presented to you.",
-    card2Title: "Real-time lead identification",
+      "Gemini analyzes company financials, management changes, and growth patterns in seconds. Get rich intelligence profiles auto-generated for every prospect.",
+    card2Title: "Smart lead scoring",
     card2Desc:
-      "Get notified the moment a company shows buying signals. Our radar monitors the Danish market 24/7 for you.",
+      "Our AI rates buying signals and matches company changes to your ideal customer profile. Real-time scoring tells you exactly who to target.",
+    card3Title: "Autonomous market monitoring",
+    card3Desc:
+      "The AI monitors the entire Danish market 24/7, detecting growth spikes, leadership changes, and trigger events before your competitors.",
   },
   products: {
     title: "Three tiers of intelligence",
@@ -239,13 +242,13 @@ const en: Dictionary = {
     tagline:
       "The Nordics' leading AI platform for B2B lead generation and company insights.",
     platform: "Platform",
-    platformLinks: ["Features", "Integrations", "Pricing", "Case studies"],
-    resources: "Resources",
-    resourceLinks: ["Blog", "Help center", "API Documentation", "Data security"],
+    legal: "Legal",
     contact: "Contact",
     rights: "© 2026 CVR-MATE. All rights reserved.",
     privacy: "Privacy Policy",
     terms: "Terms & Conditions",
+    dataSecurity: "Data Security",
+    getInTouch: "Get in touch",
   },
   auth: {
     login: {
@@ -806,6 +809,14 @@ const en: Dictionary = {
       title: "Danger zone",
       delete: "Delete account",
       warning: "This action cannot be undone.",
+      confirmTitle: "Delete your account?",
+      confirmBody: "All your data — saved companies, triggers, todos, and integrations — will be permanently deleted. Active subscriptions will be cancelled immediately.",
+      confirmPrompt: 'Type "DELETE" to confirm',
+      confirmPlaceholder: "DELETE",
+      confirmButton: "Permanently delete my account",
+      deleting: "Deleting...",
+      errorHasTeam: "You own a team with other members. Transfer ownership or remove all members before deleting your account.",
+      errorGeneric: "Account deletion failed. Please try again.",
     },
     brand: {
       title: "Company Profile",

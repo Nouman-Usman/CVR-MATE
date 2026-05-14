@@ -3,8 +3,10 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { user } from "@/db/auth-schema";
-import { member, organization } from "@/db/auth-schema";
+import { member, organization, verification } from "@/db/auth-schema";
+import { subscription } from "@/db/app-schema";
 import { eq, and, ne } from "drizzle-orm";
+import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -63,6 +65,28 @@ export async function DELETE(req: NextRequest) {
     for (const membership of ownedMemberships) {
       await db.delete(organization).where(eq(organization.id, membership.organizationId));
     }
+
+    // ─── Cancel active Stripe subscription immediately ─────────────────────
+    // Stripe subscriptions don't cascade via FK — must cancel explicitly.
+    const activeSub = await db.query.subscription.findFirst({
+      where: and(
+        eq(subscription.userId, userId),
+        eq(subscription.status, "active")
+      ),
+    });
+    if (activeSub?.stripeSubscriptionId) {
+      const stripe = getStripe();
+      try {
+        await stripe.subscriptions.cancel(activeSub.stripeSubscriptionId);
+      } catch (err) {
+        console.error("[GDPR] Stripe subscription cancel failed:", err);
+        // Non-blocking — proceed with DB delete even if Stripe fails
+      }
+    }
+
+    // ─── Clean up verification table (no FK cascade) ──────────────────────
+    // verification table is keyed by email identifier, not userId.
+    await db.delete(verification).where(eq(verification.identifier, session.user.email));
 
     // ─── Delete the user row — cascades all user-scoped data ───────────────
     //

@@ -45,12 +45,15 @@ const da = {
   features: {
     title: "Mere end virksomhedsdata: Fuld virksomhedsintelligens",
     subtitle: "Vi forbinder prikkerne mellem data og salgspotentiale.",
-    card1Title: "Fuld virksomhedsintelligens",
+    card1Title: "AI-drevne profiler",
     card1Desc:
-      "Gå dybere end blot navn og adresse. Få indsigt i regnskaber, ledelsesændringer, og vækstkurver automatisk præsenteret for dig.",
-    card2Title: "Realtids lead-identifikation",
+      "Gemini analyserer økonomi, ledelsesændringer og væksttendenser på sekunder. Få righoldig intelligens automatisk genereret for hver prospect.",
+    card2Title: "Smart lead-scoring",
     card2Desc:
-      "Få notifikationer i det øjeblik en virksomhed udviser købssignaler. Vores radar overvåger det danske marked 24/7 for dig.",
+      "Vores AI vurderer købssignaler og matcher virksomhedsændringer til din ideelle kundeprofil. Realtidsscoring viser dig præcis hvem du skal målrette.",
+    card3Title: "Autonom markedsovervågning",
+    card3Desc:
+      "AI'en overvåger hele det danske marked 24/7 og registrerer vækststigninger, ledelsesændringer og triggerhændelser før dine konkurrenter.",
   },
   products: {
     title: "Tre niveauer af intelligens",
@@ -237,13 +240,13 @@ const da = {
     tagline:
       "Nordens førende AI-platform til B2B lead generation og virksomhedsindsigt.",
     platform: "Platform",
-    platformLinks: ["Funktioner", "Integrationer", "Priser", "Case studies"],
-    resources: "Ressourcer",
-    resourceLinks: ["Blog", "Hjælpecenter", "API Dokumentation", "Data-sikkerhed"],
+    legal: "Juridisk",
     contact: "Kontakt",
     rights: "© 2026 CVR-MATE. Alle rettigheder forbeholdes.",
     privacy: "Privatlivspolitik",
     terms: "Vilkår og betingelser",
+    dataSecurity: "Datasikkerhed",
+    getInTouch: "Kontakt os",
   },
   auth: {
     login: {
@@ -804,6 +807,14 @@ const da = {
       title: "Farezone",
       delete: "Slet konto",
       warning: "Denne handling kan ikke fortrydes.",
+      confirmTitle: "Slet din konto?",
+      confirmBody: "Alle dine data — gemte virksomheder, triggers, opkaviinger og integrationer — slettes permanent. Aktive abonnementer annulleres øjeblikkeligt.",
+      confirmPrompt: 'Skriv "SLET" for at bekræfte',
+      confirmPlaceholder: "SLET",
+      confirmButton: "Slet min konto permanent",
+      deleting: "Sletter...",
+      errorHasTeam: "Du ejer et team med andre medlemmer. Overføre ejerskab eller fjern alle medlemmer før du sletter din konto.",
+      errorGeneric: "Sletning af konto mislykkedes. Prøv igen.",
     },
     brand: {
       title: "Virksomhedsprofil",

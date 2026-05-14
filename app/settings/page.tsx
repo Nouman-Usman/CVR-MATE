@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { authClient } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -723,6 +724,12 @@ export default function SettingsPage() {
   const [aiEnrichmentData, setAiEnrichmentData] = useState<Record<string, unknown> | null>(null);
   const [enrichSaving, setEnrichSaving] = useState(false);
 
+  // Delete account
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   const showToast = useCallback(
@@ -733,6 +740,34 @@ export default function SettingsPage() {
     },
     []
   );
+
+  // ── Delete account handler ──────────────────────────────────────────────
+
+  const router = useRouter();
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/user", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(
+          data.error === "account_has_team"
+            ? st.danger.errorHasTeam
+            : st.danger.errorGeneric
+        );
+        setDeleteLoading(false);
+        return;
+      }
+      // Sign out and redirect
+      await authClient.signOut();
+      router.push("/");
+    } catch {
+      setDeleteError(st.danger.errorGeneric);
+      setDeleteLoading(false);
+    }
+  };
 
   // ── Sync name from session ──────────────────────────────────────────────
 
@@ -1868,9 +1903,74 @@ export default function SettingsPage() {
             </h2>
           </div>
           <p className="text-sm text-red-600/70 mb-4">{st.danger.warning}</p>
-          <button className="px-5 py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-full hover:bg-red-500 hover:text-white transition-colors cursor-pointer">
+          <button
+            onClick={() => { setShowDeleteModal(true); setDeleteConfirm(""); setDeleteError(null); }}
+            className="px-5 py-2.5 border-2 border-red-500 text-red-600 font-bold text-sm rounded-full hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+          >
             {st.danger.delete}
           </button>
+
+          {/* Delete Account Modal */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl border-2 border-red-200 max-w-md w-full shadow-xl">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-red-100">
+                  <h3 className="text-lg font-bold text-red-700">{st.danger.confirmTitle}</h3>
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-slate-600">{st.danger.confirmBody}</p>
+
+                  {/* Confirmation input */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-2">
+                      {st.danger.confirmPrompt}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={st.danger.confirmPlaceholder}
+                      value={deleteConfirm}
+                      onChange={(e) => { setDeleteConfirm(e.target.value); setDeleteError(null); }}
+                      className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-red-500/20 outline-none"
+                    />
+                  </div>
+
+                  {/* Error message */}
+                  {deleteError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                      {deleteError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 p-6 border-t border-red-100">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 font-medium text-sm rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    {locale === "da" ? "Annuller" : "Cancel"}
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleteLoading || deleteConfirm !== (locale === "da" ? "SLET" : "DELETE")}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {deleteLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {deleteLoading ? st.danger.deleting : st.danger.confirmButton}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>}
         </div>
       </div>

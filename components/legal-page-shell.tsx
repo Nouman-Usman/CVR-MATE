@@ -18,7 +18,7 @@ export type LegalSection = {
 
 type Props = {
   /** Page variant — controls cross-link in header */
-  page: "terms" | "privacy";
+  page: "terms" | "privacy" | "data-security";
   daTitle: string;
   enTitle: string;
   daSubtitle: string;
@@ -51,12 +51,14 @@ export function LegalPageShell({
           </Link>
           <div className="flex items-center gap-3">
             <Link
-              href={page === "terms" ? "/privacy" : "/terms"}
+              href={page === "terms" ? "/privacy" : page === "privacy" ? "/terms" : "/privacy"}
               className="hidden sm:block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               {page === "terms"
                 ? da ? "Privatlivspolitik →" : "Privacy Policy →"
-                : da ? "Vilkår & Betingelser →" : "Terms & Conditions →"}
+                : page === "privacy"
+                ? da ? "Vilkår & Betingelser →" : "Terms & Conditions →"
+                : da ? "Privatlivspolitik →" : "Privacy Policy →"}
             </Link>
             <Button
               variant="outline"

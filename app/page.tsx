@@ -322,9 +322,9 @@ export default function Home() {
   ];
 
   const features = [
-    { icon: "monitoring", title: t.features.card1Title, desc: t.features.card1Desc, gradient: "from-blue-500 to-cyan-400" },
-    { icon: "bolt", title: t.features.card2Title, desc: t.features.card2Desc, gradient: "from-violet-500 to-purple-400" },
-    { icon: "auto_awesome", title: t.products.flow.name, desc: t.products.flow.features[0], gradient: "from-cyan-500 to-emerald-400" },
+    { icon: "auto_awesome", title: t.features.card1Title, desc: t.features.card1Desc, gradient: "from-violet-500 to-fuchsia-400", comingSoon: false },
+    { icon: "trending_up", title: t.features.card2Title, desc: t.features.card2Desc, gradient: "from-emerald-500 to-teal-400", comingSoon: false },
+    { icon: "radar", title: t.features.card3Title, desc: t.features.card3Desc, gradient: "from-orange-500 to-rose-400", comingSoon: false },
   ];
 
   const steps = [
@@ -565,8 +565,11 @@ export default function Home() {
             {features.map((f, i) => (
               <div key={i} className="feature-card">
                 <InteractiveFeatureCard>
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center mb-5 shadow-lg`}>
-                    <span className="material-symbols-outlined text-2xl text-white">{f.icon}</span>
+                  <div className="flex items-start justify-between mb-5">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center shadow-lg`}>
+                      <span className="material-symbols-outlined text-2xl text-white">{f.icon}</span>
+                    </div>
+                    {f.comingSoon && <ComingSoonBadge />}
                   </div>
                   <h3 className="text-lg font-bold text-white mb-3 font-[family-name:var(--font-manrope)]">{f.title}</h3>
                   <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
@@ -855,44 +858,73 @@ export default function Home() {
             {/* Brand */}
             <div className="sm:col-span-2 lg:col-span-1">
               <LogoFull size="small" variant="dark" className="mb-4" />
-              <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
+              <p className="text-sm text-slate-500 leading-relaxed max-w-xs mb-6">
                 {t.footer.tagline}
               </p>
+              <a
+                href={`mailto:${CONTACT_EMAIL}`}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-cyan-400 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">mail</span>
+                {CONTACT_EMAIL}
+              </a>
             </div>
 
-            {/* Links */}
+            {/* Platform */}
             <div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.platform}</h4>
               <div className="flex flex-col gap-3">
-                {t.footer.platformLinks.map((label: string) => (
-                  <Link key={label} href="/" className="text-sm text-slate-500 hover:text-white transition-colors">
-                    {label}
-                  </Link>
-                ))}
+                <a href="#features" className="text-sm text-slate-500 hover:text-white transition-colors">
+                  {locale === "da" ? "Funktioner" : "Features"}
+                </a>
+                <a href="#how-it-works" className="text-sm text-slate-500 hover:text-white transition-colors">
+                  {locale === "da" ? "Sådan fungerer det" : "How it works"}
+                </a>
+                <a href="#pricing" className="text-sm text-slate-500 hover:text-white transition-colors">
+                  {locale === "da" ? "Priser" : "Pricing"}
+                </a>
+                <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("CVR-MATE CRM Integration")}`} className="text-sm text-slate-500 hover:text-white transition-colors inline-flex items-center gap-1.5">
+                  {locale === "da" ? "Integrationer" : "Integrations"}
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 border border-amber-400/30 rounded-full px-1.5 py-0.5">
+                    {locale === "da" ? "Snart" : "Soon"}
+                  </span>
+                </a>
               </div>
             </div>
+
+            {/* Legal */}
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.resources}</h4>
-              <div className="flex flex-col gap-3">
-                {t.footer.resourceLinks.map((label: string) => (
-                  <Link key={label} href="/" className="text-sm text-slate-500 hover:text-white transition-colors">
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.contact}</h4>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.legal}</h4>
               <div className="flex flex-col gap-3">
                 <Link href="/privacy" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.privacy}</Link>
                 <Link href="/terms" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.terms}</Link>
+                <Link href="/data-security" className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.dataSecurity}</Link>
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{t.footer.contact}</h4>
+              <div className="flex flex-col gap-3">
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-sm text-slate-500 hover:text-white transition-colors">{t.footer.getInTouch}</a>
+                <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("CVR-MATE Enterprise Inquiry")}`} className="text-sm text-slate-500 hover:text-white transition-colors">
+                  {locale === "da" ? "Enterprise-forespørgsel" : "Enterprise inquiry"}
+                </a>
+                <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("CVR-MATE Partnership")}`} className="text-sm text-slate-500 hover:text-white transition-colors">
+                  {locale === "da" ? "Partnerskaber" : "Partnerships"}
+                </a>
               </div>
             </div>
           </div>
 
-          {/* Bottom */}
+          {/* Bottom bar */}
           <div className="pt-8 border-t border-white/[0.04] flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-slate-600">{t.footer.rights}</p>
+            <div className="flex items-center gap-6">
+              <Link href="/privacy" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">{t.footer.privacy}</Link>
+              <Link href="/terms" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">{t.footer.terms}</Link>
+              <Link href="/data-security" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">{t.footer.dataSecurity}</Link>
+            </div>
           </div>
         </div>
       </footer>
