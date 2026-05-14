@@ -439,9 +439,8 @@ async function handleInvoicePaymentActionRequired(invoice: Stripe.Invoice) {
   });
   if (!userRow) return;
 
-  // Determine action type from last payment charge attempt
-  const actionType =
-    invoice.last_payment_error?.payment_method?.type === "card" ? "3D Secure verification" : "Payment confirmation";
+  // Default action type (3D Secure is most common for this event)
+  const actionType = "3D Secure verification";
 
   try {
     await sendPaymentActionRequiredEmail({
