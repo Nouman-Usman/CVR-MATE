@@ -6,7 +6,12 @@ export type EmailTemplateId =
   | "welcome"
   | "team_invitation"
   | "daily_lead_update"
-  | "weekly_summary";
+  | "weekly_summary"
+  | "payment_failed"
+  | "card_expiring"
+  | "payment_action_required"
+  | "invoice_upcoming"
+  | "dispute";
 
 export interface SendEmailOptions {
   to: string | string[];
