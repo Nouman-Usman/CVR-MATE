@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
-import { subscription } from "@/db/schema";
+import { subscription, user } from "@/db/schema";
 import { member } from "@/db/auth-schema";
 import { notification } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -12,6 +12,13 @@ import {
   getInvoiceSubscriptionId,
   subscriptionDataFromStripe,
 } from "@/lib/stripe/webhook-helpers";
+import {
+  sendPaymentFailedEmail,
+  sendCardExpiringEmail,
+  sendPaymentActionRequiredEmail,
+  sendInvoiceUpcomingEmail,
+  sendDisputeEmail,
+} from "@/lib/email/senders/payment-notifications";
 
 export const runtime = "nodejs";
 
@@ -147,6 +154,26 @@ export async function POST(req: NextRequest) {
 
       case "invoice.payment_failed":
         await handlePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+
+      case "charge.failed":
+        await handleChargeFailed(event.data.object as Stripe.Charge);
+        break;
+
+      case "customer.source.expiring":
+        await handleCustomerSourceExpiring(event.data.object as Stripe.Card);
+        break;
+
+      case "invoice.payment_action_required":
+        await handleInvoicePaymentActionRequired(event.data.object as Stripe.Invoice);
+        break;
+
+      case "invoice.upcoming":
+        await handleInvoiceUpcoming(event.data.object as Stripe.Invoice);
+        break;
+
+      case "charge.dispute.created":
+        await handleChargeDisputeCreated(event.data.object as Stripe.Dispute);
         break;
 
       default:
@@ -326,4 +353,202 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     .where(eq(subscription.id, existing.id));
 
   console.log(`[Stripe Webhook] Payment failed for subscription ${subId}, status=${data.status}`);
+}
+
+/**
+ * Handle charge.failed — send email to user about failed payment.
+ */
+async function handleChargeFailed(charge: Stripe.Charge) {
+  const customerId = typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
+  if (!customerId) return;
+
+  // Find user by Stripe customer ID
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.stripeCustomerId, customerId),
+  });
+  if (!sub) return;
+
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, sub.userId),
+  });
+  if (!userRow) return;
+
+  const failureReason = charge.failure_message || "Unknown reason";
+
+  try {
+    await sendPaymentFailedEmail({
+      to: userRow.email,
+      userName: userRow.name || "User",
+      userId: sub.userId,
+      failureReason,
+    });
+    console.log(`[Stripe Webhook] Sent payment failed email to ${userRow.email}`);
+  } catch (err) {
+    console.error("[Stripe Webhook] Failed to send payment failed email:", err);
+  }
+}
+
+/**
+ * Handle customer.source.expiring — send card expiration warning email.
+ * Note: Only fires for legacy Card/Source objects, not PaymentMethod API.
+ */
+async function handleCustomerSourceExpiring(card: Stripe.Card) {
+  const customerId = typeof card.customer === "string" ? card.customer : card.customer?.id;
+  if (!customerId) return;
+
+  // Find user by Stripe customer ID
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.stripeCustomerId, customerId),
+  });
+  if (!sub) return;
+
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, sub.userId),
+  });
+  if (!userRow) return;
+
+  const expiryDate = `${card.exp_month}/${card.exp_year}`;
+
+  try {
+    await sendCardExpiringEmail({
+      to: userRow.email,
+      userName: userRow.name || "User",
+      userId: sub.userId,
+      expiryDate,
+    });
+    console.log(`[Stripe Webhook] Sent card expiring email to ${userRow.email}`);
+  } catch (err) {
+    console.error("[Stripe Webhook] Failed to send card expiring email:", err);
+  }
+}
+
+/**
+ * Handle invoice.payment_action_required — send email for 3D Secure / SCA verification.
+ */
+async function handleInvoicePaymentActionRequired(invoice: Stripe.Invoice) {
+  const subId = getInvoiceSubscriptionId(invoice);
+  if (!subId) return;
+
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.stripeSubscriptionId, subId),
+  });
+  if (!sub) return;
+
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, sub.userId),
+  });
+  if (!userRow) return;
+
+  // Determine action type from last payment charge attempt
+  const actionType =
+    invoice.last_payment_error?.payment_method?.type === "card" ? "3D Secure verification" : "Payment confirmation";
+
+  try {
+    await sendPaymentActionRequiredEmail({
+      to: userRow.email,
+      userName: userRow.name || "User",
+      userId: sub.userId,
+      actionType,
+    });
+    console.log(`[Stripe Webhook] Sent payment action required email to ${userRow.email}`);
+  } catch (err) {
+    console.error("[Stripe Webhook] Failed to send payment action required email:", err);
+  }
+}
+
+/**
+ * Handle invoice.upcoming — send renewal reminder email.
+ * Note: The invoice object will not have an invoice ID in this event.
+ */
+async function handleInvoiceUpcoming(invoice: Stripe.Invoice) {
+  const subId = getInvoiceSubscriptionId(invoice);
+  if (!subId) return;
+
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.stripeSubscriptionId, subId),
+  });
+  if (!sub) return;
+
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, sub.userId),
+  });
+  if (!userRow) return;
+
+  // Calculate days until invoice (usually 7-10 days before renewal)
+  const nextPeriodStart = invoice.lines?.data?.[0]?.period?.start;
+  const daysUntil = nextPeriodStart
+    ? Math.ceil((nextPeriodStart * 1000 - Date.now()) / (1000 * 60 * 60 * 24))
+    : 7;
+
+  const amount = invoice.amount_due / 100;
+  const currency = invoice.currency?.toUpperCase() ?? "USD";
+  const planName = sub.plan?.toUpperCase() ?? "Plan";
+
+  try {
+    await sendInvoiceUpcomingEmail({
+      to: userRow.email,
+      userName: userRow.name || "User",
+      userId: sub.userId,
+      amount,
+      currency,
+      daysUntil: Math.max(daysUntil, 1),
+      planName,
+    });
+    console.log(`[Stripe Webhook] Sent invoice upcoming email to ${userRow.email}`);
+  } catch (err) {
+    console.error("[Stripe Webhook] Failed to send invoice upcoming email:", err);
+  }
+}
+
+/**
+ * Handle charge.dispute.created — send chargeback/dispute alert email.
+ */
+async function handleChargeDisputeCreated(dispute: Stripe.Dispute) {
+  const charge = dispute.charge;
+  const chargeId = typeof charge === "string" ? charge : charge?.id;
+  if (!chargeId) return;
+
+  // Get customer from dispute metadata or fetch charge
+  let customerId: string | undefined;
+  if (dispute.metadata?.stripe_customer_id) {
+    customerId = dispute.metadata.stripe_customer_id;
+  } else {
+    // Try to get customer from charge (may not be available in dispute object)
+    const stripe = getStripe();
+    try {
+      const chargeObj = await stripe.charges.retrieve(chargeId);
+      customerId = typeof chargeObj.customer === "string" ? chargeObj.customer : chargeObj.customer?.id;
+    } catch {
+      console.warn(`[Stripe Webhook] Could not retrieve charge ${chargeId} for dispute`);
+      return;
+    }
+  }
+
+  if (!customerId) return;
+
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.stripeCustomerId, customerId),
+  });
+  if (!sub) return;
+
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, sub.userId),
+  });
+  if (!userRow) return;
+
+  const amount = dispute.amount / 100;
+  const currency = dispute.currency?.toUpperCase() ?? "USD";
+
+  try {
+    await sendDisputeEmail({
+      to: userRow.email,
+      userName: userRow.name || "User",
+      userId: sub.userId,
+      amount,
+      currency,
+    });
+    console.log(`[Stripe Webhook] Sent dispute alert email to ${userRow.email}`);
+  } catch (err) {
+    console.error("[Stripe Webhook] Failed to send dispute email:", err);
+  }
 }
