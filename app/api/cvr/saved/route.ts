@@ -6,6 +6,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
 import { validateActiveOrg } from "@/lib/team/permissions";
+import { getCompanyByVat } from "@/lib/cvr-api";
+import type { CvrCompany } from "@/lib/cvr-api";
 
 // GET /api/cvr/saved — list saved companies for the current user + organization
 export async function GET() {
@@ -80,14 +82,28 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { vat, name, rawData, note } = body;
+    const { vat, note } = body;
 
-    if (!vat || !name) {
+    // VAT validation — same guard used in 6 other CVR routes
+    if (!vat || !/^\d{8}$/.test(String(vat))) {
       return NextResponse.json(
-        { error: "vat and name are required" },
+        { error: "Invalid VAT format" },
         { status: 400 }
       );
     }
+
+    // Fetch canonical data server-side — never trust rawData from client
+    let cvrData: CvrCompany;
+    try {
+      cvrData = await getCompanyByVat(Number(vat));
+    } catch {
+      return NextResponse.json(
+        { error: "Company not found in CVR registry" },
+        { status: 404 }
+      );
+    }
+
+    const sanitizedNote = typeof note === "string" ? note.trim() || null : null;
 
     // Upsert company record
     const existing = await db.query.company.findFirst({
@@ -97,52 +113,50 @@ export async function POST(req: NextRequest) {
     let companyId: string;
     if (existing) {
       companyId = existing.id;
-      // Update raw data if provided
-      if (rawData) {
-        await db
-          .update(company)
-          .set({
-            rawData,
-            name: rawData.life?.name || name,
-            city: rawData.address?.cityname || existing.city,
-            zipcode: rawData.address?.zipcode
-              ? String(rawData.address.zipcode)
-              : existing.zipcode,
-            address: rawData.address?.street || existing.address,
-            municipality: rawData.address?.municipalityname || existing.municipality,
-            industryCode: rawData.industry?.primary?.code
-              ? String(rawData.industry.primary.code)
-              : existing.industryCode,
-            industryName: rawData.industry?.primary?.text || existing.industryName,
-            companyType: rawData.companyform?.description || existing.companyType,
-            companyStatus: rawData.companystatus?.text || existing.companyStatus,
-            founded: rawData.life?.start || existing.founded,
-            employees: rawData.employment?.months?.[0]?.amount ?? existing.employees,
-            lastFetchedAt: new Date(),
-          })
-          .where(eq(company.id, existing.id));
-      }
+      // Update with canonical CVR data
+      await db
+        .update(company)
+        .set({
+          rawData: cvrData,
+          name: cvrData.life?.name || existing.name,
+          city: cvrData.address?.cityname || existing.city,
+          zipcode: cvrData.address?.zipcode
+            ? String(cvrData.address.zipcode)
+            : existing.zipcode,
+          address: cvrData.address?.street || existing.address,
+          municipality: cvrData.address?.municipalityname || existing.municipality,
+          industryCode: cvrData.industry?.primary?.code
+            ? String(cvrData.industry.primary.code)
+            : existing.industryCode,
+          industryName: cvrData.industry?.primary?.text || existing.industryName,
+          companyType: cvrData.companyform?.description || existing.companyType,
+          companyStatus: cvrData.companystatus?.text || existing.companyStatus,
+          founded: cvrData.life?.start || existing.founded,
+          employees: cvrData.employment?.months?.[0]?.amount ?? existing.employees,
+          lastFetchedAt: new Date(),
+        })
+        .where(eq(company.id, existing.id));
     } else {
       const [newCompany] = await db
         .insert(company)
         .values({
           vat: String(vat),
-          name: rawData?.life?.name || name,
-          rawData: rawData || {},
-          city: rawData?.address?.cityname || null,
-          zipcode: rawData?.address?.zipcode
-            ? String(rawData.address.zipcode)
+          name: cvrData.life?.name || "Unknown",
+          rawData: cvrData,
+          city: cvrData.address?.cityname || null,
+          zipcode: cvrData.address?.zipcode
+            ? String(cvrData.address.zipcode)
             : null,
-          address: rawData?.address?.street || null,
-          municipality: rawData?.address?.municipalityname || null,
-          industryCode: rawData?.industry?.primary?.code
-            ? String(rawData.industry.primary.code)
+          address: cvrData.address?.street || null,
+          municipality: cvrData.address?.municipalityname || null,
+          industryCode: cvrData.industry?.primary?.code
+            ? String(cvrData.industry.primary.code)
             : null,
-          industryName: rawData?.industry?.primary?.text || null,
-          companyType: rawData?.companyform?.description || null,
-          companyStatus: rawData?.companystatus?.text || null,
-          founded: rawData?.life?.start || null,
-          employees: rawData?.employment?.months?.[0]?.amount ?? null,
+          industryName: cvrData.industry?.primary?.text || null,
+          companyType: cvrData.companyform?.description || null,
+          companyStatus: cvrData.companystatus?.text || null,
+          founded: cvrData.life?.start || null,
+          employees: cvrData.employment?.months?.[0]?.amount ?? null,
         })
         .returning();
       companyId = newCompany.id;
@@ -166,7 +180,7 @@ export async function POST(req: NextRequest) {
       organizationId: activeOrgId ?? null,
       companyId,
       cvr: String(vat),
-      note: typeof note === "string" && note.trim() ? note.trim() : null,
+      note: sanitizedNote,
     });
 
     return NextResponse.json({ saved: true }, { status: 201 });

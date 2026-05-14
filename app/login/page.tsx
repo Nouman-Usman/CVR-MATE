@@ -21,11 +21,21 @@ export default function LoginPage() {
   );
 }
 
+function sanitizeCallbackUrl(url: string | null): string {
+  if (!url) return "/dashboard";
+  // Must be relative: starts with / but not // (protocol-relative), no colon (blocks javascript:, http:)
+  if (url.startsWith("/") && !url.startsWith("//") && !url.includes(":")) {
+    return url;
+  }
+  return "/dashboard";
+}
+
 function LoginForm() {
   const { t, locale, toggleLocale } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const rawCallback = searchParams.get("callbackUrl");
+  const callbackUrl = sanitizeCallbackUrl(rawCallback);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

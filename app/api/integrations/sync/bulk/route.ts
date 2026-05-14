@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
           founded: comp.founded,
         };
 
-        let existing = mappingByCompanyId.get(comp.id);
+        const existing = mappingByCompanyId.get(comp.id);
         let crmEntityId = "";
         let action = "";
         let needsCreate = !existing;

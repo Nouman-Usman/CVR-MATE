@@ -18,7 +18,7 @@ import {
   useDeleteOrg,
   type OrgMember,
 } from "@/lib/hooks/use-team";
-import { Loader2, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, X, ChevronDown, ChevronUp, Mail } from "lucide-react";
 import { COMING_SOON_FEATURES } from "@/lib/constants";
 import { ComingSoonOverlay } from "@/components/ui/coming-soon";
 
@@ -175,6 +175,18 @@ export default function TeamSection() {
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">{st.title}</h2>
         </div>
         <p className="text-xs text-slate-400 mb-6">{st.subtitle}</p>
+
+        {/* Contact Us Button */}
+        <div className="mb-6">
+          <a
+            href="mailto:dev@fourmates.dk"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Contact Us
+          </a>
+        </div>
+
         <ComingSoonOverlay
           feature="team"
           description="Team workspaces, role-based access, and audit logging are coming soon."

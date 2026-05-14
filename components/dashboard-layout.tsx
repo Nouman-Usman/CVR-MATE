@@ -372,6 +372,9 @@ export default function DashboardLayout({
     const user = session?.user;
     if (user) {
       Sentry.setUser({ id: user.id, email: user.email, name: user.name ?? undefined });
+    } else {
+      // Clear user from Sentry when logged out
+      Sentry.setUser(null);
     }
   }, [session?.user?.id]);
 

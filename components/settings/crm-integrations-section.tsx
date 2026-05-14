@@ -9,7 +9,7 @@ import {
   useConnectionHealthCheck,
 } from "@/lib/hooks/use-integrations";
 import { useSubscription } from "@/lib/hooks/use-subscription";
-import { Loader2, ArrowUpRight, Lock, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Plug } from "lucide-react";
+import { Loader2, ArrowUpRight, Lock, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Plug, Mail } from "lucide-react";
 import { COMING_SOON_FEATURES } from "@/lib/constants";
 import { ComingSoonOverlay } from "@/components/ui/coming-soon";
 
@@ -141,6 +141,17 @@ export default function CrmIntegrationsSection() {
           )}
         </div>
         <p className="text-sm text-slate-400 mb-6">{ig.subtitle}</p>
+
+        {/* Contact Us Button */}
+        <div className="mb-6">
+          <a
+            href="mailto:dev@fourmates.dk"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Contact Us
+          </a>
+        </div>
 
         {/* Upgrade Banner for Free/Starter users */}
         {!canUseCrm && (

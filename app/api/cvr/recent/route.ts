@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     async function fetchAllForDate(date: string) {
       const all: Awaited<ReturnType<typeof searchCompanies>> = [];
       let page = 1;
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         const batch = await searchCompanies({
           life_start: date,
