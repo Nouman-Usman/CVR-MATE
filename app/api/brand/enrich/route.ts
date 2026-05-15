@@ -90,12 +90,31 @@ Respond with a JSON object containing ALL of these fields:
 
 Use their own words and answers as the primary source. Supplement with CVR data where relevant. Be specific — avoid generic statements like "they provide great service."`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 2048,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 4096, // Increased from 2048 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Brand Enrich] Generation failed:", msg.slice(0, 100));
+      raw = {
+        description: "Brand enrichment analysis temporarily unavailable.",
+        valueProposition: "Enrichment pending.",
+        messagingPoints: [],
+        painPointsSolved: [],
+        competitiveAdvantages: [],
+        idealCustomerProfile: "Retry enrichment shortly.",
+        pricingModel: "Analysis pending.",
+        geographicFocus: "Analysis pending.",
+      };
+    }
 
     // Flatten nested wrapper
     const topKeys = Object.keys(raw);
@@ -105,14 +124,14 @@ Use their own words and answers as the primary source. Supplement with CVR data 
     }
 
     const enrichment: BrandAiEnrichment = {
-      description: String(data.description ?? data.Description ?? ""),
-      valueProposition: String(data.valueProposition ?? data.value_proposition ?? data.ValueProposition ?? ""),
+      description: String(data.description ?? data.Description ?? "").trim() || "Analysis pending.",
+      valueProposition: String(data.valueProposition ?? data.value_proposition ?? data.ValueProposition ?? "").trim() || "Pending analysis.",
       messagingPoints: (Array.isArray(data.messagingPoints) ? data.messagingPoints : Array.isArray(data.messaging_points) ? data.messaging_points : []) as string[],
       painPointsSolved: (Array.isArray(data.painPointsSolved) ? data.painPointsSolved : Array.isArray(data.pain_points_solved) ? data.pain_points_solved : []) as string[],
       competitiveAdvantages: (Array.isArray(data.competitiveAdvantages) ? data.competitiveAdvantages : Array.isArray(data.competitive_advantages) ? data.competitive_advantages : []) as string[],
-      idealCustomerProfile: String(data.idealCustomerProfile ?? data.ideal_customer_profile ?? data.IdealCustomerProfile ?? ""),
-      pricingModel: String(data.pricingModel ?? data.pricing_model ?? data.PricingModel ?? ""),
-      geographicFocus: String(data.geographicFocus ?? data.geographic_focus ?? data.GeographicFocus ?? ""),
+      idealCustomerProfile: String(data.idealCustomerProfile ?? data.ideal_customer_profile ?? data.IdealCustomerProfile ?? "").trim() || "Pending analysis.",
+      pricingModel: String(data.pricingModel ?? data.pricing_model ?? data.PricingModel ?? "").trim() || "Pending analysis.",
+      geographicFocus: String(data.geographicFocus ?? data.geographic_focus ?? data.GeographicFocus ?? "").trim() || "Pending analysis.",
       generatedAt: new Date().toISOString(),
     };
 

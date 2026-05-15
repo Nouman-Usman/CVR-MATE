@@ -418,7 +418,9 @@ const da = {
       revenue: "Omsætning (DKK)",
       grossProfit: "Bruttoavance (DKK)",
       employees: "Antal ansatte",
+      showDissolved: "Inkluder opløste virksomheder",
     },
+    dissolvedBadge: "Opløst",
     table: {
       selectAll: "Vælg alle",
       company: "Virksomhed",

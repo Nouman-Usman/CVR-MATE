@@ -91,6 +91,7 @@ export const useSearchStore = create<SearchUIState>()(
         profitMax: state.profitMax,
         employeesMin: state.employeesMin,
         employeesMax: state.employeesMax,
+        showDissolved: state.showDissolved,
         showFilters: state.showFilters,
         page: state.page,
         scrollY: state.scrollY,

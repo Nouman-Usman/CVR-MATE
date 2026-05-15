@@ -13,6 +13,7 @@ export interface SearchFiltersState {
   profitMax: number;
   employeesMin: number;
   employeesMax: number;
+  showDissolved: boolean;
 }
 
 type SearchParamReader = Pick<URLSearchParams, "get">;
@@ -32,6 +33,7 @@ export const DEFAULT_SEARCH_FILTERS: SearchFiltersState = {
   profitMax: 1000,
   employeesMin: 0,
   employeesMax: 5000,
+  showDissolved: false,
 };
 
 const companyFormCodeMap: Record<string, string> = {
@@ -106,6 +108,7 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   const params = new URLSearchParams();
 
   if (filters.query) params.set("name", filters.query);
+  if (filters.showDissolved) params.set("status", "all");
 
   if (filters.industryCode !== "all") {
     params.set("industry_code", filters.industryCode);
@@ -158,6 +161,7 @@ export function serializeSearchFilters(filters: SearchFiltersState): Record<stri
   if (filters.revenueMax < 1000) serialized.revenueMax = String(filters.revenueMax);
   if (filters.profitMin > 0) serialized.profitMin = String(filters.profitMin);
   if (filters.profitMax < 1000) serialized.profitMax = String(filters.profitMax);
+  if (filters.showDissolved) serialized.showDissolved = "true";
   return serialized;
 }
 
@@ -203,6 +207,9 @@ export function hydrateSearchFiltersFromParams(params: SearchParamReader): {
     const value = getNumber(params, paramKey);
     if (value !== undefined) filters[stateKey] = value as never;
   }
+
+  const showDissolved = params.get("showDissolved");
+  if (showDissolved === "true") filters.showDissolved = true;
 
   return {
     filters,

@@ -116,12 +116,32 @@ Respond with a JSON object:
   "explanation": "Brief human-readable summary of what you understood"
 }`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 768,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 2048, // Increased from 768 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Parse Search] Generation failed, using defaults:", msg.slice(0, 100));
+      raw = {
+        filters: {
+          query: query.trim(),
+          industryText: "",
+          industryCode: "all",
+          companyForm: "all",
+          size: "all",
+          region: "all",
+        },
+        explanation: "Search parsing temporarily unavailable. Using literal search term.",
+      };
+    }
 
     // Normalize — filters may be at top level or nested under "filters"
     const filtersObj = (raw.filters ?? raw) as Record<string, unknown>;

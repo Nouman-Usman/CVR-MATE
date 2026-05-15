@@ -124,12 +124,29 @@ Respond with a JSON object:
   "followUp": "A shorter follow-up message to send 3-5 days later if no response"
 }`;
 
-    let raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 2048,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 4096, // Increased from 2048 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      // Fallback message on failure
+      const fallbackMessage = type === "email"
+        ? "Unable to generate personalized message at this moment. Please try again."
+        : "Unable to generate personalized phone script at this moment. Please try again.";
+      raw = {
+        subject: type === "email" ? `Let's connect` : undefined,
+        message: fallbackMessage,
+        followUp: "Checking in again",
+      };
+    }
 
     // Gemini sometimes wraps the response inside a single top-level key
     const rawKeys = Object.keys(raw);

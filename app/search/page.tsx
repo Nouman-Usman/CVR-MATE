@@ -62,14 +62,19 @@ interface Company {
   founded: string;
   employees: string;
   form: string;
+  isDissolved: boolean;
 }
 
 type UpgradeError = Error & { upgrade?: boolean };
 
+function normalizeStatusText(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function mapCvrCompany(c: Record<string, unknown>): Company {
   const comp = c as {
     vat?: number;
-    life?: { name?: string; start?: string };
+    life?: { name?: string; start?: string; end?: string };
     address?: { cityname?: string; zipcode?: number };
     industry?: { primary?: { text?: string; code?: number } };
     companystatus?: { text?: string };
@@ -79,6 +84,8 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
   };
 
   const latestEmployment = comp._employeeCount ?? comp.employment?.months?.[0]?.amount;
+  const statusText = normalizeStatusText(comp.companystatus?.text);
+  const isDissolved = !!comp.life?.end || ["oph\u00f8rt", "opl\u00f8st", "dissolved", "closed"].includes(statusText);
 
   return {
     cvr: String(comp.vat ?? ""),
@@ -90,6 +97,7 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
     founded: comp.life?.start ?? "",
     employees: latestEmployment != null ? String(latestEmployment) : "\u2013",
     form: comp.companyform?.description ?? "",
+    isDissolved,
   };
 }
 
@@ -204,7 +212,7 @@ function SearchPage() {
   const {
     query, industryText, industryCode, companyForm, size,
     zipcode, region, foundedPeriod, revenueMin, revenueMax,
-    profitMin, profitMax, employeesMin, employeesMax,
+    profitMin, profitMax, employeesMin, employeesMax, showDissolved,
     showFilters, scrollY, selected, hasSearched,
     setFilter, setScrollY, setHasSearched, setShowFilters,
     toggleSelect, clearSelected, resetAll,
@@ -227,7 +235,8 @@ function SearchPage() {
     profitMax,
     employeesMin,
     employeesMax,
-  }), [query, industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax]);
+    showDissolved,
+  }), [query, industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, showDissolved]);
 
   const buildSearchParams = useCallback(() => {
     return buildSearchParamsFromState(currentFilters);
@@ -582,6 +591,21 @@ function SearchPage() {
                 </div>
               </div>
 
+              {/* Company status toggle */}
+              <div className="py-4 border-t border-b border-border/40">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    id="show-dissolved"
+                    checked={showDissolved}
+                    onCheckedChange={(v) => setFilter("showDissolved", !!v)}
+                    className="size-4"
+                  />
+                  <Label htmlFor="show-dissolved" className="text-sm font-medium cursor-pointer">
+                    {s.filters.showDissolved}
+                  </Label>
+                </div>
+              </div>
+
               {/* Segmentation sliders */}
               <div className="pt-5 border-t border-border/40">
                 <div className="flex items-center gap-2 mb-5">
@@ -694,6 +718,11 @@ function SearchPage() {
                           {c.form && (
                             <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-medium bg-slate-50 text-slate-500">
                               {c.form}
+                            </span>
+                          )}
+                          {c.isDissolved && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-medium bg-red-50 text-red-600">
+                              {s.dissolvedBadge}
                             </span>
                           )}
                         </div>

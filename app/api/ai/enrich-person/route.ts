@@ -86,12 +86,29 @@ Respond with a JSON object containing ALL of these fields:
 
 ${formatBrandContext(brand)}`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 3072,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 6144, // Increased from 3072 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Person Enrichment] Generation failed:", msg.slice(0, 100));
+      raw = {
+        summary: `Analysis of ${personName ?? "this person"} is temporarily unavailable.`,
+        roleSignificance: "Pending analysis.",
+        networkInfluence: { score: "unknown", details: "Retry enrichment shortly." },
+        careerTrajectory: { direction: "unknown", details: "Retry enrichment shortly." },
+        engagementStrategy: { approach: "Standard professional approach", topics: [], avoid: "" },
+        keyInsights: ["Enrichment data temporarily unavailable."],
+      };
+    }
 
     // Flatten nested wrapper
     const topKeys = Object.keys(raw);
@@ -101,16 +118,16 @@ ${formatBrandContext(brand)}`;
     }
 
     const enrichment = {
-      summary: String(data.summary ?? data.Summary ?? ""),
-      roleSignificance: String(data.roleSignificance ?? data.role_significance ?? ""),
-      networkInfluence: (data.networkInfluence ?? data.network_influence ?? { score: "medium", details: "" }) as Record<string, unknown>,
-      careerTrajectory: (data.careerTrajectory ?? data.career_trajectory ?? { direction: "stable", details: "" }) as Record<string, unknown>,
-      engagementStrategy: (data.engagementStrategy ?? data.engagement_strategy ?? { approach: "", topics: [], avoid: "" }) as Record<string, unknown>,
+      summary: String(data.summary ?? data.Summary ?? "").trim() || "Enrichment pending.",
+      roleSignificance: String(data.roleSignificance ?? data.role_significance ?? "").trim() || "Analysis pending.",
+      networkInfluence: (data.networkInfluence ?? data.network_influence ?? { score: "medium", details: "Pending analysis" }) as Record<string, unknown>,
+      careerTrajectory: (data.careerTrajectory ?? data.career_trajectory ?? { direction: "stable", details: "Pending analysis" }) as Record<string, unknown>,
+      engagementStrategy: (data.engagementStrategy ?? data.engagement_strategy ?? { approach: "Standard approach", topics: [], avoid: "" }) as Record<string, unknown>,
       keyInsights: (Array.isArray(data.keyInsights) ? data.keyInsights : Array.isArray(data.key_insights) ? data.key_insights : []) as string[],
     };
 
-    if (!enrichment.summary) {
-      return NextResponse.json({ error: "AI returned empty enrichment" }, { status: 500 });
+    if (!enrichment.summary || enrichment.summary.length < 10) {
+      return NextResponse.json({ error: "Person enrichment generation failed. Please try again." }, { status: 500 });
     }
 
     // Persist to Postgres

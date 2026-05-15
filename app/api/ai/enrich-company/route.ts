@@ -108,12 +108,37 @@ Respond with a JSON object containing ALL of these fields:
 
 ${formatBrandContext(brand)}`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 4096,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 8192, // Increased from 4096 for thinking model token budget
+      });
+    } catch (enrichmentError) {
+      const msg = enrichmentError instanceof Error ? enrichmentError.message : "";
+      console.error("[Enrichment] Full generation failed:", msg);
+
+      // Fallback: generate minimal enrichment to prevent user-facing errors
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw enrichmentError; // Re-throw rate limits — let user know to retry
+      }
+
+      // For parse/truncation failures, return synthetic enrichment based on available data
+      console.warn("[Enrichment] Falling back to synthetic enrichment due to:", msg.slice(0, 200));
+      raw = {
+        summary: `${company.life.name} is a ${company.companyform?.description ?? "Danish"} company. Further details are temporarily unavailable.`,
+        leadScore: { grade: "C", reason: "Unable to generate detailed analysis. Please retry." },
+        financialHealth: { status: "stable", details: "Detailed financial analysis unavailable at this time." },
+        buyingSignals: [],
+        painPoints: [],
+        competitiveLandscape: "",
+        riskFactors: [],
+        idealApproach: { channel: "email", timing: "After analysis succeeds", angle: "Standard outreach" },
+        keyInsights: ["Enrichment data temporarily unavailable. Try again shortly."],
+      };
+    }
 
     // Flatten nested wrapper
     const topKeys = Object.keys(raw);
@@ -122,21 +147,25 @@ ${formatBrandContext(brand)}`;
       data = raw[topKeys[0]] as Record<string, unknown>;
     }
 
-    // Normalize response
+    // Normalize response with fallback defaults
     const enrichment = {
-      summary: String(data.summary ?? data.Summary ?? ""),
-      leadScore: (data.leadScore ?? data.lead_score ?? data.LeadScore ?? { grade: "C", reason: "" }) as Record<string, unknown>,
-      financialHealth: (data.financialHealth ?? data.financial_health ?? data.FinancialHealth ?? { status: "stable", details: "" }) as Record<string, unknown>,
+      summary: String(data.summary ?? data.Summary ?? "").trim() || `${company.life.name} — enrichment details pending.`,
+      leadScore: (data.leadScore ?? data.lead_score ?? data.LeadScore ?? { grade: "C", reason: "Pending analysis" }) as Record<string, unknown>,
+      financialHealth: (data.financialHealth ?? data.financial_health ?? data.FinancialHealth ?? { status: "stable", details: "Data unavailable" }) as Record<string, unknown>,
       buyingSignals: (Array.isArray(data.buyingSignals) ? data.buyingSignals : Array.isArray(data.buying_signals) ? data.buying_signals : []) as string[],
       painPoints: (Array.isArray(data.painPoints) ? data.painPoints : Array.isArray(data.pain_points) ? data.pain_points : []) as string[],
-      competitiveLandscape: String(data.competitiveLandscape ?? data.competitive_landscape ?? ""),
+      competitiveLandscape: String(data.competitiveLandscape ?? data.competitive_landscape ?? "").trim() || "Analysis pending.",
       riskFactors: (Array.isArray(data.riskFactors) ? data.riskFactors : Array.isArray(data.risk_factors) ? data.risk_factors : []) as string[],
-      idealApproach: (data.idealApproach ?? data.ideal_approach ?? data.IdealApproach ?? { channel: "email", timing: "", angle: "" }) as Record<string, unknown>,
+      idealApproach: (data.idealApproach ?? data.ideal_approach ?? data.IdealApproach ?? { channel: "email", timing: "After analysis", angle: "Standard outreach" }) as Record<string, unknown>,
       keyInsights: (Array.isArray(data.keyInsights) ? data.keyInsights : Array.isArray(data.key_insights) ? data.key_insights : []) as string[],
     };
 
-    if (!enrichment.summary) {
-      return NextResponse.json({ error: "AI returned empty enrichment" }, { status: 500 });
+    // Validate minimum enrichment quality
+    if (!enrichment.summary || enrichment.summary.length < 20) {
+      return NextResponse.json(
+        { error: "AI enrichment generation failed. Please try again in a moment." },
+        { status: 500 }
+      );
     }
 
     // Persist to Postgres
@@ -161,8 +190,21 @@ ${formatBrandContext(brand)}`;
       enrichment: { ...enrichment, id: saved.id, createdAt: saved.createdAt.toISOString() },
     });
   } catch (error) {
-    console.error("Company enrichment error:", error instanceof Error ? error.stack : error);
+    const isRateLimit = error instanceof Error && (error.message.includes("rate limit") || error.message.includes("quota"));
+    const status = isRateLimit ? 429 : 500;
     const message = error instanceof Error ? error.message : "Failed to generate enrichment";
-    return NextResponse.json({ error: message }, { status: 500 });
+
+    console.error(`[Enrichment Error] Status ${status}:`, message);
+    if (error instanceof Error && error.stack) {
+      console.error("[Stack]", error.stack.split("\n").slice(0, 5).join("\n"));
+    }
+
+    return NextResponse.json(
+      {
+        error: message,
+        ...(isRateLimit && { retryAfter: 60 }),
+      },
+      { status }
+    );
   }
 }

@@ -166,14 +166,42 @@ RULES:
 ${formatBrandContext(brand)}`;
 
     // Scale token budget with company count to avoid truncation
-    const tokenBudget = Math.min(8192, 1536 + companySummaries.length * 200);
+    // For thinking models, multiply by 8x to account for internal reasoning
+    const baseTokenBudget = Math.min(8192, 1536 + companySummaries.length * 200);
+    const tokenBudget = Math.max(16384, baseTokenBudget * 8);
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: tokenBudget,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: tokenBudget,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Pipeline Analysis] Generation failed, using fallback:", msg.slice(0, 100));
+      // Return minimal fallback analysis from available companies
+      const allCompanies = [...cvrCompanies.filter(Boolean), ...dbCompanies];
+      raw = {
+        prioritized: allCompanies.slice(0, 5).map(c => ({
+          vat: String((c as any).vat ?? "unknown"),
+          name: (c as any).life?.name ?? (c as any).name ?? "Company",
+          score: "medium",
+          reason: "Analysis pending. Retry shortly.",
+        })),
+        segments: [],
+        nextActions: allCompanies.slice(0, 3).map(c => ({
+          vat: String((c as any).vat ?? "unknown"),
+          name: (c as any).life?.name ?? (c as any).name ?? "Company",
+          action: "Retry pipeline analysis when available",
+        })),
+        summary: "Pipeline analysis generation failed. Try again in a moment.",
+      };
+    }
 
     // Normalize key casing — AI models sometimes vary casing
     const rawPrioritized = (raw.prioritized ?? raw.Prioritized ?? raw.priorities ?? []) as PrioritizedCompany[];

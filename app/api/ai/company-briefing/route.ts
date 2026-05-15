@@ -105,12 +105,26 @@ Respond with a JSON object containing:
 
 ${formatBrandContext(brand)}`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 2048,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 4096, // Increased from 2048 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Briefing] Generation failed, returning placeholder:", msg.slice(0, 100));
+      raw = {
+        briefing: "Briefing generation is temporarily unavailable. Please try again in a moment.",
+        keyInsights: ["Unable to generate insights at this time. Please retry."],
+        suggestedApproach: "Please retry the briefing in a moment.",
+      };
+    }
 
     // Flatten nested wrapper if Gemini wraps in a top-level key
     const topKeys = Object.keys(raw);
@@ -121,7 +135,7 @@ ${formatBrandContext(brand)}`;
 
     // Normalize — Gemini may vary key casing
     const result: BriefingResponse = {
-      briefing: String(data.briefing ?? data.Briefing ?? data.analysis ?? ""),
+      briefing: String(data.briefing ?? data.Briefing ?? data.analysis ?? "").trim() || "Briefing generation failed. Please try again.",
       keyInsights: (
         Array.isArray(data.keyInsights) ? data.keyInsights
           : Array.isArray(data.key_insights) ? data.key_insights
@@ -129,11 +143,11 @@ ${formatBrandContext(brand)}`;
               : Array.isArray(data.KeyInsights) ? data.KeyInsights
                 : []
       ) as string[],
-      suggestedApproach: String(data.suggestedApproach ?? data.suggested_approach ?? data.SuggestedApproach ?? data.approach ?? ""),
+      suggestedApproach: String(data.suggestedApproach ?? data.suggested_approach ?? data.SuggestedApproach ?? data.approach ?? "").trim() || "Please retry the briefing.",
     };
 
-    if (!result.briefing) {
-      return NextResponse.json({ error: "AI returned empty briefing" }, { status: 500 });
+    if (!result.briefing || result.briefing.includes("generation") || result.briefing.length < 20) {
+      return NextResponse.json({ error: "Briefing generation failed. Please try again in a moment." }, { status: 500 });
     }
 
     // Persist to database

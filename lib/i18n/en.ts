@@ -420,7 +420,9 @@ const en: Dictionary = {
       revenue: "Revenue (DKK)",
       grossProfit: "Gross profit (DKK)",
       employees: "Number of employees",
+      showDissolved: "Include dissolved companies",
     },
+    dissolvedBadge: "Dissolved",
     table: {
       selectAll: "Select all",
       company: "Company",

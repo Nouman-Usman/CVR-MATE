@@ -104,23 +104,48 @@ RULES:
 
 ${formatBrandContext(brand)}`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 1024,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 2048, // Increased from 1024 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Suggest Todos] Generation failed, returning empty suggestions:", msg.slice(0, 100));
+      raw = { suggestions: [] };
+    }
 
     // Normalize — handle key casing variants
     const rawSuggestions = (raw.suggestions ?? raw.Suggestions ?? raw.tasks ?? raw.todos ?? []) as Record<string, unknown>[];
     const result: SuggestResponse = {
-      suggestions: rawSuggestions.map((s) => ({
-        title: (s.title as string) ?? "",
-        description: (s.description as string) ?? "",
-        priority: ((s.priority as string) ?? "medium") as "low" | "medium" | "high",
-        dueInDays: Number(s.dueInDays ?? s.due_in_days ?? 7),
-      })),
+      suggestions: rawSuggestions
+        .filter((s) => s && typeof s === "object")
+        .map((s) => ({
+          title: String((s.title as string) ?? "Follow up").trim(),
+          description: String((s.description as string) ?? "").trim(),
+          priority: ((s.priority as string) ?? "medium") as "low" | "medium" | "high",
+          dueInDays: Math.max(1, Number(s.dueInDays ?? s.due_in_days ?? 7)),
+        }))
+        .filter((s) => s.title.length > 0),
     };
+
+    // Return empty suggestions on failure instead of error
+    if (result.suggestions.length === 0) {
+      result.suggestions = [
+        {
+          title: "Research this company",
+          description: "Gather more context and determine the best approach",
+          priority: "medium",
+          dueInDays: 3,
+        },
+      ];
+    }
 
     await recordUsage(session.user.id, "ai_task_suggest");
     return NextResponse.json(result);

@@ -164,7 +164,10 @@ function extractJson<T>(raw: string): T {
     }
   }
 
-  throw new Error(`Failed to parse AI JSON response (possibly truncated): ${text.slice(0, 300)}`);
+  const responsePreview = text.length > 500
+    ? `${text.slice(0, 250)}...[${text.length} chars total]...${text.slice(-250)}`
+    : text;
+  throw new Error(`Failed to parse AI JSON response (response length: ${text.length} chars, possibly truncated or malformed). Preview: ${responsePreview}`);
 }
 
 /**
@@ -215,34 +218,48 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
   const isThinkingModel = model.includes("2.5");
   const client = getClient();
 
-  // Thinking models (gemini-2.5-*) use thinking tokens that count toward
-  // maxOutputTokens. We need a much larger budget so the actual JSON output
-  // isn't truncated. Also omit responseMimeType which breaks thinking models.
-  const effectiveMaxTokens = isThinkingModel ? Math.max(maxTokens * 5, 16384) : maxTokens;
+  // Thinking models (gemini-2.5-*) use thinking tokens that count toward maxOutputTokens.
+  // Budget internal reasoning heavily + reserve output space for actual JSON.
+  // Empirically, complex tasks need ~8x multiplier to avoid truncation.
+  const effectiveMaxTokens = isThinkingModel
+    ? Math.max(maxTokens * 8, 24576) // 8x budget for thinking + output
+    : maxTokens;
 
   const genModel = client.getGenerativeModel({
     model,
     systemInstruction: systemPrompt,
     generationConfig: {
       maxOutputTokens: effectiveMaxTokens,
+      temperature: isThinkingModel ? 0.7 : 0, // Lower temp for JSON consistency on non-thinking models
       ...(isThinkingModel ? {} : { responseMimeType: "application/json" }),
     },
   });
 
   const jsonPrompt = isThinkingModel
-    ? `${userPrompt}\n\nIMPORTANT: Respond ONLY with a valid JSON object. No markdown fences, no explanation outside the JSON.`
+    ? `${userPrompt}\n\nIMPORTANT: Respond ONLY with a valid, complete JSON object. No markdown, no explanation outside JSON. Ensure all fields are present.`
     : userPrompt;
 
-  // Try up to 3 times (initial + 2 retries)
+  // Try up to 4 times with exponential backoff (initial + 3 retries)
   let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
+      // Exponential backoff for retries: 0ms, 100ms, 300ms, 700ms
+      if (attempt > 0) {
+        const backoffMs = Math.pow(2, attempt) * 50 - 50;
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+
       const result = await genModel.generateContent(jsonPrompt);
       const text = extractResponseText(result);
       console.log(`[AI JSON] ${model} attempt ${attempt + 1}: ${text.length} chars`);
 
       if (!text || text.trim() === "" || text.trim() === "{}") {
         throw new Error("AI returned empty response");
+      }
+
+      // Sanity check: truncated responses are usually < 1000 chars for enrichment tasks
+      if (isThinkingModel && text.length < 500) {
+        throw new Error(`Response too short (${text.length} chars) — likely truncated`);
       }
 
       return extractJson<T>(text);
@@ -256,20 +273,23 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
       }
 
       // Retry on parse failures, empty responses, and network errors
-      if (
+      const shouldRetry =
         err instanceof SyntaxError ||
         msg.startsWith("Failed to parse") ||
         msg.includes("truncated") ||
         msg.includes("empty response") ||
         msg.includes("empty object") ||
+        msg.includes("too short") ||
         msg.includes("fetch failed") ||
         msg.includes("ECONNRESET") ||
         msg.includes("timeout") ||
-        msg.includes("network")
-      ) {
-        console.warn(`[AI] Attempt ${attempt + 1} failed (${msg.slice(0, 80)}), retrying...`);
+        msg.includes("network");
+
+      if (shouldRetry && attempt < 3) {
+        console.warn(`[AI] Attempt ${attempt + 1} failed: ${msg.slice(0, 100)}`);
         continue;
       }
+
       throw err;
     }
   }

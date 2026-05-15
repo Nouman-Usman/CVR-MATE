@@ -224,8 +224,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Default to active companies if no status specified
-    if (!searchParams.companystatus_code) {
+    // Default to active companies if no status specified.
+    // User can opt into "all" (including dissolved) via showDissolved toggle.
+    const statusParam = params.get("status");
+    if (!searchParams.companystatus_code && statusParam !== "all") {
       searchParams.companystatus_code = "20";
     }
 

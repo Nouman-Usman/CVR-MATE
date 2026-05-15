@@ -66,12 +66,27 @@ Each question should be:
 - Specific enough to get useful answers
 - Have a helpful placeholder that shows what kind of answer is expected`;
 
-    const raw = await generateAiJson<Record<string, unknown>>({
-      model: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt,
-      maxTokens: 1024,
-    });
+    let raw: Record<string, unknown>;
+    try {
+      raw = await generateAiJson<Record<string, unknown>>({
+        model: "gemini-2.5-flash",
+        systemPrompt,
+        userPrompt,
+        maxTokens: 2048, // Increased from 1024 for thinking model token budget
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit") || msg.includes("quota")) {
+        throw err;
+      }
+      console.warn("[Brand Questions] Generation failed, using defaults:", msg.slice(0, 100));
+      raw = {
+        questions: [
+          { question: "What is your primary product or service?", placeholder: "e.g., SaaS for HR management" },
+          { question: "Who are your ideal customers?", placeholder: "e.g., Mid-market tech companies" },
+        ],
+      };
+    }
 
     // Normalize response
     const topKeys = Object.keys(raw);
@@ -80,7 +95,8 @@ Each question should be:
       data = raw[topKeys[0]] as Record<string, unknown>;
     }
 
-    const questions = Array.isArray(data.questions) ? data.questions : Array.isArray(data) ? data : [];
+    const questions = (Array.isArray(data.questions) ? data.questions : Array.isArray(data) ? data : [])
+      .filter((q) => q && typeof q === "object");
 
     await recordUsage(session.user.id, "ai_usage");
     return NextResponse.json({ questions });
