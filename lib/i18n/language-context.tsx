@@ -23,15 +23,6 @@ interface LanguageContextValue {
 const STORAGE_KEY = "cvr-mate-locale";
 const dictionaries: Record<Locale, Dictionary> = { da, en };
 
-function getSavedLocale(): Locale {
-  if (typeof window === "undefined") return "da";
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "da" || saved === "en") return saved;
-  } catch {}
-  return "da";
-}
-
 const LanguageContext = createContext<LanguageContextValue>({
   locale: "da",
   t: da,
@@ -40,12 +31,14 @@ const LanguageContext = createContext<LanguageContextValue>({
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(getSavedLocale);
-  const [hydrated, setHydrated] = useState(false);
+  const [locale, setLocaleState] = useState<Locale>("da");
 
-  // Mark hydrated after first client render
+  // Read persisted locale after mount — avoids SSR/hydration mismatch
   useEffect(() => {
-    setHydrated(true);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved === "da" || saved === "en") setLocaleState(saved);
+    } catch {}
   }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
@@ -60,17 +53,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLocale(locale === "da" ? "en" : "da");
   }, [locale, setLocale]);
 
-  // Sync html lang attribute
+  // Sync html lang attribute after locale changes
   useEffect(() => {
-    if (hydrated) {
-      document.documentElement.lang = locale;
-    }
-  }, [locale, hydrated]);
-
-  // Prevent flash of wrong language — render nothing until hydrated
-  if (!hydrated) {
-    return null;
-  }
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   return (
     <LanguageContext.Provider

@@ -34,6 +34,8 @@ import {
   ChevronDown,
   Loader2,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 type SettingsSection =
@@ -696,6 +698,9 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordChanging, setPasswordChanging] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [isOAuthUser, setIsOAuthUser] = useState(false);
 
   // Brand state
@@ -1194,36 +1199,61 @@ export default function SettingsPage() {
                     </span>
                   </div>
                   <input
-                    className="w-full bg-slate-50 border-none rounded-lg py-3 pl-11 pr-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
-                    type="password"
+                    className="w-full bg-slate-50 border-none rounded-lg py-3 pl-11 pr-11 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                    type={showCurrentPw ? "text" : "password"}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPw((v) => !v)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showCurrentPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className={labelClass}>{st.password.new}</label>
-                  <input
-                    className={inputClass}
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    minLength={8}
-                  />
+                  <div className="relative">
+                    <input
+                      className="w-full bg-slate-50 border-none rounded-lg py-3 px-4 pr-11 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                      type={showNewPw ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={8}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPw((v) => !v)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      {showNewPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className={labelClass}>{st.password.confirm}</label>
-                  <input
-                    className={inputClass}
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      className="w-full bg-slate-50 border-none rounded-lg py-3 px-4 pr-11 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                      type={showConfirmPw ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPw((v) => !v)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      {showConfirmPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
