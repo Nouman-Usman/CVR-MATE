@@ -1312,6 +1312,25 @@ const en: Dictionary = {
       copyright: "© {year} CVR-MATE. All rights reserved.",
     },
   },
+  docs: {
+    sidebarTitle: "Documentation",
+    searchPlaceholder: "Search docs...",
+    onThisPage: "On this page",
+    backToApp: "Back to app",
+    breadcrumbHome: "Documentation",
+    calloutNote: "Note",
+    calloutTip: "Tip",
+    calloutWarning: "Warning",
+    calloutInfo: "Info",
+    badgePro: "Pro",
+    badgeEnterprise: "Enterprise",
+    badgeStarter: "Starter",
+    screenshotPlaceholder: "Screenshot coming soon",
+    footerQuestion: "Have a question?",
+    footerContact: "Contact support",
+    prevPage: "Previous",
+    nextPage: "Next",
+  },
 };
 
 export default en;

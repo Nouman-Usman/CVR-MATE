@@ -1310,6 +1310,25 @@ const da = {
       copyright: "© {year} CVR-MATE. Alle rettigheder forbeholdes.",
     },
   },
+  docs: {
+    sidebarTitle: "Dokumentation",
+    searchPlaceholder: "Søg i dokumentation...",
+    onThisPage: "På denne side",
+    backToApp: "Tilbage til appen",
+    breadcrumbHome: "Dokumentation",
+    calloutNote: "Bemærk",
+    calloutTip: "Tip",
+    calloutWarning: "Advarsel",
+    calloutInfo: "Info",
+    badgePro: "Pro",
+    badgeEnterprise: "Enterprise",
+    badgeStarter: "Starter",
+    screenshotPlaceholder: "Screenshot kommer snart",
+    footerQuestion: "Har du spørgsmål?",
+    footerContact: "Kontakt support",
+    prevPage: "Forrige",
+    nextPage: "Næste",
+  },
 };
 
 export type Dictionary = typeof da;
