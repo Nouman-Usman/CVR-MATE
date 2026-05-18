@@ -22,15 +22,15 @@ export async function sendDailyLeadUpdateEmail({
   language,
 }: SendDailyLeadUpdateEmailArgs) {
   // Use provided language or fetch from DB
-  let finalLanguage: "en" | "da" = language || "en";
+  let finalLanguage: "en" | "da" = language || "da";
   if (!language) {
     try {
       const userRecord = await db.query.user.findFirst({
         where: eq(user.id, userId),
       });
-      finalLanguage = (userRecord?.language as "en" | "da") || "en";
+      finalLanguage = (userRecord?.language as "en" | "da") || "da";
     } catch {
-      finalLanguage = "en";
+      finalLanguage = "da";
     }
   }
 

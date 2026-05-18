@@ -24,7 +24,13 @@ export function createResendProvider(): EmailProviderClient {
         html: opts.html,
         text: opts.text,
         ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
-        ...(opts.headers ? { headers: opts.headers } : {}),
+        headers: {
+          // Signal transactional (not bulk/promotional) to Gmail and other providers
+          "Precedence": "transactional",
+          "X-Priority": "1",
+          "Importance": "high",
+          ...opts.headers,
+        },
       });
 
       if (error) {

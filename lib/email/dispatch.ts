@@ -65,7 +65,7 @@ export async function sendNotificationEmail(
       userName: userRow.name,
       userId,
       data: data as DailyLeadUpdateData,
-      language: (userRow.language as "en" | "da") || "en",
+      language: (userRow.language as "en" | "da") || "da",
     });
   } else if (templateId === "weekly_summary") {
     result = await sendWeeklySummaryEmail({
@@ -73,7 +73,7 @@ export async function sendNotificationEmail(
       userName: userRow.name,
       userId,
       data: data as WeeklySummaryData,
-      language: (userRow.language as "en" | "da") || "en",
+      language: (userRow.language as "en" | "da") || "da",
     });
   } else {
     throw new Error(`[email/dispatch] Unknown templateId: ${templateId}`);

@@ -9,11 +9,11 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getCookieConsent } from "@/components/cookie-consent";
 
 export function AnalyticsProvider() {
-  const [analyticsAllowed, setAnalyticsAllowed] = useState(() => {
-    // Initialise from stored consent on mount (SSR-safe default: false)
-    if (typeof window === "undefined") return false;
-    return getCookieConsent()?.analytics ?? false;
-  });
+  const [analyticsAllowed, setAnalyticsAllowed] = useState(false);
+
+  useEffect(() => {
+    setAnalyticsAllowed(getCookieConsent()?.analytics ?? false);
+  }, []);
 
   useEffect(() => {
     function onConsent(e: Event) {

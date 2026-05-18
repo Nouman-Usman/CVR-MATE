@@ -25,7 +25,7 @@ export function WeeklySummaryEmail({
   userName,
   dashboardUrl,
   data,
-  language = "en",
+  language = "da",
 }: WeeklySummaryEmailProps) {
   const t = language === "da" ? da : en;
   const lang = language === "da" ? "da" : "en";

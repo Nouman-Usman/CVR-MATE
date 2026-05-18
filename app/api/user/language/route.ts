@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     where: eq(user.id, session.user.id),
   });
 
-  const language = (userRecord?.language as "en" | "da") || "en";
+  const language = (userRecord?.language as "en" | "da") || "da";
   return NextResponse.json({ language });
 }
 

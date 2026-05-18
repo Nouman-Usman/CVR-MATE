@@ -29,15 +29,15 @@ export async function sendTeamInvitationEmail({
   inviterId,
 }: SendTeamInvitationEmailArgs) {
   // Try to fetch inviter's language preference to send in same language
-  let language: "en" | "da" = "en";
+  let language: "en" | "da" = "da";
   if (inviterId) {
     try {
       const inviterRecord = await db.query.user.findFirst({
         where: eq(user.id, inviterId),
       });
-      language = (inviterRecord?.language as "en" | "da") || "en";
+      language = (inviterRecord?.language as "en" | "da") || "da";
     } catch {
-      language = "en";
+      language = "da";
     }
   }
 

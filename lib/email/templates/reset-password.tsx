@@ -23,7 +23,7 @@ interface ResetPasswordEmailProps {
 export function ResetPasswordEmail({
   userName,
   resetUrl,
-  language = "en",
+  language = "da",
 }: ResetPasswordEmailProps) {
   const t = language === "da" ? da : en;
   const lang = language === "da" ? "da" : "en";

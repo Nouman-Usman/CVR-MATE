@@ -19,16 +19,15 @@ export async function sendVerificationEmail({
   userId,
 }: SendVerificationEmailArgs) {
   // Fetch user's language preference
-  let language: "en" | "da" = "en";
+  let language: "en" | "da" = "da";
   if (userId) {
     try {
       const userRecord = await db.query.user.findFirst({
         where: eq(user.id, userId),
       });
-      language = (userRecord?.language as "en" | "da") || "en";
+      language = (userRecord?.language as "en" | "da") || "da";
     } catch {
-      // Default to English if fetch fails
-      language = "en";
+      language = "da";
     }
   }
 

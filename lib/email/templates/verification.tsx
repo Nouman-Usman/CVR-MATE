@@ -23,7 +23,7 @@ interface VerificationEmailProps {
 export function VerificationEmail({
   userName,
   verificationUrl,
-  language = "en",
+  language = "da",
 }: VerificationEmailProps) {
   const t = language === "da" ? da : en;
   const lang = language === "da" ? "da" : "en";

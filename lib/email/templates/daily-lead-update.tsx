@@ -28,7 +28,7 @@ export function DailyLeadUpdateEmail({
   baseUrl,
   triggersUrl,
   data,
-  language = "en",
+  language = "da",
 }: DailyLeadUpdateEmailProps) {
   const t = language === "da" ? da : en;
   const lang = language === "da" ? "da" : "en";

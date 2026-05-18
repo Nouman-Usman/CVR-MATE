@@ -11,7 +11,7 @@ export function useLanguagePreference() {
     queryKey: ["language-preference"],
     queryFn: async () => {
       const res = await fetch("/api/user/language");
-      if (!res.ok) return { language: "en" as const };
+      if (!res.ok) return { language: "da" as const };
       return res.json();
     },
     staleTime: 10 * 60_000, // 10 minutes
@@ -20,7 +20,7 @@ export function useLanguagePreference() {
 
 export function useLanguagePreferenceValue(): "en" | "da" {
   const { data } = useLanguagePreference();
-  return data?.language ?? "en";
+  return data?.language ?? "da";
 }
 
 export function useSetLanguage() {

@@ -33,7 +33,7 @@ export function TeamInvitationEmail({
   inviteUrl,
   role,
   expiresAt,
-  language = "en",
+  language = "da",
 }: TeamInvitationEmailProps) {
   const t = language === "da" ? da : en;
   const lang = language === "da" ? "da" : "en";

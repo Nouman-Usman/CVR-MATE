@@ -22,7 +22,7 @@ interface WelcomeEmailProps {
 export function WelcomeEmail({
   userName,
   dashboardUrl,
-  language = "en",
+  language = "da",
 }: WelcomeEmailProps) {
   const t = language === "da" ? da : en;
   const lang = language === "da" ? "da" : "en";
