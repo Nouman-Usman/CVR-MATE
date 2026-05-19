@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { LegalPageShell, type LegalSection } from "@/components/legal-page-shell";
 
 const EFFECTIVE_DATE = "6. maj 2026 / 6 May 2026";
-const CONTACT_EMAIL = "no-reply@cvr-mate.dk";
-const DPA_EMAIL = "no-reply@cvr-mate.dk";
+const CONTACT_EMAIL = "support@cvr-mate.dk";
+const DPA_EMAIL = "support@cvr-mate.dk";
 
 // ─── Bilingual section content ────────────────────────────────────────────────
 
@@ -17,24 +18,79 @@ const sections: LegalSection[] = [
       l === "da" ? (
         <>
           <p>
-            CVR-MATE er dataansvarlig for behandlingen af de personoplysninger, som er beskrevet i denne privatlivspolitik. Vi behandler personoplysninger i overensstemmelse med Europa-Parlamentets og Rådets forordning (EU) 2016/679 (<strong>GDPR</strong>) og den danske databeskyttelseslov.
+            Fourmates ApS er dataansvarlig for behandlingen af de personoplysninger, som er beskrevet i denne privatlivspolitik. CVR-MATE er produktnavnet; den juridiske ansvarlige enhed er Fourmates ApS. Vi behandler personoplysninger i overensstemmelse med Europa-Parlamentets og Rådets forordning (EU) 2016/679 (<strong>GDPR</strong>) og den danske databeskyttelseslov.
           </p>
           <div className="mt-4 rounded-xl border border-border bg-muted/30 p-5 text-sm space-y-1">
-            <p className="font-semibold text-foreground">CVR-MATE</p>
-            <p className="text-muted-foreground">Danmark</p>
+            <p className="font-semibold text-foreground">Fourmates ApS</p>
+            <p className="text-muted-foreground">CVR-nr. 46256204</p>
+            <p className="text-muted-foreground">Vindingvej 34, 7100 Vejle, Danmark</p>
             <p>Kontakt: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
         </>
       ) : (
         <>
           <p>
-            CVR-MATE is the data controller for the processing of personal data described in this Privacy Policy. We process personal data in accordance with Regulation (EU) 2016/679 (<strong>GDPR</strong>) and Danish data protection law.
+            Fourmates ApS is the data controller for the processing of personal data described in this Privacy Policy. CVR-MATE is the product name; the legal responsible entity is Fourmates ApS. We process personal data in accordance with Regulation (EU) 2016/679 (<strong>GDPR</strong>) and Danish data protection law.
           </p>
           <div className="mt-4 rounded-xl border border-border bg-muted/30 p-5 text-sm space-y-1">
-            <p className="font-semibold text-foreground">CVR-MATE</p>
-            <p className="text-muted-foreground">Denmark</p>
+            <p className="font-semibold text-foreground">Fourmates ApS</p>
+            <p className="text-muted-foreground">CVR no. 46256204</p>
+            <p className="text-muted-foreground">Vindingvej 34, 7100 Vejle, Denmark</p>
             <p>Contact: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
+        </>
+      ),
+  },
+  {
+    id: "p-gdpr-roles",
+    daTitle: "GDPR-roller",
+    enTitle: "GDPR roles",
+    content: (l) =>
+      l === "da" ? (
+        <>
+          <p>Afhængigt af konteksten optræder Fourmates ApS i forskellige GDPR-roller:</p>
+          <h3 className="mt-4">Fourmates ApS som dataansvarlig</h3>
+          <p>Fourmates ApS er dataansvarlig for behandlingen af:</p>
+          <ul className="list-disc pl-6 space-y-1 mt-2">
+            <li>Kontodata og brugerprofiloplysninger</li>
+            <li>Betalingsdata og faktureringshistorik</li>
+            <li>Supportkommunikation</li>
+            <li>Anonymiserede analytiske data og fejllogge (Sentry, Vercel)</li>
+            <li>Sikkerhedslogge og adgangslogge til platformsdrift</li>
+          </ul>
+          <h3 className="mt-4">Fourmates ApS som databehandler</h3>
+          <p>Når du bruger CVR-MATE til at behandle dine egne kundedata, fungerer Fourmates ApS som databehandler på dine vegne. Dette gælder for:</p>
+          <ul className="list-disc pl-6 space-y-1 mt-2">
+            <li>Gemte leads og virksomheder i dit workspace</li>
+            <li>CRM-sync og dataeksport til HubSpot, Pipedrive eller LeadConnector</li>
+            <li>Noter, tags, triggers og todo-elementer</li>
+          </ul>
+          <p className="mt-2">Du er i den forbindelse dataansvarlig og bærer det fulde ansvar for behandlingsgrundlaget. En databehandleraftale (DPA) er tilgængelig — se afsnit 12.</p>
+          <h3 className="mt-4">Du som dataansvarlig</h3>
+          <p>For data du eksporterer og anvender til outreach, markedsføring, telefonisk kontakt, LinkedIn-kontakt eller CRM-berikning er du alene dataansvarlig. Du er ansvarlig for at sikre et gyldigt retsgrundlag for behandlingen og for overholdelse af GDPR og den danske markedsføringslov.</p>
+        </>
+      ) : (
+        <>
+          <p>Depending on context, Fourmates ApS operates in different GDPR roles:</p>
+          <h3 className="mt-4">Fourmates ApS as data controller</h3>
+          <p>Fourmates ApS is data controller for the processing of:</p>
+          <ul className="list-disc pl-6 space-y-1 mt-2">
+            <li>Account data and user profile information</li>
+            <li>Payment data and billing history</li>
+            <li>Support communications</li>
+            <li>Anonymised analytics data and error logs (Sentry, Vercel)</li>
+            <li>Security logs and access logs for platform operations</li>
+          </ul>
+          <h3 className="mt-4">Fourmates ApS as data processor</h3>
+          <p>When you use CVR-MATE to process your own customer data, Fourmates ApS acts as data processor on your behalf. This applies to:</p>
+          <ul className="list-disc pl-6 space-y-1 mt-2">
+            <li>Saved leads and companies in your workspace</li>
+            <li>CRM sync and data exports to HubSpot, Pipedrive or LeadConnector</li>
+            <li>Notes, tags, triggers and to-do items</li>
+          </ul>
+          <p className="mt-2">In this context you are the data controller and bear full responsibility for the processing basis. A Data Processing Agreement (DPA) is available — see Section 12.</p>
+          <h3 className="mt-4">You as data controller</h3>
+          <p>For data you export and use for outreach, marketing, telephone contact, LinkedIn contact or CRM enrichment, you are the sole data controller. You are responsible for ensuring a valid legal basis for processing and for compliance with GDPR and the Danish Marketing Practices Act.</p>
         </>
       ),
   },
@@ -62,7 +118,7 @@ const sections: LegalSection[] = [
           </ul>
           <h3>2.3 Data fra tredjepart</h3>
           <ul className="list-disc pl-6 space-y-1.5 mt-2">
-            <li><strong>CVR-register:</strong> Offentlige virksomhedsdata (CVR-nummer, navn, adresse, branche, deltagere)</li>
+            <li><strong>CVR-register:</strong> Offentlige virksomhedsdata (CVR-nummer, navn, adresse, branche, deltagere). Disse data kan indeholde personoplysninger om enkeltpersoner tilknyttet virksomheder — herunder ejere, direktører, stiftere og tegningsberettigede. Sådanne personoplysninger skal behandles lovligt.</li>
             <li><strong>CRM-systemer:</strong> Kontaktdata synkroniseret via HubSpot, Pipedrive eller LeadConnector (kun med din tilladelse)</li>
             <li><strong>Google OAuth:</strong> Navn og e-mail fra Google-konto ved login via Google (kun hvis du vælger dette)</li>
           </ul>
@@ -86,7 +142,7 @@ const sections: LegalSection[] = [
           </ul>
           <h3>2.3 Data from third parties</h3>
           <ul className="list-disc pl-6 space-y-1.5 mt-2">
-            <li><strong>CVR register:</strong> Public company data (CVR number, name, address, industry, participants)</li>
+            <li><strong>CVR register:</strong> Public company data (CVR number, name, address, industry, participants). This data may include personal data about individuals connected to companies — such as owners, directors, founders and authorised signatories. Such personal data must be processed lawfully.</li>
             <li><strong>CRM systems:</strong> Contact data synced via HubSpot, Pipedrive or LeadConnector (only with your permission)</li>
             <li><strong>Google OAuth:</strong> Name and email from your Google account when you choose to sign in with Google</li>
           </ul>
@@ -115,6 +171,7 @@ const sections: LegalSection[] = [
                   ["Sikkerhed, fejlfinding og misbrug-forebyggelse", "Art. 6(1)(f) — Legitime interesser"],
                   ["Produktforbedring via anonymiserede brugsmønstre", "Art. 6(1)(f) — Legitime interesser"],
                   ["Transaktionelle e-mails (kvitteringer, verifikation)", "Art. 6(1)(b) — Kontraktopfyldelse"],
+                  ["AI-funktioner (briefings, outreach-udkast via Google Gemini)", "Art. 6(1)(b) — Kontraktopfyldelse"],
                   ["Markedsføringskommunikation (nyhedsbrev)", "Art. 6(1)(a) — Samtykke"],
                   ["Analytiske cookies og Speed Insights", "Art. 6(1)(a) — Samtykke"],
                   ["Overholdelse af lovkrav", "Art. 6(1)(c) — Retlig forpligtelse"],
@@ -145,6 +202,7 @@ const sections: LegalSection[] = [
                   ["Security, debugging and abuse prevention", "Art. 6(1)(f) — Legitimate interests"],
                   ["Product improvement via anonymised usage patterns", "Art. 6(1)(f) — Legitimate interests"],
                   ["Transactional emails (receipts, verification)", "Art. 6(1)(b) — Contract performance"],
+                  ["AI features (briefings, outreach drafts via Google Gemini)", "Art. 6(1)(b) — Contract performance"],
                   ["Marketing communications (newsletter)", "Art. 6(1)(a) — Consent"],
                   ["Analytics cookies and Speed Insights", "Art. 6(1)(a) — Consent"],
                   ["Compliance with legal obligations", "Art. 6(1)(c) — Legal obligation"],
@@ -157,6 +215,37 @@ const sections: LegalSection[] = [
               </tbody>
             </table>
           </div>
+        </>
+      ),
+  },
+  {
+    id: "p-ai",
+    daTitle: "AI-funktioner og Google Gemini",
+    enTitle: "AI features and Google Gemini",
+    content: (l) =>
+      l === "da" ? (
+        <>
+          <p>CVR-MATEs AI-funktioner (virksomhedsbriefings og outreach-udkast) bruger Google Gemini API. Følgende data kan sendes til Google:</p>
+          <ul className="list-disc pl-6 space-y-1.5 mt-3">
+            <li>Offentlige virksomhedsdata fra CVR (navn, branche, finansielle nøgletal m.v.)</li>
+            <li>Brugerinput og kontekst du angiver i forbindelse med generering af indhold</li>
+            <li>Noter og beskrivelser fra dit brandprofil (kommunikationstilstand, produktbeskrivelse)</li>
+          </ul>
+          <p className="mt-3">Følgende sendes <strong>ikke</strong> til Google Gemini: adgangskoder, betalingsdata, sessions-tokens eller andre brugerkontodata.</p>
+          <p className="mt-3">Al AI-genereret tekst er et <strong>udkast/forslag</strong>. Teksten udgør ikke juridisk, finansiel eller kommerciel rådgivning og må ikke anvendes ukritisk. Du har ansvar for at gennemlæse og validere ethvert AI-output, inden det sendes eller bruges til beslutningstagning.</p>
+          <p className="mt-3">Google behandler data sendt til Gemini API i henhold til Googles <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">privatlivspolitik</a> og Googles Cloud Data Processing Addendum.</p>
+        </>
+      ) : (
+        <>
+          <p>CVR-MATE's AI features (company briefings and outreach drafts) use the Google Gemini API. The following data may be sent to Google:</p>
+          <ul className="list-disc pl-6 space-y-1.5 mt-3">
+            <li>Public company data from the CVR register (name, industry, financial key figures, etc.)</li>
+            <li>User input and context provided when generating content</li>
+            <li>Notes and descriptions from your brand profile (communication tone, product description)</li>
+          </ul>
+          <p className="mt-3">The following is <strong>not</strong> sent to Google Gemini: passwords, payment data, session tokens or other user account credentials.</p>
+          <p className="mt-3">All AI-generated text is a <strong>draft/suggestion only</strong>. It does not constitute legal, financial or commercial advice and must not be used uncritically. You are responsible for reviewing and validating any AI output before sending it or using it in decision-making.</p>
+          <p className="mt-3">Google processes data sent to the Gemini API pursuant to Google's <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and Google's Cloud Data Processing Addendum.</p>
         </>
       ),
   },
@@ -185,6 +274,7 @@ const sections: LegalSection[] = [
                   ["Læste notifikationer", "30 dage"],
                   ["Betalings- og faktureringsdata", "5 år (bogføringsloven)"],
                   ["Session-cookies", "7 dage (fornyes ved aktivitet)"],
+                  ["Backuper (Supabase)", "Slettes i overensstemmelse med Supabase' opbevaringspolitik — typisk 7–30 dage efter sletning af primærdata"],
                 ].map(([cat, period]) => (
                   <tr key={cat}>
                     <td className="px-4 py-3">{cat}</td>
@@ -194,6 +284,7 @@ const sections: LegalSection[] = [
               </tbody>
             </table>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Bemærk: Sletning af primærdata sletter ikke automatisk backupkopier øjeblikkeligt. Backuper overskrives inden for den normale backup-rotationscyklus.</p>
         </>
       ) : (
         <>
@@ -215,6 +306,7 @@ const sections: LegalSection[] = [
                   ["Read notifications", "30 days"],
                   ["Payment and billing data", "5 years (accounting legislation)"],
                   ["Session cookies", "7 days (renewed on activity)"],
+                  ["Backups (Supabase)", "Deleted in accordance with Supabase's retention policy — typically 7–30 days after deletion of primary data"],
                 ].map(([cat, period]) => (
                   <tr key={cat}>
                     <td className="px-4 py-3">{cat}</td>
@@ -224,6 +316,7 @@ const sections: LegalSection[] = [
               </tbody>
             </table>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Note: Deletion of primary data does not immediately delete backup copies. Backups are overwritten within the normal backup rotation cycle.</p>
         </>
       ),
   },
@@ -247,9 +340,9 @@ const sections: LegalSection[] = [
               <tbody className="divide-y divide-border text-muted-foreground">
                 {[
                   ["Supabase", "Database og fillagring", "EU (Frankfurt)"],
-                  ["Stripe, Inc.", "Betalingsbehandling", "USA (SCCs)"],
-                  ["Resend / SendGrid", "Transaktionelle e-mails", "USA (SCCs)"],
-                  ["Google (Gemini API)", "AI-funktioner", "USA (SCCs)"],
+                  ["Stripe, Inc.", "Betalingsbehandling", "USA (SCCs / DPF)"],
+                  ["Resend", "Transaktionelle e-mails", "USA (SCCs)"],
+                  ["Google (Gemini API)", "AI-funktioner (briefings, outreach-udkast)", "USA (SCCs)"],
                   ["Sentry, Inc.", "Fejlsporing og ydelses-overvågning", "USA (SCCs)"],
                   ["Vercel, Inc.", "Hosting og CDN", "USA/EU (SCCs)"],
                   ["Upstash", "Redis cache og jobbkø", "EU"],
@@ -263,7 +356,7 @@ const sections: LegalSection[] = [
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs">SCCs = EU's standardkontraktbestemmelser jf. GDPR artikel 46(2)(c). Disse sikrer et passende beskyttelsesniveau ved overførsler til tredjelande.</p>
+          <p className="mt-3 text-xs">SCCs = EU's standardkontraktbestemmelser jf. GDPR artikel 46(2)(c). DPF = EU-U.S. Data Privacy Framework, jf. Europa-Kommissionens adequacy-afgørelse af 10. juli 2023. Disse sikrer et passende beskyttelsesniveau ved overførsler til tredjelande.</p>
           <p className="mt-3">Vi sælger aldrig dine personoplysninger til tredjeparter til markedsføringsformål.</p>
         </>
       ) : (
@@ -281,9 +374,9 @@ const sections: LegalSection[] = [
               <tbody className="divide-y divide-border text-muted-foreground">
                 {[
                   ["Supabase", "Database and file storage", "EU (Frankfurt)"],
-                  ["Stripe, Inc.", "Payment processing", "USA (SCCs)"],
-                  ["Resend / SendGrid", "Transactional emails", "USA (SCCs)"],
-                  ["Google (Gemini API)", "AI features", "USA (SCCs)"],
+                  ["Stripe, Inc.", "Payment processing", "USA (SCCs / DPF)"],
+                  ["Resend", "Transactional emails", "USA (SCCs)"],
+                  ["Google (Gemini API)", "AI features (briefings, outreach drafts)", "USA (SCCs)"],
                   ["Sentry, Inc.", "Error tracking and performance monitoring", "USA (SCCs)"],
                   ["Vercel, Inc.", "Hosting and CDN", "USA/EU (SCCs)"],
                   ["Upstash", "Redis cache and job queue", "EU"],
@@ -297,7 +390,7 @@ const sections: LegalSection[] = [
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs">SCCs = EU Standard Contractual Clauses under GDPR Article 46(2)(c), ensuring an adequate level of protection for transfers to third countries.</p>
+          <p className="mt-3 text-xs">SCCs = EU Standard Contractual Clauses under GDPR Article 46(2)(c). DPF = EU-U.S. Data Privacy Framework pursuant to the European Commission adequacy decision of 10 July 2023. Both mechanisms ensure an adequate level of protection for transfers to third countries.</p>
           <p className="mt-3">We never sell your personal data to third parties for marketing purposes.</p>
         </>
       ),
@@ -309,11 +402,11 @@ const sections: LegalSection[] = [
     content: (l) =>
       l === "da" ? (
         <p>
-          Visse underleverandører (Stripe, Google, Sentry, Vercel) behandler data i USA. Disse overførsler sker i henhold til EU's standardkontraktbestemmelser (SCCs), jf. GDPR artikel 46(2)(c), der sikrer et passende beskyttelsesniveau. Alle overførsler er dokumenteret i vores Register over behandlingsaktiviteter. Du kan anmode om en kopi ved henvendelse til <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          Visse underleverandører (Stripe, Google, Sentry, Vercel, Resend) behandler data i USA. Overførsler sker i henhold til EU's standardkontraktbestemmelser (SCCs), jf. GDPR artikel 46(2)(c), og/eller EU-U.S. Data Privacy Framework (DPF), jf. Europa-Kommissionens adequacy-afgørelse af 10. juli 2023. Disse mekanismer sikrer et passende beskyttelsesniveau. Alle overførsler er dokumenteret i vores Register over behandlingsaktiviteter. Du kan anmode om en kopi ved henvendelse til <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
         </p>
       ) : (
         <p>
-          Certain sub-processors (Stripe, Google, Sentry, Vercel) process data in the USA. These transfers are made pursuant to EU Standard Contractual Clauses (SCCs) under GDPR Article 46(2)(c), ensuring an adequate level of protection. All transfers are documented in our Record of Processing Activities. You may request a copy by contacting <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          Certain sub-processors (Stripe, Google, Sentry, Vercel, Resend) process data in the USA. Transfers are made pursuant to EU Standard Contractual Clauses (SCCs) under GDPR Article 46(2)(c) and/or the EU-U.S. Data Privacy Framework (DPF) pursuant to the European Commission adequacy decision of 10 July 2023. Both mechanisms ensure an adequate level of protection. All transfers are documented in our Record of Processing Activities. You may request a copy by contacting <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
         </p>
       ),
   },
@@ -436,7 +529,7 @@ const sections: LegalSection[] = [
     content: (l) =>
       l === "da" ? (
         <>
-          <p>CVR-MATE anvender følgende tekniske og organisatoriske sikkerhedsforanstaltninger:</p>
+          <p>Fourmates ApS anvender følgende tekniske og organisatoriske sikkerhedsforanstaltninger:</p>
           <ul className="list-disc pl-6 space-y-1.5 mt-3">
             <li>HTTPS (TLS 1.2+) for al datatransmission</li>
             <li>Adgangskoder hashes med bcrypt — vi har aldrig adgang til din klartekst-adgangskode</li>
@@ -452,7 +545,7 @@ const sections: LegalSection[] = [
         </>
       ) : (
         <>
-          <p>CVR-MATE employs the following technical and organisational security measures:</p>
+          <p>Fourmates ApS employs the following technical and organisational security measures:</p>
           <ul className="list-disc pl-6 space-y-1.5 mt-3">
             <li>HTTPS (TLS 1.2+) for all data transmission</li>
             <li>Passwords hashed with bcrypt — we never have access to your plaintext password</li>
@@ -507,26 +600,28 @@ const sections: LegalSection[] = [
         <>
           <p>Spørgsmål om vores behandling af personoplysninger kan rettes til:</p>
           <div className="mt-4 rounded-xl border border-border bg-muted/30 p-5 text-sm space-y-1">
-            <p className="font-semibold text-foreground">CVR-MATE — Databeskyttelse</p>
-            <p className="text-muted-foreground">Danmark</p>
+            <p className="font-semibold text-foreground">Fourmates ApS — Databeskyttelse</p>
+            <p className="text-muted-foreground">CVR-nr. 46256204</p>
+            <p className="text-muted-foreground">Vindingvej 34, 7100 Vejle, Danmark</p>
             <p>E-mail: <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium">{CONTACT_EMAIL}</a></p>
             <p className="text-muted-foreground text-xs mt-1">Svartid: normalt inden for 2 hverdage.</p>
           </div>
           <p className="mt-4">
-            Ønsker du en <strong>databehandleraftale (DPA)</strong> til eget brug som dataansvarlig (f.eks. ifm. CRM-sync), kontakt: <a href={`mailto:${DPA_EMAIL}`}>{DPA_EMAIL}</a>.
+            Ønsker du en <strong>databehandleraftale (DPA)</strong> — f.eks. fordi du bruger CVR-MATE til at behandle dine kontakters personoplysninger via CRM-sync — er den tilgængelig for alle B2B-kunder. Kontakt os på: <a href={`mailto:${DPA_EMAIL}`} className="font-medium">{DPA_EMAIL}</a> med emnet &quot;DPA-anmodning&quot;.
           </p>
         </>
       ) : (
         <>
           <p>Questions about our processing of personal data can be directed to:</p>
           <div className="mt-4 rounded-xl border border-border bg-muted/30 p-5 text-sm space-y-1">
-            <p className="font-semibold text-foreground">CVR-MATE — Data Protection</p>
-            <p className="text-muted-foreground">Denmark</p>
+            <p className="font-semibold text-foreground">Fourmates ApS — Data Protection</p>
+            <p className="text-muted-foreground">CVR no. 46256204</p>
+            <p className="text-muted-foreground">Vindingvej 34, 7100 Vejle, Denmark</p>
             <p>Email: <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium">{CONTACT_EMAIL}</a></p>
             <p className="text-muted-foreground text-xs mt-1">Response time: normally within 2 business days.</p>
           </div>
           <p className="mt-4">
-            To request a <strong>Data Processing Agreement (DPA)</strong> for your own use as a data controller (e.g. for CRM sync), contact: <a href={`mailto:${DPA_EMAIL}`}>{DPA_EMAIL}</a>.
+            To request a <strong>Data Processing Agreement (DPA)</strong> — for example because you use CVR-MATE to process your contacts' personal data via CRM sync — it is available to all B2B customers. Contact us at: <a href={`mailto:${DPA_EMAIL}`} className="font-medium">{DPA_EMAIL}</a> with the subject &quot;DPA request&quot;.
           </p>
         </>
       ),
@@ -541,8 +636,8 @@ export function PrivacyContent() {
       page="privacy"
       daTitle="Privatlivspolitik"
       enTitle="Privacy Policy"
-      daSubtitle="Denne politik beskriver, hvilke personoplysninger CVR-MATE indsamler, hvordan vi bruger dem, og hvilke rettigheder du har som registreret."
-      enSubtitle="This policy describes what personal data CVR-MATE collects, how we use it, and what rights you have as a data subject."
+      daSubtitle="Denne politik beskriver, hvilke personoplysninger Fourmates ApS indsamler via CVR-MATE platformen, hvordan vi bruger dem, og hvilke rettigheder du har som registreret."
+      enSubtitle="This policy describes what personal data Fourmates ApS collects via the CVR-MATE platform, how we use it, and what rights you have as a data subject."
       effectiveDate={EFFECTIVE_DATE}
       sections={sections}
     />

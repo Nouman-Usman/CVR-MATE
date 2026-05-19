@@ -3,7 +3,7 @@
 import { LegalPageShell, type LegalSection } from "@/components/legal-page-shell";
 
 const EFFECTIVE_DATE = "15. maj 2026 / 15 May 2026";
-const CONTACT_EMAIL = "dev@fourmates.dk";
+const CONTACT_EMAIL = "support@cvr-mate.dk";
 
 const sections: LegalSection[] = [
   {
@@ -13,14 +13,14 @@ const sections: LegalSection[] = [
     content: (l) =>
       l === "da" ? (
         <p>
-          CVR-MATE behandler forretningskritiske data på vegne af vores kunder. Vi har implementeret
+          Fourmates ApS behandler forretningskritiske data på vegne af vores kunder via CVR-MATE platformen. Vi har implementeret
           tekniske og organisatoriske sikkerhedsforanstaltninger i overensstemmelse med GDPR og
           industriens bedste praksis for at beskytte disse data mod uautoriseret adgang, tab og
           misbrug.
         </p>
       ) : (
         <p>
-          CVR-MATE processes business-critical data on behalf of our customers. We have implemented
+          Fourmates ApS processes business-critical data on behalf of our customers via the CVR-MATE platform. We have implemented
           technical and organizational security measures in accordance with GDPR and industry best
           practices to protect this data against unauthorized access, loss, and misuse.
         </p>
@@ -33,22 +33,22 @@ const sections: LegalSection[] = [
     content: (l) =>
       l === "da" ? (
         <>
-          <p>Vores platform kører på enterprise-grade cloud-infrastruktur med følgende garantier:</p>
+          <p>Vores platform kører på enterprise-grade cloud-infrastruktur:</p>
           <ul className="list-disc pl-6 space-y-1.5 mt-3">
             <li><strong>Cloudhosting:</strong> Vercel (Edge Network) til applikationslaget med global CDN og DDoS-beskyttelse</li>
             <li><strong>Database:</strong> Supabase (PostgreSQL) med automatisk backup, point-in-time recovery og krypteret opbevaring</li>
-            <li><strong>Datacenter:</strong> EU-baseret (Frankfurt, eu-west-1) — alle data forbliver inden for EU</li>
-            <li><strong>Oppetid:</strong> 99,9 % SLA-garanti med redundante systemer</li>
+            <li><strong>Datacenter:</strong> EU-baseret (Frankfurt, eu-west-1) — alle primærdata forbliver inden for EU</li>
+            <li><strong>Tilgængelighed:</strong> Vi bestræber os på at levere en stabil og tilgængelig tjeneste, men påtager os ingen specifik oppetidsgaranti over for kunden</li>
           </ul>
         </>
       ) : (
         <>
-          <p>Our platform runs on enterprise-grade cloud infrastructure with the following guarantees:</p>
+          <p>Our platform runs on enterprise-grade cloud infrastructure:</p>
           <ul className="list-disc pl-6 space-y-1.5 mt-3">
             <li><strong>Cloud hosting:</strong> Vercel (Edge Network) for the application layer with global CDN and DDoS protection</li>
             <li><strong>Database:</strong> Supabase (PostgreSQL) with automatic backups, point-in-time recovery, and encrypted storage</li>
-            <li><strong>Data center:</strong> EU-based (Frankfurt, eu-west-1) — all data stays within the EU</li>
-            <li><strong>Uptime:</strong> 99.9% SLA guarantee with redundant systems</li>
+            <li><strong>Data center:</strong> EU-based (Frankfurt, eu-west-1) — all primary data stays within the EU</li>
+            <li><strong>Availability:</strong> We endeavour to provide a stable and available service but do not commit to a specific uptime guarantee to customers</li>
           </ul>
         </>
       ),
@@ -64,7 +64,7 @@ const sections: LegalSection[] = [
           <li><strong>I ro:</strong> AES-256 kryptering af databaseindhold og sikkerhedskopier</li>
           <li><strong>Adgangskoder:</strong> bcrypt-hashing via Better Auth — vi gemmer aldrig adgangskoder i klartekst</li>
           <li><strong>CRM-tokens:</strong> OAuth-adgangstokens krypteres med AES-256 med en dedikeret nøgle (<code>CRM_TOKEN_ENCRYPTION_KEY</code>) inden de gemmes i databasen</li>
-          <li><strong>Betalingsdata:</strong> Kortdata håndteres udelukkende af Stripe (PCI DSS Level 1) — CVR-MATE gemmer aldrig rå kortoplysninger</li>
+          <li><strong>Betalingsdata:</strong> Kortdata håndteres udelukkende af Stripe (PCI DSS Level 1) — Fourmates ApS gemmer aldrig rå kortoplysninger</li>
         </ul>
       ) : (
         <ul className="list-disc pl-6 space-y-2">
@@ -72,7 +72,7 @@ const sections: LegalSection[] = [
           <li><strong>At rest:</strong> AES-256 encryption of database contents and backups</li>
           <li><strong>Passwords:</strong> bcrypt hashing via Better Auth — we never store passwords in plaintext</li>
           <li><strong>CRM tokens:</strong> OAuth access tokens are encrypted with AES-256 using a dedicated key (<code>CRM_TOKEN_ENCRYPTION_KEY</code>) before being stored in the database</li>
-          <li><strong>Payment data:</strong> Card data is handled exclusively by Stripe (PCI DSS Level 1) — CVR-MATE never stores raw card details</li>
+          <li><strong>Payment data:</strong> Card data is handled exclusively by Stripe (PCI DSS Level 1) — Fourmates ApS never stores raw card details</li>
         </ul>
       ),
   },
@@ -155,9 +155,9 @@ const sections: LegalSection[] = [
               <tr><td className="py-2 pr-4 font-medium text-foreground">Supabase</td><td className="py-2 pr-4">Database</td><td className="py-2">Alle brugerdata (EU)</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Vercel</td><td className="py-2 pr-4">Hosting</td><td className="py-2">Request-logs</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Stripe</td><td className="py-2 pr-4">Betalinger</td><td className="py-2">Fakturering, kortdata</td></tr>
-              <tr><td className="py-2 pr-4 font-medium text-foreground">Resend</td><td className="py-2 pr-4">Email</td><td className="py-2">E-mailadresse, indhold</td></tr>
+              <tr><td className="py-2 pr-4 font-medium text-foreground">Resend</td><td className="py-2 pr-4">E-mail</td><td className="py-2">E-mailadresse, indhold</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Sentry</td><td className="py-2 pr-4">Fejlsporing</td><td className="py-2">Anonymiserede fejllogs</td></tr>
-              <tr><td className="py-2 pr-4 font-medium text-foreground">Google Gemini</td><td className="py-2 pr-4">AI</td><td className="py-2">Virksomhedsdata til briefings</td></tr>
+              <tr><td className="py-2 pr-4 font-medium text-foreground">Google Gemini</td><td className="py-2 pr-4">AI (briefings, outreach-udkast)</td><td className="py-2">Virksomhedsdata, brugerinput, noter</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Upstash</td><td className="py-2 pr-4">Cache / køer</td><td className="py-2">Midlertidige session-data</td></tr>
             </tbody>
           </table>
@@ -178,7 +178,7 @@ const sections: LegalSection[] = [
               <tr><td className="py-2 pr-4 font-medium text-foreground">Stripe</td><td className="py-2 pr-4">Payments</td><td className="py-2">Billing, card data</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Resend</td><td className="py-2 pr-4">Email</td><td className="py-2">Email address, content</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Sentry</td><td className="py-2 pr-4">Error tracking</td><td className="py-2">Anonymized error logs</td></tr>
-              <tr><td className="py-2 pr-4 font-medium text-foreground">Google Gemini</td><td className="py-2 pr-4">AI</td><td className="py-2">Company data for briefings</td></tr>
+              <tr><td className="py-2 pr-4 font-medium text-foreground">Google Gemini</td><td className="py-2 pr-4">AI (briefings, outreach drafts)</td><td className="py-2">Company data, user input, notes</td></tr>
               <tr><td className="py-2 pr-4 font-medium text-foreground">Upstash</td><td className="py-2 pr-4">Cache / queues</td><td className="py-2">Temporary session data</td></tr>
             </tbody>
           </table>
@@ -195,7 +195,8 @@ const sections: LegalSection[] = [
           Brugere kan slette deres konto til enhver tid fra Indstillinger → Farezone. Sletning fjerner alle
           personoplysninger permanent via <code>ON DELETE CASCADE</code>-regler på alle tabeller.
           Aktive Stripe-abonnementer annulleres øjeblikkeligt ved sletning. Revisionslogposter (<code>org_audit_log</code>)
-          anonymiseres — aktørnavnet fjernes, men handlingen bevares til compliance. Se vores{" "}
+          anonymiseres — aktørnavnet fjernes, men handlingen bevares til compliance. Backupkopier overskrives inden
+          for den normale backup-rotationscyklus. Se vores{" "}
           <a href="/privacy" className="font-medium underline underline-offset-2">privatlivspolitik</a>{" "}
           for yderligere oplysninger om dine rettigheder i henhold til GDPR.
         </p>
@@ -204,7 +205,8 @@ const sections: LegalSection[] = [
           Users can delete their account at any time from Settings → Danger Zone. Deletion permanently removes
           all personal data via <code>ON DELETE CASCADE</code> rules across all tables. Active Stripe
           subscriptions are cancelled immediately upon deletion. Audit log entries (<code>org_audit_log</code>)
-          are anonymized — the actor name is removed but the action is retained for compliance. See our{" "}
+          are anonymized — the actor name is removed but the action is retained for compliance. Backup copies
+          are overwritten within the normal backup rotation cycle. See our{" "}
           <a href="/privacy" className="font-medium underline underline-offset-2">privacy policy</a>{" "}
           for further details on your rights under GDPR.
         </p>
@@ -225,7 +227,9 @@ const sections: LegalSection[] = [
             løse kritiske problemer inden for 7 dage.
           </p>
           <div className="mt-4 rounded-xl border border-border bg-muted/30 p-5 text-sm space-y-1">
-            <p className="font-semibold text-foreground">CVR-MATE</p>
+            <p className="font-semibold text-foreground">Fourmates ApS</p>
+            <p className="text-muted-foreground">CVR-nr. 46256204</p>
+            <p className="text-muted-foreground">Vindingvej 34, 7100 Vejle, Danmark</p>
             <p>Sikkerhedskontakt: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
         </>
@@ -238,7 +242,9 @@ const sections: LegalSection[] = [
             critical issues within 7 days.
           </p>
           <div className="mt-4 rounded-xl border border-border bg-muted/30 p-5 text-sm space-y-1">
-            <p className="font-semibold text-foreground">CVR-MATE</p>
+            <p className="font-semibold text-foreground">Fourmates ApS</p>
+            <p className="text-muted-foreground">CVR no. 46256204</p>
+            <p className="text-muted-foreground">Vindingvej 34, 7100 Vejle, Denmark</p>
             <p>Security contact: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
         </>
@@ -252,8 +258,8 @@ export function DataSecurityContent() {
       page="data-security"
       daTitle="Datasikkerhed"
       enTitle="Data Security"
-      daSubtitle="Sådan beskytter CVR-MATE dine data — kryptering, adgangskontrol, infrastruktur og compliance."
-      enSubtitle="How CVR-MATE protects your data — encryption, access control, infrastructure, and compliance."
+      daSubtitle="Sådan beskytter Fourmates ApS dine data via CVR-MATE — kryptering, adgangskontrol, infrastruktur og compliance."
+      enSubtitle="How Fourmates ApS protects your data via CVR-MATE — encryption, access control, infrastructure, and compliance."
       effectiveDate={EFFECTIVE_DATE}
       sections={sections}
     />
