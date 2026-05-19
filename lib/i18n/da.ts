@@ -366,7 +366,7 @@ const da = {
       passwordMismatch: "Adgangskoderne matcher ikke",
       passwordTooShort: "Adgangskode skal være mindst 8 tegn",
     },
-    brandTagline: "Nordic B2B Lead Intelligence",
+    brandTagline: "AI-drevet B2B leadgenerering",
   },
   dashboard: {
     title: "Dashboard",
@@ -1061,7 +1061,7 @@ const da = {
       type: "Beskedtype",
       email: "E-mail",
       linkedin: "LinkedIn",
-      phoneScript: "Telefonscript",
+      phoneScript: "Telefon",
       tone: "Tone",
       formal: "Formel",
       casual: "Uformel",

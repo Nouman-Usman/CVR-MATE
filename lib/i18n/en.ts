@@ -368,7 +368,7 @@ const en: Dictionary = {
       passwordMismatch: "Passwords do not match",
       passwordTooShort: "Password must be at least 8 characters",
     },
-    brandTagline: "Nordic B2B Lead Intelligence",
+    brandTagline: "AI-driven B2B lead generation",
   },
   dashboard: {
     title: "Dashboard",
@@ -1063,7 +1063,7 @@ const en: Dictionary = {
       type: "Message type",
       email: "Email",
       linkedin: "LinkedIn",
-      phoneScript: "Phone script",
+      phoneScript: "Phone",
       tone: "Tone",
       formal: "Formal",
       casual: "Casual",
