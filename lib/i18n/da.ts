@@ -164,6 +164,49 @@ const da = {
     annual: "Årlig",
     monthly: "Månedlig",
     annualSave: "Spar 20%",
+    vatNote: "Alle priser er ekskl. moms (25 %).",
+    recommended: "Anbefalet",
+    freeForever: "Gratis for evigt",
+    billedAnnually: "Faktureres som",
+    perYear: "/år",
+    compareAll: "Sammenlign alle funktioner",
+    faq: {
+      title: "Ofte stillede spørgsmål",
+      items: [
+        {
+          q: "Kan jeg skifte plan til enhver tid?",
+          a: "Ja. Opgradering træder i kraft øjeblikkeligt. Nedgradering træder i kraft ved udgangen af den aktuelle faktureringsperiode.",
+        },
+        {
+          q: "Er der en bindingsperiode?",
+          a: "Nej. Alle planer er løbende og kan opsiges til enhver tid. Ved årsabonnement faktureres hele perioden forud.",
+        },
+        {
+          q: "Hvad sker der, når jeg når min grænse?",
+          a: "Du får en advarsel, når du nærmer dig grænsen. Når grænsen er nået, er den pågældende funktion midlertidigt deaktiveret, indtil du opgraderer eller en ny måned begynder.",
+        },
+        {
+          q: "Tilbyder I en gratis prøveperiode?",
+          a: "Free-planen er permanent gratis — ingen kreditkort nødvendigt. Du kan afprøve kernefunktionerne uden tidsbegrænsning.",
+        },
+        {
+          q: "Hvad inkluderer Enterprise-planen for teamfunktioner?",
+          a: "Enterprise inkluderer ubegrænsede teammedlemmer, delte gemte virksomheder, delte triggers og søgninger, rollebaseret adgangsstyring og organisations-auditlog.",
+        },
+      ],
+    },
+    free: {
+      name: "Free",
+      desc: "Kom godt i gang",
+      features: [
+        "10 virksomhedssøgninger/måned",
+        "5 gemte virksomheder",
+        "5 AI-brug/måned",
+        "Grundlæggende søgning & filtrering",
+        "iCal-eksport",
+      ],
+      cta: "Start gratis",
+    },
     starter: {
       name: "Starter",
       desc: "For solo-prospektører",

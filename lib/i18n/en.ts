@@ -166,6 +166,49 @@ const en: Dictionary = {
     annual: "Annual",
     monthly: "Monthly",
     annualSave: "Save 20%",
+    vatNote: "All prices exclude VAT (25%).",
+    recommended: "Recommended",
+    freeForever: "Free forever",
+    billedAnnually: "Billed as",
+    perYear: "/yr",
+    compareAll: "Compare all features",
+    faq: {
+      title: "Frequently asked questions",
+      items: [
+        {
+          q: "Can I switch plans at any time?",
+          a: "Yes. Upgrades take effect immediately. Downgrades take effect at the end of the current billing period.",
+        },
+        {
+          q: "Is there a minimum commitment?",
+          a: "No. All plans are rolling and can be cancelled at any time. Annual plans are billed in full upfront for the billing period.",
+        },
+        {
+          q: "What happens when I hit my limit?",
+          a: "You'll receive a warning as you approach your limit. Once reached, that feature is temporarily disabled until you upgrade or a new month begins.",
+        },
+        {
+          q: "Do you offer a free trial?",
+          a: "The Free plan is permanently free — no credit card required. You can explore core features with no time limit.",
+        },
+        {
+          q: "What team features are included in Enterprise?",
+          a: "Enterprise includes unlimited team members, shared saved companies, shared triggers and searches, role-based access control, and an organisation audit log.",
+        },
+      ],
+    },
+    free: {
+      name: "Free",
+      desc: "Get started",
+      features: [
+        "10 company searches/month",
+        "5 saved companies",
+        "5 AI usages/month",
+        "Basic search & filtering",
+        "iCal export",
+      ],
+      cta: "Start for free",
+    },
     starter: {
       name: "Starter",
       desc: "For solo prospectors",
