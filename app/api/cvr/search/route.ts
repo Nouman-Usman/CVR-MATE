@@ -60,16 +60,6 @@ function normalizeText(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function isActiveCompany(c: CvrCompany): boolean {
-  const statusText = normalizeText(c.companystatus?.text);
-  const hasEnded = !!c.life?.end;
-
-  if (hasEnded) return false;
-  if (!statusText) return true;
-
-  return ["normal", "i drift", "active"].includes(statusText);
-}
-
 function getSearchableCompanyNames(c: CvrCompany): string[] {
   const raw = c as CvrCompany & {
     secondarynames?: string[];
@@ -86,11 +76,10 @@ function getSearchableCompanyNames(c: CvrCompany): string[] {
     .filter(Boolean);
 }
 
+// Post-filter using ONLY the 21 CVR API search params. Catches mismatches the
+// fan-out variations let through. Company form / status / capital / LEI / EAN
+// are intentionally not enforced — they are not part of the search endpoint.
 function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams): boolean {
-  if (searchParams.companystatus_code === "20" && !isActiveCompany(c)) {
-    return false;
-  }
-
   if (searchParams.life_name) {
     const query = normalizeText(searchParams.life_name);
     const matchesVat = /^\d+$/.test(query) && String(c.vat).includes(query);
@@ -98,40 +87,39 @@ function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams):
     if (!matchesVat && !matchesName) return false;
   }
 
-  if (searchParams.companyform_code) {
-    const expected = Number(searchParams.companyform_code);
-    if (Number.isFinite(expected) && c.companyform?.code !== expected) return false;
+  if (searchParams.life_start) {
+    const founded = c.life?.start;
+    if (!founded || founded < searchParams.life_start) return false;
   }
 
-  if (searchParams.companyform_description) {
-    const actual = normalizeText(c.companyform?.description);
-    if (actual !== normalizeText(searchParams.companyform_description)) return false;
+  if (searchParams.life_end) {
+    const ended = c.life?.end;
+    if (!ended || ended > searchParams.life_end) return false;
   }
 
-  if (searchParams.industry_primary_code) {
-    const actual = String(c.industry?.primary?.code ?? "");
-    if (!actual.startsWith(searchParams.industry_primary_code)) return false;
+  if (searchParams.life_adprotected === "false" && c.life?.adprotected) return false;
+  if (searchParams.life_adprotected === "true" && !c.life?.adprotected) return false;
+
+  const addr = c.address as Record<string, unknown> | undefined;
+
+  if (searchParams.address_street) {
+    const actual = normalizeText(addr?.street);
+    if (!actual.includes(normalizeText(searchParams.address_street))) return false;
   }
 
-  if (searchParams.industry_primary_text) {
-    const actual = normalizeText(c.industry?.primary?.text);
-    if (!actual.includes(normalizeText(searchParams.industry_primary_text))) return false;
+  if (searchParams.address_streetcode) {
+    if (String(addr?.streetcode ?? "") !== searchParams.address_streetcode) return false;
   }
 
   if (searchParams.address_zipcode) {
-    const actual = String(c.address?.zipcode ?? "");
-    if (actual !== searchParams.address_zipcode) return false;
+    if (String(c.address?.zipcode ?? "") !== searchParams.address_zipcode) return false;
   }
 
   if (searchParams.address_zipcode_list) {
     const allowed = new Set(
-      searchParams.address_zipcode_list
-        .split(",")
-        .map((zip) => zip.trim())
-        .filter(Boolean)
+      searchParams.address_zipcode_list.split(",").map((z) => z.trim()).filter(Boolean)
     );
-    const actual = String(c.address?.zipcode ?? "");
-    if (!allowed.has(actual)) return false;
+    if (!allowed.has(String(c.address?.zipcode ?? ""))) return false;
   }
 
   if (searchParams.address_city) {
@@ -144,14 +132,48 @@ function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams):
     if (!actual.includes(normalizeText(searchParams.address_municipality))) return false;
   }
 
-  if (searchParams.life_start) {
-    const founded = c.life?.start;
-    if (!founded || founded < searchParams.life_start) return false;
+  if (searchParams.contact_phone) {
+    if (normalizeText(c.contact?.phone) !== normalizeText(searchParams.contact_phone)) return false;
   }
 
-  if (searchParams.life_end) {
-    const ended = c.life?.end;
-    if (!ended || ended > searchParams.life_end) return false;
+  if (searchParams.contact_email) {
+    if (normalizeText(c.contact?.email) !== normalizeText(searchParams.contact_email)) return false;
+  }
+
+  if (searchParams.contact_www) {
+    const actual = normalizeText(c.contact?.www);
+    if (!actual.includes(normalizeText(searchParams.contact_www))) return false;
+  }
+
+  if (searchParams.industry_primary_code) {
+    const actual = String(c.industry?.primary?.code ?? "");
+    if (!actual.startsWith(searchParams.industry_primary_code)) return false;
+  }
+
+  if (searchParams.industry_primary_text) {
+    const actual = normalizeText(c.industry?.primary?.text);
+    if (!actual.includes(normalizeText(searchParams.industry_primary_text))) return false;
+  }
+
+  if (searchParams.industry_secondary_code) {
+    const matches = (c.industry?.secondary ?? []).some((s) =>
+      String(s.code ?? "").startsWith(searchParams.industry_secondary_code!)
+    );
+    if (!matches) return false;
+  }
+
+  if (searchParams.industry_secondary_text) {
+    const needle = normalizeText(searchParams.industry_secondary_text);
+    const matches = (c.industry?.secondary ?? []).some((s) =>
+      normalizeText(s.text).includes(needle)
+    );
+    if (!matches) return false;
+  }
+
+  if (searchParams.employment_amount) {
+    const expected = Number(searchParams.employment_amount);
+    const count = getEmployeeCount(c);
+    if (!Number.isFinite(expected) || count == null || count !== expected) return false;
   }
 
   if (searchParams.employment_interval_low) {
@@ -191,30 +213,31 @@ export async function GET(req: NextRequest) {
     const params = req.nextUrl.searchParams;
     const searchParams: SearchCompanyParams = {};
 
-    // Map frontend query param names → CVR API param names
+    // Strict map of the 21 query params the CVR API v2 search/company endpoint
+    // accepts. Anything outside this list is ignored — keeps the search surface
+    // honest to the spec.
     const mapping: Record<string, keyof SearchCompanyParams> = {
       name: "life_name",
       life_start: "life_start",
       life_end: "life_end",
+      ad_protected: "life_adprotected",
+      street: "address_street",
+      streetcode: "address_streetcode",
+      number_from: "address_numberfrom",
+      letter_from: "address_letterfrom",
       zipcode: "address_zipcode",
       zipcode_list: "address_zipcode_list",
       city: "address_city",
       municipality: "address_municipality",
-      companyform_code: "companyform_code",
-      companyform_description: "companyform_description",
-      companystatus_code: "companystatus_code",
+      phone: "contact_phone",
+      email: "contact_email",
+      website: "contact_www",
       industry_text: "industry_primary_text",
       industry_code: "industry_primary_code",
       industry_secondary_text: "industry_secondary_text",
       industry_secondary_code: "industry_secondary_code",
       employment_amount: "employment_amount",
       employment_interval_low: "employment_interval_low",
-      phone: "contact_phone",
-      email: "contact_email",
-      website: "contact_www",
-      bankrupt: "status_bankrupt",
-      capital: "capital_capital",
-      ipo: "capital_ipo",
     };
 
     for (const [queryKey, apiKey] of Object.entries(mapping)) {
@@ -224,11 +247,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Default to active companies if no status specified.
-    // User can opt into "all" (including dissolved) via showDissolved toggle.
-    const statusParam = params.get("status");
-    if (!searchParams.companystatus_code && statusParam !== "all") {
-      searchParams.companystatus_code = "20";
+    // Upstream CVR expects industry_primary_code as a full 6-digit DB07 NACE
+    // integer. Short codes (category prefixes like "62") would match the int
+    // exactly, returning near-empty results. When < 6 digits, drop from the
+    // upstream call but keep for post-filtering via `matchesNativeFilters`,
+    // which uses `.startsWith()` against the broader candidate pool.
+    const upstreamParams: SearchCompanyParams = { ...searchParams };
+    if (
+      typeof upstreamParams.industry_primary_code === "string" &&
+      upstreamParams.industry_primary_code.length < 6
+    ) {
+      delete upstreamParams.industry_primary_code;
+    }
+    if (
+      typeof upstreamParams.industry_secondary_code === "string" &&
+      upstreamParams.industry_secondary_code.length < 6
+    ) {
+      delete upstreamParams.industry_secondary_code;
     }
 
     // Check for segmentation post-filters (not part of CVR API)
@@ -240,7 +275,11 @@ export async function GET(req: NextRequest) {
     const segProfitMax = params.get("seg_profit_max");
 
     const hasAnyFilter = Object.entries(searchParams).some(
-      ([k, v]) => v && k !== "companystatus_code" && k !== "page"
+      ([k, v]) =>
+        v &&
+        k !== "companystatus_code" &&
+        k !== "page" &&
+        k !== "life_adprotected"
     );
 
     const hasSegFilter = !!(
@@ -259,25 +298,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // CVR does not support match-all searches or financial segmentation.
-    // Require at least one native search filter instead of returning a misleading slice.
-    if (!hasAnyFilter && hasSegFilter) {
-      return NextResponse.json(
-        {
-          error:
-            "At least one CVR search filter is required with segmentation. Add a name, industry, location, company form, founding date, or employee minimum.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // CVR API returns a fixed ~10 results per search call. The `page` param
-    // returns duplicates (confirmed by testing). To get more results, we make
-    // multiple parallel calls with query variations (appending suffix letters).
+    // CVR API v2.0.0 has no pagination — each call returns ~10 rows max. To
+    // expand coverage we fan out parallel queries with varied inputs and dedupe
+    // by vat. Filter-only and segmentation-only searches use an alphabet sweep
+    // on `life_name` against the same filter set.
     const seen = new Set<number>();
     const all: CvrCompany[] = [];
+    let truncated = false;
 
     function addBatch(batch: CvrCompany[]) {
+      if (batch.length >= 10) truncated = true;
       for (const c of batch) {
         if (!seen.has(c.vat)) {
           seen.add(c.vat);
@@ -286,27 +316,47 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const nameQuery = upstreamParams.life_name;
+    const zipList = upstreamParams.address_zipcode_list;
+
     // 1. Base search — always runs
-    const baseResults = await searchCompanies(searchParams).catch(() => [] as CvrCompany[]);
+    const baseResults = await searchCompanies(upstreamParams).catch(() => [] as CvrCompany[]);
     addBatch(baseResults);
 
-    // 2. Fire parallel variation queries to get more results.
-    //    The CVR API returns different results for slightly different queries.
-    const nameQuery = searchParams.life_name;
+    // 2. Fan out parallel variation queries.
     const variationCalls: Promise<CvrCompany[]>[] = [];
+    const ALPHABET = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p"];
 
     if (nameQuery && nameQuery.length >= 1) {
-      // Name variations: append common Danish prefixes that yield different result sets
+      // Name variations: append letters that yield different result sets
       const suffixes = ["a", "b", "c", "d", "e", "s", "i", "k", "m", "n", "p"];
       for (const s of suffixes) {
         variationCalls.push(
-          searchCompanies({ ...searchParams, life_name: `${nameQuery} ${s}` }).catch(() => [])
+          searchCompanies({ ...upstreamParams, life_name: `${nameQuery} ${s}` }).catch(() => [])
         );
       }
-      // Also try the suggestions endpoint (different matching algorithm)
-      variationCalls.push(
-        suggestCompanies(nameQuery).catch(() => [])
-      );
+      variationCalls.push(suggestCompanies(nameQuery).catch(() => []));
+    } else if (zipList && zipList.split(",").length > 25) {
+      // Region/multi-zip search: chunk the zip list into ~25-zip slices so each
+      // call returns a different geographic slice rather than the same 10 rows.
+      const zips = zipList.split(",").map((z) => z.trim()).filter(Boolean);
+      const chunkSize = 25;
+      for (let i = 0; i < zips.length; i += chunkSize) {
+        const chunk = zips.slice(i, i + chunkSize).join(",");
+        variationCalls.push(
+          searchCompanies({ ...upstreamParams, address_zipcode_list: chunk }).catch(() => [])
+        );
+        if (variationCalls.length >= 20) break;
+      }
+    } else {
+      // Filter-only or segmentation-only: alphabet sweep on life_name to force
+      // CVR to return different name-indexed slices while preserving all other
+      // native filters in upstreamParams.
+      for (const letter of ALPHABET) {
+        variationCalls.push(
+          searchCompanies({ ...upstreamParams, life_name: letter }).catch(() => [])
+        );
+      }
     }
 
     if (variationCalls.length > 0) {
@@ -360,6 +410,7 @@ export async function GET(req: NextRequest) {
       results: enriched,
       count: enriched.length,
       hasMore: false,
+      truncated,
     });
   } catch (error) {
     console.error("CVR search error:", error);

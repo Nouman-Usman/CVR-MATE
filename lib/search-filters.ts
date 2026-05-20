@@ -1,47 +1,74 @@
 export interface SearchFiltersState {
+  // Identity & history
   query: string;
+  foundedPeriod: string;
+
+  // Industry
   industryText: string;
   industryCode: string;
-  companyForm: string;
-  size: string;
+  industrySecondaryText: string;
+  industrySecondaryCode: string;
+
+  // Address
+  street: string;
+  streetcode: string;
+  numberFrom: string;
+  letterFrom: string;
   zipcode: string;
   region: string;
-  foundedPeriod: string;
+  city: string;
+  municipality: string;
+
+  // Contact
+  contactPhone: string;
+  contactEmail: string;
+  contactWww: string;
+
+  // Employees (CVR API)
+  size: string;
+  employmentAmount: string;
+
+  // Segmentation post-filters (app-side, computed from accounting data)
   revenueMin: number;
   revenueMax: number;
   profitMin: number;
   profitMax: number;
   employeesMin: number;
   employeesMax: number;
-  showDissolved: boolean;
+
+  // Marketing-opt-out gate (life_adprotected)
+  skipMarketingOptOut: boolean;
 }
 
 type SearchParamReader = Pick<URLSearchParams, "get">;
 
 export const DEFAULT_SEARCH_FILTERS: SearchFiltersState = {
   query: "",
+  foundedPeriod: "all",
   industryText: "",
   industryCode: "all",
-  companyForm: "all",
-  size: "all",
+  industrySecondaryText: "",
+  industrySecondaryCode: "",
+  street: "",
+  streetcode: "",
+  numberFrom: "",
+  letterFrom: "",
   zipcode: "",
   region: "all",
-  foundedPeriod: "all",
+  city: "",
+  municipality: "",
+  contactPhone: "",
+  contactEmail: "",
+  contactWww: "",
+  size: "all",
+  employmentAmount: "",
   revenueMin: 0,
   revenueMax: 1000,
   profitMin: 0,
   profitMax: 1000,
   employeesMin: 0,
   employeesMax: 5000,
-  showDissolved: false,
-};
-
-const companyFormCodeMap: Record<string, string> = {
-  aps: "80",
-  "a/s": "60",
-  ivs: "81",
-  "i/s": "30",
-  enkeltmandsvirksomhed: "10",
+  skipMarketingOptOut: true,
 };
 
 const regionZipcodeMap: Record<string, string> = {
@@ -84,10 +111,21 @@ export function hasNativeSearchFilter(filters: SearchFiltersState): boolean {
     filters.query ||
     filters.industryText ||
     filters.industryCode !== "all" ||
-    filters.companyForm !== "all" ||
-    filters.size !== "all" ||
+    filters.industrySecondaryText ||
+    filters.industrySecondaryCode ||
+    filters.street ||
+    filters.streetcode ||
+    filters.numberFrom ||
+    filters.letterFrom ||
     filters.zipcode ||
     filters.region !== "all" ||
+    filters.city ||
+    filters.municipality ||
+    filters.contactPhone ||
+    filters.contactEmail ||
+    filters.contactWww ||
+    filters.size !== "all" ||
+    filters.employmentAmount ||
     filters.foundedPeriod !== "all" ||
     filters.employeesMin > 0
   );
@@ -108,7 +146,6 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   const params = new URLSearchParams();
 
   if (filters.query) params.set("name", filters.query);
-  if (filters.showDissolved) params.set("status", "all");
 
   if (filters.industryCode !== "all") {
     params.set("industry_code", filters.industryCode);
@@ -116,19 +153,32 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
     params.set("industry_text", filters.industryText);
   }
 
-  if (filters.companyForm !== "all") {
-    const code = companyFormCodeMap[filters.companyForm];
-    if (code) params.set("companyform_code", code);
-  }
+  if (filters.industrySecondaryCode) params.set("industry_secondary_code", filters.industrySecondaryCode);
+  if (filters.industrySecondaryText) params.set("industry_secondary_text", filters.industrySecondaryText);
 
-  if (filters.zipcode) params.set("zipcode", filters.zipcode);
-  if (!filters.zipcode && filters.region !== "all") {
+  if (filters.street) params.set("street", filters.street);
+  if (filters.streetcode) params.set("streetcode", filters.streetcode);
+  if (filters.numberFrom) params.set("number_from", filters.numberFrom);
+  if (filters.letterFrom) params.set("letter_from", filters.letterFrom);
+
+  if (filters.zipcode) {
+    params.set("zipcode", filters.zipcode);
+  } else if (filters.region !== "all") {
     const zips = regionZipcodeMap[filters.region];
     if (zips) params.set("zipcode_list", zips);
   }
 
+  if (filters.city) params.set("city", filters.city);
+  if (filters.municipality) params.set("municipality", filters.municipality);
+
+  if (filters.contactPhone) params.set("phone", filters.contactPhone);
+  if (filters.contactEmail) params.set("email", filters.contactEmail);
+  if (filters.contactWww) params.set("website", filters.contactWww);
+
   const lifeStart = foundedToDate(filters.foundedPeriod);
   if (lifeStart) params.set("life_start", lifeStart);
+
+  if (filters.employmentAmount) params.set("employment_amount", filters.employmentAmount);
 
   const sizeRange = sizeToEmploymentRange(filters.size);
   const employeeMin = filters.employeesMin > 0 ? filters.employeesMin : sizeRange.min;
@@ -142,27 +192,44 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   if (filters.profitMin > 0) params.set("seg_profit_min", String(filters.profitMin));
   if (filters.profitMax < 1000) params.set("seg_profit_max", String(filters.profitMax));
 
-  return params.toString() ? params : null;
+  // Skip emitting ad_protected if no other filter is set — a lone refinement
+  // flag must not qualify as a valid search.
+  if (params.toString().length === 0) return null;
+
+  if (filters.skipMarketingOptOut) params.set("ad_protected", "false");
+
+  return params;
 }
 
 export function serializeSearchFilters(filters: SearchFiltersState): Record<string, string> {
-  const serialized: Record<string, string> = {};
-  if (filters.query) serialized.name = filters.query;
-  if (filters.industryText) serialized.industry_text = filters.industryText;
-  if (filters.industryCode !== "all") serialized.industry_code = filters.industryCode;
-  if (filters.companyForm !== "all") serialized.companyForm = filters.companyForm;
-  if (filters.size !== "all") serialized.size = filters.size;
-  if (filters.zipcode) serialized.zipcode = filters.zipcode;
-  if (filters.region !== "all") serialized.region = filters.region;
-  if (filters.foundedPeriod !== "all") serialized.foundedPeriod = filters.foundedPeriod;
-  if (filters.employeesMin > 0) serialized.employeesMin = String(filters.employeesMin);
-  if (filters.employeesMax < 5000) serialized.employeesMax = String(filters.employeesMax);
-  if (filters.revenueMin > 0) serialized.revenueMin = String(filters.revenueMin);
-  if (filters.revenueMax < 1000) serialized.revenueMax = String(filters.revenueMax);
-  if (filters.profitMin > 0) serialized.profitMin = String(filters.profitMin);
-  if (filters.profitMax < 1000) serialized.profitMax = String(filters.profitMax);
-  if (filters.showDissolved) serialized.showDissolved = "true";
-  return serialized;
+  const s: Record<string, string> = {};
+  if (filters.query) s.name = filters.query;
+  if (filters.industryText) s.industry_text = filters.industryText;
+  if (filters.industryCode !== "all") s.industry_code = filters.industryCode;
+  if (filters.industrySecondaryText) s.industry_secondary_text = filters.industrySecondaryText;
+  if (filters.industrySecondaryCode) s.industry_secondary_code = filters.industrySecondaryCode;
+  if (filters.street) s.street = filters.street;
+  if (filters.streetcode) s.streetcode = filters.streetcode;
+  if (filters.numberFrom) s.numberFrom = filters.numberFrom;
+  if (filters.letterFrom) s.letterFrom = filters.letterFrom;
+  if (filters.zipcode) s.zipcode = filters.zipcode;
+  if (filters.region !== "all") s.region = filters.region;
+  if (filters.city) s.city = filters.city;
+  if (filters.municipality) s.municipality = filters.municipality;
+  if (filters.contactPhone) s.contactPhone = filters.contactPhone;
+  if (filters.contactEmail) s.contactEmail = filters.contactEmail;
+  if (filters.contactWww) s.contactWww = filters.contactWww;
+  if (filters.size !== "all") s.size = filters.size;
+  if (filters.employmentAmount) s.employmentAmount = filters.employmentAmount;
+  if (filters.foundedPeriod !== "all") s.foundedPeriod = filters.foundedPeriod;
+  if (filters.employeesMin > 0) s.employeesMin = String(filters.employeesMin);
+  if (filters.employeesMax < 5000) s.employeesMax = String(filters.employeesMax);
+  if (filters.revenueMin > 0) s.revenueMin = String(filters.revenueMin);
+  if (filters.revenueMax < 1000) s.revenueMax = String(filters.revenueMax);
+  if (filters.profitMin > 0) s.profitMin = String(filters.profitMin);
+  if (filters.profitMax < 1000) s.profitMax = String(filters.profitMax);
+  s.skipMarketingOptOut = filters.skipMarketingOptOut ? "true" : "false";
+  return s;
 }
 
 function getNumber(params: SearchParamReader, key: string): number | undefined {
@@ -182,10 +249,21 @@ export function hydrateSearchFiltersFromParams(params: SearchParamReader): {
     ["query", "name"],
     ["industryText", "industry_text"],
     ["industryCode", "industry_code"],
-    ["companyForm", "companyForm"],
-    ["size", "size"],
+    ["industrySecondaryText", "industry_secondary_text"],
+    ["industrySecondaryCode", "industry_secondary_code"],
+    ["street", "street"],
+    ["streetcode", "streetcode"],
+    ["numberFrom", "numberFrom"],
+    ["letterFrom", "letterFrom"],
     ["zipcode", "zipcode"],
     ["region", "region"],
+    ["city", "city"],
+    ["municipality", "municipality"],
+    ["contactPhone", "contactPhone"],
+    ["contactEmail", "contactEmail"],
+    ["contactWww", "contactWww"],
+    ["size", "size"],
+    ["employmentAmount", "employmentAmount"],
     ["foundedPeriod", "foundedPeriod"],
   ];
 
@@ -208,8 +286,9 @@ export function hydrateSearchFiltersFromParams(params: SearchParamReader): {
     if (value !== undefined) filters[stateKey] = value as never;
   }
 
-  const showDissolved = params.get("showDissolved");
-  if (showDissolved === "true") filters.showDissolved = true;
+  const skipMarketingOptOut = params.get("skipMarketingOptOut");
+  if (skipMarketingOptOut === "false") filters.skipMarketingOptOut = false;
+  else if (skipMarketingOptOut === "true") filters.skipMarketingOptOut = true;
 
   return {
     filters,

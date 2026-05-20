@@ -9,8 +9,6 @@ import { InlineLoader } from "@/components/loading-screen";
 import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-store";
 import {
   buildSearchParamsFromState,
-  hasNativeSearchFilter,
-  hasSegmentationFilter,
   hydrateSearchFiltersFromParams,
   mergeSearchFilters,
   serializeSearchFilters,
@@ -50,6 +48,11 @@ import {
   SlidersHorizontal,
   ChevronRight,
   RotateCcw,
+  X,
+  Building2,
+  MapPin,
+  Users,
+  TrendingUp,
 } from "lucide-react";
 
 interface Company {
@@ -189,6 +192,111 @@ function FilterSelect({
   );
 }
 
+// ── Filter field wrapper — consistent label/input/help rhythm ───────
+
+function FilterField({
+  label,
+  help,
+  children,
+}: {
+  label: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[11px] font-semibold text-foreground/70 tracking-wide">{label}</Label>
+      {children}
+      {help && <p className="text-[10.5px] leading-tight text-muted-foreground/60">{help}</p>}
+    </div>
+  );
+}
+
+// ── Section header — editorial divider with optional icon ───────────
+
+function FilterSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="py-5 first:pt-0 border-t border-border/30 first:border-t-0">
+      <div className="flex items-center gap-2 mb-3">
+        {Icon && <Icon className="size-3.5 text-muted-foreground/60" />}
+        <h3 className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+          {title}
+        </h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// ── Active filter chips with × removal ──────────────────────────────
+
+type ChipDescriptor = {
+  key: string;
+  label: string;
+  value: string;
+  clear: () => void;
+};
+
+function ActiveFilterChips({
+  chips,
+  emptyLabel,
+}: {
+  chips: ChipDescriptor[];
+  emptyLabel: string;
+}) {
+  if (chips.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground/50 italic">{emptyLabel}</p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {chips.map((chip) => (
+        <span
+          key={chip.key}
+          className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1 rounded-md bg-foreground/[0.04] text-[11px] font-medium text-foreground border border-border/40 hover:border-border transition-colors"
+        >
+          <span className="text-muted-foreground/70">{chip.label}</span>
+          <span className="tabular-nums">{chip.value}</span>
+          <button
+            type="button"
+            onClick={chip.clear}
+            className="ml-0.5 inline-flex items-center justify-center size-4 rounded-sm hover:bg-foreground/[0.06] text-muted-foreground/60 hover:text-foreground transition-colors"
+            aria-label="Remove filter"
+          >
+            <X className="size-3" strokeWidth={2.5} />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ── Status dot — color-coded indicator (no marshmallow pill) ────────
+
+function StatusDot({ kind }: { kind: "active" | "dissolved" | "neutral" }) {
+  const color =
+    kind === "active"
+      ? "bg-emerald-500"
+      : kind === "dissolved"
+        ? "bg-rose-500"
+        : "bg-slate-400";
+  return (
+    <span
+      className={cn("inline-block size-1.5 rounded-full shrink-0", color)}
+      aria-hidden="true"
+    />
+  );
+}
+
 // ── Main page ───────────────────────────────────────────────────────
 
 export default function SearchPageWrapper() {
@@ -210,24 +318,39 @@ function SearchPage() {
 
   const store = useSearchStore();
   const {
-    query, industryText, industryCode, companyForm, size,
-    zipcode, region, foundedPeriod, revenueMin, revenueMax,
-    profitMin, profitMax, employeesMin, employeesMax, showDissolved,
+    query, industryText, industryCode, industrySecondaryText, industrySecondaryCode,
+    street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality,
+    contactPhone, contactEmail, contactWww,
+    size, employmentAmount, foundedPeriod,
+    revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax,
+    skipMarketingOptOut,
     showFilters, scrollY, selected, hasSearched,
     setFilter, setScrollY, setHasSearched, setShowFilters,
     toggleSelect, clearSelected, resetAll,
   } = store;
 
   const [committedParams, setCommittedParams] = useState<URLSearchParams | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const currentFilters = useMemo<SearchFiltersState>(() => ({
     query,
     industryText,
     industryCode,
-    companyForm,
-    size,
+    industrySecondaryText,
+    industrySecondaryCode,
+    street,
+    streetcode,
+    numberFrom,
+    letterFrom,
     zipcode,
     region,
+    city,
+    municipality,
+    contactPhone,
+    contactEmail,
+    contactWww,
+    size,
+    employmentAmount,
     foundedPeriod,
     revenueMin,
     revenueMax,
@@ -235,8 +358,8 @@ function SearchPage() {
     profitMax,
     employeesMin,
     employeesMax,
-    showDissolved,
-  }), [query, industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, showDissolved]);
+    skipMarketingOptOut,
+  }), [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, size, employmentAmount, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, skipMarketingOptOut]);
 
   const buildSearchParams = useCallback(() => {
     return buildSearchParamsFromState(currentFilters);
@@ -322,13 +445,9 @@ function SearchPage() {
       toast.error(s.noFilter);
       return;
     }
-    if (hasSegmentationFilter(currentFilters) && !hasNativeSearchFilter(currentFilters)) {
-      toast.error(s.segmentationRequiresNativeFilter);
-      return;
-    }
     setHasSearched(true);
     setCommittedParams(params);
-  }, [buildSearchParams, currentFilters, s, setHasSearched, clearSelected, sub, triggerUpgrade]);
+  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -407,20 +526,81 @@ function SearchPage() {
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const savingCvr = saveCompanyMutation.isPending ? (saveCompanyMutation.variables?.vat ?? null) : (unsaveCompanyMutation.isPending ? unsaveCompanyMutation.variables ?? null : null);
 
+  const activeChips = useMemo<ChipDescriptor[]>(() => {
+    const list: ChipDescriptor[] = [];
+    const labels = s.filters;
+    const push = (key: string, label: string, value: string, clear: () => void) => {
+      if (value) list.push({ key, label, value, clear });
+    };
+
+    if (query) push("query", locale === "da" ? "Navn" : "Name", query, () => setFilter("query", ""));
+    if (industryText) push("industryText", labels.industry, industryText, () => setFilter("industryText", ""));
+    if (industryCode !== "all") {
+      const ind = s.industries.find((i) => i.code === industryCode);
+      push("industryCode", labels.industryCode, ind?.label ?? industryCode, () => setFilter("industryCode", "all"));
+    }
+    if (industrySecondaryText) push("industrySecondaryText", labels.industrySecondaryText, industrySecondaryText, () => setFilter("industrySecondaryText", ""));
+    if (industrySecondaryCode) push("industrySecondaryCode", labels.industrySecondaryCode, industrySecondaryCode, () => setFilter("industrySecondaryCode", ""));
+    if (zipcode) push("zipcode", labels.zipcode, zipcode, () => setFilter("zipcode", ""));
+    if (!zipcode && region !== "all") {
+      const reg = s.regions.find((r) => r.code === region);
+      push("region", labels.region, reg?.label ?? region, () => setFilter("region", "all"));
+    }
+    if (city) push("city", labels.city, city, () => setFilter("city", ""));
+    if (municipality) push("municipality", labels.municipality, municipality, () => setFilter("municipality", ""));
+    if (street) push("street", labels.street, street, () => setFilter("street", ""));
+    if (streetcode) push("streetcode", labels.streetcode, streetcode, () => setFilter("streetcode", ""));
+    if (numberFrom) push("numberFrom", labels.numberFrom, numberFrom + (letterFrom || ""), () => { setFilter("numberFrom", ""); setFilter("letterFrom", ""); });
+    if (contactPhone) push("contactPhone", labels.contactPhone, contactPhone, () => setFilter("contactPhone", ""));
+    if (contactEmail) push("contactEmail", labels.contactEmail, contactEmail, () => setFilter("contactEmail", ""));
+    if (contactWww) push("contactWww", labels.contactWww, contactWww, () => setFilter("contactWww", ""));
+    if (size !== "all") {
+      const sz = s.sizes.find((x) => x.code === size);
+      push("size", labels.size, sz?.label ?? size, () => setFilter("size", "all"));
+    }
+    if (employmentAmount) push("employmentAmount", labels.employmentAmount, employmentAmount, () => setFilter("employmentAmount", ""));
+    if (foundedPeriod !== "all") {
+      const fp = foundedOptions.find((o) => o.code === foundedPeriod);
+      push("foundedPeriod", labels.foundedDate, fp?.label ?? foundedPeriod, () => setFilter("foundedPeriod", "all"));
+    }
+    if (employeesMin > 0 || employeesMax < 5000) {
+      push("employeesRange", labels.employees, `${employeesMin}–${employeesMax >= 5000 ? "5,000+" : employeesMax}`, () => { setFilter("employeesMin", 0); setFilter("employeesMax", 5000); });
+    }
+    if (revenueMin > 0 || revenueMax < 1000) {
+      push("revenueRange", labels.revenue, `${revenueMin}–${revenueMax >= 1000 ? "1bn+" : revenueMax}M`, () => { setFilter("revenueMin", 0); setFilter("revenueMax", 1000); });
+    }
+    if (profitMin > 0 || profitMax < 1000) {
+      push("profitRange", labels.grossProfit, `${profitMin}–${profitMax >= 1000 ? "1bn+" : profitMax}M`, () => { setFilter("profitMin", 0); setFilter("profitMax", 1000); });
+    }
+    return list;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, size, employmentAmount, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax, locale]);
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (industryText) count++;
     if (industryCode !== "all") count++;
-    if (companyForm !== "all") count++;
+    if (industrySecondaryText) count++;
+    if (industrySecondaryCode) count++;
     if (size !== "all") count++;
+    if (employmentAmount) count++;
     if (zipcode) count++;
     if (!zipcode && region !== "all") count++;
+    if (city) count++;
+    if (municipality) count++;
+    if (street) count++;
+    if (streetcode) count++;
+    if (numberFrom) count++;
+    if (letterFrom) count++;
+    if (contactPhone) count++;
+    if (contactEmail) count++;
+    if (contactWww) count++;
     if (foundedPeriod !== "all") count++;
     if (employeesMin > 0 || employeesMax < 5000) count++;
     if (revenueMin > 0 || revenueMax < 1000) count++;
     if (profitMin > 0 || profitMax < 1000) count++;
     return count;
-  }, [industryText, industryCode, companyForm, size, zipcode, region, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
+  }, [industryText, industryCode, industrySecondaryText, industrySecondaryCode, size, employmentAmount, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
 
   return (
     <VideoTrigger featureKey="search">
@@ -486,147 +666,295 @@ function SearchPage() {
 
           {/* ── Filters panel ─────────────────────────────────── */}
           {showFilters && (
-            <div className="mt-4 pt-5 border-t border-border/40 animate-slide-down">
-              {/* Row 1 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.industry}</Label>
-                  <Input
-                    className="h-10"
-                    placeholder={s.filters.industryPlaceholder}
-                    value={industryText}
-                    onChange={(e) => setFilter("industryText", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.industryCode}</Label>
-                  <FilterSelect value={industryCode} onChange={(v) => setFilter("industryCode", v)}>
-                    <option value="all">{s.filters.industryCodePlaceholder}</option>
-                    {s.industries.filter((i) => i.code !== "all").map((ind) => (
-                      <option key={ind.code} value={ind.code}>{ind.label}</option>
-                    ))}
-                  </FilterSelect>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.companyForm}</Label>
-                  <FilterSelect value={companyForm} onChange={(v) => setFilter("companyForm", v)}>
-                    <option value="all">{s.filters.companyFormPlaceholder}</option>
-                    {s.companyForms.filter((f) => f.code !== "all").map((f) => (
-                      <option key={f.code} value={f.code}>{f.label}</option>
-                    ))}
-                  </FilterSelect>
-                </div>
-              </div>
-
-              {/* Row 2 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.size}</Label>
-                  <FilterSelect value={size} onChange={(v) => setFilter("size", v)}>
-                    <option value="all">{s.filters.sizePlaceholder}</option>
-                    {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
-                      <option key={sz.code} value={sz.code}>{sz.label}</option>
-                    ))}
-                  </FilterSelect>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.zipcode}</Label>
-                  <Input
-                    className="h-10"
-                    placeholder={s.filters.zipcodePlaceholder}
-                    value={zipcode}
-                    onChange={(e) => setFilter("zipcode", e.target.value)}
-                  />
-                  <p className="text-[11px] leading-4 text-muted-foreground/70">
-                    {locale === "da"
-                      ? "Et konkret postnummer tilsidesætter region."
-                      : "A specific ZIP code overrides region."}
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.region}</Label>
-                    {zipcode && (
-                      <Badge variant="secondary" className="border-0 h-5 px-2 text-[10px] font-semibold uppercase tracking-wider">
-                        {locale === "da" ? "ZIP overstyrer" : "ZIP overrides"}
-                      </Badge>
+            <div className="mt-4 pt-4 border-t border-border/30 animate-slide-down">
+              {/* Active chips bar */}
+              <div className="pb-4 mb-2 border-b border-border/30">
+                <div className="flex items-center justify-between gap-3 mb-2.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                    {s.filters.activeFilters}
+                    {activeChips.length > 0 && (
+                      <span className="ml-1.5 tabular-nums text-foreground/60">({activeChips.length})</span>
                     )}
-                  </div>
-                  <FilterSelect
-                    value={region}
-                    onChange={(v) => setFilter("region", v)}
-                    disabled={!!zipcode}
+                  </span>
+                  {activeChips.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                    >
+                      <RotateCcw className="size-3" />
+                      {s.filters.clearFilters}
+                    </button>
+                  )}
+                </div>
+                <ActiveFilterChips
+                  chips={activeChips}
+                  emptyLabel={locale === "da" ? "Ingen aktive filtre" : "No active filters"}
+                />
+              </div>
+
+              {/* Industry & Company */}
+              <FilterSection title={s.filters.sectionIdentity} icon={Building2}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FilterField label={s.filters.industry}>
+                    <Input
+                      className="h-9"
+                      placeholder={s.filters.industryPlaceholder}
+                      value={industryText}
+                      onChange={(e) => setFilter("industryText", e.target.value)}
+                    />
+                  </FilterField>
+                  <FilterField label={s.filters.industryCode}>
+                    <FilterSelect value={industryCode} onChange={(v) => setFilter("industryCode", v)}>
+                      <option value="all">{s.filters.industryCodePlaceholder}</option>
+                      {s.industries.filter((i) => i.code !== "all").map((ind) => (
+                        <option key={ind.code} value={ind.code}>{ind.label}</option>
+                      ))}
+                    </FilterSelect>
+                  </FilterField>
+                  <FilterField label={s.filters.industrySecondaryCode} help={s.filters.industrySecondaryCodeHelp}>
+                    <Input
+                      className="h-9 font-mono tabular-nums"
+                      inputMode="numeric"
+                      pattern="\d{6}"
+                      maxLength={6}
+                      placeholder={s.filters.industrySecondaryCodePlaceholder}
+                      value={industrySecondaryCode}
+                      onChange={(e) => setFilter("industrySecondaryCode", e.target.value.replace(/\D/g, ""))}
+                    />
+                  </FilterField>
+                </div>
+              </FilterSection>
+
+              {/* Location */}
+              <FilterSection title={s.filters.sectionLocation} icon={MapPin}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FilterField
+                    label={s.filters.zipcode}
+                    help={locale === "da" ? "Tilsidesætter regionsvalget." : "Overrides region selection."}
                   >
-                    <option value="all">{s.filters.regionPlaceholder}</option>
-                    {s.regions.filter((r) => r.code !== "all").map((reg) => (
-                      <option key={reg.code} value={reg.code}>{reg.label}</option>
-                    ))}
-                  </FilterSelect>
-                  <p className={cn(
-                    "text-[11px] leading-4",
-                    zipcode ? "text-muted-foreground/50" : "text-muted-foreground/70"
-                  )}>
-                    {zipcode
-                      ? (locale === "da"
-                        ? "Region er låst, mens postnummer er udfyldt."
-                        : "Region is locked while ZIP code is filled.")
-                      : (region !== "all"
-                        ? regionHelperCopy[region] ?? ""
-                        : (locale === "da"
-                          ? "Vælg en region for at søge via regionale postnumre."
-                          : "Choose a region to search by regional ZIP codes."))}
-                  </p>
+                    <Input
+                      className="h-9 font-mono tabular-nums"
+                      inputMode="numeric"
+                      pattern="\d{4}"
+                      maxLength={4}
+                      placeholder={s.filters.zipcodePlaceholder}
+                      value={zipcode}
+                      onChange={(e) => setFilter("zipcode", e.target.value.replace(/\D/g, ""))}
+                    />
+                  </FilterField>
+                  <FilterField
+                    label={s.filters.region}
+                    help={zipcode
+                      ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
+                      : (region !== "all" ? regionHelperCopy[region] : (locale === "da" ? "Vælg en region for regionale postnumre." : "Select a region for regional ZIPs."))
+                    }
+                  >
+                    <FilterSelect
+                      value={region}
+                      onChange={(v) => setFilter("region", v)}
+                      disabled={!!zipcode}
+                    >
+                      <option value="all">{s.filters.regionPlaceholder}</option>
+                      {s.regions.filter((r) => r.code !== "all").map((reg) => (
+                        <option key={reg.code} value={reg.code}>{reg.label}</option>
+                      ))}
+                    </FilterSelect>
+                  </FilterField>
+                  <FilterField label={s.filters.city}>
+                    <Input
+                      className="h-9"
+                      placeholder={s.filters.cityPlaceholder}
+                      value={city}
+                      onChange={(e) => setFilter("city", e.target.value)}
+                    />
+                  </FilterField>
                 </div>
-              </div>
+              </FilterSection>
 
-              {/* Row 3 — founded */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.filters.foundedDate}</Label>
-                  <FilterSelect value={foundedPeriod} onChange={(v) => setFilter("foundedPeriod", v)}>
-                    {foundedOptions.map((o) => (
-                      <option key={o.code} value={o.code}>{o.label}</option>
-                    ))}
-                  </FilterSelect>
+              {/* Workforce & age */}
+              <FilterSection title={s.filters.sectionWorkforce} icon={Users}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FilterField label={s.filters.size}>
+                    <FilterSelect value={size} onChange={(v) => setFilter("size", v)}>
+                      <option value="all">{s.filters.sizePlaceholder}</option>
+                      {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
+                        <option key={sz.code} value={sz.code}>{sz.label}</option>
+                      ))}
+                    </FilterSelect>
+                  </FilterField>
+                  <FilterField label={s.filters.employmentAmount} help={s.filters.employmentAmountHelp}>
+                    <Input
+                      className="h-9 font-mono tabular-nums"
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      placeholder={s.filters.employmentAmountPlaceholder}
+                      value={employmentAmount}
+                      onChange={(e) => setFilter("employmentAmount", e.target.value.replace(/\D/g, ""))}
+                    />
+                  </FilterField>
+                  <FilterField label={s.filters.foundedDate}>
+                    <FilterSelect value={foundedPeriod} onChange={(v) => setFilter("foundedPeriod", v)}>
+                      {foundedOptions.map((o) => (
+                        <option key={o.code} value={o.code}>{o.label}</option>
+                      ))}
+                    </FilterSelect>
+                  </FilterField>
                 </div>
-              </div>
+              </FilterSection>
 
-              {/* Company status toggle */}
-              <div className="py-4 border-t border-b border-border/40">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="show-dissolved"
-                    checked={showDissolved}
-                    onCheckedChange={(v) => setFilter("showDissolved", !!v)}
-                    className="size-4"
-                  />
-                  <Label htmlFor="show-dissolved" className="text-sm font-medium cursor-pointer">
-                    {s.filters.showDissolved}
-                  </Label>
-                </div>
-              </div>
-
-              {/* Segmentation sliders */}
-              <div className="pt-5 border-t border-border/40">
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                    <SlidersHorizontal className="size-3.5 text-amber-500" />
-                  </div>
-                  <h3 className="text-sm font-bold text-foreground">{s.filters.segmentation}</h3>
-                </div>
+              {/* Financials (segmentation post-filters) */}
+              <FilterSection title={s.filters.sectionFinancials} icon={TrendingUp}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
                   <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" />
                   <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" />
                   <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" />
                 </div>
-              </div>
+              </FilterSection>
 
-              <div className="flex justify-end mt-5">
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground gap-1.5">
-                  <RotateCcw className="size-3.5" />
-                  {s.filters.clearFilters}
-                </Button>
-              </div>
+              {/* Advanced */}
+              <section className="border-t border-border/30 pt-4 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70 hover:text-foreground transition-colors mb-3"
+                >
+                  <ChevronRight className={cn("size-3.5 transition-transform", showAdvanced && "rotate-90")} />
+                  {s.filters.sectionAdvanced}
+                </button>
+                {showAdvanced && (
+                  <div className="space-y-5 pb-1">
+                    {/* Address detail */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                        {s.filters.subsectionAddress}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                        <FilterField label={s.filters.street}>
+                          <Input
+                            value={street}
+                            onChange={(e) => setFilter("street", e.target.value)}
+                            placeholder={s.filters.streetPlaceholder}
+                            className="h-9"
+                          />
+                        </FilterField>
+                        <FilterField label={s.filters.streetcode} help={s.filters.streetcodeHelp}>
+                          <Input
+                            value={streetcode}
+                            onChange={(e) => setFilter("streetcode", e.target.value.replace(/\D/g, ""))}
+                            placeholder={s.filters.streetcodePlaceholder}
+                            inputMode="numeric"
+                            pattern="\d{1,4}"
+                            maxLength={4}
+                            className="h-9 font-mono tabular-nums"
+                          />
+                        </FilterField>
+                        <div className="grid grid-cols-2 gap-3">
+                          <FilterField label={s.filters.numberFrom}>
+                            <Input
+                              value={numberFrom}
+                              onChange={(e) => setFilter("numberFrom", e.target.value)}
+                              placeholder={s.filters.numberFromPlaceholder}
+                              inputMode="numeric"
+                              className="h-9 font-mono tabular-nums"
+                            />
+                          </FilterField>
+                          <FilterField label={s.filters.letterFrom}>
+                            <Input
+                              value={letterFrom}
+                              onChange={(e) => setFilter("letterFrom", e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase())}
+                              placeholder={s.filters.letterFromPlaceholder}
+                              maxLength={1}
+                              className="h-9 font-mono uppercase"
+                            />
+                          </FilterField>
+                        </div>
+                        <FilterField label={s.filters.municipality} help={s.filters.municipalityHelp}>
+                          <Input
+                            value={municipality}
+                            onChange={(e) => setFilter("municipality", e.target.value.replace(/\D/g, ""))}
+                            placeholder={s.filters.municipalityPlaceholder}
+                            inputMode="numeric"
+                            pattern="\d{1,3}"
+                            maxLength={3}
+                            className="h-9 font-mono tabular-nums"
+                          />
+                        </FilterField>
+                        <FilterField label={s.filters.industrySecondaryText}>
+                          <Input
+                            value={industrySecondaryText}
+                            onChange={(e) => setFilter("industrySecondaryText", e.target.value)}
+                            placeholder={s.filters.industrySecondaryTextPlaceholder}
+                            className="h-9"
+                          />
+                        </FilterField>
+                      </div>
+                    </div>
+
+                    {/* Contact */}
+                    <div className="pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                        {s.filters.subsectionContact}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                        <FilterField label={s.filters.contactPhone}>
+                          <Input
+                            value={contactPhone}
+                            onChange={(e) => setFilter("contactPhone", e.target.value)}
+                            placeholder={s.filters.contactPhonePlaceholder}
+                            inputMode="tel"
+                            type="tel"
+                            className="h-9 font-mono tabular-nums"
+                          />
+                        </FilterField>
+                        <FilterField label={s.filters.contactEmail}>
+                          <Input
+                            type="email"
+                            value={contactEmail}
+                            onChange={(e) => setFilter("contactEmail", e.target.value)}
+                            placeholder={s.filters.contactEmailPlaceholder}
+                            inputMode="email"
+                            className="h-9"
+                          />
+                        </FilterField>
+                        <FilterField label={s.filters.contactWww}>
+                          <Input
+                            value={contactWww}
+                            onChange={(e) => setFilter("contactWww", e.target.value)}
+                            placeholder={s.filters.contactWwwPlaceholder}
+                            inputMode="url"
+                            className="h-9"
+                          />
+                        </FilterField>
+                      </div>
+                    </div>
+
+                    {/* Compliance */}
+                    <div className="pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                        {s.filters.subsectionCompliance}
+                      </h4>
+                      <label htmlFor="skip-marketing-optout" className="flex items-start gap-3 cursor-pointer group">
+                        <Checkbox
+                          id="skip-marketing-optout"
+                          checked={skipMarketingOptOut}
+                          onCheckedChange={(v) => setFilter("skipMarketingOptOut", !!v)}
+                          className="size-4 mt-0.5"
+                        />
+                        <div className="flex-1">
+                          <span className="block text-[13px] font-medium text-foreground group-hover:text-foreground/90">
+                            {s.filters.skipMarketingOptOut}
+                          </span>
+                          <span className="block text-[11px] text-muted-foreground/70 mt-0.5">
+                            {s.filters.skipMarketingOptOutHelp}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           )}
         </CardContent>
@@ -638,12 +966,18 @@ function SearchPage() {
       {/* ── Results ──────────────────────────────────────────── */}
       {!isLoading && hasSearched && results.length > 0 && (
         <>
+          {/* Filter scope banner */}
+          <p className="text-xs text-muted-foreground mb-3">
+            {s.filterScopeBanner}
+          </p>
+
           {/* Results header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">
+                {s.showing}{" "}
                 <span className="font-bold text-foreground">{results.length}</span>{" "}
-                {s.results}
+                {searchData?.truncated ? s.refineForMore : s.results}
               </p>
               {isFetching && <Loader2 className="size-3.5 text-primary animate-spin" />}
             </div>

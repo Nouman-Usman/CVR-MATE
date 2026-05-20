@@ -6,6 +6,7 @@ interface SearchResponse {
   results: Record<string, unknown>[];
   count: number;
   hasMore: boolean;
+  truncated?: boolean;
   error?: string;
 }
 

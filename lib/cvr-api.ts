@@ -153,6 +153,8 @@ export interface SearchCompanyParams {
   life_adprotected?: string;
   address_street?: string;
   address_streetcode?: string;
+  address_numberfrom?: string;
+  address_letterfrom?: string;
   address_zipcode?: string;
   address_zipcode_list?: string;
   address_city?: string;
