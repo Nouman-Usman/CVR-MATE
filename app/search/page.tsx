@@ -118,6 +118,8 @@ function RangeSlider({
   formatMax,
   helpInfo,
   helpLabels,
+  disabled,
+  disabledHelp,
 }: {
   label: string;
   min: number;
@@ -134,15 +136,17 @@ function RangeSlider({
     openLabel: string;
     closeLabel: string;
   };
+  disabled?: boolean;
+  disabledHelp?: string;
 }) {
   const leftPercent = ((minVal - min) / (max - min)) * 100;
   const rightPercent = ((maxVal - min) / (max - min)) * 100;
 
   return (
-    <div className="space-y-3">
+    <div className={cn("space-y-3", disabled && "opacity-50 pointer-events-none")}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</Label>
+          <Label className={cn("text-xs font-semibold uppercase tracking-wider", disabled ? "text-muted-foreground/50" : "text-muted-foreground")}>{label}</Label>
           {helpInfo && helpLabels && (
             <FilterHelpButton
               info={helpInfo}
@@ -153,14 +157,14 @@ function RangeSlider({
             />
           )}
         </div>
-        <span className="text-xs font-bold text-foreground tabular-nums">
+        <span className={cn("text-xs font-bold tabular-nums", disabled ? "text-muted-foreground/50" : "text-foreground")}>
           {minVal.toLocaleString()} – {maxVal >= max ? formatMax : maxVal.toLocaleString()}
         </span>
       </div>
       <div className="relative h-6 flex items-center">
-        <div className="absolute h-1.5 w-full bg-slate-100 rounded-full" />
+        <div className={cn("absolute h-1.5 w-full rounded-full", disabled ? "bg-slate-100/50" : "bg-slate-100")} />
         <div
-          className="absolute h-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
+          className={cn("absolute h-1.5 rounded-full", disabled ? "bg-slate-300" : "bg-gradient-to-r from-blue-500 to-cyan-400")}
           style={{ left: `${leftPercent}%`, width: `${rightPercent - leftPercent}%` }}
         />
         <input
@@ -169,7 +173,8 @@ function RangeSlider({
           max={max}
           value={minVal}
           onChange={(e) => onMinChange(Math.min(Number(e.target.value), maxVal - 1))}
-          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
+          disabled={disabled}
+          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none disabled:opacity-50 [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform disabled:[&::-webkit-slider-thumb]:cursor-not-allowed disabled:[&::-webkit-slider-thumb]:opacity-60"
         />
         <input
           type="range"
@@ -177,10 +182,12 @@ function RangeSlider({
           max={max}
           value={maxVal}
           onChange={(e) => onMaxChange(Math.max(Number(e.target.value), minVal + 1))}
-          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
+          disabled={disabled}
+          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none disabled:opacity-50 [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform disabled:[&::-webkit-slider-thumb]:cursor-not-allowed disabled:[&::-webkit-slider-thumb]:opacity-60"
         />
       </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground/50 tabular-nums font-medium">
+      {disabledHelp && <p className="text-[10.5px] leading-tight text-muted-foreground/60">{disabledHelp}</p>}
+      <div className={cn("flex justify-between text-[10px] tabular-nums font-medium", disabled ? "text-muted-foreground/40" : "text-muted-foreground/50")}>
         <span>{min.toLocaleString()}</span>
         <span>{formatMax}</span>
       </div>
@@ -917,7 +924,7 @@ function SearchPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <FilterField
                     label={s.filters.zipcode}
-                    help={locale === "da" ? "Tilsidesætter regionsvalget." : "Overrides region selection."}
+                    help={locale === "da" ? "Tilsidesætter region og by." : "Overrides region and city."}
                     helpInfo={filterHelp.zipcode}
                     helpLabels={filterHelpLabels}
                   >
@@ -951,12 +958,21 @@ function SearchPage() {
                       ))}
                     </FilterSelect>
                   </FilterField>
-                  <FilterField label={s.filters.city} helpInfo={filterHelp.city} helpLabels={filterHelpLabels}>
+                  <FilterField
+                    label={s.filters.city}
+                    help={zipcode
+                      ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
+                      : (region !== "all" ? (locale === "da" ? "Låst — region aktivt." : "Locked — region active.") : undefined)
+                    }
+                    helpInfo={filterHelp.city}
+                    helpLabels={filterHelpLabels}
+                  >
                     <Input
                       className="h-9"
                       placeholder={s.filters.cityPlaceholder}
                       value={city}
                       onChange={(e) => setFilter("city", e.target.value)}
+                      disabled={!!zipcode || region !== "all"}
                     />
                   </FilterField>
                 </div>
@@ -965,8 +981,13 @@ function SearchPage() {
               {/* Workforce & age */}
               <FilterSection title={s.filters.sectionWorkforce} icon={Users}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <FilterField label={s.filters.size} helpInfo={filterHelp.size} helpLabels={filterHelpLabels}>
-                    <FilterSelect value={size} onChange={(v) => setFilter("size", v)}>
+                  <FilterField
+                    label={s.filters.size}
+                    help={employmentAmount ? (locale === "da" ? "Låst — specifik medarbejderantal aktivt." : "Locked — exact employment count active.") : undefined}
+                    helpInfo={filterHelp.size}
+                    helpLabels={filterHelpLabels}
+                  >
+                    <FilterSelect value={size} onChange={(v) => setFilter("size", v)} disabled={!!employmentAmount}>
                       <option value="all">{s.filters.sizePlaceholder}</option>
                       {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
                         <option key={sz.code} value={sz.code}>{sz.label}</option>
@@ -999,7 +1020,7 @@ function SearchPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
                   <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" helpInfo={filterHelp.revenue} helpLabels={filterHelpLabels} />
                   <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" helpInfo={filterHelp.grossProfit} helpLabels={filterHelpLabels} />
-                  <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" helpInfo={filterHelp.employees} helpLabels={filterHelpLabels} />
+                  <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" helpInfo={filterHelp.employees} helpLabels={filterHelpLabels} disabled={!!employmentAmount || size !== "all"} disabledHelp={employmentAmount ? (locale === "da" ? "Låst — specifik medarbejderantal aktivt." : "Locked — exact employment count active.") : size !== "all" ? (locale === "da" ? "Låst — virksomhedsstørrelse kategori aktivt." : "Locked — company size bracket active.") : undefined} />
                 </div>
               </FilterSection>
 
@@ -1030,9 +1051,9 @@ function SearchPage() {
                                 setFilter("companyformDescription", "");
                                 return;
                               }
-                              const form = companyFormOptions.find((o) => o.code === v);
+                              // Only set code; don't set description (CVR expects short codes, not long Danish names)
                               setFilter("companyformCode", v);
-                              setFilter("companyformDescription", form?.description ?? "");
+                              setFilter("companyformDescription", "");
                             }}
                           >
                             <option value="all">{s.filters.companyformCodePlaceholder}</option>
@@ -1049,12 +1070,32 @@ function SearchPage() {
                             ))}
                           </FilterSelect>
                         </FilterField>
-                        <FilterField label={s.filters.companystatusCode} help={s.filters.companystatusCodeHelp} helpInfo={filterHelp.companystatusCode} helpLabels={filterHelpLabels}>
-                          <FilterSelect value={companystatusCode || "all"} onChange={(v) => setFilter("companystatusCode", v === "all" ? "" : v)}>
+                        <FilterField
+                          label={s.filters.companystatusCode}
+                          help={foundedPeriod === "last30" || foundedPeriod === "last90"
+                            ? (locale === "da" ? "Låst — kun aktive for nye virksomheder." : "Locked — active only for recent companies.")
+                            : s.filters.companystatusCodeHelp
+                          }
+                          helpInfo={filterHelp.companystatusCode}
+                          helpLabels={filterHelpLabels}
+                        >
+                          <FilterSelect
+                            value={companystatusCode || "all"}
+                            onChange={(v) => setFilter("companystatusCode", v === "all" ? "" : v)}
+                            disabled={foundedPeriod === "last30" || foundedPeriod === "last90"}
+                          >
                             <option value="all">{s.filters.companystatusCodePlaceholder}</option>
-                            {statusOptions.map((o) => (
-                              <option key={o.code} value={o.code}>{o.label}</option>
-                            ))}
+                            {statusOptions
+                              .filter((o) => {
+                                // If recent founded period, only show active status (20)
+                                if (foundedPeriod === "last30" || foundedPeriod === "last90") {
+                                  return o.code === "20";
+                                }
+                                return true;
+                              })
+                              .map((o) => (
+                                <option key={o.code} value={o.code}>{o.label}</option>
+                              ))}
                           </FilterSelect>
                         </FilterField>
                         <FilterField label={s.filters.statusBankrupt} helpInfo={filterHelp.statusBankrupt} helpLabels={filterHelpLabels}>
@@ -1099,7 +1140,7 @@ function SearchPage() {
                             ))}
                           </FilterSelect>
                         </FilterField>
-                        <FilterField label={s.filters.infoEanId} helpInfo={filterHelp.infoEanId} helpLabels={filterHelpLabels}>
+                        <FilterField label={s.filters.infoEanId} help={locale === "da" ? "Kun en lille del af virksomheder har EAN registreret." : "Only a small portion of companies have EAN registered."} helpInfo={filterHelp.infoEanId} helpLabels={filterHelpLabels}>
                           <Input
                             value={infoEanId}
                             onChange={(e) => setFilter("infoEanId", e.target.value.replace(/\D/g, ""))}
@@ -1108,7 +1149,7 @@ function SearchPage() {
                             className="h-9 font-mono tabular-nums"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.infoLeiId} helpInfo={filterHelp.infoLeiId} helpLabels={filterHelpLabels}>
+                        <FilterField label={s.filters.infoLeiId} help={locale === "da" ? "Meget få danske virksomheder har LEI kode." : "Very few Danish companies have LEI codes."} helpInfo={filterHelp.infoLeiId} helpLabels={filterHelpLabels}>
                           <Input
                             value={infoLeiId}
                             onChange={(e) => setFilter("infoLeiId", e.target.value.toUpperCase())}
@@ -1192,7 +1233,7 @@ function SearchPage() {
                         {s.filters.subsectionContact}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
-                        <FilterField label={s.filters.contactPhone} helpInfo={filterHelp.contactPhone} helpLabels={filterHelpLabels}>
+                        <FilterField label={s.filters.contactPhone} help={locale === "da" ? "Ikke alle virksomheder har telefon registreret." : "Not all companies have phone registered."} helpInfo={filterHelp.contactPhone} helpLabels={filterHelpLabels}>
                           <Input
                             value={contactPhone}
                             onChange={(e) => setFilter("contactPhone", e.target.value)}
@@ -1202,7 +1243,7 @@ function SearchPage() {
                             className="h-9 font-mono tabular-nums"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.contactEmail} helpInfo={filterHelp.contactEmail} helpLabels={filterHelpLabels}>
+                        <FilterField label={s.filters.contactEmail} help={locale === "da" ? "Ikke alle virksomheder har e-mail registreret." : "Not all companies have email registered."} helpInfo={filterHelp.contactEmail} helpLabels={filterHelpLabels}>
                           <Input
                             type="email"
                             value={contactEmail}
@@ -1212,7 +1253,7 @@ function SearchPage() {
                             className="h-9"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.contactWww} helpInfo={filterHelp.contactWww} helpLabels={filterHelpLabels}>
+                        <FilterField label={s.filters.contactWww} help={locale === "da" ? "Ikke alle virksomheder har hjemmeside registreret." : "Not all companies have website registered."} helpInfo={filterHelp.contactWww} helpLabels={filterHelpLabels}>
                           <Input
                             value={contactWww}
                             onChange={(e) => setFilter("contactWww", e.target.value)}

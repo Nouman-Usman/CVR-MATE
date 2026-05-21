@@ -193,14 +193,15 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   if (filters.numberFrom) params.set("number_from", filters.numberFrom);
   if (filters.letterFrom) params.set("letter_from", filters.letterFrom);
 
+  // Priority: zipcode (most precise) > region > city
   if (filters.zipcode) {
     params.set("zipcode", filters.zipcode);
   } else if (filters.region !== "all") {
     const zips = regionZipcodeMap[filters.region];
     if (zips) params.set("zipcode_list", zips);
+  } else if (filters.city) {
+    params.set("city", filters.city);
   }
-
-  if (filters.city) params.set("city", filters.city);
   if (filters.municipality) params.set("municipality", filters.municipality);
 
   if (filters.contactPhone) params.set("phone", filters.contactPhone);
@@ -215,7 +216,14 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   if (filters.companyformCode) params.set("companyform_code", filters.companyformCode);
   if (filters.companyformDescription) params.set("companyform_description", filters.companyformDescription);
   if (filters.companyformHolding !== "all") params.set("companyform_holding", filters.companyformHolding);
-  if (filters.companystatusCode) params.set("companystatus_code", filters.companystatusCode);
+
+  // Skip dissolved status if foundedPeriod is recent (illogical: company <90 days old shouldn't be dissolved)
+  const isRecentFounded = filters.foundedPeriod === "last30" || filters.foundedPeriod === "last90";
+  const isDissolvedStatus = filters.companystatusCode && filters.companystatusCode !== "20";
+  if (filters.companystatusCode && !(isRecentFounded && isDissolvedStatus)) {
+    params.set("companystatus_code", filters.companystatusCode);
+  }
+
   if (filters.statusBankrupt !== "all") params.set("status_bankrupt", filters.statusBankrupt);
   if (filters.capitalCapital) params.set("capital_capital", filters.capitalCapital);
   if (filters.capitalCurrency) params.set("capital_currency", filters.capitalCurrency);
@@ -224,16 +232,32 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   if (filters.infoLeiId) params.set("info_lei_id", filters.infoLeiId);
 
   const sizeRange = sizeToEmploymentRange(filters.size);
-  const employeeMin = filters.employeesMin > 0 ? filters.employeesMin : sizeRange.min;
-  const employeeMax = filters.employeesMax < 5000 ? filters.employeesMax : sizeRange.max;
+  // Priority: employmentAmount > size bracket > segmentation slider
+  // If employmentAmount set, skip all size/slider params
+  // If size bracket set, use it; skip segmentation slider
+  // Otherwise use segmentation slider
+  let employeeMin: number | undefined;
+  let employeeMax: number | undefined;
+
+  if (!filters.employmentAmount) {
+    if (filters.size !== "all") {
+      employeeMin = sizeRange.min;
+      employeeMax = sizeRange.max;
+    } else {
+      employeeMin = filters.employeesMin > 0 ? filters.employeesMin : undefined;
+      employeeMax = filters.employeesMax < 5000 ? filters.employeesMax : undefined;
+    }
+  }
+
   if (employeeMin !== undefined) params.set("employment_interval_low", String(employeeMin));
   setNumberParam(params, "seg_employees_min", employeeMin);
   setNumberParam(params, "seg_employees_max", employeeMax);
 
-  if (filters.revenueMin > 0) params.set("seg_revenue_min", String(filters.revenueMin));
-  if (filters.revenueMax < 1000) params.set("seg_revenue_max", String(filters.revenueMax));
-  if (filters.profitMin > 0) params.set("seg_profit_min", String(filters.profitMin));
-  if (filters.profitMax < 1000) params.set("seg_profit_max", String(filters.profitMax));
+  // Financial range validation: skip inverted ranges (min > max)
+  if (filters.revenueMin > 0 && filters.revenueMin <= filters.revenueMax) params.set("seg_revenue_min", String(filters.revenueMin));
+  if (filters.revenueMax < 1000 && filters.revenueMax >= filters.revenueMin) params.set("seg_revenue_max", String(filters.revenueMax));
+  if (filters.profitMin > 0 && filters.profitMin <= filters.profitMax) params.set("seg_profit_min", String(filters.profitMin));
+  if (filters.profitMax < 1000 && filters.profitMax >= filters.profitMin) params.set("seg_profit_max", String(filters.profitMax));
 
   // Skip emitting ad_protected if no other filter is set — a lone refinement
   // flag must not qualify as a valid search.
