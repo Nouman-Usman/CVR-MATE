@@ -49,6 +49,7 @@ import {
   ChevronRight,
   RotateCcw,
   X,
+  HelpCircle,
   Building2,
   MapPin,
   Users,
@@ -115,6 +116,8 @@ function RangeSlider({
   onMinChange,
   onMaxChange,
   formatMax,
+  helpInfo,
+  helpLabels,
 }: {
   label: string;
   min: number;
@@ -124,6 +127,13 @@ function RangeSlider({
   onMinChange: (v: number) => void;
   onMaxChange: (v: number) => void;
   formatMax: string;
+  helpInfo?: FilterHelpInfo;
+  helpLabels?: {
+    whyLabel: string;
+    howLabel: string;
+    openLabel: string;
+    closeLabel: string;
+  };
 }) {
   const leftPercent = ((minVal - min) / (max - min)) * 100;
   const rightPercent = ((maxVal - min) / (max - min)) * 100;
@@ -131,7 +141,18 @@ function RangeSlider({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</Label>
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</Label>
+          {helpInfo && helpLabels && (
+            <FilterHelpButton
+              info={helpInfo}
+              whyLabel={helpLabels.whyLabel}
+              howLabel={helpLabels.howLabel}
+              openLabel={helpLabels.openLabel}
+              closeLabel={helpLabels.closeLabel}
+            />
+          )}
+        </div>
         <span className="text-xs font-bold text-foreground tabular-nums">
           {minVal.toLocaleString()} – {maxVal >= max ? formatMax : maxVal.toLocaleString()}
         </span>
@@ -194,18 +215,101 @@ function FilterSelect({
 
 // ── Filter field wrapper — consistent label/input/help rhythm ───────
 
+type FilterHelpInfo = {
+  title: string;
+  why: string;
+  how: string;
+};
+
+function FilterHelpButton({
+  info,
+  whyLabel,
+  howLabel,
+  openLabel,
+  closeLabel,
+}: {
+  info: FilterHelpInfo;
+  whyLabel: string;
+  howLabel: string;
+  openLabel: string;
+  closeLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground/55 transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+        aria-label={`${openLabel}: ${info.title}`}
+      >
+        <HelpCircle className="size-3.5" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{info.title}</DialogTitle>
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+              {whyLabel}
+            </p>
+            <DialogDescription>
+              {info.why}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+              {howLabel}
+            </p>
+            <p className="text-sm leading-6 text-foreground/80">{info.how}</p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose render={<Button variant="outline" />}>
+              {closeLabel}
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function FilterField({
   label,
   help,
+  helpInfo,
+  helpLabels,
   children,
 }: {
   label: string;
   help?: string;
+  helpInfo?: FilterHelpInfo;
+  helpLabels?: {
+    whyLabel: string;
+    howLabel: string;
+    openLabel: string;
+    closeLabel: string;
+  };
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[11px] font-semibold text-foreground/70 tracking-wide">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label className="text-[11px] font-semibold text-foreground/70 tracking-wide">{label}</Label>
+        {helpInfo && helpLabels && (
+          <FilterHelpButton
+            info={helpInfo}
+            whyLabel={helpLabels.whyLabel}
+            howLabel={helpLabels.howLabel}
+            openLabel={helpLabels.openLabel}
+            closeLabel={helpLabels.closeLabel}
+          />
+        )}
+      </div>
       {children}
       {help && <p className="text-[10.5px] leading-tight text-muted-foreground/60">{help}</p>}
     </div>
@@ -280,23 +384,6 @@ function ActiveFilterChips({
   );
 }
 
-// ── Status dot — color-coded indicator (no marshmallow pill) ────────
-
-function StatusDot({ kind }: { kind: "active" | "dissolved" | "neutral" }) {
-  const color =
-    kind === "active"
-      ? "bg-emerald-500"
-      : kind === "dissolved"
-        ? "bg-rose-500"
-        : "bg-slate-400";
-  return (
-    <span
-      className={cn("inline-block size-1.5 rounded-full shrink-0", color)}
-      aria-hidden="true"
-    />
-  );
-}
-
 // ── Main page ───────────────────────────────────────────────────────
 
 export default function SearchPageWrapper() {
@@ -312,6 +399,13 @@ function SearchPage() {
   const router = useRouter();
   const urlParams = useSearchParams();
   const s = t.search;
+  const filterHelp = s.filters.help.fields;
+  const filterHelpLabels = {
+    whyLabel: s.filters.help.whyLabel,
+    howLabel: s.filters.help.howLabel,
+    openLabel: s.filters.help.openLabel,
+    closeLabel: s.filters.help.closeLabel,
+  };
 
   const { data: sub } = useSubscription();
   const { triggerUpgrade } = useUpgradePrompt();
@@ -322,6 +416,9 @@ function SearchPage() {
     street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality,
     contactPhone, contactEmail, contactWww,
     size, employmentAmount, foundedPeriod,
+    companyformCode, companyformDescription, companyformHolding,
+    companystatusCode, statusBankrupt,
+    capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId,
     revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax,
     skipMarketingOptOut,
     showFilters, scrollY, selected, hasSearched,
@@ -351,6 +448,16 @@ function SearchPage() {
     contactWww,
     size,
     employmentAmount,
+    companyformCode,
+    companyformDescription,
+    companyformHolding,
+    companystatusCode,
+    statusBankrupt,
+    capitalCapital,
+    capitalCurrency,
+    capitalIpo,
+    infoEanId,
+    infoLeiId,
     foundedPeriod,
     revenueMin,
     revenueMax,
@@ -359,7 +466,7 @@ function SearchPage() {
     employeesMin,
     employeesMax,
     skipMarketingOptOut,
-  }), [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, size, employmentAmount, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, skipMarketingOptOut]);
+  }), [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, skipMarketingOptOut]);
 
   const buildSearchParams = useCallback(() => {
     return buildSearchParamsFromState(currentFilters);
@@ -505,6 +612,47 @@ function SearchPage() {
     { code: "last3y", label: locale === "da" ? "Sidste 3 år" : "Last 3 years" },
   ];
 
+  const booleanOptions = [
+    { code: "all", label: locale === "da" ? "Alle" : "Any" },
+    { code: "true", label: locale === "da" ? "Ja" : "Yes" },
+    { code: "false", label: locale === "da" ? "Nej" : "No" },
+  ];
+
+  const statusOptions = [
+    { code: "20", label: locale === "da" ? "20 - I drift" : "20 - Active" },
+    { code: "3", label: "3 - OPLØST" },
+    { code: "4", label: "4 - OPLØST EFTER ERKLÆRING" },
+    { code: "5", label: "5 - OPLØST EFTER FRIVILLIG LIKVIDATION" },
+    { code: "6", label: "6 - OPLØST EFTER FUSION" },
+    { code: "7", label: "7 - OPLØST EFTER KONKURS" },
+    { code: "8", label: "8 - OPLØST EFTER SPALTNING" },
+    { code: "10", label: "10 - SLETTET" },
+    { code: "11", label: "11 - TVANGSOPLØST" },
+    { code: "12", label: "12 - UDEN RETSVIRKNING" },
+    { code: "13", label: "13 - UNDER FRIVILLIG LIKVIDATION" },
+    { code: "14", label: "14 - UNDER KONKURS" },
+    { code: "15", label: "15 - UNDER REASSUMERING" },
+    { code: "17", label: "17 - UNDER REKONSTRUKTION" },
+    { code: "18", label: "18 - UNDER TVANGSOPLØSNING" },
+    { code: "19", label: "19 - OPHØRT" },
+    { code: "21", label: "21 - OPLØST EFTER GRÆNSEOVERSKRIDENDE HJEMSTEDSFLYTNING" },
+    { code: "23", label: "23 - OPLØST EFTER GRÆNSEOVERSKRIDENDE FUSION" },
+    { code: "24", label: "24 - LUKKET" },
+  ];
+
+  const companyFormOptions = [
+    { code: "10", description: "Enkeltmandsvirksomhed", label: locale === "da" ? "10 - Enkeltmandsvirksomhed" : "10 - Sole proprietorship" },
+    { code: "15", description: "Interessentskab", label: locale === "da" ? "15 - Interessentskab" : "15 - Partnership" },
+    { code: "30", description: "Aktieselskab", label: locale === "da" ? "30 - Aktieselskab (A/S)" : "30 - Public limited company (A/S)" },
+    { code: "40", description: "Anpartsselskab", label: locale === "da" ? "40 - Anpartsselskab (ApS)" : "40 - Private limited company (ApS)" },
+    { code: "45", description: "Iværksætterselskab", label: locale === "da" ? "45 - Iværksætterselskab (IVS)" : "45 - Entrepreneurial company (IVS)" },
+    { code: "60", description: "Forening", label: locale === "da" ? "60 - Forening" : "60 - Association" },
+    { code: "80", description: "Fonden eller andre selvejende institutioner", label: locale === "da" ? "80 - Fond / selvejende institution" : "80 - Foundation / self-governing institution" },
+    { code: "90", description: "Anden udenlandsk virksomhed", label: locale === "da" ? "90 - Anden udenlandsk virksomhed" : "90 - Other foreign company" },
+  ];
+
+  const currencyOptions = ["DKK", "EUR", "USD", "GBP", "SEK", "NOK"];
+
   const regionHelperCopy: Record<string, string> = {
     hovedstaden: locale === "da"
       ? "Omfatter København, Frederiksberg, Gentofte og omegn."
@@ -559,6 +707,35 @@ function SearchPage() {
       push("size", labels.size, sz?.label ?? size, () => setFilter("size", "all"));
     }
     if (employmentAmount) push("employmentAmount", labels.employmentAmount, employmentAmount, () => setFilter("employmentAmount", ""));
+    if (companyformCode) {
+      const form = companyFormOptions.find((o) => o.code === companyformCode);
+      push("companyformCode", labels.companyformCode, form?.label ?? companyformCode, () => {
+        setFilter("companyformCode", "");
+        setFilter("companyformDescription", "");
+      });
+    } else if (companyformDescription) {
+      push("companyformDescription", labels.companyformDescription, companyformDescription, () => setFilter("companyformDescription", ""));
+    }
+    if (companyformHolding !== "all") {
+      const opt = booleanOptions.find((o) => o.code === companyformHolding);
+      push("companyformHolding", labels.companyformHolding, opt?.label ?? companyformHolding, () => setFilter("companyformHolding", "all"));
+    }
+    if (companystatusCode) {
+      const opt = statusOptions.find((o) => o.code === companystatusCode);
+      push("companystatusCode", labels.companystatusCode, opt?.label ?? companystatusCode, () => setFilter("companystatusCode", ""));
+    }
+    if (statusBankrupt !== "all") {
+      const opt = booleanOptions.find((o) => o.code === statusBankrupt);
+      push("statusBankrupt", labels.statusBankrupt, opt?.label ?? statusBankrupt, () => setFilter("statusBankrupt", "all"));
+    }
+    if (capitalCapital) push("capitalCapital", labels.capitalCapital, capitalCapital, () => setFilter("capitalCapital", ""));
+    if (capitalCurrency) push("capitalCurrency", labels.capitalCurrency, capitalCurrency, () => setFilter("capitalCurrency", ""));
+    if (capitalIpo !== "all") {
+      const opt = booleanOptions.find((o) => o.code === capitalIpo);
+      push("capitalIpo", labels.capitalIpo, opt?.label ?? capitalIpo, () => setFilter("capitalIpo", "all"));
+    }
+    if (infoEanId) push("infoEanId", labels.infoEanId, infoEanId, () => setFilter("infoEanId", ""));
+    if (infoLeiId) push("infoLeiId", labels.infoLeiId, infoLeiId, () => setFilter("infoLeiId", ""));
     if (foundedPeriod !== "all") {
       const fp = foundedOptions.find((o) => o.code === foundedPeriod);
       push("foundedPeriod", labels.foundedDate, fp?.label ?? foundedPeriod, () => setFilter("foundedPeriod", "all"));
@@ -574,7 +751,7 @@ function SearchPage() {
     }
     return list;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, size, employmentAmount, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax, locale]);
+  }, [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax, locale]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -584,6 +761,15 @@ function SearchPage() {
     if (industrySecondaryCode) count++;
     if (size !== "all") count++;
     if (employmentAmount) count++;
+    if (companyformCode || companyformDescription) count++;
+    if (companyformHolding !== "all") count++;
+    if (companystatusCode) count++;
+    if (statusBankrupt !== "all") count++;
+    if (capitalCapital) count++;
+    if (capitalCurrency) count++;
+    if (capitalIpo !== "all") count++;
+    if (infoEanId) count++;
+    if (infoLeiId) count++;
     if (zipcode) count++;
     if (!zipcode && region !== "all") count++;
     if (city) count++;
@@ -600,7 +786,7 @@ function SearchPage() {
     if (revenueMin > 0 || revenueMax < 1000) count++;
     if (profitMin > 0 || profitMax < 1000) count++;
     return count;
-  }, [industryText, industryCode, industrySecondaryText, industrySecondaryCode, size, employmentAmount, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
+  }, [industryText, industryCode, industrySecondaryText, industrySecondaryCode, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
 
   return (
     <VideoTrigger featureKey="search">
@@ -696,7 +882,7 @@ function SearchPage() {
               {/* Industry & Company */}
               <FilterSection title={s.filters.sectionIdentity} icon={Building2}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <FilterField label={s.filters.industry}>
+                  <FilterField label={s.filters.industry} helpInfo={filterHelp.industry} helpLabels={filterHelpLabels}>
                     <Input
                       className="h-9"
                       placeholder={s.filters.industryPlaceholder}
@@ -704,7 +890,7 @@ function SearchPage() {
                       onChange={(e) => setFilter("industryText", e.target.value)}
                     />
                   </FilterField>
-                  <FilterField label={s.filters.industryCode}>
+                  <FilterField label={s.filters.industryCode} helpInfo={filterHelp.industryCode} helpLabels={filterHelpLabels}>
                     <FilterSelect value={industryCode} onChange={(v) => setFilter("industryCode", v)}>
                       <option value="all">{s.filters.industryCodePlaceholder}</option>
                       {s.industries.filter((i) => i.code !== "all").map((ind) => (
@@ -712,7 +898,7 @@ function SearchPage() {
                       ))}
                     </FilterSelect>
                   </FilterField>
-                  <FilterField label={s.filters.industrySecondaryCode} help={s.filters.industrySecondaryCodeHelp}>
+                  <FilterField label={s.filters.industrySecondaryCode} help={s.filters.industrySecondaryCodeHelp} helpInfo={filterHelp.industrySecondaryCode} helpLabels={filterHelpLabels}>
                     <Input
                       className="h-9 font-mono tabular-nums"
                       inputMode="numeric"
@@ -732,6 +918,8 @@ function SearchPage() {
                   <FilterField
                     label={s.filters.zipcode}
                     help={locale === "da" ? "Tilsidesætter regionsvalget." : "Overrides region selection."}
+                    helpInfo={filterHelp.zipcode}
+                    helpLabels={filterHelpLabels}
                   >
                     <Input
                       className="h-9 font-mono tabular-nums"
@@ -749,6 +937,8 @@ function SearchPage() {
                       ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
                       : (region !== "all" ? regionHelperCopy[region] : (locale === "da" ? "Vælg en region for regionale postnumre." : "Select a region for regional ZIPs."))
                     }
+                    helpInfo={filterHelp.region}
+                    helpLabels={filterHelpLabels}
                   >
                     <FilterSelect
                       value={region}
@@ -761,7 +951,7 @@ function SearchPage() {
                       ))}
                     </FilterSelect>
                   </FilterField>
-                  <FilterField label={s.filters.city}>
+                  <FilterField label={s.filters.city} helpInfo={filterHelp.city} helpLabels={filterHelpLabels}>
                     <Input
                       className="h-9"
                       placeholder={s.filters.cityPlaceholder}
@@ -775,7 +965,7 @@ function SearchPage() {
               {/* Workforce & age */}
               <FilterSection title={s.filters.sectionWorkforce} icon={Users}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <FilterField label={s.filters.size}>
+                  <FilterField label={s.filters.size} helpInfo={filterHelp.size} helpLabels={filterHelpLabels}>
                     <FilterSelect value={size} onChange={(v) => setFilter("size", v)}>
                       <option value="all">{s.filters.sizePlaceholder}</option>
                       {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
@@ -783,7 +973,7 @@ function SearchPage() {
                       ))}
                     </FilterSelect>
                   </FilterField>
-                  <FilterField label={s.filters.employmentAmount} help={s.filters.employmentAmountHelp}>
+                  <FilterField label={s.filters.employmentAmount} help={s.filters.employmentAmountHelp} helpInfo={filterHelp.employmentAmount} helpLabels={filterHelpLabels}>
                     <Input
                       className="h-9 font-mono tabular-nums"
                       type="number"
@@ -794,7 +984,7 @@ function SearchPage() {
                       onChange={(e) => setFilter("employmentAmount", e.target.value.replace(/\D/g, ""))}
                     />
                   </FilterField>
-                  <FilterField label={s.filters.foundedDate}>
+                  <FilterField label={s.filters.foundedDate} helpInfo={filterHelp.foundedDate} helpLabels={filterHelpLabels}>
                     <FilterSelect value={foundedPeriod} onChange={(v) => setFilter("foundedPeriod", v)}>
                       {foundedOptions.map((o) => (
                         <option key={o.code} value={o.code}>{o.label}</option>
@@ -807,9 +997,9 @@ function SearchPage() {
               {/* Financials (segmentation post-filters) */}
               <FilterSection title={s.filters.sectionFinancials} icon={TrendingUp}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
-                  <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" />
-                  <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" />
-                  <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" />
+                  <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" helpInfo={filterHelp.revenue} helpLabels={filterHelpLabels} />
+                  <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" helpInfo={filterHelp.grossProfit} helpLabels={filterHelpLabels} />
+                  <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" helpInfo={filterHelp.employees} helpLabels={filterHelpLabels} />
                 </div>
               </FilterSection>
 
@@ -825,13 +1015,117 @@ function SearchPage() {
                 </button>
                 {showAdvanced && (
                   <div className="space-y-5 pb-1">
-                    {/* Address detail */}
+                    {/* Legal and registry status */}
                     <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                        {s.filters.subsectionLegal}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                        <FilterField label={s.filters.companyformCode} help={s.filters.companyformCodeHelp} helpInfo={filterHelp.companyformCode} helpLabels={filterHelpLabels}>
+                          <FilterSelect
+                            value={companyformCode || "all"}
+                            onChange={(v) => {
+                              if (v === "all") {
+                                setFilter("companyformCode", "");
+                                setFilter("companyformDescription", "");
+                                return;
+                              }
+                              const form = companyFormOptions.find((o) => o.code === v);
+                              setFilter("companyformCode", v);
+                              setFilter("companyformDescription", form?.description ?? "");
+                            }}
+                          >
+                            <option value="all">{s.filters.companyformCodePlaceholder}</option>
+                            {companyFormOptions.map((o) => (
+                              <option key={o.code} value={o.code}>{o.label}</option>
+                            ))}
+                          </FilterSelect>
+                        </FilterField>
+                        <FilterField label={s.filters.companyformHolding} helpInfo={filterHelp.companyformHolding} helpLabels={filterHelpLabels}>
+                          <FilterSelect value={companyformHolding} onChange={(v) => setFilter("companyformHolding", v)}>
+                            <option value="all">{s.filters.companyformHoldingPlaceholder}</option>
+                            {booleanOptions.filter((o) => o.code !== "all").map((o) => (
+                              <option key={o.code} value={o.code}>{o.label}</option>
+                            ))}
+                          </FilterSelect>
+                        </FilterField>
+                        <FilterField label={s.filters.companystatusCode} help={s.filters.companystatusCodeHelp} helpInfo={filterHelp.companystatusCode} helpLabels={filterHelpLabels}>
+                          <FilterSelect value={companystatusCode || "all"} onChange={(v) => setFilter("companystatusCode", v === "all" ? "" : v)}>
+                            <option value="all">{s.filters.companystatusCodePlaceholder}</option>
+                            {statusOptions.map((o) => (
+                              <option key={o.code} value={o.code}>{o.label}</option>
+                            ))}
+                          </FilterSelect>
+                        </FilterField>
+                        <FilterField label={s.filters.statusBankrupt} helpInfo={filterHelp.statusBankrupt} helpLabels={filterHelpLabels}>
+                          <FilterSelect value={statusBankrupt} onChange={(v) => setFilter("statusBankrupt", v)}>
+                            <option value="all">{s.filters.statusBankruptPlaceholder}</option>
+                            {booleanOptions.filter((o) => o.code !== "all").map((o) => (
+                              <option key={o.code} value={o.code}>{o.label}</option>
+                            ))}
+                          </FilterSelect>
+                        </FilterField>
+                      </div>
+                    </div>
+
+                    {/* Capital and registry identifiers */}
+                    <div className="pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                        {s.filters.subsectionCapital}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                        <FilterField label={s.filters.capitalCapital} helpInfo={filterHelp.capitalCapital} helpLabels={filterHelpLabels}>
+                          <Input
+                            value={capitalCapital}
+                            onChange={(e) => setFilter("capitalCapital", e.target.value.replace(/\D/g, ""))}
+                            placeholder={s.filters.capitalCapitalPlaceholder}
+                            inputMode="numeric"
+                            className="h-9 font-mono tabular-nums"
+                          />
+                        </FilterField>
+                        <FilterField label={s.filters.capitalCurrency} helpInfo={filterHelp.capitalCurrency} helpLabels={filterHelpLabels}>
+                          <FilterSelect value={capitalCurrency || "all"} onChange={(v) => setFilter("capitalCurrency", v === "all" ? "" : v)}>
+                            <option value="all">{s.filters.capitalCurrencyPlaceholder}</option>
+                            {currencyOptions.map((currency) => (
+                              <option key={currency} value={currency}>{currency}</option>
+                            ))}
+                          </FilterSelect>
+                        </FilterField>
+                        <FilterField label={s.filters.capitalIpo} helpInfo={filterHelp.capitalIpo} helpLabels={filterHelpLabels}>
+                          <FilterSelect value={capitalIpo} onChange={(v) => setFilter("capitalIpo", v)}>
+                            <option value="all">{s.filters.capitalIpoPlaceholder}</option>
+                            {booleanOptions.filter((o) => o.code !== "all").map((o) => (
+                              <option key={o.code} value={o.code}>{o.label}</option>
+                            ))}
+                          </FilterSelect>
+                        </FilterField>
+                        <FilterField label={s.filters.infoEanId} helpInfo={filterHelp.infoEanId} helpLabels={filterHelpLabels}>
+                          <Input
+                            value={infoEanId}
+                            onChange={(e) => setFilter("infoEanId", e.target.value.replace(/\D/g, ""))}
+                            placeholder={s.filters.infoEanIdPlaceholder}
+                            inputMode="numeric"
+                            className="h-9 font-mono tabular-nums"
+                          />
+                        </FilterField>
+                        <FilterField label={s.filters.infoLeiId} helpInfo={filterHelp.infoLeiId} helpLabels={filterHelpLabels}>
+                          <Input
+                            value={infoLeiId}
+                            onChange={(e) => setFilter("infoLeiId", e.target.value.toUpperCase())}
+                            placeholder={s.filters.infoLeiIdPlaceholder}
+                            className="h-9 font-mono uppercase"
+                          />
+                        </FilterField>
+                      </div>
+                    </div>
+
+                    {/* Address detail */}
+                    <div className="pt-4 border-t border-border/30">
                       <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
                         {s.filters.subsectionAddress}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
-                        <FilterField label={s.filters.street}>
+                        <FilterField label={s.filters.street} helpInfo={filterHelp.street} helpLabels={filterHelpLabels}>
                           <Input
                             value={street}
                             onChange={(e) => setFilter("street", e.target.value)}
@@ -839,7 +1133,7 @@ function SearchPage() {
                             className="h-9"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.streetcode} help={s.filters.streetcodeHelp}>
+                        <FilterField label={s.filters.streetcode} help={s.filters.streetcodeHelp} helpInfo={filterHelp.streetcode} helpLabels={filterHelpLabels}>
                           <Input
                             value={streetcode}
                             onChange={(e) => setFilter("streetcode", e.target.value.replace(/\D/g, ""))}
@@ -851,7 +1145,7 @@ function SearchPage() {
                           />
                         </FilterField>
                         <div className="grid grid-cols-2 gap-3">
-                          <FilterField label={s.filters.numberFrom}>
+                          <FilterField label={s.filters.numberFrom} helpInfo={filterHelp.numberFrom} helpLabels={filterHelpLabels}>
                             <Input
                               value={numberFrom}
                               onChange={(e) => setFilter("numberFrom", e.target.value)}
@@ -860,7 +1154,7 @@ function SearchPage() {
                               className="h-9 font-mono tabular-nums"
                             />
                           </FilterField>
-                          <FilterField label={s.filters.letterFrom}>
+                          <FilterField label={s.filters.letterFrom} helpInfo={filterHelp.letterFrom} helpLabels={filterHelpLabels}>
                             <Input
                               value={letterFrom}
                               onChange={(e) => setFilter("letterFrom", e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase())}
@@ -870,7 +1164,7 @@ function SearchPage() {
                             />
                           </FilterField>
                         </div>
-                        <FilterField label={s.filters.municipality} help={s.filters.municipalityHelp}>
+                        <FilterField label={s.filters.municipality} help={s.filters.municipalityHelp} helpInfo={filterHelp.municipality} helpLabels={filterHelpLabels}>
                           <Input
                             value={municipality}
                             onChange={(e) => setFilter("municipality", e.target.value.replace(/\D/g, ""))}
@@ -881,7 +1175,7 @@ function SearchPage() {
                             className="h-9 font-mono tabular-nums"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.industrySecondaryText}>
+                        <FilterField label={s.filters.industrySecondaryText} helpInfo={filterHelp.industrySecondaryText} helpLabels={filterHelpLabels}>
                           <Input
                             value={industrySecondaryText}
                             onChange={(e) => setFilter("industrySecondaryText", e.target.value)}
@@ -898,7 +1192,7 @@ function SearchPage() {
                         {s.filters.subsectionContact}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
-                        <FilterField label={s.filters.contactPhone}>
+                        <FilterField label={s.filters.contactPhone} helpInfo={filterHelp.contactPhone} helpLabels={filterHelpLabels}>
                           <Input
                             value={contactPhone}
                             onChange={(e) => setFilter("contactPhone", e.target.value)}
@@ -908,7 +1202,7 @@ function SearchPage() {
                             className="h-9 font-mono tabular-nums"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.contactEmail}>
+                        <FilterField label={s.filters.contactEmail} helpInfo={filterHelp.contactEmail} helpLabels={filterHelpLabels}>
                           <Input
                             type="email"
                             value={contactEmail}
@@ -918,7 +1212,7 @@ function SearchPage() {
                             className="h-9"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.contactWww}>
+                        <FilterField label={s.filters.contactWww} helpInfo={filterHelp.contactWww} helpLabels={filterHelpLabels}>
                           <Input
                             value={contactWww}
                             onChange={(e) => setFilter("contactWww", e.target.value)}
@@ -943,8 +1237,15 @@ function SearchPage() {
                           className="size-4 mt-0.5"
                         />
                         <div className="flex-1">
-                          <span className="block text-[13px] font-medium text-foreground group-hover:text-foreground/90">
-                            {s.filters.skipMarketingOptOut}
+                          <span className="flex items-center gap-1.5 text-[13px] font-medium text-foreground group-hover:text-foreground/90">
+                            <span>{s.filters.skipMarketingOptOut}</span>
+                            <FilterHelpButton
+                              info={filterHelp.skipMarketingOptOut}
+                              whyLabel={filterHelpLabels.whyLabel}
+                              howLabel={filterHelpLabels.howLabel}
+                              openLabel={filterHelpLabels.openLabel}
+                              closeLabel={filterHelpLabels.closeLabel}
+                            />
                           </span>
                           <span className="block text-[11px] text-muted-foreground/70 mt-0.5">
                             {s.filters.skipMarketingOptOutHelp}

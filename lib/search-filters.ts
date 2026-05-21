@@ -28,6 +28,18 @@ export interface SearchFiltersState {
   size: string;
   employmentAmount: string;
 
+  // Legal / registry filters (CVR API)
+  companyformCode: string;
+  companyformDescription: string;
+  companyformHolding: string;
+  companystatusCode: string;
+  statusBankrupt: string;
+  capitalCapital: string;
+  capitalCurrency: string;
+  capitalIpo: string;
+  infoEanId: string;
+  infoLeiId: string;
+
   // Segmentation post-filters (app-side, computed from accounting data)
   revenueMin: number;
   revenueMax: number;
@@ -62,13 +74,23 @@ export const DEFAULT_SEARCH_FILTERS: SearchFiltersState = {
   contactWww: "",
   size: "all",
   employmentAmount: "",
+  companyformCode: "",
+  companyformDescription: "",
+  companyformHolding: "all",
+  companystatusCode: "",
+  statusBankrupt: "all",
+  capitalCapital: "",
+  capitalCurrency: "",
+  capitalIpo: "all",
+  infoEanId: "",
+  infoLeiId: "",
   revenueMin: 0,
   revenueMax: 1000,
   profitMin: 0,
   profitMax: 1000,
   employeesMin: 0,
   employeesMax: 5000,
-  skipMarketingOptOut: true,
+  skipMarketingOptOut: false,
 };
 
 const regionZipcodeMap: Record<string, string> = {
@@ -126,6 +148,16 @@ export function hasNativeSearchFilter(filters: SearchFiltersState): boolean {
     filters.contactWww ||
     filters.size !== "all" ||
     filters.employmentAmount ||
+    filters.companyformCode ||
+    filters.companyformDescription ||
+    filters.companyformHolding !== "all" ||
+    filters.companystatusCode ||
+    filters.statusBankrupt !== "all" ||
+    filters.capitalCapital ||
+    filters.capitalCurrency ||
+    filters.capitalIpo !== "all" ||
+    filters.infoEanId ||
+    filters.infoLeiId ||
     filters.foundedPeriod !== "all" ||
     filters.employeesMin > 0
   );
@@ -180,6 +212,17 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
 
   if (filters.employmentAmount) params.set("employment_amount", filters.employmentAmount);
 
+  if (filters.companyformCode) params.set("companyform_code", filters.companyformCode);
+  if (filters.companyformDescription) params.set("companyform_description", filters.companyformDescription);
+  if (filters.companyformHolding !== "all") params.set("companyform_holding", filters.companyformHolding);
+  if (filters.companystatusCode) params.set("companystatus_code", filters.companystatusCode);
+  if (filters.statusBankrupt !== "all") params.set("status_bankrupt", filters.statusBankrupt);
+  if (filters.capitalCapital) params.set("capital_capital", filters.capitalCapital);
+  if (filters.capitalCurrency) params.set("capital_currency", filters.capitalCurrency);
+  if (filters.capitalIpo !== "all") params.set("capital_ipo", filters.capitalIpo);
+  if (filters.infoEanId) params.set("info_ean_id", filters.infoEanId);
+  if (filters.infoLeiId) params.set("info_lei_id", filters.infoLeiId);
+
   const sizeRange = sizeToEmploymentRange(filters.size);
   const employeeMin = filters.employeesMin > 0 ? filters.employeesMin : sizeRange.min;
   const employeeMax = filters.employeesMax < 5000 ? filters.employeesMax : sizeRange.max;
@@ -221,6 +264,16 @@ export function serializeSearchFilters(filters: SearchFiltersState): Record<stri
   if (filters.contactWww) s.contactWww = filters.contactWww;
   if (filters.size !== "all") s.size = filters.size;
   if (filters.employmentAmount) s.employmentAmount = filters.employmentAmount;
+  if (filters.companyformCode) s.companyform_code = filters.companyformCode;
+  if (filters.companyformDescription) s.companyform_description = filters.companyformDescription;
+  if (filters.companyformHolding !== "all") s.companyform_holding = filters.companyformHolding;
+  if (filters.companystatusCode) s.companystatus_code = filters.companystatusCode;
+  if (filters.statusBankrupt !== "all") s.status_bankrupt = filters.statusBankrupt;
+  if (filters.capitalCapital) s.capital_capital = filters.capitalCapital;
+  if (filters.capitalCurrency) s.capital_currency = filters.capitalCurrency;
+  if (filters.capitalIpo !== "all") s.capital_ipo = filters.capitalIpo;
+  if (filters.infoEanId) s.info_ean_id = filters.infoEanId;
+  if (filters.infoLeiId) s.info_lei_id = filters.infoLeiId;
   if (filters.foundedPeriod !== "all") s.foundedPeriod = filters.foundedPeriod;
   if (filters.employeesMin > 0) s.employeesMin = String(filters.employeesMin);
   if (filters.employeesMax < 5000) s.employeesMax = String(filters.employeesMax);
@@ -264,6 +317,16 @@ export function hydrateSearchFiltersFromParams(params: SearchParamReader): {
     ["contactWww", "contactWww"],
     ["size", "size"],
     ["employmentAmount", "employmentAmount"],
+    ["companyformCode", "companyform_code"],
+    ["companyformDescription", "companyform_description"],
+    ["companyformHolding", "companyform_holding"],
+    ["companystatusCode", "companystatus_code"],
+    ["statusBankrupt", "status_bankrupt"],
+    ["capitalCapital", "capital_capital"],
+    ["capitalCurrency", "capital_currency"],
+    ["capitalIpo", "capital_ipo"],
+    ["infoEanId", "info_ean_id"],
+    ["infoLeiId", "info_lei_id"],
     ["foundedPeriod", "foundedPeriod"],
   ];
 

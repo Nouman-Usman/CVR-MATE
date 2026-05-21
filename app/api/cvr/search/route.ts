@@ -7,7 +7,7 @@ import {
   type SearchCompanyParams,
   type CvrCompany,
 } from "@/lib/cvr-api";
-import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { reserveMonthlyQuota } from "@/lib/stripe/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // ─── Data extraction helpers (sorted for accuracy) ─────────────────────────
@@ -60,6 +60,10 @@ function normalizeText(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function normalizeBooleanText(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function getSearchableCompanyNames(c: CvrCompany): string[] {
   const raw = c as CvrCompany & {
     secondarynames?: string[];
@@ -76,9 +80,9 @@ function getSearchableCompanyNames(c: CvrCompany): string[] {
     .filter(Boolean);
 }
 
-// Post-filter using ONLY the 21 CVR API search params. Catches mismatches the
-// fan-out variations let through. Company form / status / capital / LEI / EAN
-// are intentionally not enforced — they are not part of the search endpoint.
+// Post-filter the fields that can be safely rechecked from the response shape.
+// Some documented upstream filters, such as municipality code, do not have a
+// matching response field and are trusted to CVR's own filtering.
 function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams): boolean {
   if (searchParams.life_name) {
     const query = normalizeText(searchParams.life_name);
@@ -127,9 +131,33 @@ function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams):
     if (!actual.includes(normalizeText(searchParams.address_city))) return false;
   }
 
-  if (searchParams.address_municipality) {
-    const actual = normalizeText(c.address?.municipalityname);
-    if (!actual.includes(normalizeText(searchParams.address_municipality))) return false;
+  // address_municipality is a numeric municipality code in the CVR search API,
+  // while search responses expose municipalityname. Trust the upstream filter
+  // instead of comparing a code like "101" against a name like "København".
+
+  if (searchParams.companyform_code) {
+    if (String(c.companyform?.code ?? "") !== searchParams.companyform_code) return false;
+  }
+
+  if (searchParams.companyform_description) {
+    const actual = normalizeText(c.companyform?.description);
+    if (!actual.includes(normalizeText(searchParams.companyform_description))) return false;
+  }
+
+  if (searchParams.companyform_holding) {
+    if (normalizeBooleanText(c.companyform?.holding) !== normalizeBooleanText(searchParams.companyform_holding)) {
+      return false;
+    }
+  }
+
+  if (searchParams.companystatus_code) {
+    if (String(c.status?.code ?? "") !== searchParams.companystatus_code) return false;
+  }
+
+  if (searchParams.status_bankrupt) {
+    if (normalizeBooleanText(c.status?.bankrupt) !== normalizeBooleanText(searchParams.status_bankrupt)) {
+      return false;
+    }
   }
 
   if (searchParams.contact_phone) {
@@ -170,6 +198,24 @@ function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams):
     if (!matches) return false;
   }
 
+  const info = c.info as (CvrCompany["info"] & {
+    capital_ipo?: boolean | string | null;
+  }) | undefined;
+
+  if (searchParams.capital_capital) {
+    if (String(info?.capital_amount ?? "") !== searchParams.capital_capital) return false;
+  }
+
+  if (searchParams.capital_currency) {
+    if (normalizeText(info?.capital_currency) !== normalizeText(searchParams.capital_currency)) return false;
+  }
+
+  if (searchParams.capital_ipo) {
+    if (normalizeBooleanText(info?.capital_ipo) !== normalizeBooleanText(searchParams.capital_ipo)) {
+      return false;
+    }
+  }
+
   if (searchParams.employment_amount) {
     const expected = Number(searchParams.employment_amount);
     const count = getEmployeeCount(c);
@@ -194,7 +240,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const rl = await checkRateLimit(session.user.id, "cvr_search", 30, 60);
+    const rl = await checkRateLimit(session.user.id, "cvr_search", 30, 60, { failClosed: true });
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Maximum 30 searches per minute." },
@@ -202,7 +248,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "company_search");
+    const quota = await reserveMonthlyQuota(session.user.id, "company_search");
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `Search limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -213,9 +259,8 @@ export async function GET(req: NextRequest) {
     const params = req.nextUrl.searchParams;
     const searchParams: SearchCompanyParams = {};
 
-    // Strict map of the 21 query params the CVR API v2 search/company endpoint
-    // accepts. Anything outside this list is ignored — keeps the search surface
-    // honest to the spec.
+    // Strict map of the documented CVR API v2 search/company query params.
+    // Anything outside this list is ignored.
     const mapping: Record<string, keyof SearchCompanyParams> = {
       name: "life_name",
       life_start: "life_start",
@@ -229,15 +274,25 @@ export async function GET(req: NextRequest) {
       zipcode_list: "address_zipcode_list",
       city: "address_city",
       municipality: "address_municipality",
+      companyform_code: "companyform_code",
+      companyform_description: "companyform_description",
+      companyform_holding: "companyform_holding",
+      companystatus_code: "companystatus_code",
       phone: "contact_phone",
       email: "contact_email",
       website: "contact_www",
+      status_bankrupt: "status_bankrupt",
       industry_text: "industry_primary_text",
       industry_code: "industry_primary_code",
       industry_secondary_text: "industry_secondary_text",
       industry_secondary_code: "industry_secondary_code",
+      capital_capital: "capital_capital",
+      capital_currency: "capital_currency",
+      capital_ipo: "capital_ipo",
       employment_amount: "employment_amount",
       employment_interval_low: "employment_interval_low",
+      info_ean_id: "info_ean_id",
+      info_lei_id: "info_lei_id",
     };
 
     for (const [queryKey, apiKey] of Object.entries(mapping)) {
@@ -277,7 +332,6 @@ export async function GET(req: NextRequest) {
     const hasAnyFilter = Object.entries(searchParams).some(
       ([k, v]) =>
         v &&
-        k !== "companystatus_code" &&
         k !== "page" &&
         k !== "life_adprotected"
     );
@@ -320,7 +374,7 @@ export async function GET(req: NextRequest) {
     const zipList = upstreamParams.address_zipcode_list;
 
     // 1. Base search — always runs
-    const baseResults = await searchCompanies(upstreamParams).catch(() => [] as CvrCompany[]);
+    const baseResults = await searchCompanies(upstreamParams);
     addBatch(baseResults);
 
     // 2. Fan out parallel variation queries.
@@ -400,8 +454,6 @@ export async function GET(req: NextRequest) {
         return profit >= minVal && profit <= maxVal;
       });
     }
-
-    await recordUsage(session.user.id, "company_search");
 
     // Enrich results with computed fields so frontend doesn't recompute
     const enriched = pageResults.map(enrichResult);

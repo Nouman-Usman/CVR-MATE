@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/db";
 import { subscription, usageRecord, leadTrigger } from "@/db/schema";
-import { eq, and, gte, count, isNull } from "drizzle-orm";
+import { eq, and, gte, count, isNull, sql } from "drizzle-orm";
 import { PLAN_LIMITS, priceToPlan, type PlanId, type PlanLimits } from "./plans";
 
 export interface UserPlan {
@@ -177,6 +177,52 @@ export async function checkMonthlyQuota(
 
   const used = rows[0]?.value ?? 0;
   return { allowed: used < limit, plan, limit, used };
+}
+
+/**
+ * Atomically reserve one monthly quota unit before expensive work starts.
+ *
+ * The advisory transaction lock serializes reservations per user+feature, so
+ * concurrent requests cannot all observe the same pre-insert usage count.
+ */
+export async function reserveMonthlyQuota(
+  userId: string,
+  feature: MonthlyFeature
+): Promise<{ allowed: boolean; plan: PlanId; limit: number; used: number }> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${userId}:${feature}`}))`);
+
+    const { plan, subscription: sub } = await getUserPlan(userId);
+    const limits = getPlanLimits(plan);
+    const limitKey = FEATURE_TO_LIMIT[feature];
+    const limit = limits[limitKey] as number;
+
+    if (limit === 0) return { allowed: false, plan, limit: 0, used: 0 };
+
+    const periodStart = sub?.currentPeriodStart ?? startOfCurrentMonth();
+
+    if (!isFinite(limit)) {
+      await tx.insert(usageRecord).values({ userId, feature });
+      return { allowed: true, plan, limit: -1, used: 0 };
+    }
+
+    const rows = await tx
+      .select({ value: count() })
+      .from(usageRecord)
+      .where(
+        and(
+          eq(usageRecord.userId, userId),
+          eq(usageRecord.feature, feature),
+          gte(usageRecord.createdAt, periodStart)
+        )
+      );
+
+    const used = rows[0]?.value ?? 0;
+    if (used >= limit) return { allowed: false, plan, limit, used };
+
+    await tx.insert(usageRecord).values({ userId, feature });
+    return { allowed: true, plan, limit, used };
+  });
 }
 
 /**

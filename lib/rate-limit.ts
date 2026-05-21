@@ -30,9 +30,13 @@ export async function checkRateLimit(
   userId: string,
   feature: string,
   maxRequests: number,
-  windowSeconds: number
+  windowSeconds: number,
+  options?: { failClosed?: boolean }
 ): Promise<RateLimitResult> {
   if (!redis) {
+    if (options?.failClosed) {
+      return { allowed: false, remaining: 0, resetAt: 0 };
+    }
     // Redis not configured — allow all requests (fail open)
     return { allowed: true, remaining: maxRequests, resetAt: 0 };
   }
@@ -58,6 +62,9 @@ export async function checkRateLimit(
     };
   } catch (err) {
     console.warn("[rate-limit] Redis error, failing open:", err);
+    if (options?.failClosed) {
+      return { allowed: false, remaining: 0, resetAt };
+    }
     return { allowed: true, remaining: maxRequests, resetAt };
   }
 }
