@@ -28,17 +28,23 @@ function getLatestSummary(c: CvrCompany) {
   return sorted.find((d) => d.summary)?.summary ?? null;
 }
 
-/** Extract the LATEST employee count — sorts months/years by recency */
+/** Extract the LATEST employee count — sorts months/years by recency, falls back to interval midpoint */
 function getEmployeeCount(c: CvrCompany): number | null {
   const months = [...(c.employment?.months ?? [])].sort(
     (a, b) => b.year - a.year || b.month - a.month
   );
   if (months[0]?.amount != null) return months[0].amount;
+  if (months[0]?.interval_low != null && months[0]?.interval_high != null) {
+    return (months[0].interval_low + months[0].interval_high) / 2;
+  }
 
   const years = [...(c.employment?.years ?? [])].sort(
     (a, b) => b.year - a.year
   );
   if (years[0]?.amount != null) return years[0].amount;
+  if (years[0]?.interval_low != null && years[0]?.interval_high != null) {
+    return (years[0].interval_low + years[0].interval_high) / 2;
+  }
 
   return null;
 }
@@ -58,6 +64,10 @@ function enrichResult(c: CvrCompany) {
 
 function normalizeText(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizePhone(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "");
 }
 
 function normalizeBooleanText(value: unknown): string {
@@ -161,7 +171,7 @@ function matchesNativeFilters(c: CvrCompany, searchParams: SearchCompanyParams):
   }
 
   if (searchParams.contact_phone) {
-    if (normalizeText(c.contact?.phone) !== normalizeText(searchParams.contact_phone)) return false;
+    if (normalizePhone(c.contact?.phone) !== normalizePhone(searchParams.contact_phone)) return false;
   }
 
   if (searchParams.contact_email) {
@@ -245,14 +255,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         { error: "Too many requests. Maximum 30 searches per minute." },
         { status: 429 }
-      );
-    }
-
-    const quota = await reserveMonthlyQuota(session.user.id, "company_search");
-    if (!quota.allowed) {
-      return NextResponse.json(
-        { error: `Search limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
-        { status: 403 }
       );
     }
 
@@ -349,6 +351,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         { error: "At least one search filter is required" },
         { status: 400 }
+      );
+    }
+
+    const quota = await reserveMonthlyQuota(session.user.id, "company_search");
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `Search limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
+        { status: 403 }
       );
     }
 

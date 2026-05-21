@@ -193,13 +193,15 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   if (filters.numberFrom) params.set("number_from", filters.numberFrom);
   if (filters.letterFrom) params.set("letter_from", filters.letterFrom);
 
-  // Priority: zipcode (most precise) > region > city
+  // Allow combined location filters (CVR supports all three)
   if (filters.zipcode) {
     params.set("zipcode", filters.zipcode);
-  } else if (filters.region !== "all") {
+  }
+  if (filters.region !== "all") {
     const zips = regionZipcodeMap[filters.region];
     if (zips) params.set("zipcode_list", zips);
-  } else if (filters.city) {
+  }
+  if (filters.city) {
     params.set("city", filters.city);
   }
   if (filters.municipality) params.set("municipality", filters.municipality);
@@ -262,6 +264,53 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   // Skip emitting ad_protected if no other filter is set — a lone refinement
   // flag must not qualify as a valid search.
   if (params.toString().length === 0) return null;
+
+  // Reject segmentation-only searches: revenue/profit filters are app-side post-filters,
+  // not CVR API params. Without ≥1 native CVR filter (query, industry, location, etc.),
+  // search would only sample CVR via alphabet sweep, missing matching companies.
+  const hasNativeFilter = !!(
+    filters.query ||
+    filters.industryText ||
+    filters.industryCode !== "all" ||
+    filters.industrySecondaryText ||
+    filters.industrySecondaryCode ||
+    filters.street ||
+    filters.streetcode ||
+    filters.numberFrom ||
+    filters.letterFrom ||
+    filters.zipcode ||
+    filters.region !== "all" ||
+    filters.city ||
+    filters.municipality ||
+    filters.contactPhone ||
+    filters.contactEmail ||
+    filters.contactWww ||
+    filters.size !== "all" ||
+    filters.employmentAmount ||
+    filters.companyformCode ||
+    filters.companyformDescription ||
+    filters.companyformHolding !== "all" ||
+    filters.companystatusCode ||
+    filters.statusBankrupt !== "all" ||
+    filters.capitalCapital ||
+    filters.capitalCurrency ||
+    filters.capitalIpo !== "all" ||
+    filters.infoEanId ||
+    filters.infoLeiId ||
+    filters.foundedPeriod !== "all"
+  );
+
+  const hasSegmentationFilter = !!(
+    filters.employeesMin > 0 ||
+    filters.employeesMax < 5000 ||
+    filters.revenueMin > 0 ||
+    filters.revenueMax < 1000 ||
+    filters.profitMin > 0 ||
+    filters.profitMax < 1000
+  );
+
+  // Segmentation-only searches are incomplete (sample-based, not full register scan)
+  if (!hasNativeFilter && hasSegmentationFilter) return null;
 
   if (filters.skipMarketingOptOut) params.set("ad_protected", "false");
 

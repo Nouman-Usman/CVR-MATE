@@ -9,6 +9,7 @@ import { InlineLoader } from "@/components/loading-screen";
 import { useSearchStore, type SearchFiltersState } from "@/lib/stores/search-store";
 import {
   buildSearchParamsFromState,
+  hasNativeSearchFilter,
   hydrateSearchFiltersFromParams,
   mergeSearchFilters,
   serializeSearchFilters,
@@ -475,6 +476,8 @@ function SearchPage() {
     skipMarketingOptOut,
   }), [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, skipMarketingOptOut]);
 
+  const hasNativeFilter = useMemo(() => hasNativeSearchFilter(currentFilters), [currentFilters]);
+
   const buildSearchParams = useCallback(() => {
     return buildSearchParamsFromState(currentFilters);
   }, [currentFilters]);
@@ -556,12 +559,15 @@ function SearchPage() {
     clearSelected();
     const params = buildSearchParams();
     if (!params) {
-      toast.error(s.noFilter);
+      // Determine reason: segmentation-only vs completely empty
+      const hasSegmentation = employeesMin > 0 || employeesMax < 5000 || revenueMin > 0 || revenueMax < 1000 || profitMin > 0 || profitMax < 1000;
+      const errorMsg = hasSegmentation ? s.segmentationRequiresNativeFilter : s.noFilter;
+      toast.error(errorMsg);
       return;
     }
     setHasSearched(true);
     setCommittedParams(params);
-  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade]);
+  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -935,7 +941,14 @@ function SearchPage() {
                       maxLength={4}
                       placeholder={s.filters.zipcodePlaceholder}
                       value={zipcode}
-                      onChange={(e) => setFilter("zipcode", e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => {
+                        const newZip = e.target.value.replace(/\D/g, "");
+                        setFilter("zipcode", newZip);
+                        if (newZip) {
+                          setFilter("region", "all");
+                          setFilter("city", "");
+                        }
+                      }}
                     />
                   </FilterField>
                   <FilterField
@@ -949,7 +962,12 @@ function SearchPage() {
                   >
                     <FilterSelect
                       value={region}
-                      onChange={(v) => setFilter("region", v)}
+                      onChange={(v) => {
+                        setFilter("region", v);
+                        if (v !== "all") {
+                          setFilter("city", "");
+                        }
+                      }}
                       disabled={!!zipcode}
                     >
                       <option value="all">{s.filters.regionPlaceholder}</option>
@@ -1006,7 +1024,12 @@ function SearchPage() {
                     />
                   </FilterField>
                   <FilterField label={s.filters.foundedDate} helpInfo={filterHelp.foundedDate} helpLabels={filterHelpLabels}>
-                    <FilterSelect value={foundedPeriod} onChange={(v) => setFilter("foundedPeriod", v)}>
+                    <FilterSelect value={foundedPeriod} onChange={(v) => {
+                      setFilter("foundedPeriod", v);
+                      if ((v === "last30" || v === "last90") && companystatusCode !== "20") {
+                        setFilter("companystatusCode", "");
+                      }
+                    }}>
                       {foundedOptions.map((o) => (
                         <option key={o.code} value={o.code}>{o.label}</option>
                       ))}
@@ -1015,33 +1038,35 @@ function SearchPage() {
                 </div>
               </FilterSection>
 
-              {/* Financials (segmentation post-filters) */}
-              <FilterSection title={s.filters.sectionFinancials} icon={TrendingUp}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
-                  <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" helpInfo={filterHelp.revenue} helpLabels={filterHelpLabels} />
-                  <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" helpInfo={filterHelp.grossProfit} helpLabels={filterHelpLabels} />
-                  <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" helpInfo={filterHelp.employees} helpLabels={filterHelpLabels} disabled={!!employmentAmount || size !== "all"} disabledHelp={employmentAmount ? (locale === "da" ? "Låst — specifik medarbejderantal aktivt." : "Locked — exact employment count active.") : size !== "all" ? (locale === "da" ? "Låst — virksomhedsstørrelse kategori aktivt." : "Locked — company size bracket active.") : undefined} />
-                </div>
-              </FilterSection>
+              {/* Financials (segmentation post-filters) — only visible with native filter */}
+              {hasNativeFilter && (
+                <FilterSection title={s.filters.sectionFinancials} icon={TrendingUp}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-8 sm:gap-y-6">
+                    <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" helpInfo={filterHelp.revenue} helpLabels={filterHelpLabels} />
+                    <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" helpInfo={filterHelp.grossProfit} helpLabels={filterHelpLabels} />
+                    <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" helpInfo={filterHelp.employees} helpLabels={filterHelpLabels} disabled={!!employmentAmount || size !== "all"} disabledHelp={employmentAmount ? (locale === "da" ? "Låst — specifik medarbejderantal aktivt." : "Locked — exact employment count active.") : size !== "all" ? (locale === "da" ? "Låst — virksomhedsstørrelse kategori aktivt." : "Locked — company size bracket active.") : undefined} />
+                  </div>
+                </FilterSection>
+              )}
 
               {/* Advanced */}
               <section className="border-t border-border/30 pt-4 mt-1">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((v) => !v)}
-                  className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70 hover:text-foreground transition-colors mb-3"
+                  className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70 hover:text-foreground transition-colors mb-2 sm:mb-3"
                 >
                   <ChevronRight className={cn("size-3.5 transition-transform", showAdvanced && "rotate-90")} />
                   {s.filters.sectionAdvanced}
                 </button>
                 {showAdvanced && (
-                  <div className="space-y-5 pb-1">
+                  <div className="space-y-3 sm:space-y-5 pb-1">
                     {/* Legal and registry status */}
                     <div>
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
                         {s.filters.subsectionLegal}
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-5 sm:gap-y-4">
                         <FilterField label={s.filters.companyformCode} help={s.filters.companyformCodeHelp} helpInfo={filterHelp.companyformCode} helpLabels={filterHelpLabels}>
                           <FilterSelect
                             value={companyformCode || "all"}
@@ -1110,11 +1135,11 @@ function SearchPage() {
                     </div>
 
                     {/* Capital and registry identifiers */}
-                    <div className="pt-4 border-t border-border/30">
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                    <div className="pt-3 sm:pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
                         {s.filters.subsectionCapital}
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-5 sm:gap-y-4">
                         <FilterField label={s.filters.capitalCapital} helpInfo={filterHelp.capitalCapital} helpLabels={filterHelpLabels}>
                           <Input
                             value={capitalCapital}
@@ -1161,11 +1186,11 @@ function SearchPage() {
                     </div>
 
                     {/* Address detail */}
-                    <div className="pt-4 border-t border-border/30">
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                    <div className="pt-3 sm:pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
                         {s.filters.subsectionAddress}
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-5 sm:gap-y-4">
                         <FilterField label={s.filters.street} helpInfo={filterHelp.street} helpLabels={filterHelpLabels}>
                           <Input
                             value={street}
@@ -1185,7 +1210,7 @@ function SearchPage() {
                             className="h-9 font-mono tabular-nums"
                           />
                         </FilterField>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <FilterField label={s.filters.numberFrom} helpInfo={filterHelp.numberFrom} helpLabels={filterHelpLabels}>
                             <Input
                               value={numberFrom}
@@ -1228,11 +1253,11 @@ function SearchPage() {
                     </div>
 
                     {/* Contact */}
-                    <div className="pt-4 border-t border-border/30">
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                    <div className="pt-3 sm:pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
                         {s.filters.subsectionContact}
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-5 sm:gap-y-4">
                         <FilterField label={s.filters.contactPhone} help={locale === "da" ? "Ikke alle virksomheder har telefon registreret." : "Not all companies have phone registered."} helpInfo={filterHelp.contactPhone} helpLabels={filterHelpLabels}>
                           <Input
                             value={contactPhone}
@@ -1266,8 +1291,8 @@ function SearchPage() {
                     </div>
 
                     {/* Compliance */}
-                    <div className="pt-4 border-t border-border/30">
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2.5">
+                    <div className="pt-3 sm:pt-4 border-t border-border/30">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
                         {s.filters.subsectionCompliance}
                       </h4>
                       <label htmlFor="skip-marketing-optout" className="flex items-start gap-3 cursor-pointer group">
