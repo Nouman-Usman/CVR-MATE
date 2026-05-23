@@ -16,10 +16,11 @@ global.fetch = mockFetch;
 
 describe("getCompanyByVat", () => {
   const originalEnv = process.env;
+  const dummyToken = "dummy_token_for_testing";
 
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env = { ...originalEnv, CVR_API_KEY: "fake-key-123" };
+    process.env = { ...originalEnv, CVR_API_KEY: dummyToken };
   });
 
   afterEach(() => {
@@ -56,7 +57,7 @@ describe("getCompanyByVat", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Accept: "application/json",
-          Authorization: "Basic ZmFrZS1rZXktMTIzOg==",
+          Authorization: `Basic ${Buffer.from(dummyToken + ":").toString("base64")}`,
         }),
       })
     );
