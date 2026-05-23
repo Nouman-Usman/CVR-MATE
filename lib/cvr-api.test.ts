@@ -19,7 +19,7 @@ describe("getCompanyByVat", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    process.env = { ...originalEnv, CVR_API_KEY: "test-api-key" };
+    process.env = { ...originalEnv, CVR_API_KEY: "fake-key-123" };
   });
 
   afterEach(() => {
@@ -56,7 +56,7 @@ describe("getCompanyByVat", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Accept: "application/json",
-          Authorization: "Basic dGVzdC1hcGkta2V5Og==",
+          Authorization: "Basic ZmFrZS1rZXktMTIzOg==",
         }),
       })
     );
