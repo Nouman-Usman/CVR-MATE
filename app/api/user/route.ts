@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { user } from "@/db/auth-schema";
 import { member, organization, verification } from "@/db/auth-schema";
 import { subscription } from "@/db/app-schema";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -38,32 +38,36 @@ export async function DELETE(req: NextRequest) {
       where: and(eq(member.userId, userId), eq(member.role, "owner")),
     });
 
-    for (const membership of ownedMemberships) {
-      const otherMembers = await db.query.member.findMany({
+    if (ownedMemberships.length === 0) {
+      // Fast path: user owns no orgs, proceed to deletion
+    } else {
+      const ownedOrgIds = ownedMemberships.map((m) => m.organizationId);
+
+      // Single batch query instead of per-org loop
+      const otherMember = await db.query.member.findFirst({
         where: and(
-          eq(member.organizationId, membership.organizationId),
+          inArray(member.organizationId, ownedOrgIds),
           ne(member.userId, userId)
         ),
       });
 
-      if (otherMembers.length > 0) {
+      if (otherMember) {
         return NextResponse.json(
           {
             error: "account_has_team",
             message:
               "You are the owner of an organisation with other members. " +
               "Transfer ownership or remove all members before deleting your account.",
-            organizationId: membership.organizationId,
+            organizationId: otherMember.organizationId,
           },
           { status: 409 }
         );
       }
-    }
 
-    // ─── Delete sole-owned organisations (user is the only member) ─────────
-    // These would otherwise be orphaned (no members, no owner) after cascade.
-    for (const membership of ownedMemberships) {
-      await db.delete(organization).where(eq(organization.id, membership.organizationId));
+      // ─── Delete sole-owned organisations (user is the only member) ─────────
+      // These would otherwise be orphaned (no members, no owner) after cascade.
+      // Single batch delete instead of per-org loop
+      await db.delete(organization).where(inArray(organization.id, ownedOrgIds));
     }
 
     // ─── Cancel active Stripe subscription immediately ─────────────────────
