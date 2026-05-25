@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SecondaryNaceCodeModal } from "@/components/search/SecondaryNaceCodeModal";
 import {
   Dialog,
   DialogContent,
@@ -435,6 +436,7 @@ function SearchPage() {
 
   const [committedParams, setCommittedParams] = useState<URLSearchParams | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSecondaryNaceModal, setShowSecondaryNaceModal] = useState(false);
 
   const currentFilters = useMemo<SearchFiltersState>(() => ({
     query,
@@ -911,15 +913,25 @@ function SearchPage() {
                     </FilterSelect>
                   </FilterField>
                   <FilterField label={s.filters.industrySecondaryCode} help={s.filters.industrySecondaryCodeHelp} helpInfo={filterHelp.industrySecondaryCode} helpLabels={filterHelpLabels}>
-                    <Input
-                      className="h-9 font-mono tabular-nums"
-                      inputMode="numeric"
-                      pattern="\d{6}"
-                      maxLength={6}
-                      placeholder={s.filters.industrySecondaryCodePlaceholder}
-                      value={industrySecondaryCode}
-                      onChange={(e) => setFilter("industrySecondaryCode", e.target.value.replace(/\D/g, ""))}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        className="h-9 font-mono tabular-nums flex-1"
+                        inputMode="numeric"
+                        pattern="\d{6}"
+                        maxLength={6}
+                        placeholder={s.filters.industrySecondaryCodePlaceholder}
+                        value={industrySecondaryCode}
+                        onChange={(e) => setFilter("industrySecondaryCode", e.target.value.replace(/\D/g, ""))}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSecondaryNaceModal(true)}
+                        className="h-9 whitespace-nowrap"
+                      >
+                        {locale === "da" ? "Gennemse" : "Browse"}
+                      </Button>
+                    </div>
                   </FilterField>
                 </div>
               </FilterSection>
@@ -1540,6 +1552,14 @@ function SearchPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Secondary NACE Code Modal */}
+      <SecondaryNaceCodeModal
+        open={showSecondaryNaceModal}
+        onOpenChange={setShowSecondaryNaceModal}
+        onSelect={(code) => setFilter("industrySecondaryCode", code)}
+        currentValue={industrySecondaryCode}
+      />
       </DashboardLayout>
     </VideoTrigger>
   );
