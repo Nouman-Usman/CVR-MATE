@@ -54,7 +54,6 @@ import {
   Building2,
   MapPin,
   Users,
-  TrendingUp,
 } from "lucide-react";
 
 interface Company {
@@ -1037,17 +1036,6 @@ function SearchPage() {
                   </FilterField>
                 </div>
               </FilterSection>
-
-              {/* Financials (segmentation post-filters) — only visible with native filter */}
-              {hasNativeFilter && (
-                <FilterSection title={s.filters.sectionFinancials} icon={TrendingUp}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-8 sm:gap-y-6">
-                    <RangeSlider label={s.filters.revenue} min={0} max={1000} minVal={revenueMin} maxVal={revenueMax} onMinChange={(v) => setFilter("revenueMin", v)} onMaxChange={(v) => setFilter("revenueMax", v)} formatMax="1 bn+" helpInfo={filterHelp.revenue} helpLabels={filterHelpLabels} />
-                    <RangeSlider label={s.filters.grossProfit} min={0} max={1000} minVal={profitMin} maxVal={profitMax} onMinChange={(v) => setFilter("profitMin", v)} onMaxChange={(v) => setFilter("profitMax", v)} formatMax="1 bn+" helpInfo={filterHelp.grossProfit} helpLabels={filterHelpLabels} />
-                    <RangeSlider label={s.filters.employees} min={0} max={5000} minVal={employeesMin} maxVal={employeesMax} onMinChange={(v) => setFilter("employeesMin", v)} onMaxChange={(v) => setFilter("employeesMax", v)} formatMax="5,000+" helpInfo={filterHelp.employees} helpLabels={filterHelpLabels} disabled={!!employmentAmount || size !== "all"} disabledHelp={employmentAmount ? (locale === "da" ? "Låst — specifik medarbejderantal aktivt." : "Locked — exact employment count active.") : size !== "all" ? (locale === "da" ? "Låst — virksomhedsstørrelse kategori aktivt." : "Locked — company size bracket active.") : undefined} />
-                  </div>
-                </FilterSection>
-              )}
 
               {/* Advanced */}
               <section className="border-t border-border/30 pt-4 mt-1">
