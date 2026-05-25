@@ -13,7 +13,11 @@ import {
   subscriptionDataFromStripe,
 } from "@/lib/stripe/webhook-helpers";
 import {
+  sendWelcomeEmail,
+  sendPaymentSucceededEmail,
   sendPaymentFailedEmail,
+  sendSubscriptionUpdatedEmail,
+  sendSubscriptionCanceledEmail,
   sendCardExpiringEmail,
   sendPaymentActionRequiredEmail,
   sendInvoiceUpcomingEmail,
@@ -253,6 +257,24 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   console.log(`[Stripe Webhook] User ${userId} subscribed to ${data.plan} (checkout completed)`);
+
+  // Send welcome email
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, userId),
+  });
+  if (userRow) {
+    try {
+      await sendWelcomeEmail({
+        to: userRow.email,
+        userName: userRow.name || "User",
+        userId,
+        planName: data.plan,
+      });
+      console.log(`[Stripe Webhook] Sent welcome email to ${userRow.email}`);
+    } catch (err) {
+      console.error("[Stripe Webhook] Failed to send welcome email:", err);
+    }
+  }
 }
 
 async function handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
@@ -276,6 +298,27 @@ async function handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
     .where(eq(subscription.id, existing.id));
 
   console.log(`[Stripe Webhook] Subscription ${stripeSub.id} updated: plan=${data.plan}, status=${data.status}`);
+
+  // Send subscription updated email (upgrade/downgrade)
+  if (data.plan !== existing.plan) {
+    const userRow = await db.query.user.findFirst({
+      where: eq(user.id, existing.userId),
+    });
+    if (userRow) {
+      try {
+        await sendSubscriptionUpdatedEmail({
+          to: userRow.email,
+          userName: userRow.name || "User",
+          userId: existing.userId,
+          newPlan: data.plan,
+          oldPlan: existing.plan,
+        });
+        console.log(`[Stripe Webhook] Sent subscription updated email to ${userRow.email}`);
+      } catch (err) {
+        console.error("[Stripe Webhook] Failed to send subscription updated email:", err);
+      }
+    }
+  }
 
   // Check for team downgrade (async, non-blocking)
   checkTeamDowngrade(existing.userId, data.plan).catch((err) =>
@@ -304,6 +347,28 @@ async function handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
 
   console.log(`[Stripe Webhook] Subscription ${stripeSub.id} deleted, user downgraded to free`);
 
+  // Send subscription canceled email
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, existing.userId),
+  });
+  if (userRow) {
+    try {
+      const cancelDate = stripeSub.cancel_at
+        ? new Date(stripeSub.cancel_at * 1000).toLocaleDateString()
+        : undefined;
+      await sendSubscriptionCanceledEmail({
+        to: userRow.email,
+        userName: userRow.name || "User",
+        userId: existing.userId,
+        cancelAtPeriodEnd: stripeSub.cancel_at_period_end ?? false,
+        cancelDate,
+      });
+      console.log(`[Stripe Webhook] Sent subscription canceled email to ${userRow.email}`);
+    } catch (err) {
+      console.error("[Stripe Webhook] Failed to send subscription canceled email:", err);
+    }
+  }
+
   // Check for team downgrade
   checkTeamDowngrade(existing.userId, "free").catch((err) =>
     console.error("[Stripe Webhook] Team downgrade check failed:", err)
@@ -330,6 +395,28 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     .where(eq(subscription.id, existing.id));
 
   console.log(`[Stripe Webhook] Payment succeeded for sub ${subId}, plan=${data.plan}`);
+
+  // Send payment confirmation email
+  const userRow = await db.query.user.findFirst({
+    where: eq(user.id, existing.userId),
+  });
+  if (userRow) {
+    try {
+      const amount = invoice.amount_paid / 100;
+      const currency = invoice.currency?.toUpperCase() ?? "USD";
+      await sendPaymentSucceededEmail({
+        to: userRow.email,
+        userName: userRow.name || "User",
+        userId: existing.userId,
+        planName: data.plan,
+        amount,
+        currency,
+      });
+      console.log(`[Stripe Webhook] Sent payment succeeded email to ${userRow.email}`);
+    } catch (err) {
+      console.error("[Stripe Webhook] Failed to send payment succeeded email:", err);
+    }
+  }
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {

@@ -23,6 +23,36 @@ async function getUserLanguage(userId: string): Promise<Lang> {
 const copy = {
   da: {
     greeting: (name: string) => `Hej ${name},`,
+    welcome: {
+      subject: (plan: string) => `Velkommen til CVR-MATE ${plan}-plan`,
+      heading: "Velkommen til CVR-MATE",
+      body: (plan: string) => `Din ${plan}-plan er nu aktiv. Du har nu fuld adgang til alle funktioner.`,
+      cta: "Gå til dashboard",
+    },
+    paymentSucceeded: {
+      subject: "Betaling bekræftet",
+      heading: "Betaling bekræftet",
+      body: (plan: string, amount: string, currency: string) =>
+        `Din betaling på ${currency} ${amount} for ${plan}-planen er bekræftet. Dit abonnement er aktivt.`,
+      cta: "Se faktureringsoplysninger",
+    },
+    subscriptionUpdated: {
+      subject: "Dit abonnement er ændret",
+      heading: "Abonnement ændret",
+      bodyUpgrade: (newPlan: string) =>
+        `Du er blevet opgradet til ${newPlan}-planen. Tak for at vælge CVR-MATE!`,
+      bodyDowngrade: (newPlan: string) =>
+        `Du er blevet nedgraderet til ${newPlan}-planen. Du beholder adgang til alle dine data.`,
+      cta: "Se dine plandetaljer",
+    },
+    subscriptionCanceled: {
+      subject: "Dit abonnement er aflyst",
+      heading: "Abonnement aflyst",
+      body: "Dit abonnement er aflyst. Du kan stadig få adgang til dine gemte virksomheder på den gratis plan.",
+      bodyEndOfPeriod: (date: string) =>
+        `Dit abonnement bliver aflyst ved slutningen af din nuværende faktureringsperiode den ${date}. Du kan ændre din mening før denne dato.`,
+      cta: "Genaktiver abonnement",
+    },
     paymentFailed: {
       subject: "Betaling mislykkedes – handling krævet",
       heading: "Betaling mislykkedes",
@@ -64,6 +94,36 @@ const copy = {
   },
   en: {
     greeting: (name: string) => `Hi ${name},`,
+    welcome: {
+      subject: (plan: string) => `Welcome to CVR-MATE ${plan} Plan`,
+      heading: "Welcome to CVR-MATE",
+      body: (plan: string) => `Your ${plan} plan is now active. You have full access to all features.`,
+      cta: "Go to Dashboard",
+    },
+    paymentSucceeded: {
+      subject: "Payment Confirmed",
+      heading: "Payment Confirmed",
+      body: (plan: string, amount: string, currency: string) =>
+        `Your payment of ${currency} ${amount} for the ${plan} plan has been confirmed. Your subscription is active.`,
+      cta: "View Billing Details",
+    },
+    subscriptionUpdated: {
+      subject: "Your Subscription Changed",
+      heading: "Subscription Changed",
+      bodyUpgrade: (newPlan: string) =>
+        `You have been upgraded to the ${newPlan} plan. Thank you for choosing CVR-MATE!`,
+      bodyDowngrade: (newPlan: string) =>
+        `You have been downgraded to the ${newPlan} plan. You retain access to all your data.`,
+      cta: "View Plan Details",
+    },
+    subscriptionCanceled: {
+      subject: "Your Subscription Canceled",
+      heading: "Subscription Canceled",
+      body: "Your subscription has been canceled. You can still access your saved companies on the free plan.",
+      bodyEndOfPeriod: (date: string) =>
+        `Your subscription will be canceled at the end of your current billing period on ${date}. You can change your mind before that date.`,
+      cta: "Reactivate Subscription",
+    },
     paymentFailed: {
       subject: "Payment Failed – Action Required",
       heading: "Payment Failed",
@@ -319,6 +379,110 @@ function InvoiceUpcomingEmail({
   );
 }
 
+function WelcomeEmail({
+  userName,
+  planName,
+  lang,
+}: {
+  userName: string;
+  planName: string;
+  lang: Lang;
+}) {
+  const tr = copy[lang];
+  const wc = tr.welcome;
+  return (
+    <EmailWrapper lang={lang} heading={wc.heading}>
+      <p style={paraStyle}>{tr.greeting(userName)}</p>
+      <p style={paraStyle}>{wc.body(planName)}</p>
+      <a href="https://cvr-mate.dk/dashboard" style={ctaStyle}>{wc.cta}</a>
+      <div style={dividerStyle} />
+      <p style={{ ...paraStyle, whiteSpace: "pre-line" }}>{tr.signature}</p>
+    </EmailWrapper>
+  );
+}
+
+function PaymentSucceededEmail({
+  userName,
+  planName,
+  amount,
+  currency,
+  lang,
+}: {
+  userName: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  lang: Lang;
+}) {
+  const tr = copy[lang];
+  const ps = tr.paymentSucceeded;
+  return (
+    <EmailWrapper lang={lang} heading={ps.heading}>
+      <p style={paraStyle}>{tr.greeting(userName)}</p>
+      <p style={paraStyle}>{ps.body(planName, amount.toFixed(2), currency.toUpperCase())}</p>
+      <a href={billingUrl} style={ctaStyle}>{ps.cta}</a>
+      <div style={dividerStyle} />
+      <p style={{ ...paraStyle, whiteSpace: "pre-line" }}>{tr.signature}</p>
+    </EmailWrapper>
+  );
+}
+
+function SubscriptionUpdatedEmail({
+  userName,
+  newPlan,
+  oldPlan,
+  lang,
+}: {
+  userName: string;
+  newPlan: string;
+  oldPlan: string;
+  lang: Lang;
+}) {
+  const tr = copy[lang];
+  const su = tr.subscriptionUpdated;
+  const planHierarchy = { free: 0, starter: 1, professional: 2, enterprise: 3 };
+  const newLevel = planHierarchy[newPlan as keyof typeof planHierarchy] ?? 0;
+  const oldLevel = planHierarchy[oldPlan as keyof typeof planHierarchy] ?? 0;
+  const isUpgrade = newLevel > oldLevel;
+  return (
+    <EmailWrapper lang={lang} heading={su.heading}>
+      <p style={paraStyle}>{tr.greeting(userName)}</p>
+      <p style={paraStyle}>
+        {isUpgrade ? su.bodyUpgrade(newPlan) : su.bodyDowngrade(newPlan)}
+      </p>
+      <a href={billingUrl} style={ctaStyle}>{su.cta}</a>
+      <div style={dividerStyle} />
+      <p style={{ ...paraStyle, whiteSpace: "pre-line" }}>{tr.signature}</p>
+    </EmailWrapper>
+  );
+}
+
+function SubscriptionCanceledEmail({
+  userName,
+  cancelAtPeriodEnd,
+  cancelDate,
+  lang,
+}: {
+  userName: string;
+  cancelAtPeriodEnd: boolean;
+  cancelDate?: string;
+  lang: Lang;
+}) {
+  const tr = copy[lang];
+  const sc = tr.subscriptionCanceled;
+  return (
+    <EmailWrapper lang={lang} heading={sc.heading}>
+      <p style={paraStyle}>{tr.greeting(userName)}</p>
+      <p style={paraStyle}>
+        {cancelAtPeriodEnd && cancelDate ? sc.bodyEndOfPeriod(cancelDate) : sc.body}
+      </p>
+      <a href={billingUrl} style={ctaStyle}>{sc.cta}</a>
+      <div style={dividerStyle} />
+      <p style={{ ...paraStyle, whiteSpace: "pre-line" }}>{tr.signature}</p>
+    </EmailWrapper>
+  );
+}
+
 function DisputeEmail({
   userName,
   amount,
@@ -455,6 +619,82 @@ export async function sendInvoiceUpcomingEmail(opts: {
       subject: copy[lang].invoiceUpcoming.subject(opts.planName),
       templateId: "invoice_upcoming",
     }
+  );
+}
+
+export async function sendWelcomeEmail(opts: {
+  to: string;
+  userName: string;
+  userId: string;
+  planName: string;
+}): Promise<SendEmailResult> {
+  const lang = await getUserLanguage(opts.userId);
+  return sendEmail(
+    React.createElement(WelcomeEmail, {
+      userName: opts.userName,
+      planName: opts.planName,
+      lang,
+    }),
+    { to: opts.to, userId: opts.userId, subject: copy[lang].welcome.subject(opts.planName), templateId: "welcome" }
+  );
+}
+
+export async function sendPaymentSucceededEmail(opts: {
+  to: string;
+  userName: string;
+  userId: string;
+  planName: string;
+  amount: number;
+  currency: string;
+}): Promise<SendEmailResult> {
+  const lang = await getUserLanguage(opts.userId);
+  return sendEmail(
+    React.createElement(PaymentSucceededEmail, {
+      userName: opts.userName,
+      planName: opts.planName,
+      amount: opts.amount,
+      currency: opts.currency,
+      lang,
+    }),
+    { to: opts.to, userId: opts.userId, subject: copy[lang].paymentSucceeded.subject, templateId: "payment_succeeded" }
+  );
+}
+
+export async function sendSubscriptionUpdatedEmail(opts: {
+  to: string;
+  userName: string;
+  userId: string;
+  newPlan: string;
+  oldPlan: string;
+}): Promise<SendEmailResult> {
+  const lang = await getUserLanguage(opts.userId);
+  return sendEmail(
+    React.createElement(SubscriptionUpdatedEmail, {
+      userName: opts.userName,
+      newPlan: opts.newPlan,
+      oldPlan: opts.oldPlan,
+      lang,
+    }),
+    { to: opts.to, userId: opts.userId, subject: copy[lang].subscriptionUpdated.subject, templateId: "subscription_updated" }
+  );
+}
+
+export async function sendSubscriptionCanceledEmail(opts: {
+  to: string;
+  userName: string;
+  userId: string;
+  cancelAtPeriodEnd: boolean;
+  cancelDate?: string;
+}): Promise<SendEmailResult> {
+  const lang = await getUserLanguage(opts.userId);
+  return sendEmail(
+    React.createElement(SubscriptionCanceledEmail, {
+      userName: opts.userName,
+      cancelAtPeriodEnd: opts.cancelAtPeriodEnd,
+      cancelDate: opts.cancelDate,
+      lang,
+    }),
+    { to: opts.to, userId: opts.userId, subject: copy[lang].subscriptionCanceled.subject, templateId: "subscription_canceled" }
   );
 }
 
