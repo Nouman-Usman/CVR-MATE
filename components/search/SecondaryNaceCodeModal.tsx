@@ -104,7 +104,7 @@ export function SecondaryNaceCodeModal({
                     <div className="text-xs text-muted-foreground truncate">{item.label}</div>
                   </div>
                   {currentValue === item.code && (
-                    <div className="ml-2 w-2 h-2 rounded-full bg-foreground flex-shrink-0" />
+                    <div className="ml-2 w-2 h-2 rounded-full bg-foreground shrink-0" />
                   )}
                 </button>
               ))
