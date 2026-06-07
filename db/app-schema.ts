@@ -372,8 +372,8 @@ export const userBrand = pgTable(
     emailNotificationHour: integer("email_notification_hour").default(8).notNull(), // 0–23
     aiEnrichment: jsonb("ai_enrichment"), // BrandAiEnrichment | null
     writingInstructions: text("writing_instructions"),
-    aiDos: text("ai_dos").array().default([]).notNull(),
-    aiDonts: text("ai_donts").array().default([]).notNull(),
+    aiDos: jsonb("ai_dos").default([]).notNull(),
+    aiDonts: jsonb("ai_donts").default([]).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
