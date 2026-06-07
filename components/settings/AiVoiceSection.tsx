@@ -114,7 +114,7 @@ function ChipInput({
           }}
           placeholder={placeholder}
           maxLength={120}
-          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition-all"
+          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all"
         />
         <button
           type="button"
@@ -250,12 +250,12 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
               onClick={() => handleToneChange(tn)}
               className={`relative px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 tone === tn
-                  ? "bg-slate-900 text-white shadow-lg scale-[1.02]"
+                  ? "bg-blue-500 text-white shadow-lg scale-[1.02]"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
               }`}
             >
               {toneLabels[tn]}
-              {tone === tn && <div className="absolute inset-0 rounded-lg ring-2 ring-slate-900 ring-offset-2" />}
+              {tone === tn && <div className="absolute inset-0 rounded-lg ring-2 ring-blue-500 ring-offset-2" />}
             </button>
           ))}
         </div>
@@ -271,7 +271,7 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
             placeholder={av.instructionsPlaceholder}
             maxLength={1000}
             rows={4}
-            className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 bg-white transition-all resize-none"
+            className="w-full px-4 py-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition-all resize-none"
           />
           <div className="flex justify-end text-xs text-slate-400">
             {writingInstructions.length} / 1000
@@ -287,8 +287,8 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
             chips={aiDos}
             onChange={setAiDos}
             placeholder={av.dosPlaceholder}
-            colorClass="bg-teal-50 text-teal-700 border border-teal-200"
-            accentColor="text-teal-600"
+            colorClass="bg-green-50 text-green-700 border border-green-200"
+            accentColor="text-green-600"
           />
           <p className="text-xs text-slate-400 pt-1">
             {aiDos.length} / 20 rules
@@ -300,8 +300,8 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
             chips={aiDonts}
             onChange={setAiDonts}
             placeholder={av.dontsPlaceholder}
-            colorClass="bg-amber-50 text-amber-700 border border-amber-200"
-            accentColor="text-amber-600"
+            colorClass="bg-red-50 text-red-700 border border-red-200"
+            accentColor="text-red-600"
           />
           <p className="text-xs text-slate-400 pt-1">
             {aiDonts.length} / 20 rules
@@ -316,8 +316,8 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
           disabled={saving}
           className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
             saving
-              ? "bg-slate-300 text-slate-600 cursor-not-allowed"
-              : "bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md hover:shadow-lg"
+              ? "bg-slate-200 text-slate-600 cursor-not-allowed"
+              : "bg-blue-500 text-white hover:bg-blue-600 active:scale-95 shadow-md hover:shadow-lg"
           }`}
         >
           {saving ? av.saving : av.save}
@@ -337,7 +337,7 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
           className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
             previewLoading
               ? "bg-slate-200 text-slate-600 cursor-not-allowed"
-              : "bg-slate-100 text-slate-900 hover:bg-slate-200 active:scale-95"
+              : "border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95"
           }`}
         >
           {previewLoading && <Loader2 className="w-4 h-4 animate-spin" />}
