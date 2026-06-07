@@ -103,12 +103,21 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
   }, []);
 
   const handleToneChange = async (newTone: Tone) => {
-    setTone(newTone);
-    await fetch("/api/brand", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tone: newTone }),
-    });
+    try {
+      const res = await fetch("/api/brand", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tone: newTone }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        onToast(err.error || "Failed to save tone", "error");
+        return;
+      }
+      setTone(newTone);
+    } catch {
+      onToast("Failed to save tone", "error");
+    }
   };
 
   const handleSave = async () => {
