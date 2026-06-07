@@ -5,10 +5,10 @@ import { getCompanyByVat } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { company as companyTable } from "@/db/schema";
 import { inArray } from "drizzle-orm";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -187,18 +187,24 @@ ${formatBrandContext(brand)}`;
       // Return minimal fallback analysis from available companies
       const allCompanies = [...cvrCompanies.filter(Boolean), ...dbCompanies];
       raw = {
-        prioritized: allCompanies.slice(0, 5).map(c => ({
-          vat: String((c as any).vat ?? "unknown"),
-          name: (c as any).life?.name ?? (c as any).name ?? "Company",
-          score: "medium",
-          reason: "Analysis pending. Retry shortly.",
-        })),
+        prioritized: allCompanies.slice(0, 5).map(c => {
+          const company = c as { vat?: string; life?: { name?: string }; name?: string };
+          return {
+            vat: String(company.vat ?? "unknown"),
+            name: company.life?.name ?? company.name ?? "Company",
+            score: "medium",
+            reason: "Analysis pending. Retry shortly.",
+          };
+        }),
         segments: [],
-        nextActions: allCompanies.slice(0, 3).map(c => ({
-          vat: String((c as any).vat ?? "unknown"),
-          name: (c as any).life?.name ?? (c as any).name ?? "Company",
-          action: "Retry pipeline analysis when available",
-        })),
+        nextActions: allCompanies.slice(0, 3).map(c => {
+          const company = c as { vat?: string; life?: { name?: string }; name?: string };
+          return {
+            vat: String(company.vat ?? "unknown"),
+            name: company.life?.name ?? company.name ?? "Company",
+            action: "Retry pipeline analysis when available",
+          };
+        }),
         summary: "Pipeline analysis generation failed. Try again in a moment.",
       };
     }

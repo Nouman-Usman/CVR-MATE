@@ -5,11 +5,11 @@ import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { profileEnrichment } from "@/db/schema";
-import { cacheSet, cacheDel } from "@/lib/redis";
+import { cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
