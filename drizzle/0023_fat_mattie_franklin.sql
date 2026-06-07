@@ -43,8 +43,8 @@ CREATE TABLE "user_video_view" (
 --> statement-breakpoint
 ALTER TABLE "user" ALTER COLUMN "language" SET DEFAULT 'da';--> statement-breakpoint
 ALTER TABLE "user_brand" ADD COLUMN "writing_instructions" text;--> statement-breakpoint
-ALTER TABLE "user_brand" DROP COLUMN "ai_dos";--> statement-breakpoint
-ALTER TABLE "user_brand" DROP COLUMN "ai_donts";--> statement-breakpoint
+ALTER TABLE "user_brand" DROP COLUMN IF EXISTS "ai_dos";--> statement-breakpoint
+ALTER TABLE "user_brand" DROP COLUMN IF EXISTS "ai_donts";--> statement-breakpoint
 ALTER TABLE "user_brand" ADD COLUMN "ai_dos" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
 ALTER TABLE "user_brand" ADD COLUMN "ai_donts" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
 ALTER TABLE "feature_video" ADD CONSTRAINT "feature_video_feature_key_features_key_fk" FOREIGN KEY ("feature_key") REFERENCES "public"."features"("key") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
