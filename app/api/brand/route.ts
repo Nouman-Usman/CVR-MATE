@@ -146,19 +146,24 @@ export async function PATCH(req: NextRequest) {
     if (body.tone !== undefined) updates.tone = body.tone || "formal";
     if (body.aiEnrichment !== undefined) updates.aiEnrichment = body.aiEnrichment;
     if (body.writingInstructions !== undefined) {
-      if (typeof body.writingInstructions === "string" && body.writingInstructions.length > 1000) {
+      if (typeof body.writingInstructions !== "string" && body.writingInstructions !== null) {
+        return NextResponse.json({ error: "writingInstructions must be a string or null" }, { status: 400 });
+      }
+      if (typeof body.writingInstructions === "string" && body.writingInstructions.trim().length > 1000) {
         return NextResponse.json({ error: "writingInstructions exceeds 1000 characters" }, { status: 400 });
       }
-      updates.writingInstructions = body.writingInstructions ?? null;
+      updates.writingInstructions = typeof body.writingInstructions === "string"
+        ? body.writingInstructions.trim()
+        : null;
     }
     if (body.aiDos !== undefined) {
-      if (!Array.isArray(body.aiDos) || body.aiDos.length > 20 || body.aiDos.some((d: unknown) => typeof d !== "string" || d.length > 120)) {
+      if (!Array.isArray(body.aiDos) || body.aiDos.length > 20 || body.aiDos.some((d: unknown) => typeof d !== "string" || d.trim().length === 0 || d.trim().length > 120)) {
         return NextResponse.json({ error: "aiDos must be an array of up to 20 strings, each max 120 chars" }, { status: 400 });
       }
       updates.aiDos = body.aiDos;
     }
     if (body.aiDonts !== undefined) {
-      if (!Array.isArray(body.aiDonts) || body.aiDonts.length > 20 || body.aiDonts.some((d: unknown) => typeof d !== "string" || d.length > 120)) {
+      if (!Array.isArray(body.aiDonts) || body.aiDonts.length > 20 || body.aiDonts.some((d: unknown) => typeof d !== "string" || d.trim().length === 0 || d.trim().length > 120)) {
         return NextResponse.json({ error: "aiDonts must be an array of up to 20 strings, each max 120 chars" }, { status: 400 });
       }
       updates.aiDonts = body.aiDonts;
