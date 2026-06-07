@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Loader2, Plus, X, Edit2 } from "lucide-react";
 
@@ -10,19 +10,23 @@ interface AiVoiceSectionProps {
 
 type Tone = "formal" | "friendly" | "casual";
 
-function ChipInput({
-  chips,
-  onChange,
-  placeholder,
-  colorClass,
-  accentColor,
-}: {
-  chips: string[];
-  onChange: (chips: string[]) => void;
-  placeholder: string;
-  colorClass: string;
-  accentColor: string;
-}) {
+interface ChipInputHandle {
+  finalizeDraft: () => void;
+}
+
+const ChipInput = forwardRef<
+  ChipInputHandle,
+  {
+    chips: string[];
+    onChange: (chips: string[]) => void;
+    placeholder: string;
+    colorClass: string;
+    accentColor: string;
+  }
+>(function ChipInput(
+  { chips, onChange, placeholder, colorClass, accentColor },
+  ref
+) {
   const [draft, setDraft] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -33,6 +37,10 @@ function ChipInput({
     onChange([...chips, val]);
     setDraft("");
   };
+
+  useImperativeHandle(ref, () => ({
+    finalizeDraft: add,
+  }));
 
   const startEdit = (index: number) => {
     setEditingIndex(index);
@@ -128,11 +136,14 @@ function ChipInput({
       </div>
     </div>
   );
-}
+});
 
 export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
   const { t, locale } = useLanguage();
   const av = (t.settings as Record<string, unknown>).aiVoice as Record<string, string>;
+
+  const dosRef = useRef<ChipInputHandle>(null);
+  const dontsRef = useRef<ChipInputHandle>(null);
 
   const [loaded, setLoaded] = useState(false);
   const [tone, setTone] = useState<Tone>("formal");
@@ -178,6 +189,9 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
   };
 
   const handleSave = async () => {
+    dosRef.current?.finalizeDraft();
+    dontsRef.current?.finalizeDraft();
+
     setSaving(true);
     try {
       const res = await fetch("/api/brand", {
@@ -284,6 +298,7 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
         <div className="space-y-3">
           <label className={labelClass}>{av.dosLabel}</label>
           <ChipInput
+            ref={dosRef}
             chips={aiDos}
             onChange={setAiDos}
             placeholder={av.dosPlaceholder}
@@ -297,6 +312,7 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
         <div className="space-y-3">
           <label className={labelClass}>{av.dontsLabel}</label>
           <ChipInput
+            ref={dontsRef}
             chips={aiDonts}
             onChange={setAiDonts}
             placeholder={av.dontsPlaceholder}
@@ -344,9 +360,24 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
           {previewLoading ? av.previewGenerating : av.previewButton}
         </button>
         {previewText && (
-          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 shadow-sm">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">Generated Sample</p>
-            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{previewText}</p>
+          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 shadow-sm font-mono text-xs">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">Generated Email Preview</p>
+            <div className="bg-white p-3 rounded border border-slate-200 text-slate-800 leading-relaxed">
+              {previewText.split('\n').map((line, idx) => (
+                <div key={idx}>
+                  {line.startsWith('Subject:') ? (
+                    <div className="font-bold text-slate-900 mb-2">{line}</div>
+                  ) : line.trim() === '' ? (
+                    <div className="h-1" />
+                  ) : (
+                    <div>{line}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-3">
+              ✓ Your AI Voice settings have been applied to this preview
+            </p>
           </div>
         )}
       </div>
