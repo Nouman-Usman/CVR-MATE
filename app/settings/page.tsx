@@ -10,6 +10,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
 import CrmIntegrationsSectionComponent from "@/components/settings/crm-integrations-section";
 import TeamSection from "@/components/settings/team-section";
+import AiVoiceSection from "@/components/settings/AiVoiceSection";
 import {
   useSubscription,
   useCheckout,
@@ -36,12 +37,14 @@ import {
   X,
   Eye,
   EyeOff,
+  Sparkles,
 } from "lucide-react";
 
 type SettingsSection =
   | "profile"
   | "password"
   | "brand"
+  | "ai-voice"
   | "team"
   | "notifications"
   | "language"
@@ -713,7 +716,6 @@ export default function SettingsPage() {
   const [brandWebsite, setBrandWebsite] = useState("");
   const [brandProducts, setBrandProducts] = useState("");
   const [brandTargetAudience, setBrandTargetAudience] = useState("");
-  const [brandTone, setBrandTone] = useState("formal");
   const [brandSaving, setBrandSaving] = useState(false);
   const [cvrLoading, setCvrLoading] = useState(false);
   const [cvrStatus, setCvrStatus] = useState<"idle" | "found" | "notfound">(
@@ -797,7 +799,6 @@ export default function SettingsPage() {
           setBrandWebsite(data.brand.website || "");
           setBrandProducts(data.brand.products || "");
           setBrandTargetAudience(data.brand.targetAudience || "");
-          setBrandTone(data.brand.tone || "formal");
           if (data.brand.aiEnrichment) {
             setAiEnrichmentData(data.brand.aiEnrichment as Record<string, unknown>);
             setEnrichStep("done");
@@ -939,7 +940,6 @@ export default function SettingsPage() {
           website: brandWebsite || null,
           products: brandProducts,
           targetAudience: brandTargetAudience || null,
-          tone: brandTone,
         }),
       });
       if (res.ok) {
@@ -966,7 +966,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab");
-    const valid: SettingsSection[] = ["profile", "password", "brand", "team", "notifications", "language", "integrations", "subscription", "danger"];
+    const valid: SettingsSection[] = ["profile", "password", "brand", "ai-voice", "team", "notifications", "language", "integrations", "subscription", "danger"];
     if (tab && valid.includes(tab as SettingsSection)) {
       setActiveSection(tab as SettingsSection);
     }
@@ -1024,6 +1024,7 @@ export default function SettingsPage() {
       label: locale === "da" ? "Arbejdsplads" : "Workspace",
       items: [
         { key: "brand", label: st.brand.title, icon: Building2 },
+        { key: "ai-voice", label: ((t.settings as Record<string, unknown>).aiVoice as Record<string, string>).title, icon: Sparkles },
         { key: "team", label: st.team.title, icon: UsersRound },
         { key: "integrations", label: (t.integrations as { title: string }).title, icon: Plug },
       ],
@@ -1444,35 +1445,6 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className={labelClass}>
-                  {locale === "da" ? "AI Tone" : "AI Tone"}
-                </label>
-                <div className="flex gap-2">
-                  {(["formal", "friendly", "casual"] as const).map((tn) => {
-                    const labels = {
-                      formal: t.onboarding.toneFormal,
-                      friendly: t.onboarding.toneFriendly,
-                      casual: t.onboarding.toneCasual,
-                    };
-                    return (
-                      <button
-                        key={tn}
-                        type="button"
-                        onClick={() => setBrandTone(tn)}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
-                          brandTone === tn
-                            ? "bg-blue-50 text-blue-600 ring-2 ring-blue-500/20"
-                            : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                        }`}
-                      >
-                        {labels[tn]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <button
                 onClick={handleBrandSave}
                 disabled={
@@ -1773,6 +1745,13 @@ export default function SettingsPage() {
             );
           })()}
         </div>}
+
+        {/* ── AI Voice ─────────────────────────────────────────────────── */}
+        {activeSection === "ai-voice" && (
+          <AiVoiceSection
+            onToast={(message, type) => showToast(message, type)}
+          />
+        )}
 
         {/* ── Team / Organization ──────────────────────────────────────── */}
         {activeSection === "team" && <TeamSection />}
