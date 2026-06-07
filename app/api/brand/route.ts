@@ -160,13 +160,13 @@ export async function PATCH(req: NextRequest) {
       if (!Array.isArray(body.aiDos) || body.aiDos.length > 20 || body.aiDos.some((d: unknown) => typeof d !== "string" || d.trim().length === 0 || d.trim().length > 120)) {
         return NextResponse.json({ error: "aiDos must be an array of up to 20 strings, each max 120 chars" }, { status: 400 });
       }
-      updates.aiDos = body.aiDos;
+      updates.aiDos = JSON.stringify(body.aiDos);
     }
     if (body.aiDonts !== undefined) {
       if (!Array.isArray(body.aiDonts) || body.aiDonts.length > 20 || body.aiDonts.some((d: unknown) => typeof d !== "string" || d.trim().length === 0 || d.trim().length > 120)) {
         return NextResponse.json({ error: "aiDonts must be an array of up to 20 strings, each max 120 chars" }, { status: 400 });
       }
-      updates.aiDonts = body.aiDonts;
+      updates.aiDonts = JSON.stringify(body.aiDonts);
     }
 
     const [updated] = await db
