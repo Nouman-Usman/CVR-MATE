@@ -73,16 +73,22 @@ function GradientRing({ position, scale }: {
 
 function Particles({ count = 200 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null);
+  const posRef = useRef<Float32Array | null>(null);
 
-  const positions = useMemo(() => {
+  // Initialize positions once — Math.random is only called during initialization
+  // This is intentional: we generate random particle positions on first render and never change them
+  // eslint-disable-next-line react-hooks/purity
+  if (posRef.current === null) {
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 18;
       pos[i * 3 + 1] = (Math.random() - 0.5) * 10;
       pos[i * 3 + 2] = (Math.random() - 0.5) * 8 - 2;
     }
-    return pos;
-  }, [count]);
+    posRef.current = pos;
+  }
+
+  const positions = posRef.current;
 
   useFrame(({ clock }) => {
     if (!ref.current) return;

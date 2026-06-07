@@ -8,7 +8,6 @@ import { notification } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PLAN_LIMITS } from "@/lib/stripe/plans";
 import {
-  STATUS_MAP,
   getInvoiceSubscriptionId,
   subscriptionDataFromStripe,
 } from "@/lib/stripe/webhook-helpers";

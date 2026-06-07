@@ -80,9 +80,6 @@ export async function POST() {
       return NextResponse.json({ synced: true, plan: "free" });
     }
 
-    // Record when we started so we can check for newer webhook writes
-    const syncStartedAt = new Date();
-
     const stripe = getStripe();
     let stripeSub;
     try {
@@ -126,7 +123,7 @@ export async function POST() {
 
     // Only write if no webhook has updated since we started fetching.
     // This prevents the sync from overwriting newer webhook data.
-    const result = await db
+    await db
       .update(subscription)
       .set({
         stripePriceId: priceId,

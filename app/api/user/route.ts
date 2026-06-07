@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
@@ -22,7 +22,7 @@ export const runtime = "nodejs";
  * Blocked if the user is the sole owner of an organisation with other
  * members — they must transfer ownership or dissolve the team first.
  */
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

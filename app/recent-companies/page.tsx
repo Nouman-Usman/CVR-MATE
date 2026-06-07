@@ -149,8 +149,8 @@ export default function RecentCompaniesPage() {
       saveCompanyMutation.mutate(
         { vat: c.cvr, name: c.name, rawData: rawResult },
         {
-          onError: (err: any) => {
-            if (err.upgrade) {
+          onError: (err: Error) => {
+            if ((err as { upgrade?: boolean }).upgrade) {
               triggerUpgrade("saved_company");
             } else {
               showToast(locale === "da" ? "Kunne ikke gemme" : "Failed to save");
