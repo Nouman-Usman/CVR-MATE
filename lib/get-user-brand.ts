@@ -62,8 +62,7 @@ AI-ENRICHED BRAND PROFILE:
   if (hasInstructions || hasDos || hasDonts) {
     context += `
 
-AI WRITING STYLE:
-- Tone: ${brand.tone ?? "formal"}`;
+AI WRITING STYLE:`;
     if (hasInstructions && brand.writingInstructions) {
       context += `\n- Instructions: ${brand.writingInstructions.trim()}`;
     }
