@@ -127,10 +127,10 @@ Respond with a JSON object:
     let raw: Record<string, unknown>;
     try {
       raw = await generateAiJson<Record<string, unknown>>({
-        model: "gemini-2.5-flash",
+        model: "claude-haiku-4-5-20251001",
         systemPrompt,
         userPrompt,
-        maxTokens: 4096, // Increased from 2048 for thinking model token budget
+        maxTokens: 4096,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";

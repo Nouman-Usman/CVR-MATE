@@ -69,7 +69,7 @@ Each question should be:
     let raw: Record<string, unknown>;
     try {
       raw = await generateAiJson<Record<string, unknown>>({
-        model: "gemini-2.5-flash",
+        model: "claude-haiku-4-5-20251001",
         systemPrompt,
         userPrompt,
         maxTokens: 2048, // Increased from 1024 for thinking model token budget

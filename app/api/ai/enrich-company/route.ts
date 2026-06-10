@@ -111,7 +111,7 @@ ${formatBrandContext(brand)}`;
     let raw: Record<string, unknown>;
     try {
       raw = await generateAiJson<Record<string, unknown>>({
-        model: "gemini-2.5-flash",
+        model: "claude-haiku-4-5-20251001",
         systemPrompt,
         userPrompt,
         maxTokens: 8192, // Increased from 4096 for thinking model token budget
