@@ -34,24 +34,26 @@ export async function POST() {
     const systemPrompt = `You are a B2B outreach specialist. Write compelling, personalized cold emails that stand out.
 ${brandContext}`;
 
-    const userPrompt = `Write a complete, professional cold outreach email to Lars Andersen, CEO of ACME A/S (Danish software consulting company, 45 employees, specialized in enterprise software solutions, CVR 12345678).
+    const userPrompt = `Write a COMPLETE, professional cold outreach email to Lars Andersen, CEO of ACME A/S (Danish software consulting company, 45 employees, specialized in enterprise software solutions, CVR 12345678).
 
-Structure the email as follows:
-- Subject line (on the first line, prefixed with "Subject: ")
-- Professional salutation
-- Opening paragraph: 2-3 sentences that reference their company, industry, and recent achievements or market position
-- Value proposition: 2-3 sentences explaining specific benefits and outcomes relevant to their company size and sector
-- Social proof or relevant credentials: 1-2 sentences showing why you/your solution is credible
-- Clear call-to-action: specific next step (meeting, call, demo) with proposed timing
-- Professional sign-off with title and contact info
-- Optional: brief P.S. that adds a touch of personality
+REQUIRED STRUCTURE - INCLUDE ALL SECTIONS:
+1. Subject line (first line, prefixed with "Subject: ")
+2. Professional salutation (e.g., "Kære Lars Andersen," or "Dear Lars,")
+3. Opening paragraph: 2-3 sentences referencing their company, industry, achievements
+4. Value proposition: 2-3 sentences on specific benefits and outcomes
+5. Social proof: 1-2 sentences on credibility and track record
+6. Clear call-to-action: Specific next step with proposed timing
+7. Professional sign-off: Name, title, contact info
+8. P.S. line: Brief personal touch
 
-Make the email comprehensive, detailed, and fully demonstrate the tone, voice, and writing style you've configured. Focus on quality and personalization over brevity.`;
+CRITICAL: Write the COMPLETE email with all sections fully developed. Do not truncate. End with contact information and P.S.
+
+Fully demonstrate the tone, voice, and writing style configured. Focus on quality and personalization.`;
 
     const message = await generateAiResponse({
       systemPrompt,
       userPrompt,
-      maxTokens: 1500,
+      maxTokens: 2000,
     });
 
     return NextResponse.json({ message });
