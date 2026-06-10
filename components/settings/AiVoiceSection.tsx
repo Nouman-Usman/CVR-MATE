@@ -153,6 +153,8 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
   const [saving, setSaving] = useState(false);
   const [previewText, setPreviewText] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
     fetch("/api/brand")
@@ -165,9 +167,35 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
           setAiDonts(data.brand.aiDonts || []);
         }
         setLoaded(true);
+        setInitialLoadDone(true);
       })
-      .catch(() => setLoaded(true));
+      .catch(() => {
+        setLoaded(true);
+        setInitialLoadDone(true);
+      });
   }, []);
+
+  // Auto-save do's and don'ts on change
+  useEffect(() => {
+    if (!initialLoadDone) return;
+
+    setAutoSaving(true);
+    const timer = setTimeout(async () => {
+      try {
+        await fetch("/api/brand", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aiDos, aiDonts }),
+        });
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 300); // Debounce 300ms to avoid rapid saves
+
+    return () => clearTimeout(timer);
+  }, [aiDos, aiDonts, initialLoadDone]);
 
   const handleToneChange = async (newTone: Tone) => {
     try {
@@ -312,7 +340,10 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
             colorClass="bg-green-100 text-green-700 border border-green-300"
             accentColor="text-green-700"
           />
-          <p className="text-xs text-slate-500">{aiDos.length} / 20 {locale === "da" ? "regler" : "rules"}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500">{aiDos.length} / 20 {locale === "da" ? "regler" : "rules"}</p>
+            {autoSaving && <Loader2 className="w-3 h-3 animate-spin text-green-600" />}
+          </div>
         </div>
 
         {/* Don'ts */}
@@ -329,7 +360,10 @@ export default function AiVoiceSection({ onToast }: AiVoiceSectionProps) {
             colorClass="bg-red-100 text-red-700 border border-red-300"
             accentColor="text-red-700"
           />
-          <p className="text-xs text-slate-500">{aiDonts.length} / 20 {locale === "da" ? "regler" : "rules"}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500">{aiDonts.length} / 20 {locale === "da" ? "regler" : "rules"}</p>
+            {autoSaving && <Loader2 className="w-3 h-3 animate-spin text-red-600" />}
+          </div>
         </div>
       </div>
 
