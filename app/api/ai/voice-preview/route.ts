@@ -34,22 +34,24 @@ export async function POST() {
     const systemPrompt = `You are a B2B outreach specialist. Write compelling, personalized cold emails that stand out.
 ${brandContext}`;
 
-    const userPrompt = `Write a professional cold outreach email to Lars Andersen, CEO of ACME A/S (Danish software consulting company, 45 employees, specialized in enterprise software solutions, CVR 12345678).
+    const userPrompt = `Write a complete, professional cold outreach email to Lars Andersen, CEO of ACME A/S (Danish software consulting company, 45 employees, specialized in enterprise software solutions, CVR 12345678).
 
-Include:
+Structure the email as follows:
 - Subject line (on the first line, prefixed with "Subject: ")
-- Professional greeting
-- 2-3 sentence opener that references their company/industry
-- 1-2 sentence value proposition
-- Clear call-to-action
-- Professional sign-off
+- Professional salutation
+- Opening paragraph: 2-3 sentences that reference their company, industry, and recent achievements or market position
+- Value proposition: 2-3 sentences explaining specific benefits and outcomes relevant to their company size and sector
+- Social proof or relevant credentials: 1-2 sentences showing why you/your solution is credible
+- Clear call-to-action: specific next step (meeting, call, demo) with proposed timing
+- Professional sign-off with title and contact info
+- Optional: brief P.S. that adds a touch of personality
 
-Make it concise but complete. Demonstrate the AI voice settings you've configured.`;
+Make the email comprehensive, detailed, and fully demonstrate the tone, voice, and writing style you've configured. Focus on quality and personalization over brevity.`;
 
     const message = await generateAiResponse({
       systemPrompt,
       userPrompt,
-      maxTokens: 600,
+      maxTokens: 1500,
     });
 
     return NextResponse.json({ message });
