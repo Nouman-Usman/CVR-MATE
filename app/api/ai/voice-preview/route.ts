@@ -53,7 +53,7 @@ Fully demonstrate the tone, voice, and writing style configured. Focus on qualit
     const message = await generateAiResponse({
       systemPrompt,
       userPrompt,
-      maxTokens: 2000,
+      maxTokens: 5000,
     });
 
     return NextResponse.json({ message });
