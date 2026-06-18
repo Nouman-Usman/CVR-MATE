@@ -1,6 +1,6 @@
 import "server-only";
 
-const ES_BASE_URL = "https://distribution.virk.dk";
+const ES_BASE_URL = "http://distribution.virk.dk";
 const ES_ENDPOINT = "/cvr-permanent/virksomhed/_search";
 
 function getAuthHeader(): string {
@@ -139,7 +139,8 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
 }
 
 function parseCompany(data: EsCompanyData): ParsedCompany | null {
-  const vir = data.Virksomhed;
+  // Handle both possible nested structures (with/without "Vr" prefix at root)
+  const vir = (data as any).Vrvirksomhed || (data as any).Virksomhed;
   if (!vir) return null;
 
   const cvr = vir.cvrNummer;
@@ -195,13 +196,15 @@ function buildEsQuery(filters: Record<string, string>): unknown {
 
   const name = filters.life_name;
   if (name) {
-    // Try match query first (simpler, better for text). Fallback: query_string with wildcards
+    // Search across company names
     must.push({
-      match: {
-        "Virksomhed.virksomhedMetadata.nyesteNavn.navn": {
-          query: name,
-          operator: "and",
-        },
+      multi_match: {
+        query: name,
+        fields: [
+          "Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn",
+          "Vrvirksomhed.navne.navn",
+        ],
+        operator: "or",
       },
     });
   }
@@ -210,7 +213,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (zipcode) {
     must.push({
       term: {
-        "Virksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.postnummer": parseInt(zipcode),
+        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.postnummer": parseInt(zipcode),
       },
     });
   }
@@ -219,7 +222,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (industryCode) {
     must.push({
       term: {
-        "Virksomhed.virksomhedMetadata.nyestePrimaryNace.naceKode": industryCode,
+        "Vrvirksomhed.virksomhedMetadata.nyestePrimaryNace.naceKode": industryCode,
       },
     });
   }
@@ -228,7 +231,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (companyformCode) {
     must.push({
       term: {
-        "Virksomhed.companyForm.formCode": parseInt(companyformCode),
+        "Vrvirksomhed.companyForm.formCode": parseInt(companyformCode),
       },
     });
   }
@@ -237,7 +240,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (statusCode) {
     must.push({
       term: {
-        "Virksomhed.virksomhedStatus.statuskode": parseInt(statusCode),
+        "Vrvirksomhed.virksomhedStatus.statuskode": parseInt(statusCode),
       },
     });
   }
@@ -250,7 +253,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
         must_not: [
           {
             term: {
-              "Virksomhed.livsforloeb.adprotected": true,
+              "Vrvirksomhed.livsforloeb.adprotected": true,
             },
           },
         ],
