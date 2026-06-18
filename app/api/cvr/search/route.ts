@@ -22,9 +22,15 @@ export async function GET(req: NextRequest) {
 
     const params = req.nextUrl.searchParams;
 
-    // Extract pagination params
-    const page = params.get("page") ? Number(params.get("page")) : 1;
-    const limit = params.get("limit") ? Number(params.get("limit")) : 20;
+    // Extract + validate pagination params
+    const pageRaw = Number(params.get("page")) || 1;
+    const limitRaw = Number(params.get("limit")) || 20;
+    const page = Math.max(1, Math.min(pageRaw, 1000));
+    const limit = Math.max(1, Math.min(limitRaw, 100));
+
+    if (!Number.isInteger(pageRaw) || !Number.isInteger(limitRaw) || pageRaw < 1 || limitRaw < 1) {
+      return NextResponse.json({ error: "Invalid pagination parameters" }, { status: 400 });
+    }
 
     // Map filter params to Elasticsearch filter structure
     const filters: Record<string, string> = {};
@@ -74,8 +80,7 @@ export async function GET(req: NextRequest) {
       truncated: false,
     });
   } catch (error) {
-    console.error("CVR search error:", error);
-    const message = error instanceof Error ? error.message : "Search failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("CVR search error:", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
 }

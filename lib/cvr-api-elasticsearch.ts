@@ -1,6 +1,6 @@
 import "server-only";
 
-const ES_BASE_URL = "http://distribution.virk.dk";
+const ES_BASE_URL = "https://distribution.virk.dk";
 const ES_ENDPOINT = "/cvr-permanent/virksomhed/_search";
 
 function getAuthHeader(): string {
@@ -106,6 +106,8 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
     _source: true,
   });
 
+  console.log(`[ES Search] Query: ${body.slice(0, 200)}...`);
+
   const res = await fetch(`${ES_BASE_URL}${ES_ENDPOINT}`, {
     method: "POST",
     headers: {
@@ -117,10 +119,13 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
 
   if (!res.ok) {
     const text = await res.text().catch(() => "Unknown error");
-    throw new Error(`Elasticsearch ${res.status}: ${text}`);
+    console.error(`[ES Search] Error ${res.status}: ${text.slice(0, 500)}`);
+    throw new Error("Upstream search failed");
   }
 
-  return res.json();
+  const data = await res.json();
+  console.log(`[ES Search] Got ${data.hits?.hits?.length || 0} results (total: ${typeof data.hits.total === "number" ? data.hits.total : data.hits.total?.value})`);
+  return data;
 }
 
 function parseCompany(data: EsCompanyData): ParsedCompany | null {
@@ -180,13 +185,11 @@ function buildEsQuery(filters: Record<string, string>): unknown {
 
   const name = filters.life_name;
   if (name) {
+    // Use query_string for flexible text search (supports wildcards, phrases, etc.)
     must.push({
-      multi_match: {
-        query: name,
-        fields: [
-          "Virksomhed.virksomhedMetadata.nyesteNavn.navn",
-          "Virksomhed.navne.navn",
-        ],
+      query_string: {
+        default_field: "Virksomhed.virksomhedMetadata.nyesteNavn.navn",
+        query: `*${name}*`,
       },
     });
   }
@@ -195,7 +198,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (zipcode) {
     must.push({
       term: {
-        "Virksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.postnummer": zipcode,
+        "Virksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.postnummer": parseInt(zipcode),
       },
     });
   }
@@ -231,8 +234,14 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   const skipMarketingOptOut = filters.life_adprotected === "true";
   if (skipMarketingOptOut) {
     must.push({
-      term: {
-        "Virksomhed.livsforloeb.adprotected": false,
+      bool: {
+        must_not: [
+          {
+            term: {
+              "Virksomhed.livsforloeb.adprotected": true,
+            },
+          },
+        ],
       },
     });
   }
@@ -253,10 +262,13 @@ export async function searchCompaniesElasticsearch(
   page: number = 1,
   pageSize: number = 20
 ): Promise<{ companies: ParsedCompany[]; total: number; hasMore: boolean }> {
-  const from = (page - 1) * pageSize;
+  // Defense-in-depth: clamp values at client level
+  const validatedPage = Math.max(1, Math.min(page, 1000));
+  const validatedPageSize = Math.max(1, Math.min(pageSize, 100));
+  const from = (validatedPage - 1) * validatedPageSize;
   const query = buildEsQuery(filters);
 
-  const response = await esSearch(query, from, pageSize);
+  const response = await esSearch(query, from, validatedPageSize);
 
   const totalHits = typeof response.hits.total === "number"
     ? response.hits.total
