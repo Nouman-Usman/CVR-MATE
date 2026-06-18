@@ -488,7 +488,7 @@ function SearchPage() {
     isLoading,
     error: searchError,
     isFetching,
-  } = useSearchCompanies(committedParams, hasSearched);
+  } = useSearchCompanies(committedParams, hasSearched, store.page);
 
   // Map raw results to typed Company objects
   const rawResults = useMemo(() => searchData?.results ?? [], [searchData?.results]);
@@ -567,8 +567,9 @@ function SearchPage() {
       return;
     }
     setHasSearched(true);
+    store.setPage(1);
     setCommittedParams(params);
-  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
+  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax, store]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -596,8 +597,9 @@ function SearchPage() {
 
   const clearFilters = useCallback(() => {
     resetAll();
+    store.setPage(1);
     setCommittedParams(null);
-  }, [resetAll]);
+  }, [resetAll, store]);
 
   const getCurrentFilters = useCallback((): Record<string, string> => {
     return serializeSearchFilters(currentFilters);
@@ -1487,6 +1489,45 @@ function SearchPage() {
               {s.refineHint}
             </p>
           </div>
+
+          {/* Pagination controls */}
+          {searchData && searchData.total > 20 && (
+            <div className="mt-6 flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {locale === "da" ? "Viser" : "Showing"}{" "}
+                <span className="font-semibold text-foreground">
+                  {(store.page - 1) * 20 + 1}–{Math.min(store.page * 20, searchData.total)}
+                </span>{" "}
+                {locale === "da" ? "af" : "of"}{" "}
+                <span className="font-semibold text-foreground">{searchData.total}</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => store.setPage(Math.max(1, store.page - 1))}
+                  disabled={store.page === 1 || isLoading}
+                  className="gap-1.5"
+                >
+                  <ChevronDown className="size-4 rotate-90" />
+                  <span className="hidden sm:inline">{locale === "da" ? "Forrige" : "Previous"}</span>
+                </Button>
+                <span className="text-xs font-medium text-muted-foreground px-2">
+                  {locale === "da" ? "Side" : "Page"} {store.page} {locale === "da" ? "af" : "of"} {Math.ceil(searchData.total / 20)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => store.setPage(store.page + 1)}
+                  disabled={!searchData.hasMore || isLoading}
+                  className="gap-1.5"
+                >
+                  <span className="hidden sm:inline">{locale === "da" ? "Næste" : "Next"}</span>
+                  <ChevronDown className="size-4 -rotate-90" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
 

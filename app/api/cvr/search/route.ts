@@ -468,10 +468,18 @@ export async function GET(req: NextRequest) {
     // Enrich results with computed fields so frontend doesn't recompute
     const enriched = pageResults.map(enrichResult);
 
+    // Pagination
+    const page = params.get("page") ? Number(params.get("page")) : 1;
+    const limit = params.get("limit") ? Number(params.get("limit")) : 20;
+    const offset = (page - 1) * limit;
+    const paginatedResults = enriched.slice(offset, offset + limit);
+    const hasMore = offset + limit < enriched.length;
+
     return NextResponse.json({
-      results: enriched,
-      count: enriched.length,
-      hasMore: false,
+      results: paginatedResults,
+      count: paginatedResults.length,
+      total: enriched.length,
+      hasMore,
       truncated,
     });
   } catch (error) {
