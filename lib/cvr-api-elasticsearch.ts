@@ -132,6 +132,8 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[ES Search] Fetch error: ${msg}`);
+    console.error(`[ES Search] Endpoint: ${url}`);
+    console.error(`[ES Search] Auth header present: ${!!process.env.CVR_USERNAME && !!process.env.CVR_PASSWORD}`);
     throw err;
   }
 }
