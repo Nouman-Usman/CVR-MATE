@@ -106,26 +106,34 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
     _source: true,
   });
 
+  const url = `${ES_BASE_URL}${ES_ENDPOINT}`;
+  console.log(`[ES Search] URL: ${url}`);
   console.log(`[ES Search] Query: ${body.slice(0, 200)}...`);
 
-  const res = await fetch(`${ES_BASE_URL}${ES_ENDPOINT}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: getAuthHeader(),
-    },
-    body,
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: getAuthHeader(),
+      },
+      body,
+    });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "Unknown error");
-    console.error(`[ES Search] Error ${res.status}: ${text.slice(0, 500)}`);
-    throw new Error("Upstream search failed");
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      console.error(`[ES Search] HTTP ${res.status}: ${text.slice(0, 500)}`);
+      throw new Error("Upstream search failed");
+    }
+
+    const data = await res.json();
+    console.log(`[ES Search] Got ${data.hits?.hits?.length || 0} results (total: ${typeof data.hits.total === "number" ? data.hits.total : data.hits.total?.value})`);
+    return data;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[ES Search] Fetch error: ${msg}`);
+    throw err;
   }
-
-  const data = await res.json();
-  console.log(`[ES Search] Got ${data.hits?.hits?.length || 0} results (total: ${typeof data.hits.total === "number" ? data.hits.total : data.hits.total?.value})`);
-  return data;
 }
 
 function parseCompany(data: EsCompanyData): ParsedCompany | null {
@@ -185,11 +193,13 @@ function buildEsQuery(filters: Record<string, string>): unknown {
 
   const name = filters.life_name;
   if (name) {
-    // Use query_string for flexible text search (supports wildcards, phrases, etc.)
+    // Try match query first (simpler, better for text). Fallback: query_string with wildcards
     must.push({
-      query_string: {
-        default_field: "Virksomhed.virksomhedMetadata.nyesteNavn.navn",
-        query: `*${name}*`,
+      match: {
+        "Virksomhed.virksomhedMetadata.nyesteNavn.navn": {
+          query: name,
+          operator: "and",
+        },
       },
     });
   }
