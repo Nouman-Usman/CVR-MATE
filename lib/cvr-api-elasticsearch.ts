@@ -1,5 +1,8 @@
 import "server-only";
 
+// ⚠️  SECURITY NOTE: API provider only supports HTTP (not HTTPS).
+// Credentials are sent over plaintext. This is a risk with the upstream provider.
+// Recommend: contact provider to add HTTPS support, or use VPN/tunnel.
 const ES_BASE_URL = "http://distribution.virk.dk";
 const ES_ENDPOINT = "/cvr-permanent/virksomhed/_search";
 
