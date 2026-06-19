@@ -101,6 +101,17 @@ function mapCvrCompany(c: Record<string, unknown>): Company {
   };
 }
 
+// Converts "ANTAL_0_0" → "0", "ANTAL_1_4" → "1–4", "ANTAL_1000_" → "1000+"
+function formatEmployeeCount(code: string): string {
+  if (!code || code === "–") return "–";
+  const m = code.match(/^ANTAL_(\d+)_(\d*)$/);
+  if (!m) return code;
+  const [, min, max] = m;
+  if (!max) return `${min}+`;
+  if (min === max) return min;
+  return `${min}–${max}`;
+}
+
 // ── Select wrapper (styled native select) ───────────────────────────
 
 function FilterSelect({
@@ -1104,7 +1115,7 @@ function SearchPage() {
                           {c.employees && c.employees !== "\u2013" && (
                             <>
                               <span className="text-muted-foreground/30">·</span>
-                              <span>{c.employees} {locale === "da" ? "ansatte" : "emp."}</span>
+                              <span>{formatEmployeeCount(c.employees)} {locale === "da" ? "ansatte" : "emp."}</span>
                             </>
                           )}
                           {c.founded && (

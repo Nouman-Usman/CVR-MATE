@@ -527,8 +527,8 @@ const da = {
       streetcodeHelp: "4-cifret vejkode",
       municipalityHelp: "3-cifret kommunekode",
       industrySecondaryCodeHelp: "6-cifret DB07-kode",
-      companyformCodeHelp: "Numerisk CVR-kode for virksomhedsform",
-      companystatusCodeHelp: "20 er i drift; opløste statusser er 3, 4, 5, 6, 7, 8, 10, 11, 12, 19, 21, 23, 24.",
+      companyformCodeHelp: "F.eks. 80 = ApS, 60 = A/S, 10 = ENK, 30 = I/S",
+      companystatusCodeHelp: "NORMAL / AKTIV = aktiv; OPHØRT = ophørt; TVANGSOPLØST = tvangsopløst",
       help: {
         openLabel: "Forklar filter",
         whyLabel: "Hvorfor det er nyttigt",

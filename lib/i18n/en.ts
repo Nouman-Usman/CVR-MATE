@@ -529,8 +529,8 @@ const en: Dictionary = {
       streetcodeHelp: "4-digit street code",
       municipalityHelp: "3-digit municipality code",
       industrySecondaryCodeHelp: "6-digit DB07 code",
-      companyformCodeHelp: "Numeric CVR company form code",
-      companystatusCodeHelp: "20 is active; dissolved statuses are 3, 4, 5, 6, 7, 8, 10, 11, 12, 19, 21, 23, 24.",
+      companyformCodeHelp: "E.g. 80 = ApS, 60 = A/S, 10 = ENK, 30 = I/S",
+      companystatusCodeHelp: "NORMAL / AKTIV = active; OPHØRT = ceased; TVANGSOPLØST = forcibly dissolved",
       help: {
         openLabel: "Explain filter",
         whyLabel: "Why this is useful",
