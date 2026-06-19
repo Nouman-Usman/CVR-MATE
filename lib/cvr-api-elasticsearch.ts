@@ -47,8 +47,8 @@ export interface EsCompanyData {
         vejnavn?: string;
         husnummerFra?: number;
         postnummer?: number;
-        bynavn?: string;
         postdistrikt?: string;
+        bynavn?: string;
         kommune?: { kommuneKode?: number; kommuneNavn?: string };
       };
       nyesteHovedbranche?: { branchekode?: string; branchetekst?: string };
@@ -141,7 +141,7 @@ function parseCompany(data: EsCompanyData): ParsedCompany | null {
   const meta = vir.virksomhedMetadata;
   const name = meta?.nyesteNavn?.navn || "";
   const address = meta?.nyesteBeliggenhedsadresse;
-  const city = address?.bynavn || address?.postdistrikt || "";
+  const city = address?.postdistrikt || address?.bynavn || "";
   const industry = meta?.nyesteHovedbranche?.branchetekst || "";
   const industryCode = meta?.nyesteHovedbranche?.branchekode || "";
   const status = meta?.sammensatStatus || "";
@@ -217,9 +217,10 @@ function buildEsQuery(filters: Record<string, string>): unknown {
 
   const city = filters.city;
   if (city) {
+    // bynavn is consistently null in ES dataset; postdistrikt holds the city/district name
     must.push({
       match: {
-        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.bynavn": {
+        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.postdistrikt": {
           query: city,
           operator: "and",
         },
