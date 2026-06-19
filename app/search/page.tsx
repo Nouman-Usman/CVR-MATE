@@ -508,36 +508,22 @@ function SearchPage() {
   ];
 
   const statusOptions = [
-    { code: "20", label: locale === "da" ? "20 - I drift" : "20 - Active" },
-    { code: "3", label: "3 - OPLØST" },
-    { code: "4", label: "4 - OPLØST EFTER ERKLÆRING" },
-    { code: "5", label: "5 - OPLØST EFTER FRIVILLIG LIKVIDATION" },
-    { code: "6", label: "6 - OPLØST EFTER FUSION" },
-    { code: "7", label: "7 - OPLØST EFTER KONKURS" },
-    { code: "8", label: "8 - OPLØST EFTER SPALTNING" },
-    { code: "10", label: "10 - SLETTET" },
-    { code: "11", label: "11 - TVANGSOPLØST" },
-    { code: "12", label: "12 - UDEN RETSVIRKNING" },
-    { code: "13", label: "13 - UNDER FRIVILLIG LIKVIDATION" },
-    { code: "14", label: "14 - UNDER KONKURS" },
-    { code: "15", label: "15 - UNDER REASSUMERING" },
-    { code: "17", label: "17 - UNDER REKONSTRUKTION" },
-    { code: "18", label: "18 - UNDER TVANGSOPLØSNING" },
-    { code: "19", label: "19 - OPHØRT" },
-    { code: "21", label: "21 - OPLØST EFTER GRÆNSEOVERSKRIDENDE HJEMSTEDSFLYTNING" },
-    { code: "23", label: "23 - OPLØST EFTER GRÆNSEOVERSKRIDENDE FUSION" },
-    { code: "24", label: "24 - LUKKET" },
+    { code: "NORMAL", label: locale === "da" ? "Normal (aktiv)" : "Normal (active)" },
+    { code: "AKTIV", label: locale === "da" ? "Aktiv" : "Active" },
+    { code: "OPHØRT", label: locale === "da" ? "Ophørt" : "Ceased" },
+    { code: "TVANGSOPLØST", label: locale === "da" ? "Tvangsopløst" : "Forcibly dissolved" },
+    { code: "SLETTET", label: locale === "da" ? "Slettet" : "Deleted" },
   ];
 
   const companyFormOptions = [
-    { code: "10", description: "Enkeltmandsvirksomhed", label: locale === "da" ? "10 - Enkeltmandsvirksomhed" : "10 - Sole proprietorship" },
-    { code: "15", description: "Interessentskab", label: locale === "da" ? "15 - Interessentskab" : "15 - Partnership" },
-    { code: "30", description: "Aktieselskab", label: locale === "da" ? "30 - Aktieselskab (A/S)" : "30 - Public limited company (A/S)" },
-    { code: "40", description: "Anpartsselskab", label: locale === "da" ? "40 - Anpartsselskab (ApS)" : "40 - Private limited company (ApS)" },
-    { code: "45", description: "Iværksætterselskab", label: locale === "da" ? "45 - Iværksætterselskab (IVS)" : "45 - Entrepreneurial company (IVS)" },
-    { code: "60", description: "Forening", label: locale === "da" ? "60 - Forening" : "60 - Association" },
-    { code: "80", description: "Fonden eller andre selvejende institutioner", label: locale === "da" ? "80 - Fond / selvejende institution" : "80 - Foundation / self-governing institution" },
-    { code: "90", description: "Anden udenlandsk virksomhed", label: locale === "da" ? "90 - Anden udenlandsk virksomhed" : "90 - Other foreign company" },
+    { code: "10", description: "Enkeltmandsvirksomhed", label: locale === "da" ? "10 - Enkeltmandsvirksomhed (ENK)" : "10 - Sole proprietorship (ENK)" },
+    { code: "15", description: "PMV", label: locale === "da" ? "15 - Personligt ejet Mindre Virksomhed (PMV)" : "15 - Personal Minor Enterprise (PMV)" },
+    { code: "30", description: "I/S", label: locale === "da" ? "30 - Interessentskab (I/S)" : "30 - Partnership (I/S)" },
+    { code: "60", description: "A/S", label: locale === "da" ? "60 - Aktieselskab (A/S)" : "60 - Public limited company (A/S)" },
+    { code: "80", description: "ApS", label: locale === "da" ? "80 - Anpartsselskab (ApS)" : "80 - Private limited company (ApS)" },
+    { code: "110", description: "Forening", label: locale === "da" ? "110 - Forening" : "110 - Association" },
+    { code: "115", description: "Frivillig forening", label: locale === "da" ? "115 - Frivillig forening" : "115 - Voluntary association" },
+    { code: "210", description: "Udenlandsk", label: locale === "da" ? "210 - Anden udenlandsk virksomhed" : "210 - Other foreign company" },
   ];
 
   const regionHelperCopy: Record<string, string> = {
@@ -824,7 +810,7 @@ function SearchPage() {
                   <FilterField label={s.filters.foundedDate} helpInfo={filterHelp.foundedDate} helpLabels={filterHelpLabels}>
                     <FilterSelect value={foundedPeriod} onChange={(v) => {
                       setFilter("foundedPeriod", v);
-                      if ((v === "last30" || v === "last90") && companystatusCode !== "20") {
+                      if ((v === "last30" || v === "last90") && !["NORMAL", "AKTIV"].includes(companystatusCode)) {
                         setFilter("companystatusCode", "");
                       }
                     }}>
@@ -882,7 +868,7 @@ function SearchPage() {
                             <option value="all">{s.filters.companystatusCodePlaceholder}</option>
                             {statusOptions
                               .filter((o) => {
-                                if (foundedPeriod === "last30" || foundedPeriod === "last90") return o.code === "20";
+                                if (foundedPeriod === "last30" || foundedPeriod === "last90") return ["NORMAL", "AKTIV"].includes(o.code);
                                 return true;
                               })
                               .map((o) => (

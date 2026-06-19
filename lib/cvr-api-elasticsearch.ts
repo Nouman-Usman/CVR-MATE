@@ -38,8 +38,9 @@ interface EsResponse<T> {
 }
 
 export interface EsCompanyData {
-  Virksomhed?: {
+  Vrvirksomhed?: {
     cvrNummer?: number;
+    reklamebeskyttet?: boolean;
     virksomhedMetadata?: {
       nyesteNavn?: { navn?: string };
       nyesteBeliggenhedsadresse?: {
@@ -47,40 +48,29 @@ export interface EsCompanyData {
         husnummerFra?: number;
         postnummer?: number;
         bynavn?: string;
-        kommune?: { kommuneNavn?: string };
+        postdistrikt?: string;
+        kommune?: { kommuneKode?: number; kommuneNavn?: string };
       };
-      nyestePrimaryNace?: {
-        naceKode?: string;
-        naceText?: string;
+      nyesteHovedbranche?: { branchekode?: string; branchetekst?: string };
+      nyesteBibranche1?: { branchekode?: string; branchetekst?: string };
+      nyesteVirksomhedsform?: {
+        virksomhedsformkode?: number;
+        kortBeskrivelse?: string;
+        langBeskrivelse?: string;
       };
-      nyesteBibranche1?: {
-        naceKode?: string;
-        naceText?: string;
-      };
+      sammensatStatus?: string;
+      stiftelsesDato?: string;
     };
-    virksomhedStatus?: { statuskode?: number; status?: string };
-    livsforloeb?: {
-      periode?: { gyldigFra?: string; gyldigTil?: string };
-    }[];
-    navne?: Array<{
-      navn?: string;
+    livsforloeb?: Array<{
       periode?: { gyldigFra?: string; gyldigTil?: string };
     }>;
-    beliggenhedsadresse?: Array<{
-      vejnavn?: string;
-      husnummerFra?: number;
-      postnummer?: number;
-      bynavn?: string;
-      kommune?: { kommuneNavn?: string };
+    navne?: Array<{
+      navn?: string;
       periode?: { gyldigFra?: string; gyldigTil?: string };
     }>;
     telefonNummer?: Array<{ kontaktoplysning?: string }>;
     elektroniskPost?: Array<{ kontaktoplysning?: string }>;
     hjemmeside?: Array<{ kontaktoplysning?: string }>;
-    companyForm?: {
-      formCode?: number;
-      formDescription?: string;
-    };
     aarsbeskaeftigelse?: Array<{
       aar?: number;
       intervalKodeAntalAnsatte?: string;
@@ -142,8 +132,7 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
 }
 
 function parseCompany(data: EsCompanyData): ParsedCompany | null {
-  // Handle both possible nested structures (with/without "Vr" prefix at root)
-  const vir = (data as any).Vrvirksomhed || (data as any).Virksomhed;
+  const vir = data.Vrvirksomhed;
   if (!vir) return null;
 
   const cvr = vir.cvrNummer;
@@ -152,32 +141,24 @@ function parseCompany(data: EsCompanyData): ParsedCompany | null {
   const meta = vir.virksomhedMetadata;
   const name = meta?.nyesteNavn?.navn || "";
   const address = meta?.nyesteBeliggenhedsadresse;
-  const city = address?.bynavn || "";
-  const industry = meta?.nyestePrimaryNace?.naceText || "";
-  const industryCode = meta?.nyestePrimaryNace?.naceKode || "";
-  const status = vir.virksomhedStatus?.status || "";
+  const city = address?.bynavn || address?.postdistrikt || "";
+  const industry = meta?.nyesteHovedbranche?.branchetekst || "";
+  const industryCode = meta?.nyesteHovedbranche?.branchekode || "";
+  const status = meta?.sammensatStatus || "";
+  const founded = meta?.stiftelsesDato || "";
 
-  // Founded date from earliest entry in livsforloeb
-  let founded = "";
-  if (vir.livsforloeb && vir.livsforloeb.length > 0) {
-    const earliest = [...vir.livsforloeb].sort(
-      (a, b) => (a.periode?.gyldigFra || "").localeCompare(b.periode?.gyldigFra || "")
-    )[0];
-    founded = earliest.periode?.gyldigFra || "";
-  }
+  // Active statuses are NORMAL and AKTIV; anything else (OPHØRT, TVANGSOPLØST, UNDER KONKURS, etc.) = dissolved
+  const activeStatuses = ["NORMAL", "AKTIV"];
+  const isDissolved = status ? !activeStatuses.includes(status.toUpperCase()) : false;
 
-  // Check if dissolved
-  const isDissolved = !!vir.livsforloeb?.some((l: { periode?: { gyldigFra?: string; gyldigTil?: string } }) => l.periode?.gyldigTil);
-
-  // Employee count from latest year
+  // Employee count from most recent yearly record
   let employees = "–";
   if (vir.aarsbeskaeftigelse && vir.aarsbeskaeftigelse.length > 0) {
-    const latest = vir.aarsbeskaeftigelse[vir.aarsbeskaeftigelse.length - 1];
-    const interval = latest.intervalKodeAntalAnsatte;
-    employees = interval || "–";
+    const latest = [...vir.aarsbeskaeftigelse].sort((a, b) => (b.aar ?? 0) - (a.aar ?? 0))[0];
+    employees = latest.intervalKodeAntalAnsatte || "–";
   }
 
-  const form = vir.companyForm?.formDescription || "";
+  const form = meta?.nyesteVirksomhedsform?.kortBeskrivelse || "";
 
   return {
     vat: cvr,
@@ -278,11 +259,10 @@ function buildEsQuery(filters: Record<string, string>): unknown {
 
   const industryCode = filters.industry_primary_code;
   if (industryCode) {
-    // UI uses 2-digit section codes (e.g. "62"); ES stores 6-digit NACE codes (e.g. "620100").
-    // prefix query matches all sub-codes under the section.
+    // 2-digit prefix matches all 6-digit NACE sub-codes (e.g. "47" → "470000", "471100", …)
     must.push({
       prefix: {
-        "Vrvirksomhed.virksomhedMetadata.nyestePrimaryNace.naceKode": industryCode,
+        "Vrvirksomhed.virksomhedMetadata.nyesteHovedbranche.branchekode": industryCode,
       },
     });
   }
@@ -291,7 +271,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (industrySecondaryCode) {
     must.push({
       prefix: {
-        "Vrvirksomhed.virksomhedMetadata.nyesteBibranche1.naceKode": industrySecondaryCode,
+        "Vrvirksomhed.virksomhedMetadata.nyesteBibranche1.branchekode": industrySecondaryCode,
       },
     });
   }
@@ -300,31 +280,27 @@ function buildEsQuery(filters: Record<string, string>): unknown {
   if (companyformCode) {
     must.push({
       term: {
-        "Vrvirksomhed.companyForm.formCode": parseInt(companyformCode),
+        "Vrvirksomhed.virksomhedMetadata.nyesteVirksomhedsform.virksomhedsformkode": parseInt(companyformCode),
       },
     });
   }
 
   const statusCode = filters.company_status_code;
   if (statusCode) {
+    // sammensatStatus is analyzed text (e.g. "NORMAL", "AKTIV", "OPHØRT") — match is case-insensitive
     must.push({
-      term: {
-        "Vrvirksomhed.virksomhedStatus.statuskode": parseInt(statusCode),
+      match: {
+        "Vrvirksomhed.virksomhedMetadata.sammensatStatus": statusCode,
       },
     });
   }
 
-  // Founded date — nested query required (livsforloeb is an array per ES docs)
+  // stiftelsesDato is a direct metadata field — no nested query needed
   const lifeStart = filters.life_start;
   if (lifeStart) {
     must.push({
-      nested: {
-        path: "Vrvirksomhed.livsforloeb",
-        query: {
-          range: {
-            "Vrvirksomhed.livsforloeb.periode.gyldigFra": { gte: lifeStart },
-          },
-        },
+      range: {
+        "Vrvirksomhed.virksomhedMetadata.stiftelsesDato": { gte: lifeStart },
       },
     });
   }
@@ -371,16 +347,12 @@ function buildEsQuery(filters: Record<string, string>): unknown {
     });
   }
 
-  // Exclude marketing opt-out companies
+  // reklamebeskyttet = true means the company has opted out of marketing contact
   const skipMarketingOptOut = filters.life_adprotected === "true";
   if (skipMarketingOptOut) {
     must.push({
       bool: {
-        must_not: [
-          {
-            term: { "Vrvirksomhed.livsforloeb.adprotected": true },
-          },
-        ],
+        must_not: [{ term: { "Vrvirksomhed.reklamebeskyttet": true } }],
       },
     });
   }

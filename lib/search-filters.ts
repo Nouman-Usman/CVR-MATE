@@ -116,16 +116,17 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
 
   if (filters.companyformCode) params.set("companyform_code", filters.companyformCode);
 
-  // Suppress dissolved status on recently founded companies — logically inconsistent
+  // Suppress dissolved/inactive status on recently founded companies — logically inconsistent
   const isRecentFounded = filters.foundedPeriod === "last30" || filters.foundedPeriod === "last90";
-  const isDissolvedStatus = filters.companystatusCode && filters.companystatusCode !== "20";
-  if (filters.companystatusCode && !(isRecentFounded && isDissolvedStatus)) {
+  const isActiveStatus = !filters.companystatusCode || ["NORMAL", "AKTIV"].includes(filters.companystatusCode);
+  if (filters.companystatusCode && !(isRecentFounded && !isActiveStatus)) {
     params.set("companystatus_code", filters.companystatusCode);
   }
 
   if (params.toString().length === 0) return null;
 
-  if (filters.skipMarketingOptOut) params.set("ad_protected", "false");
+  // "true" = exclude companies with reklamebeskyttet=true (opted out of marketing)
+  if (filters.skipMarketingOptOut) params.set("ad_protected", "true");
 
   return params;
 }
