@@ -167,7 +167,7 @@ function parseCompany(data: EsCompanyData): ParsedCompany | null {
   }
 
   // Check if dissolved
-  const isDissolved = !!vir.livsforloeb?.some((l) => l.periode?.gyldigTil);
+  const isDissolved = !!vir.livsforloeb?.some((l: { periode?: { gyldigFra?: string; gyldigTil?: string } }) => l.periode?.gyldigTil);
 
   // Employee count from latest year
   let employees = "–";
@@ -199,7 +199,6 @@ function buildEsQuery(filters: Record<string, string>): unknown {
 
   const name = filters.life_name;
   if (name) {
-    // Search across company names
     must.push({
       multi_match: {
         query: name,
@@ -212,6 +211,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
     });
   }
 
+  // Single zipcode (exact match)
   const zipcode = filters.address_zipcode;
   if (zipcode) {
     must.push({
@@ -221,11 +221,77 @@ function buildEsQuery(filters: Record<string, string>): unknown {
     });
   }
 
-  const industryCode = filters.industry_primary_code;
-  if (industryCode) {
+  // Region → comma-separated zipcode list → ES terms query
+  const zipcodeList = filters.zipcode_list;
+  if (zipcodeList) {
+    const zipcodes = zipcodeList.split(",").map((z) => parseInt(z.trim())).filter((n) => !isNaN(n));
+    if (zipcodes.length > 0) {
+      must.push({
+        terms: {
+          "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.postnummer": zipcodes,
+        },
+      });
+    }
+  }
+
+  const city = filters.city;
+  if (city) {
+    must.push({
+      match: {
+        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.bynavn": {
+          query: city,
+          operator: "and",
+        },
+      },
+    });
+  }
+
+  const municipality = filters.municipality;
+  if (municipality) {
     must.push({
       term: {
+        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.kommune.kommuneKode": parseInt(municipality),
+      },
+    });
+  }
+
+  const street = filters.street;
+  if (street) {
+    must.push({
+      match: {
+        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.vejnavn": {
+          query: street,
+          operator: "and",
+        },
+      },
+    });
+  }
+
+  const numberFrom = filters.number_from;
+  if (numberFrom) {
+    must.push({
+      term: {
+        "Vrvirksomhed.virksomhedMetadata.nyesteBeliggenhedsadresse.husnummerFra": parseInt(numberFrom),
+      },
+    });
+  }
+
+  const industryCode = filters.industry_primary_code;
+  if (industryCode) {
+    // UI uses 2-digit section codes (e.g. "62"); ES stores 6-digit NACE codes (e.g. "620100").
+    // prefix query matches all sub-codes under the section.
+    must.push({
+      prefix: {
         "Vrvirksomhed.virksomhedMetadata.nyestePrimaryNace.naceKode": industryCode,
+      },
+    });
+  }
+
+  const industrySecondaryCode = filters.industry_secondary_code;
+  if (industrySecondaryCode) {
+    must.push({
+      prefix: {
+        "Vrvirksomhed.virksomhedMetadata.nyesteBibranche1.naceKode": industrySecondaryCode,
       },
     });
   }
@@ -248,16 +314,71 @@ function buildEsQuery(filters: Record<string, string>): unknown {
     });
   }
 
-  // Exclude marketing opt-out if specified
+  // Founded date — nested query required (livsforloeb is an array per ES docs)
+  const lifeStart = filters.life_start;
+  if (lifeStart) {
+    must.push({
+      nested: {
+        path: "Vrvirksomhed.livsforloeb",
+        query: {
+          range: {
+            "Vrvirksomhed.livsforloeb.periode.gyldigFra": { gte: lifeStart },
+          },
+        },
+      },
+    });
+  }
+
+  // Contact filters — all nested since they're arrays on the document
+  const contactPhone = filters.contact_phone;
+  if (contactPhone) {
+    must.push({
+      nested: {
+        path: "Vrvirksomhed.telefonNummer",
+        query: {
+          term: { "Vrvirksomhed.telefonNummer.kontaktoplysning": contactPhone },
+        },
+      },
+    });
+  }
+
+  const contactEmail = filters.contact_email;
+  if (contactEmail) {
+    must.push({
+      nested: {
+        path: "Vrvirksomhed.elektroniskPost",
+        query: {
+          term: { "Vrvirksomhed.elektroniskPost.kontaktoplysning": contactEmail.toLowerCase() },
+        },
+      },
+    });
+  }
+
+  const contactWww = filters.contact_www;
+  if (contactWww) {
+    must.push({
+      nested: {
+        path: "Vrvirksomhed.hjemmeside",
+        query: {
+          match: {
+            "Vrvirksomhed.hjemmeside.kontaktoplysning": {
+              query: contactWww,
+              operator: "and",
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Exclude marketing opt-out companies
   const skipMarketingOptOut = filters.life_adprotected === "true";
   if (skipMarketingOptOut) {
     must.push({
       bool: {
         must_not: [
           {
-            term: {
-              "Vrvirksomhed.livsforloeb.adprotected": true,
-            },
+            term: { "Vrvirksomhed.livsforloeb.adprotected": true },
           },
         ],
       },
@@ -268,11 +389,7 @@ function buildEsQuery(filters: Record<string, string>): unknown {
     return { match_all: {} };
   }
 
-  return {
-    bool: {
-      must,
-    },
-  };
+  return { bool: { must } };
 }
 
 export async function searchCompaniesElasticsearch(

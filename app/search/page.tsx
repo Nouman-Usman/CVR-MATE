@@ -72,128 +72,33 @@ interface Company {
 
 type UpgradeError = Error & { upgrade?: boolean };
 
-function normalizeStatusText(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase();
-}
-
+// ES returns flat ParsedCompany objects \u2014 map directly, no nested traversal needed
 function mapCvrCompany(c: Record<string, unknown>): Company {
   const comp = c as {
     vat?: number;
-    life?: { name?: string; start?: string; end?: string };
-    address?: { cityname?: string; zipcode?: number };
-    industry?: { primary?: { text?: string; code?: number } };
-    companystatus?: { text?: string };
-    companyform?: { description?: string };
-    employment?: { months?: { amount?: number | null }[] };
-    _employeeCount?: number | null;
+    name?: string;
+    city?: string;
+    industry?: string;
+    industryCode?: string;
+    status?: string;
+    founded?: string;
+    employees?: string;
+    form?: string;
+    isDissolved?: boolean;
   };
-
-  const latestEmployment = comp._employeeCount ?? comp.employment?.months?.[0]?.amount;
-  const statusText = normalizeStatusText(comp.companystatus?.text);
-  const isDissolved = !!comp.life?.end || ["oph\u00f8rt", "opl\u00f8st", "dissolved", "closed"].includes(statusText);
 
   return {
     cvr: String(comp.vat ?? ""),
-    name: comp.life?.name ?? "",
-    city: comp.address?.cityname ?? "",
-    industry: comp.industry?.primary?.text ?? "",
-    industryCode: String(comp.industry?.primary?.code ?? ""),
-    status: comp.companystatus?.text ?? "",
-    founded: comp.life?.start ?? "",
-    employees: latestEmployment != null ? String(latestEmployment) : "\u2013",
-    form: comp.companyform?.description ?? "",
-    isDissolved,
+    name: comp.name ?? "",
+    city: comp.city ?? "",
+    industry: comp.industry ?? "",
+    industryCode: comp.industryCode ?? "",
+    status: comp.status ?? "",
+    founded: comp.founded ?? "",
+    employees: comp.employees ?? "\u2013",
+    form: comp.form ?? "",
+    isDissolved: comp.isDissolved ?? false,
   };
-}
-
-// ── Range slider (custom — no shadcn equivalent) ────────────────────
-
-function RangeSlider({
-  label,
-  min,
-  max,
-  minVal,
-  maxVal,
-  onMinChange,
-  onMaxChange,
-  formatMax,
-  helpInfo,
-  helpLabels,
-  disabled,
-  disabledHelp,
-}: {
-  label: string;
-  min: number;
-  max: number;
-  minVal: number;
-  maxVal: number;
-  onMinChange: (v: number) => void;
-  onMaxChange: (v: number) => void;
-  formatMax: string;
-  helpInfo?: FilterHelpInfo;
-  helpLabels?: {
-    whyLabel: string;
-    howLabel: string;
-    openLabel: string;
-    closeLabel: string;
-  };
-  disabled?: boolean;
-  disabledHelp?: string;
-}) {
-  const leftPercent = ((minVal - min) / (max - min)) * 100;
-  const rightPercent = ((maxVal - min) / (max - min)) * 100;
-
-  return (
-    <div className={cn("space-y-3", disabled && "opacity-50 pointer-events-none")}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Label className={cn("text-xs font-semibold uppercase tracking-wider", disabled ? "text-muted-foreground/50" : "text-muted-foreground")}>{label}</Label>
-          {helpInfo && helpLabels && (
-            <FilterHelpButton
-              info={helpInfo}
-              whyLabel={helpLabels.whyLabel}
-              howLabel={helpLabels.howLabel}
-              openLabel={helpLabels.openLabel}
-              closeLabel={helpLabels.closeLabel}
-            />
-          )}
-        </div>
-        <span className={cn("text-xs font-bold tabular-nums", disabled ? "text-muted-foreground/50" : "text-foreground")}>
-          {minVal.toLocaleString()} – {maxVal >= max ? formatMax : maxVal.toLocaleString()}
-        </span>
-      </div>
-      <div className="relative h-6 flex items-center">
-        <div className={cn("absolute h-1.5 w-full rounded-full", disabled ? "bg-slate-100/50" : "bg-slate-100")} />
-        <div
-          className={cn("absolute h-1.5 rounded-full", disabled ? "bg-slate-300" : "bg-gradient-to-r from-blue-500 to-cyan-400")}
-          style={{ left: `${leftPercent}%`, width: `${rightPercent - leftPercent}%` }}
-        />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={minVal}
-          onChange={(e) => onMinChange(Math.min(Number(e.target.value), maxVal - 1))}
-          disabled={disabled}
-          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none disabled:opacity-50 [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform disabled:[&::-webkit-slider-thumb]:cursor-not-allowed disabled:[&::-webkit-slider-thumb]:opacity-60"
-        />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={maxVal}
-          onChange={(e) => onMaxChange(Math.max(Number(e.target.value), minVal + 1))}
-          disabled={disabled}
-          className="absolute w-full h-6 appearance-none bg-transparent pointer-events-none disabled:opacity-50 [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-10 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform disabled:[&::-webkit-slider-thumb]:cursor-not-allowed disabled:[&::-webkit-slider-thumb]:opacity-60"
-        />
-      </div>
-      {disabledHelp && <p className="text-[10.5px] leading-tight text-muted-foreground/60">{disabledHelp}</p>}
-      <div className={cn("flex justify-between text-[10px] tabular-nums font-medium", disabled ? "text-muted-foreground/40" : "text-muted-foreground/50")}>
-        <span>{min.toLocaleString()}</span>
-        <span>{formatMax}</span>
-      </div>
-    </div>
-  );
 }
 
 // ── Select wrapper (styled native select) ───────────────────────────
@@ -420,14 +325,11 @@ function SearchPage() {
 
   const store = useSearchStore();
   const {
-    query, industryText, industryCode, industrySecondaryText, industrySecondaryCode,
-    street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality,
+    query, industryCode, industrySecondaryCode,
+    street, numberFrom, zipcode, region, city, municipality,
     contactPhone, contactEmail, contactWww,
-    size, employmentAmount, foundedPeriod,
-    companyformCode, companyformDescription, companyformHolding,
-    companystatusCode, statusBankrupt,
-    capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId,
-    revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax,
+    foundedPeriod,
+    companyformCode, companystatusCode,
     skipMarketingOptOut,
     showFilters, scrollY, selected, hasSearched,
     setFilter, setScrollY, setHasSearched, setShowFilters,
@@ -440,14 +342,11 @@ function SearchPage() {
 
   const currentFilters = useMemo<SearchFiltersState>(() => ({
     query,
-    industryText,
+    foundedPeriod,
     industryCode,
-    industrySecondaryText,
     industrySecondaryCode,
     street,
-    streetcode,
     numberFrom,
-    letterFrom,
     zipcode,
     region,
     city,
@@ -455,27 +354,10 @@ function SearchPage() {
     contactPhone,
     contactEmail,
     contactWww,
-    size,
-    employmentAmount,
     companyformCode,
-    companyformDescription,
-    companyformHolding,
     companystatusCode,
-    statusBankrupt,
-    capitalCapital,
-    capitalCurrency,
-    capitalIpo,
-    infoEanId,
-    infoLeiId,
-    foundedPeriod,
-    revenueMin,
-    revenueMax,
-    profitMin,
-    profitMax,
-    employeesMin,
-    employeesMax,
     skipMarketingOptOut,
-  }), [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, street, streetcode, numberFrom, letterFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, foundedPeriod, revenueMin, revenueMax, profitMin, profitMax, employeesMin, employeesMax, skipMarketingOptOut]);
+  }), [query, foundedPeriod, industryCode, industrySecondaryCode, street, numberFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, companyformCode, companystatusCode, skipMarketingOptOut]);
 
   const hasNativeFilter = useMemo(() => hasNativeSearchFilter(currentFilters), [currentFilters]);
 
@@ -560,16 +442,13 @@ function SearchPage() {
     clearSelected();
     const params = buildSearchParams();
     if (!params) {
-      // Determine reason: segmentation-only vs completely empty
-      const hasSegmentation = employeesMin > 0 || employeesMax < 5000 || revenueMin > 0 || revenueMax < 1000 || profitMin > 0 || profitMax < 1000;
-      const errorMsg = hasSegmentation ? s.segmentationRequiresNativeFilter : s.noFilter;
-      toast.error(errorMsg);
+      toast.error(s.noFilter);
       return;
     }
     setHasSearched(true);
     store.setPage(1);
     setCommittedParams(params);
-  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax, store]);
+  }, [buildSearchParams, s, setHasSearched, setCommittedParams, clearSelected, sub, triggerUpgrade, store]);
 
   const handleSaveCompany = useCallback((c: Company, rawResult: Record<string, unknown>) => {
     if (savedCvrs.has(c.cvr)) {
@@ -628,12 +507,6 @@ function SearchPage() {
     { code: "last3y", label: locale === "da" ? "Sidste 3 år" : "Last 3 years" },
   ];
 
-  const booleanOptions = [
-    { code: "all", label: locale === "da" ? "Alle" : "Any" },
-    { code: "true", label: locale === "da" ? "Ja" : "Yes" },
-    { code: "false", label: locale === "da" ? "Nej" : "No" },
-  ];
-
   const statusOptions = [
     { code: "20", label: locale === "da" ? "20 - I drift" : "20 - Active" },
     { code: "3", label: "3 - OPLØST" },
@@ -667,8 +540,6 @@ function SearchPage() {
     { code: "90", description: "Anden udenlandsk virksomhed", label: locale === "da" ? "90 - Anden udenlandsk virksomhed" : "90 - Other foreign company" },
   ];
 
-  const currencyOptions = ["DKK", "EUR", "USD", "GBP", "SEK", "NOK"];
-
   const regionHelperCopy: Record<string, string> = {
     hovedstaden: locale === "da"
       ? "Omfatter København, Frederiksberg, Gentofte og omegn."
@@ -698,12 +569,10 @@ function SearchPage() {
     };
 
     if (query) push("query", locale === "da" ? "Navn" : "Name", query, () => setFilter("query", ""));
-    if (industryText) push("industryText", labels.industry, industryText, () => setFilter("industryText", ""));
     if (industryCode !== "all") {
       const ind = s.industries.find((i) => i.code === industryCode);
       push("industryCode", labels.industryCode, ind?.label ?? industryCode, () => setFilter("industryCode", "all"));
     }
-    if (industrySecondaryText) push("industrySecondaryText", labels.industrySecondaryText, industrySecondaryText, () => setFilter("industrySecondaryText", ""));
     if (industrySecondaryCode) push("industrySecondaryCode", labels.industrySecondaryCode, industrySecondaryCode, () => setFilter("industrySecondaryCode", ""));
     if (zipcode) push("zipcode", labels.zipcode, zipcode, () => setFilter("zipcode", ""));
     if (!zipcode && region !== "all") {
@@ -713,96 +582,44 @@ function SearchPage() {
     if (city) push("city", labels.city, city, () => setFilter("city", ""));
     if (municipality) push("municipality", labels.municipality, municipality, () => setFilter("municipality", ""));
     if (street) push("street", labels.street, street, () => setFilter("street", ""));
-    if (streetcode) push("streetcode", labels.streetcode, streetcode, () => setFilter("streetcode", ""));
-    if (numberFrom) push("numberFrom", labels.numberFrom, numberFrom + (letterFrom || ""), () => { setFilter("numberFrom", ""); setFilter("letterFrom", ""); });
+    if (numberFrom) push("numberFrom", labels.numberFrom, numberFrom, () => setFilter("numberFrom", ""));
     if (contactPhone) push("contactPhone", labels.contactPhone, contactPhone, () => setFilter("contactPhone", ""));
     if (contactEmail) push("contactEmail", labels.contactEmail, contactEmail, () => setFilter("contactEmail", ""));
     if (contactWww) push("contactWww", labels.contactWww, contactWww, () => setFilter("contactWww", ""));
-    if (size !== "all") {
-      const sz = s.sizes.find((x) => x.code === size);
-      push("size", labels.size, sz?.label ?? size, () => setFilter("size", "all"));
-    }
-    if (employmentAmount) push("employmentAmount", labels.employmentAmount, employmentAmount, () => setFilter("employmentAmount", ""));
     if (companyformCode) {
       const form = companyFormOptions.find((o) => o.code === companyformCode);
-      push("companyformCode", labels.companyformCode, form?.label ?? companyformCode, () => {
-        setFilter("companyformCode", "");
-        setFilter("companyformDescription", "");
-      });
-    } else if (companyformDescription) {
-      push("companyformDescription", labels.companyformDescription, companyformDescription, () => setFilter("companyformDescription", ""));
-    }
-    if (companyformHolding !== "all") {
-      const opt = booleanOptions.find((o) => o.code === companyformHolding);
-      push("companyformHolding", labels.companyformHolding, opt?.label ?? companyformHolding, () => setFilter("companyformHolding", "all"));
+      push("companyformCode", labels.companyformCode, form?.label ?? companyformCode, () => setFilter("companyformCode", ""));
     }
     if (companystatusCode) {
       const opt = statusOptions.find((o) => o.code === companystatusCode);
       push("companystatusCode", labels.companystatusCode, opt?.label ?? companystatusCode, () => setFilter("companystatusCode", ""));
     }
-    if (statusBankrupt !== "all") {
-      const opt = booleanOptions.find((o) => o.code === statusBankrupt);
-      push("statusBankrupt", labels.statusBankrupt, opt?.label ?? statusBankrupt, () => setFilter("statusBankrupt", "all"));
-    }
-    if (capitalCapital) push("capitalCapital", labels.capitalCapital, capitalCapital, () => setFilter("capitalCapital", ""));
-    if (capitalCurrency) push("capitalCurrency", labels.capitalCurrency, capitalCurrency, () => setFilter("capitalCurrency", ""));
-    if (capitalIpo !== "all") {
-      const opt = booleanOptions.find((o) => o.code === capitalIpo);
-      push("capitalIpo", labels.capitalIpo, opt?.label ?? capitalIpo, () => setFilter("capitalIpo", "all"));
-    }
-    if (infoEanId) push("infoEanId", labels.infoEanId, infoEanId, () => setFilter("infoEanId", ""));
-    if (infoLeiId) push("infoLeiId", labels.infoLeiId, infoLeiId, () => setFilter("infoLeiId", ""));
     if (foundedPeriod !== "all") {
       const fp = foundedOptions.find((o) => o.code === foundedPeriod);
       push("foundedPeriod", labels.foundedDate, fp?.label ?? foundedPeriod, () => setFilter("foundedPeriod", "all"));
     }
-    if (employeesMin > 0 || employeesMax < 5000) {
-      push("employeesRange", labels.employees, `${employeesMin}–${employeesMax >= 5000 ? "5,000+" : employeesMax}`, () => { setFilter("employeesMin", 0); setFilter("employeesMax", 5000); });
-    }
-    if (revenueMin > 0 || revenueMax < 1000) {
-      push("revenueRange", labels.revenue, `${revenueMin}–${revenueMax >= 1000 ? "1bn+" : revenueMax}M`, () => { setFilter("revenueMin", 0); setFilter("revenueMax", 1000); });
-    }
-    if (profitMin > 0 || profitMax < 1000) {
-      push("profitRange", labels.grossProfit, `${profitMin}–${profitMax >= 1000 ? "1bn+" : profitMax}M`, () => { setFilter("profitMin", 0); setFilter("profitMax", 1000); });
-    }
     return list;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, industryText, industryCode, industrySecondaryText, industrySecondaryCode, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax, locale]);
+  }, [query, industryCode, industrySecondaryCode, zipcode, region, city, municipality, street, numberFrom, contactPhone, contactEmail, contactWww, companyformCode, companystatusCode, foundedPeriod, locale]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (industryText) count++;
     if (industryCode !== "all") count++;
-    if (industrySecondaryText) count++;
     if (industrySecondaryCode) count++;
-    if (size !== "all") count++;
-    if (employmentAmount) count++;
-    if (companyformCode || companyformDescription) count++;
-    if (companyformHolding !== "all") count++;
+    if (companyformCode) count++;
     if (companystatusCode) count++;
-    if (statusBankrupt !== "all") count++;
-    if (capitalCapital) count++;
-    if (capitalCurrency) count++;
-    if (capitalIpo !== "all") count++;
-    if (infoEanId) count++;
-    if (infoLeiId) count++;
     if (zipcode) count++;
     if (!zipcode && region !== "all") count++;
     if (city) count++;
     if (municipality) count++;
     if (street) count++;
-    if (streetcode) count++;
     if (numberFrom) count++;
-    if (letterFrom) count++;
     if (contactPhone) count++;
     if (contactEmail) count++;
     if (contactWww) count++;
     if (foundedPeriod !== "all") count++;
-    if (employeesMin > 0 || employeesMax < 5000) count++;
-    if (revenueMin > 0 || revenueMax < 1000) count++;
-    if (profitMin > 0 || profitMax < 1000) count++;
     return count;
-  }, [industryText, industryCode, industrySecondaryText, industrySecondaryCode, size, employmentAmount, companyformCode, companyformDescription, companyformHolding, companystatusCode, statusBankrupt, capitalCapital, capitalCurrency, capitalIpo, infoEanId, infoLeiId, zipcode, region, city, municipality, street, streetcode, numberFrom, letterFrom, contactPhone, contactEmail, contactWww, foundedPeriod, employeesMin, employeesMax, revenueMin, revenueMax, profitMin, profitMax]);
+  }, [industryCode, industrySecondaryCode, companyformCode, companystatusCode, zipcode, region, city, municipality, street, numberFrom, contactPhone, contactEmail, contactWww, foundedPeriod]);
 
   return (
     <VideoTrigger featureKey="search">
@@ -897,15 +714,7 @@ function SearchPage() {
 
               {/* Industry & Company */}
               <FilterSection title={s.filters.sectionIdentity} icon={Building2}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <FilterField label={s.filters.industry} helpInfo={filterHelp.industry} helpLabels={filterHelpLabels}>
-                    <Input
-                      className="h-9"
-                      placeholder={s.filters.industryPlaceholder}
-                      value={industryText}
-                      onChange={(e) => setFilter("industryText", e.target.value)}
-                    />
-                  </FilterField>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FilterField label={s.filters.industryCode} helpInfo={filterHelp.industryCode} helpLabels={filterHelpLabels}>
                     <FilterSelect value={industryCode} onChange={(v) => setFilter("industryCode", v)}>
                       <option value="all">{s.filters.industryCodePlaceholder}</option>
@@ -1009,33 +818,9 @@ function SearchPage() {
                 </div>
               </FilterSection>
 
-              {/* Workforce & age */}
+              {/* Founded period */}
               <FilterSection title={s.filters.sectionWorkforce} icon={Users}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <FilterField
-                    label={s.filters.size}
-                    help={employmentAmount ? (locale === "da" ? "Låst — specifik medarbejderantal aktivt." : "Locked — exact employment count active.") : undefined}
-                    helpInfo={filterHelp.size}
-                    helpLabels={filterHelpLabels}
-                  >
-                    <FilterSelect value={size} onChange={(v) => setFilter("size", v)} disabled={!!employmentAmount}>
-                      <option value="all">{s.filters.sizePlaceholder}</option>
-                      {s.sizes.filter((sz) => sz.code !== "all").map((sz) => (
-                        <option key={sz.code} value={sz.code}>{sz.label}</option>
-                      ))}
-                    </FilterSelect>
-                  </FilterField>
-                  <FilterField label={s.filters.employmentAmount} help={s.filters.employmentAmountHelp} helpInfo={filterHelp.employmentAmount} helpLabels={filterHelpLabels}>
-                    <Input
-                      className="h-9 font-mono tabular-nums"
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      placeholder={s.filters.employmentAmountPlaceholder}
-                      value={employmentAmount}
-                      onChange={(e) => setFilter("employmentAmount", e.target.value.replace(/\D/g, ""))}
-                    />
-                  </FilterField>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FilterField label={s.filters.foundedDate} helpInfo={filterHelp.foundedDate} helpLabels={filterHelpLabels}>
                     <FilterSelect value={foundedPeriod} onChange={(v) => {
                       setFilter("foundedPeriod", v);
@@ -1068,31 +853,14 @@ function SearchPage() {
                       <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
                         {s.filters.subsectionLegal}
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-5 sm:gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-5 sm:gap-y-4">
                         <FilterField label={s.filters.companyformCode} help={s.filters.companyformCodeHelp} helpInfo={filterHelp.companyformCode} helpLabels={filterHelpLabels}>
                           <FilterSelect
                             value={companyformCode || "all"}
-                            onChange={(v) => {
-                              if (v === "all") {
-                                setFilter("companyformCode", "");
-                                setFilter("companyformDescription", "");
-                                return;
-                              }
-                              // Only set code; don't set description (CVR expects short codes, not long Danish names)
-                              setFilter("companyformCode", v);
-                              setFilter("companyformDescription", "");
-                            }}
+                            onChange={(v) => setFilter("companyformCode", v === "all" ? "" : v)}
                           >
                             <option value="all">{s.filters.companyformCodePlaceholder}</option>
                             {companyFormOptions.map((o) => (
-                              <option key={o.code} value={o.code}>{o.label}</option>
-                            ))}
-                          </FilterSelect>
-                        </FilterField>
-                        <FilterField label={s.filters.companyformHolding} helpInfo={filterHelp.companyformHolding} helpLabels={filterHelpLabels}>
-                          <FilterSelect value={companyformHolding} onChange={(v) => setFilter("companyformHolding", v)}>
-                            <option value="all">{s.filters.companyformHoldingPlaceholder}</option>
-                            {booleanOptions.filter((o) => o.code !== "all").map((o) => (
                               <option key={o.code} value={o.code}>{o.label}</option>
                             ))}
                           </FilterSelect>
@@ -1114,75 +882,13 @@ function SearchPage() {
                             <option value="all">{s.filters.companystatusCodePlaceholder}</option>
                             {statusOptions
                               .filter((o) => {
-                                // If recent founded period, only show active status (20)
-                                if (foundedPeriod === "last30" || foundedPeriod === "last90") {
-                                  return o.code === "20";
-                                }
+                                if (foundedPeriod === "last30" || foundedPeriod === "last90") return o.code === "20";
                                 return true;
                               })
                               .map((o) => (
                                 <option key={o.code} value={o.code}>{o.label}</option>
                               ))}
                           </FilterSelect>
-                        </FilterField>
-                        <FilterField label={s.filters.statusBankrupt} helpInfo={filterHelp.statusBankrupt} helpLabels={filterHelpLabels}>
-                          <FilterSelect value={statusBankrupt} onChange={(v) => setFilter("statusBankrupt", v)}>
-                            <option value="all">{s.filters.statusBankruptPlaceholder}</option>
-                            {booleanOptions.filter((o) => o.code !== "all").map((o) => (
-                              <option key={o.code} value={o.code}>{o.label}</option>
-                            ))}
-                          </FilterSelect>
-                        </FilterField>
-                      </div>
-                    </div>
-
-                    {/* Capital and registry identifiers */}
-                    <div className="pt-3 sm:pt-4 border-t border-border/30">
-                      <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2 sm:mb-2.5">
-                        {s.filters.subsectionCapital}
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-x-5 sm:gap-y-4">
-                        <FilterField label={s.filters.capitalCapital} helpInfo={filterHelp.capitalCapital} helpLabels={filterHelpLabels}>
-                          <Input
-                            value={capitalCapital}
-                            onChange={(e) => setFilter("capitalCapital", e.target.value.replace(/\D/g, ""))}
-                            placeholder={s.filters.capitalCapitalPlaceholder}
-                            inputMode="numeric"
-                            className="h-9 font-mono tabular-nums"
-                          />
-                        </FilterField>
-                        <FilterField label={s.filters.capitalCurrency} helpInfo={filterHelp.capitalCurrency} helpLabels={filterHelpLabels}>
-                          <FilterSelect value={capitalCurrency || "all"} onChange={(v) => setFilter("capitalCurrency", v === "all" ? "" : v)}>
-                            <option value="all">{s.filters.capitalCurrencyPlaceholder}</option>
-                            {currencyOptions.map((currency) => (
-                              <option key={currency} value={currency}>{currency}</option>
-                            ))}
-                          </FilterSelect>
-                        </FilterField>
-                        <FilterField label={s.filters.capitalIpo} helpInfo={filterHelp.capitalIpo} helpLabels={filterHelpLabels}>
-                          <FilterSelect value={capitalIpo} onChange={(v) => setFilter("capitalIpo", v)}>
-                            <option value="all">{s.filters.capitalIpoPlaceholder}</option>
-                            {booleanOptions.filter((o) => o.code !== "all").map((o) => (
-                              <option key={o.code} value={o.code}>{o.label}</option>
-                            ))}
-                          </FilterSelect>
-                        </FilterField>
-                        <FilterField label={s.filters.infoEanId} help={locale === "da" ? "Kun en lille del af virksomheder har EAN registreret." : "Only a small portion of companies have EAN registered."} helpInfo={filterHelp.infoEanId} helpLabels={filterHelpLabels}>
-                          <Input
-                            value={infoEanId}
-                            onChange={(e) => setFilter("infoEanId", e.target.value.replace(/\D/g, ""))}
-                            placeholder={s.filters.infoEanIdPlaceholder}
-                            inputMode="numeric"
-                            className="h-9 font-mono tabular-nums"
-                          />
-                        </FilterField>
-                        <FilterField label={s.filters.infoLeiId} help={locale === "da" ? "Meget få danske virksomheder har LEI kode." : "Very few Danish companies have LEI codes."} helpInfo={filterHelp.infoLeiId} helpLabels={filterHelpLabels}>
-                          <Input
-                            value={infoLeiId}
-                            onChange={(e) => setFilter("infoLeiId", e.target.value.toUpperCase())}
-                            placeholder={s.filters.infoLeiIdPlaceholder}
-                            className="h-9 font-mono uppercase"
-                          />
                         </FilterField>
                       </div>
                     </div>
@@ -1201,37 +907,15 @@ function SearchPage() {
                             className="h-9"
                           />
                         </FilterField>
-                        <FilterField label={s.filters.streetcode} help={s.filters.streetcodeHelp} helpInfo={filterHelp.streetcode} helpLabels={filterHelpLabels}>
+                        <FilterField label={s.filters.numberFrom} helpInfo={filterHelp.numberFrom} helpLabels={filterHelpLabels}>
                           <Input
-                            value={streetcode}
-                            onChange={(e) => setFilter("streetcode", e.target.value.replace(/\D/g, ""))}
-                            placeholder={s.filters.streetcodePlaceholder}
+                            value={numberFrom}
+                            onChange={(e) => setFilter("numberFrom", e.target.value)}
+                            placeholder={s.filters.numberFromPlaceholder}
                             inputMode="numeric"
-                            pattern="\d{1,4}"
-                            maxLength={4}
                             className="h-9 font-mono tabular-nums"
                           />
                         </FilterField>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FilterField label={s.filters.numberFrom} helpInfo={filterHelp.numberFrom} helpLabels={filterHelpLabels}>
-                            <Input
-                              value={numberFrom}
-                              onChange={(e) => setFilter("numberFrom", e.target.value)}
-                              placeholder={s.filters.numberFromPlaceholder}
-                              inputMode="numeric"
-                              className="h-9 font-mono tabular-nums"
-                            />
-                          </FilterField>
-                          <FilterField label={s.filters.letterFrom} helpInfo={filterHelp.letterFrom} helpLabels={filterHelpLabels}>
-                            <Input
-                              value={letterFrom}
-                              onChange={(e) => setFilter("letterFrom", e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase())}
-                              placeholder={s.filters.letterFromPlaceholder}
-                              maxLength={1}
-                              className="h-9 font-mono uppercase"
-                            />
-                          </FilterField>
-                        </div>
                         <FilterField label={s.filters.municipality} help={s.filters.municipalityHelp} helpInfo={filterHelp.municipality} helpLabels={filterHelpLabels}>
                           <Input
                             value={municipality}
@@ -1241,14 +925,6 @@ function SearchPage() {
                             pattern="\d{1,3}"
                             maxLength={3}
                             className="h-9 font-mono tabular-nums"
-                          />
-                        </FilterField>
-                        <FilterField label={s.filters.industrySecondaryText} helpInfo={filterHelp.industrySecondaryText} helpLabels={filterHelpLabels}>
-                          <Input
-                            value={industrySecondaryText}
-                            onChange={(e) => setFilter("industrySecondaryText", e.target.value)}
-                            placeholder={s.filters.industrySecondaryTextPlaceholder}
-                            className="h-9"
                           />
                         </FilterField>
                       </div>
@@ -1491,12 +1167,12 @@ function SearchPage() {
           </div>
 
           {/* Pagination controls */}
-          {searchData && searchData.total > 20 && (
+          {searchData && searchData.total > 10 && (
             <div className="mt-6 flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 {locale === "da" ? "Viser" : "Showing"}{" "}
                 <span className="font-semibold text-foreground">
-                  {(store.page - 1) * 20 + 1}–{Math.min(store.page * 20, searchData.total)}
+                  {(store.page - 1) * 10 + 1}–{Math.min(store.page * 10, searchData.total)}
                 </span>{" "}
                 {locale === "da" ? "af" : "of"}{" "}
                 <span className="font-semibold text-foreground">{searchData.total}</span>
@@ -1513,7 +1189,7 @@ function SearchPage() {
                   <span className="hidden sm:inline">{locale === "da" ? "Forrige" : "Previous"}</span>
                 </Button>
                 <span className="text-xs font-medium text-muted-foreground px-2">
-                  {locale === "da" ? "Side" : "Page"} {store.page} {locale === "da" ? "af" : "of"} {Math.ceil(searchData.total / 20)}
+                  {locale === "da" ? "Side" : "Page"} {store.page} {locale === "da" ? "af" : "of"} {Math.ceil(searchData.total / 10)}
                 </span>
                 <Button
                   variant="outline"

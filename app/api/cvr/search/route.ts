@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Extract + validate pagination params
     const pageRaw = Number(params.get("page")) || 1;
-    const limitRaw = Number(params.get("limit")) || 20;
+    const limitRaw = Number(params.get("limit")) || 10;
     const page = Math.max(1, Math.min(pageRaw, 1000));
     const limit = Math.max(1, Math.min(limitRaw, 100));
 
@@ -37,10 +37,19 @@ export async function GET(req: NextRequest) {
 
     if (params.has("name")) filters.life_name = params.get("name") || "";
     if (params.has("zipcode")) filters.address_zipcode = params.get("zipcode") || "";
+    if (params.has("zipcode_list")) filters.zipcode_list = params.get("zipcode_list") || "";
+    if (params.has("city")) filters.city = params.get("city") || "";
+    if (params.has("municipality")) filters.municipality = params.get("municipality") || "";
+    if (params.has("street")) filters.street = params.get("street") || "";
+    if (params.has("number_from")) filters.number_from = params.get("number_from") || "";
     if (params.has("industry_code")) filters.industry_primary_code = params.get("industry_code") || "";
     if (params.has("industry_secondary_code")) filters.industry_secondary_code = params.get("industry_secondary_code") || "";
     if (params.has("companyform_code")) filters.companyform_code = params.get("companyform_code") || "";
     if (params.has("companystatus_code")) filters.company_status_code = params.get("companystatus_code") || "";
+    if (params.has("life_start")) filters.life_start = params.get("life_start") || "";
+    if (params.has("phone")) filters.contact_phone = params.get("phone") || "";
+    if (params.has("email")) filters.contact_email = params.get("email") || "";
+    if (params.has("website")) filters.contact_www = params.get("website") || "";
     if (params.has("ad_protected")) filters.life_adprotected = params.get("ad_protected") || "";
 
     // Check if at least one filter is provided
