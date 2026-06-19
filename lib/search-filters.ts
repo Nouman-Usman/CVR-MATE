@@ -137,14 +137,14 @@ export function serializeSearchFilters(filters: SearchFiltersState): Record<stri
   if (filters.industryCode !== "all") s.industry_code = filters.industryCode;
   if (filters.industrySecondaryCode) s.industry_secondary_code = filters.industrySecondaryCode;
   if (filters.street) s.street = filters.street;
-  if (filters.numberFrom) s.number_from = filters.numberFrom;
+  if (filters.numberFrom) s.numberFrom = filters.numberFrom;
   if (filters.zipcode) s.zipcode = filters.zipcode;
   if (filters.region !== "all") s.region = filters.region;
   if (filters.city) s.city = filters.city;
   if (filters.municipality) s.municipality = filters.municipality;
-  if (filters.contactPhone) s.phone = filters.contactPhone;
-  if (filters.contactEmail) s.email = filters.contactEmail;
-  if (filters.contactWww) s.website = filters.contactWww;
+  if (filters.contactPhone) s.contactPhone = filters.contactPhone;
+  if (filters.contactEmail) s.contactEmail = filters.contactEmail;
+  if (filters.contactWww) s.contactWww = filters.contactWww;
   if (filters.companyformCode) s.companyform_code = filters.companyformCode;
   if (filters.companystatusCode) s.companystatus_code = filters.companystatusCode;
   if (filters.foundedPeriod !== "all") s.foundedPeriod = filters.foundedPeriod;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { searchCompaniesElasticsearch, type ParsedCompany } from "@/lib/cvr-api-elasticsearch";
+import { searchCompaniesElasticsearch } from "@/lib/cvr-api-elasticsearch";
 import { reserveMonthlyQuota } from "@/lib/stripe/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
 
