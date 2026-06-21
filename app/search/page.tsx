@@ -1018,7 +1018,13 @@ function SearchPage() {
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">
                 {s.showing}{" "}
-                <span className="font-bold text-foreground">{results.length}</span>{" "}
+                <span className="font-bold text-foreground">{results.length}</span>
+                {searchData?.total != null && searchData.total > results.length && (
+                  <>
+                    {"/"}
+                    <span className="font-bold text-foreground">{searchData.total.toLocaleString()}</span>
+                  </>
+                )}{" "}
                 {searchData?.truncated ? s.refineForMore : s.results}
               </p>
               {isFetching && <Loader2 className="size-3.5 text-primary animate-spin" />}
