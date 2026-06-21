@@ -43,7 +43,6 @@ import {
   ChevronRight,
   Calendar,
   MapPin,
-  Users,
   Sparkles,
   TrendingUp,
   Eye,
@@ -60,29 +59,34 @@ interface Company {
   industry: string;
   status: string;
   founded: string;
-  employees: string;
+  isDissolved: boolean;
 }
 
 function mapCvrCompany(c: Record<string, unknown>): Company {
-  const comp = c as {
-    vat?: number;
-    life?: { name?: string; start?: string };
-    address?: { cityname?: string };
-    industry?: { primary?: { text?: string } };
-    companystatus?: { text?: string };
-    employment?: { months?: { amount?: number | null }[] };
-  };
+  const comp = c as Record<string, unknown>;
 
-  const latestEmployment = comp.employment?.months?.[0]?.amount;
+  // ES shape: flat string fields
+  // Old CVR-REST shape (may appear from stale React Query cache): nested objects
+  const industryRaw = comp.industry;
+  const industry = typeof industryRaw === "string"
+    ? industryRaw
+    : (industryRaw as { primary?: { text?: string } } | undefined)?.primary?.text ?? "";
+
+  const nameRaw = comp.name ?? (comp.life as { name?: string } | undefined)?.name ?? "";
+  const cityRaw = comp.city ?? (comp.address as { cityname?: string } | undefined)?.cityname ?? "";
+  const statusRaw = comp.status ?? (comp.companystatus as { text?: string } | undefined)?.text ?? "";
+  const foundedRaw = typeof comp.founded === "string"
+    ? comp.founded
+    : (comp.life as { start?: string } | undefined)?.start ?? "";
 
   return {
-    cvr: String(comp.vat ?? ""),
-    name: comp.life?.name ?? "",
-    city: comp.address?.cityname ?? "",
-    industry: comp.industry?.primary?.text ?? "",
-    status: comp.companystatus?.text ?? "",
-    founded: comp.life?.start ?? "",
-    employees: latestEmployment != null ? String(latestEmployment) : "–",
+    cvr: String((comp.vat as number | undefined) ?? ""),
+    name: String(nameRaw),
+    city: String(cityRaw),
+    industry,
+    status: String(statusRaw),
+    founded: foundedRaw,
+    isDissolved: Boolean(comp.isDissolved),
   };
 }
 
@@ -350,7 +354,6 @@ export default function RecentCompaniesPage() {
                   <TableHead className="hidden sm:table-cell">{r.table.city}</TableHead>
                   <TableHead className="hidden md:table-cell">{r.table.industry}</TableHead>
                   <TableHead className="hidden lg:table-cell">{r.table.founded}</TableHead>
-                  <TableHead className="hidden lg:table-cell text-center">{r.table.employees}</TableHead>
                   <TableHead className="w-16 text-center">{r.table.status}</TableHead>
                   <TableHead className="w-12 pr-4 text-right">{/* save */}</TableHead>
                 </TableRow>
@@ -446,23 +449,11 @@ export default function RecentCompaniesPage() {
                           )}
                         </TableCell>
 
-                        {/* Employees */}
-                        <TableCell className="hidden lg:table-cell py-3 text-center">
-                          {c.employees !== "–" ? (
-                            <span className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-                              <Users className="size-3.5 shrink-0 text-muted-foreground/50" />
-                              {c.employees}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/30">—</span>
-                          )}
-                        </TableCell>
-
                         {/* Status */}
                         <TableCell className="py-3 text-center">
                           <Badge
                             variant="secondary"
-                            className="bg-emerald-50 text-emerald-700 border-0 text-[9px] font-bold uppercase tracking-wider h-5"
+                            className={`border-0 text-[9px] font-bold uppercase tracking-wider h-5 ${c.isDissolved ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"}`}
                           >
                             {c.status || r.statusActive}
                           </Badge>

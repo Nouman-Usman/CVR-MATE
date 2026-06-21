@@ -2,10 +2,10 @@
 
 import { useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CvrCompanyResult } from "@/lib/cvr-client";
+import type { ParsedCompany } from "@/lib/cvr-api-elasticsearch";
 
 interface RecentResponse {
-  results: CvrCompanyResult[];
+  results: ParsedCompany[];
   count: number;
   from: string;
   error?: string;

@@ -139,7 +139,7 @@ function parseCompany(data: EsCompanyData): ParsedCompany | null {
   if (!cvr) return null;
 
   const meta = vir.virksomhedMetadata;
-  const name = meta?.nyesteNavn?.navn || "";
+  const name = meta?.nyesteNavn?.navn || vir.navne?.[0]?.navn || "";
   const address = meta?.nyesteBeliggenhedsadresse;
   const city = address?.postdistrikt || address?.bynavn || "";
   const industry = meta?.nyesteHovedbranche?.branchetekst || "";
