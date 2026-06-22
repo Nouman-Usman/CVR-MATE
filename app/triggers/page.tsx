@@ -49,7 +49,6 @@ import {
   Calendar,
   MapPin,
   Building2,
-  Users,
   Filter,
   ArrowRight,
   Pause,
@@ -65,8 +64,6 @@ interface TriggerFilters {
   city?: string;
   region?: string;
   company_type?: string;
-  min_employees?: number;
-  max_employees?: number;
   founded_after?: string;
 }
 
@@ -516,12 +513,6 @@ export default function TriggersPage() {
                         {(trigger.filters as TriggerFilters)?.company_type && (
                           <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs">{(trigger.filters as TriggerFilters).company_type}</Badge>
                         )}
-                        {(trigger.filters as TriggerFilters)?.min_employees !== undefined && (
-                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><Users className="size-2.5" />{tr.minEmployees}: {(trigger.filters as TriggerFilters).min_employees}</Badge>
-                        )}
-                        {(trigger.filters as TriggerFilters)?.max_employees !== undefined && (
-                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><Users className="size-2.5" />{tr.maxEmployees}: {(trigger.filters as TriggerFilters).max_employees}</Badge>
-                        )}
                         {(trigger.filters as TriggerFilters)?.founded_after && (
                           <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 font-medium text-xs gap-1"><Calendar className="size-2.5" />{tr.foundedAfter}: {(trigger.filters as TriggerFilters).founded_after}</Badge>
                         )}
@@ -540,7 +531,7 @@ export default function TriggersPage() {
                         </p>
                         {latestResult.companies && latestResult.companies.length > 0 ? (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {latestResult.companies.slice(0, 10).map((c: { vat: number; name?: string; city?: string; industry?: string }) => {
+                            {latestResult.companies.map((c: { vat: number; name?: string; city?: string; industry?: string }) => {
                               const companyName = (c.name ?? "").trim() || `CVR ${c.vat}`;
                               const companyInitials = companyName
                                 .split(" ")
@@ -577,9 +568,9 @@ export default function TriggersPage() {
                         ) : (
                           <p className="text-xs text-muted-foreground">{tr.noTriggers}</p>
                         )}
-                        {latestResult.matchCount > 10 && (
+                        {latestResult.matchCount > latestResult.companies.length && (
                           <p className="text-xs text-muted-foreground mt-2">
-                            +{latestResult.matchCount - 10} {locale === "da" ? "flere" : "more"}
+                            +{latestResult.matchCount - latestResult.companies.length} {locale === "da" ? "flere" : "more"}
                           </p>
                         )}
                       </div>
@@ -745,14 +736,6 @@ export default function TriggersPage() {
                     <option value="K/S">K/S</option>
                     <option value="Enkeltmandsvirksomhed">Enkeltmandsvirksomhed</option>
                   </FormSelect>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">{tr.minEmployees}</Label>
-                  <Input type="number" className="bg-muted/30" value={filters.min_employees ?? ""} onChange={(e) => setFilters({ ...filters, min_employees: e.target.value ? Number(e.target.value) : undefined })} placeholder="0" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">{tr.maxEmployees}</Label>
-                  <Input type="number" className="bg-muted/30" value={filters.max_employees ?? ""} onChange={(e) => setFilters({ ...filters, max_employees: e.target.value ? Number(e.target.value) : undefined })} placeholder="1000" />
                 </div>
               </div>
               <div className="space-y-1.5">
