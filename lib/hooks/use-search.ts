@@ -15,7 +15,7 @@ export function useSearchCompanies(
   params: URLSearchParams | null,
   enabled: boolean,
   page: number = 1,
-  limit: number = 10
+  limit: number = 20
 ) {
   const paramString = params?.toString() ?? "";
 
