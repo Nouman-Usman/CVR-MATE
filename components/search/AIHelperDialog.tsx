@@ -32,7 +32,7 @@ export function AIHelperDialog({
   onOpenChange: (open: boolean) => void;
   onApplyFilters: (filters: Partial<SearchFiltersState>) => void;
 }) {
-  const { t, locale } = useLanguage();
+  const { t } = useLanguage();
   const s = t.search.aiHelper;
   const [query, setQuery] = useState("");
   const [parsed, setParsed] = useState<ParseResult | null>(null);
