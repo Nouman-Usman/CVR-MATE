@@ -53,6 +53,51 @@ export const regionZipcodeMap: Record<string, string> = {
   sjaelland: "4000,4030,4040,4050,4060,4070,4100,4130,4140,4160,4171,4173,4174,4180,4190,4200,4220,4230,4241,4242,4243,4250,4261,4262,4270,4281,4291,4293,4295,4296,4300,4320,4330,4340,4350,4360,4370,4390,4400,4420,4440,4450,4460,4470,4480,4490,4500,4520,4532,4534,4540,4550,4560,4571,4572,4573,4581,4583,4591,4592,4593,4600,4621,4622,4623,4632,4640,4652,4653,4654,4660,4671,4672,4673,4681,4682,4683,4684,4690,4700,4720,4733,4735,4736,4750,4760,4771,4772,4773,4780,4791,4792,4793,4800,4840,4850,4862,4863,4871,4872,4873,4880,4891,4892,4894,4895,4900,4912,4913,4920,4930,4941,4942,4943,4944,4951,4952,4953,4960,4970,4983,4990",
 };
 
+// Region → sorted city names for dependent filtering
+export const regionCityMap: Record<string, string[]> = {
+  hovedstaden: [
+    "Allerød", "Ballerup", "Birkerød", "Copenhagen", "Dragør", "Frederiksberg",
+    "Gentofte", "Glostrup", "Hellerup", "Hillerød", "Hørsholm", "Ishøj",
+    "Kastrup", "Klampenborg", "Kongens Lyngby", "Køge", "Lyngby", "Nivå",
+    "Rødovre", "Roskilde", "Rungsted", "Skovlunde", "Søborg", "Tårnby",
+    "Tåstrup", "Valby", "Vanløse", "Vedbæk", "Virum",
+  ].sort(),
+  midtjylland: [
+    "Aarhus", "Allingåbro", "Ansager", "Beder", "Borup", "Bramming", "Brande",
+    "Brovst", "Dalby", "Ebeltoft", "Farsø", "Galten", "Grenaa", "Hadsten",
+    "Hammel", "Herning", "Hjørring", "Holstebro", "Horsens", "Ikast",
+    "Juelsminde", "Lemvig", "Lystrup", "Nørresundby", "Odder", "Overlade",
+    "Randers", "Ringelmose", "Skanderborg", "Svendborg", "Viborg", "Vorup",
+  ].sort(),
+  syddanmark: [
+    "Aabenraa", "Åbenrå", "Assens", "Billund", "Bogense", "Faaborg", "Fejø",
+    "Fredericia", "Grindsted", "Haderslev", "Holsted", "Horup", "Kolding",
+    "Lunderskov", "Middelfart", "Millinge", "Nørre Aaby", "Odense", "Otterup",
+    "Ringe", "Rudkøbing", "Svendborg", "Tåsinge", "Tjørring", "Vejers Strand",
+    "Vejle", "Varde", "Ærøskøbing",
+  ].sort(),
+  nordjylland: [
+    "Aalborg", "Aalbæk", "Aalestrup", "Aarup", "Bedsted", "Brønderslev",
+    "Bygholm", "Dronninglund", "Dundas", "Fanø", "Frederikshavn", "Ginnerup",
+    "Godsbøl", "Grenaa", "Grindsted", "Hals", "Hanstholm", "Hjørring",
+    "Horten", "Husumkysten", "Ikast", "Jerslev", "Kandestederne", "Kandestederne",
+    "Kjellerup", "Læsø", "Løgstør", "Mors", "Nørresundby", "Nørresundby",
+    "Otterup", "Randers", "Ribe", "Rindal", "Ringelmose", "Rømme", "Sæby",
+    "Svendstrup", "Tårs", "Ungsted", "Vamdrup", "Vejgaard", "Vester Vedsted",
+    "Viborg", "Vils", "Vræsted", "Vrøgum", "Øland", "Ørnhøj",
+  ].sort(),
+  sjaelland: [
+    "Allindelille", "Faxe", "Frederiksværk", "Gørlev", "Helsingør", "Holbæk",
+    "Høng", "Humlebæk", "Hundested", "Hvalsø", "Jyderup", "Kalundborg",
+    "Karlslunde", "Kirke Såby", "Klippinge", "Kopinge", "Korsor", "Kulhuse",
+    "Leersø", "Liseleje", "Lynge", "Måløv", "Nørre Åby", "Nørre Lyndelse",
+    "Ørslev", "Osted", "Ringelmose", "Rørvig", "Runehøj", "Rüde", "Rågeleje",
+    "Skibby", "Skovbo", "Smørum", "Sommerlyst", "Sorø", "Spaseleje", "Stefansborg",
+    "Stenlille", "Stodsbøl", "Strøby", "Struer", "Svinninge", "Tølløse",
+    "Vig", "Vinderup", "Vodbøl", "Vor Frue", "Vordingborg", "Værebro",
+  ].sort(),
+};
+
 function foundedToDate(period: string): string | null {
   if (period === "all") return null;
   const map: Record<string, number> = { last30: 30, last90: 90, last365: 365, last3y: 1095 };
