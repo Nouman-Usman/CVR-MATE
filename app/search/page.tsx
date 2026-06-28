@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SecondaryNaceCodeModal } from "@/components/search/SecondaryNaceCodeModal";
+import { AIHelperDialog } from "@/components/search/AIHelperDialog";
 import {
   Dialog,
   DialogContent,
@@ -354,6 +355,7 @@ function SearchPage() {
   const [showSecondaryNaceModal, setShowSecondaryNaceModal] = useState(false);
   const [showJumpToPage, setShowJumpToPage] = useState(false);
   const [jumpPageInput, setJumpPageInput] = useState("");
+  const [showAIHelper, setShowAIHelper] = useState(false);
 
   const currentFilters = useMemo<SearchFiltersState>(() => ({
     query,
@@ -520,6 +522,22 @@ function SearchPage() {
     setCommittedParams(null);
   }, [resetAll, store]);
 
+  const handleApplyAIFilters = useCallback((aiFilters: Partial<SearchFiltersState>) => {
+    for (const [key, value] of Object.entries(aiFilters)) {
+      if (value !== undefined && value !== "") {
+        setFilter(key as keyof SearchFiltersState, value as never);
+      }
+    }
+    clearSelected();
+    store.setPage(1);
+    const allFilters = mergeSearchFilters({ ...currentFilters, ...aiFilters });
+    const searchParams = buildSearchParamsFromState(allFilters);
+    if (searchParams) {
+      setHasSearched(true);
+      setCommittedParams(searchParams);
+    }
+  }, [setFilter, clearSelected, store, currentFilters, setHasSearched]);
+
   const getCurrentFilters = useCallback((): Record<string, string> => {
     return serializeSearchFilters(currentFilters);
   }, [currentFilters]);
@@ -673,6 +691,18 @@ function SearchPage() {
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
             </div>
+
+            {/* AI Helper button */}
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12 px-3 sm:px-4 rounded-xl shrink-0 gap-2"
+              onClick={() => setShowAIHelper(true)}
+              title={s.aiHelper.button}
+            >
+              <span className="hidden sm:inline">{s.aiHelper.button}</span>
+              <span className="sm:hidden">✨</span>
+            </Button>
 
             {/* Search button */}
             <Button
@@ -1377,6 +1407,13 @@ function SearchPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* AI Helper Dialog */}
+      <AIHelperDialog
+        open={showAIHelper}
+        onOpenChange={setShowAIHelper}
+        onApplyFilters={handleApplyAIFilters}
+      />
       </DashboardLayout>
     </VideoTrigger>
   );
