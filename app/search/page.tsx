@@ -12,6 +12,8 @@ import {
   hasNativeSearchFilter,
   hydrateSearchFiltersFromParams,
   mergeSearchFilters,
+  regionCityMap,
+  regionZipcodeMap,
   serializeSearchFilters,
 } from "@/lib/search-filters";
 import { useSearchCompanies } from "@/lib/hooks/use-search";
@@ -858,18 +860,21 @@ function SearchPage() {
                     label={s.filters.city}
                     help={zipcode
                       ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
-                      : (region !== "all" ? (locale === "da" ? "Låst — region aktivt." : "Locked — region active.") : undefined)
+                      : (region === "all" ? (locale === "da" ? "Vælg en region først." : "Select a region first.") : undefined)
                     }
                     helpInfo={filterHelp.city}
                     helpLabels={filterHelpLabels}
                   >
-                    <Input
-                      className="h-9"
-                      placeholder={s.filters.cityPlaceholder}
+                    <FilterSelect
                       value={city}
-                      onChange={(e) => setFilter("city", e.target.value)}
-                      disabled={!!zipcode || region !== "all"}
-                    />
+                      onChange={(v) => setFilter("city", v)}
+                      disabled={!!zipcode || region === "all"}
+                    >
+                      <option value="">{s.filters.cityPlaceholder}</option>
+                      {region !== "all" && regionCityMap[region]?.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </FilterSelect>
                   </FilterField>
                 </div>
               </FilterSection>
