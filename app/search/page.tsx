@@ -586,23 +586,23 @@ function SearchPage() {
     { code: "210", description: "Udenlandsk", label: locale === "da" ? "210 - Anden udenlandsk virksomhed" : "210 - Other foreign company" },
   ];
 
-  const regionHelperCopy: Record<string, string> = {
+  const regionHelperCopy: Record<string, string> = useMemo(() => ({
     hovedstaden: locale === "da"
-      ? "Omfatter København, Frederiksberg, Gentofte og omegn."
-      : "Includes Copenhagen, Frederiksberg, Gentofte, and nearby areas.",
+      ? `Postnumre: ${regionZipcodeMap.hovedstaden}`
+      : `ZIP codes: ${regionZipcodeMap.hovedstaden}`,
     midtjylland: locale === "da"
-      ? "Omfatter Aarhus, Viborg, Herning og hele det centrale Jylland."
-      : "Includes Aarhus, Viborg, Herning, and central Jutland.",
+      ? `Postnumre: ${regionZipcodeMap.midtjylland}`
+      : `ZIP codes: ${regionZipcodeMap.midtjylland}`,
     syddanmark: locale === "da"
-      ? "Omfatter Vejle, Kolding, Odense, Esbjerg og Sønderborg."
-      : "Includes Vejle, Kolding, Odense, Esbjerg, and Sønderborg.",
+      ? `Postnumre: ${regionZipcodeMap.syddanmark}`
+      : `ZIP codes: ${regionZipcodeMap.syddanmark}`,
     nordjylland: locale === "da"
-      ? "Omfatter Aalborg, Hjørring, Frederikshavn og Nordjylland."
-      : "Includes Aalborg, Hjørring, Frederikshavn, and Northern Jutland.",
+      ? `Postnumre: ${regionZipcodeMap.nordjylland}`
+      : `ZIP codes: ${regionZipcodeMap.nordjylland}`,
     sjaelland: locale === "da"
-      ? "Omfatter Roskilde, Køge, Næstved, Faxe og resten af Sjælland."
-      : "Includes Roskilde, Køge, Næstved, Faxe, and the rest of Zealand.",
-  };
+      ? `Postnumre: ${regionZipcodeMap.sjaelland}`
+      : `ZIP codes: ${regionZipcodeMap.sjaelland}`,
+  }), [locale]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const savingCvr = saveCompanyMutation.isPending ? (saveCompanyMutation.variables?.vat ?? null) : (unsaveCompanyMutation.isPending ? unsaveCompanyMutation.variables ?? null : null);
@@ -810,7 +810,7 @@ function SearchPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <FilterField
                     label={s.filters.zipcode}
-                    help={locale === "da" ? "Tilsidesætter region og by." : "Overrides region and city."}
+                    help={locale === "da" ? "Tilsidesætter region og by. Vælg én eller anden région." : "Overrides region and city. Use one or the other."}
                     helpInfo={filterHelp.zipcode}
                     helpLabels={filterHelpLabels}
                   >
