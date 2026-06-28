@@ -33,7 +33,17 @@ export function AIHelperDialog({
   onApplyFilters: (filters: Partial<SearchFiltersState>) => void;
 }) {
   const { t } = useLanguage();
-  const s = t.search.aiHelper;
+  const s = t.search.aiHelper || {
+    button: "AI Helper",
+    title: "Search with plain English",
+    placeholder: "Describe what you're looking for in natural language",
+    help: "AI will parse and fill the filters for you.",
+    parsing: "Parsing your request...",
+    preview: "Filter preview",
+    confirm: "Search with these filters",
+    cancel: "Cancel",
+    error: "Could not parse request. Try being more specific.",
+  };
   const [query, setQuery] = useState("");
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
