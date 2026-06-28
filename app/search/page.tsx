@@ -693,18 +693,16 @@ function SearchPage() {
             </div>
 
             {/* AI Helper button */}
-            {s.aiHelper && (
-              <Button
-                variant="outline"
-                size="lg"
-                className="h-12 px-3 sm:px-4 rounded-xl shrink-0 gap-2"
-                onClick={() => setShowAIHelper(true)}
-                title={s.aiHelper.button}
-              >
-                <span className="hidden sm:inline">{s.aiHelper.button}</span>
-                <span className="sm:hidden">✨</span>
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-12 px-3 sm:px-4 rounded-xl shrink-0 gap-2"
+              onClick={() => setShowAIHelper(true)}
+              title={s.aiHelper?.button || "AI Helper"}
+            >
+              <span className="hidden sm:inline">{s.aiHelper?.button || "AI Helper"}</span>
+              <span className="sm:hidden">✨</span>
+            </Button>
 
             {/* Search button */}
             <Button
