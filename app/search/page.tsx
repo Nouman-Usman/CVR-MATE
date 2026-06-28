@@ -72,6 +72,8 @@ interface Company {
 
 type UpgradeError = Error & { upgrade?: boolean };
 
+const PAGE_SIZE = 20;
+
 // ES returns flat ParsedCompany objects \u2014 map directly, no nested traversal needed
 function mapCvrCompany(c: Record<string, unknown>): Company {
   const comp = c as {
@@ -350,6 +352,8 @@ function SearchPage() {
   const [committedParams, setCommittedParams] = useState<URLSearchParams | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSecondaryNaceModal, setShowSecondaryNaceModal] = useState(false);
+  const [showJumpToPage, setShowJumpToPage] = useState(false);
+  const [jumpPageInput, setJumpPageInput] = useState("");
 
   const currentFilters = useMemo<SearchFiltersState>(() => ({
     query,
@@ -381,7 +385,7 @@ function SearchPage() {
     isLoading,
     error: searchError,
     isFetching,
-  } = useSearchCompanies(committedParams, hasSearched, store.page);
+  } = useSearchCompanies(committedParams, hasSearched, store.page, PAGE_SIZE);
 
   // Map raw results to typed Company objects
   const rawResults = useMemo(() => searchData?.results ?? [], [searchData?.results]);
@@ -442,6 +446,31 @@ function SearchPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchError]);
+
+  // Keyboard navigation for pagination
+  useEffect(() => {
+    if (!hasSearched || !searchData) return;
+    const maxPage = Math.ceil(searchData.total / PAGE_SIZE);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (store.page > 1) store.setPage(store.page - 1);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (store.page < maxPage) store.setPage(store.page + 1);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        store.setPage(1);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        store.setPage(maxPage);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSearched, searchData]);
 
   const handleSearch = useCallback(() => {
     const searchUsage = sub?.usage?.companySearches;
@@ -1170,12 +1199,12 @@ function SearchPage() {
           </div>
 
           {/* Pagination controls */}
-          {searchData && searchData.total > 10 && (
+          {searchData && searchData.total > PAGE_SIZE && (
             <div className="mt-6 flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 {locale === "da" ? "Viser" : "Showing"}{" "}
                 <span className="font-semibold text-foreground">
-                  {(store.page - 1) * 10 + 1}–{Math.min(store.page * 10, searchData.total)}
+                  {(store.page - 1) * PAGE_SIZE + 1}–{Math.min(store.page * PAGE_SIZE, searchData.total)}
                 </span>{" "}
                 {locale === "da" ? "af" : "of"}{" "}
                 <span className="font-semibold text-foreground">{searchData.total}</span>
@@ -1187,19 +1216,29 @@ function SearchPage() {
                   onClick={() => store.setPage(Math.max(1, store.page - 1))}
                   disabled={store.page === 1 || isLoading}
                   className="gap-1.5"
+                  title={locale === "da" ? "Forrige side (←)" : "Previous page (←)"}
                 >
                   <ChevronDown className="size-4 rotate-90" />
                   <span className="hidden sm:inline">{locale === "da" ? "Forrige" : "Previous"}</span>
                 </Button>
-                <span className="text-xs font-medium text-muted-foreground px-2">
-                  {locale === "da" ? "Side" : "Page"} {store.page} {locale === "da" ? "af" : "of"} {Math.ceil(searchData.total / 10)}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowJumpToPage(true)}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-foreground/[0.06] transition-colors cursor-pointer"
+                  title={locale === "da" ? "Klik for at gå til side" : "Click to jump to page"}
+                >
+                  {locale === "da" ? "Side" : "Page"}{" "}
+                  <span className="font-semibold text-foreground">{store.page}</span>{" "}
+                  {locale === "da" ? "af" : "of"}{" "}
+                  <span className="font-semibold text-foreground">{Math.ceil(searchData.total / PAGE_SIZE)}</span>
+                </button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => store.setPage(store.page + 1)}
                   disabled={!searchData.hasMore || isLoading}
                   className="gap-1.5"
+                  title={locale === "da" ? "Næste side (→)" : "Next page (→)"}
                 >
                   <span className="hidden sm:inline">{locale === "da" ? "Næste" : "Next"}</span>
                   <ChevronDown className="size-4 -rotate-90" />
@@ -1280,6 +1319,64 @@ function SearchPage() {
         onSelect={(code) => setFilter("industrySecondaryCode", code)}
         currentValue={industrySecondaryCode}
       />
+
+      {/* Jump to page dialog */}
+      {searchData && (
+        <Dialog open={showJumpToPage} onOpenChange={setShowJumpToPage}>
+          <DialogContent className="sm:max-w-xs">
+            <DialogHeader>
+              <DialogTitle>
+                {locale === "da" ? "Gå til side" : "Jump to page"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs font-semibold">{locale === "da" ? "Side nummer" : "Page number"}</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max={Math.ceil(searchData.total / PAGE_SIZE)}
+                  value={jumpPageInput}
+                  onChange={(e) => setJumpPageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const pageNum = parseInt(jumpPageInput, 10);
+                      const maxPage = Math.ceil(searchData.total / PAGE_SIZE);
+                      if (pageNum >= 1 && pageNum <= maxPage) {
+                        store.setPage(pageNum);
+                        setShowJumpToPage(false);
+                        setJumpPageInput("");
+                      }
+                    }
+                  }}
+                  placeholder={`1–${Math.ceil(searchData.total / PAGE_SIZE)}`}
+                  autoFocus
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <DialogClose render={<Button variant="ghost" onClick={() => setJumpPageInput("")} />}>
+                {locale === "da" ? "Avbryd" : "Cancel"}
+              </DialogClose>
+              <Button
+                onClick={() => {
+                  const pageNum = parseInt(jumpPageInput, 10);
+                  const maxPage = Math.ceil(searchData.total / PAGE_SIZE);
+                  if (pageNum >= 1 && pageNum <= maxPage) {
+                    store.setPage(pageNum);
+                    setShowJumpToPage(false);
+                    setJumpPageInput("");
+                  }
+                }}
+                disabled={!jumpPageInput || parseInt(jumpPageInput, 10) < 1 || parseInt(jumpPageInput, 10) > Math.ceil(searchData.total / PAGE_SIZE)}
+              >
+                {locale === "da" ? "Gå" : "Go"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       </DashboardLayout>
     </VideoTrigger>
   );
