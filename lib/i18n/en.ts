@@ -1640,4 +1640,5 @@ const en: Dictionary = {
   },
 };
 
+export type Dictionary = typeof en;
 export default en;
