@@ -1,5 +1,5 @@
 {
-  "id": "b8b4c5c7-4890-4336-9f65-e72b2a8902d3",
+  "id": "6bcec1ea-6f24-4f13-8e25-054ec0026e72",
   "prevId": "31ad1c15-a2f8-4a06-9074-59e7c7e35fd9",
   "version": "7",
   "dialect": "postgresql",
@@ -571,7 +571,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'en'"
+          "default": "'da'"
         },
         "created_at": {
           "name": "created_at",
@@ -5314,6 +5314,26 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "writing_instructions": {
+          "name": "writing_instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ai_dos": {
+          "name": "ai_dos",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "ai_donts": {
+          "name": "ai_donts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",

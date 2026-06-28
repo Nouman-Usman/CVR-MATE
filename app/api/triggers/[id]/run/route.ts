@@ -1,40 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { leadTrigger, triggerResult } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
+import { searchCompaniesElasticsearch, type ParsedCompany } from "@/lib/cvr-api-elasticsearch";
+import { buildEsFilters } from "@/lib/triggers/build-es-filters";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
 import { dispatchNotificationEmail } from "@/lib/email/dispatch";
 import { getOrgMembership } from "@/lib/team/permissions";
-
-// Maps trigger filter keys to CVR API search params
-function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
-  const params: SearchCompanyParams = {
-    companystatus_code: "20", // active companies only
-  };
-
-  if (filters.branch_code)
-    params.industry_primary_code = String(filters.branch_code);
-  else if (filters.industry_code)
-    params.industry_primary_code = String(filters.industry_code);
-  if (filters.city)
-    params.address_city = String(filters.city);
-  if (filters.region) {
-    // Region is handled via zipcode list — simplified here to city mapping
-    params.address_municipality = String(filters.region);
-  }
-  if (filters.company_type)
-    params.companyform_description = String(filters.company_type);
-  if (filters.min_employees)
-    params.employment_interval_low = String(filters.min_employees);
-  if (filters.founded_after)
-    params.life_start = String(filters.founded_after);
-
-  return params;
-}
 
 export async function POST(
   _req: NextRequest,
@@ -68,21 +43,24 @@ export async function POST(
     }
 
     const filters = (trigger.filters ?? {}) as Record<string, unknown>;
-    const searchParams = buildSearchParams(filters);
+    const esFilters = buildEsFilters(filters);
 
-    // Execute CVR search
-    const companies = await searchCompanies(searchParams);
-    const results = Array.isArray(companies) ? companies : [];
+    // Paginate ES to collect up to 500 matches (5 pages × 100)
+    const ES_PAGE_SIZE = 100;
+    const MAX_PAGES = 5;
+    const all: ParsedCompany[] = [];
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      const result = await searchCompaniesElasticsearch(esFilters, p, ES_PAGE_SIZE);
+      all.push(...result.companies);
+      if (!result.hasMore) break;
+    }
 
-    // Sort newest first and deduplicate
-    results.sort((a, b) => {
-      const da = a.life?.start || "";
-      const db2 = b.life?.start || "";
-      return db2.localeCompare(da);
-    });
+    // Sort newest-founded first, deduplicate by VAT, exclude dissolved
+    all.sort((a, b) => (b.founded ?? "").localeCompare(a.founded ?? ""));
     const seen = new Set<number>();
-    const unique = results.filter((c) => {
+    const unique = all.filter((c) => {
       if (seen.has(c.vat)) return false;
+      if (c.isDissolved) return false;
       seen.add(c.vat);
       return true;
     });
@@ -90,10 +68,10 @@ export async function POST(
     // Store a summary of results (not the full raw data to keep DB lightweight)
     const companySummaries = unique.slice(0, 100).map((c) => ({
       vat: c.vat,
-      name: c.life?.name ?? "",
-      city: c.address?.cityname ?? "",
-      industry: c.industry?.primary?.text ?? "",
-      founded: c.life?.start ?? "",
+      name: c.name,
+      city: c.city,
+      industry: c.industry,
+      founded: c.founded,
     }));
 
     // Save trigger result
@@ -134,7 +112,7 @@ export async function POST(
           message:
             unique
               .slice(0, 3)
-              .map((c) => c.life?.name ?? "")
+              .map((c) => c.name)
               .filter(Boolean)
               .join(", ") +
             (unique.length > 3 ? ` +${unique.length - 3} more` : ""),

@@ -5,9 +5,9 @@ import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { outreachMessage } from "@/db/schema";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     const draftFeature = type === "linkedin" ? "linkedin_draft" : type === "phone_script" ? "phone_draft" : "email_draft";
 
-    const quota = await checkMonthlyQuota(session.user.id, draftFeature as any);
+    const quota = await checkMonthlyQuota(session.user.id, draftFeature as "linkedin_draft" | "phone_draft" | "email_draft");
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -127,10 +127,10 @@ Respond with a JSON object:
     let raw: Record<string, unknown>;
     try {
       raw = await generateAiJson<Record<string, unknown>>({
-        model: "gemini-2.5-flash",
+        model: "claude-haiku-4-5-20251001",
         systemPrompt,
         userPrompt,
-        maxTokens: 4096, // Increased from 2048 for thinking model token budget
+        maxTokens: 4096,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
@@ -155,7 +155,7 @@ Respond with a JSON object:
     }
 
     // Flatten any nested objects into the raw object for key lookup
-    for (const [rk, rv] of Object.entries(raw)) {
+    for (const [, rv] of Object.entries(raw)) {
       if (rv != null && typeof rv === "object" && !Array.isArray(rv)) {
         for (const [nk, nv] of Object.entries(rv as Record<string, unknown>)) {
           if (typeof nv === "string" && !(nk in raw)) {
@@ -166,7 +166,7 @@ Respond with a JSON object:
     }
 
     // Find a string value by checking multiple possible key names (case-insensitive)
-    const get = (...keys: string[]): string => {
+    const get = (...keys: string[]): string | undefined => {
       for (const k of keys) {
         if (raw[k] != null && typeof raw[k] === "string") return raw[k] as string;
       }
@@ -184,8 +184,8 @@ Respond with a JSON object:
 
     const normalized: OutreachResponse = {
       subject: get("subject", "email_subject", "emailSubject", "subjectLine", "subject_line") || undefined,
-      message: get("message", "body", "content", "text", "email", "emailBody", "email_body"),
-      followUp: get("followUp", "follow_up", "followup", "followUpMessage", "follow_up_message"),
+      message: get("message", "body", "content", "text", "email", "emailBody", "email_body") || "",
+      followUp: get("followUp", "follow_up", "followup", "followUpMessage", "follow_up_message") || "",
     };
 
     if (!normalized.message) {
@@ -207,7 +207,7 @@ Respond with a JSON object:
       })
       .returning();
 
-    await recordUsage(session.user.id, draftFeature as any);
+    await recordUsage(session.user.id, draftFeature as "linkedin_draft" | "phone_draft" | "email_draft");
     return NextResponse.json({ ...normalized, id: saved.id });
   } catch (error) {
     console.error("AI outreach error:", error);

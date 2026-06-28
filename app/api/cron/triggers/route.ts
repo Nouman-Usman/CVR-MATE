@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, and, lte, or, isNull, gte } from "drizzle-orm";
 import { leadTrigger, triggerResult } from "@/db/schema";
 import { db } from "@/db";
-import { searchCompanies, type SearchCompanyParams } from "@/lib/cvr-api";
+import { searchCompaniesElasticsearch, type ParsedCompany } from "@/lib/cvr-api-elasticsearch";
+import { buildEsFilters } from "@/lib/triggers/build-es-filters";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
 import { verifyQStashRequest } from "@/lib/qstash";
@@ -11,23 +12,6 @@ import { dispatchNotificationEmail } from "@/lib/email/dispatch";
 // Cron endpoint: processes all active triggers that are due.
 // Secured via QStash signature (production) or CRON_SECRET Bearer token (local/manual).
 // Scheduled via Upstash QStash (POST) — GET kept for manual testing.
-
-function buildSearchParams(filters: Record<string, unknown>): SearchCompanyParams {
-  const params: SearchCompanyParams = {
-    companystatus_code: "20",
-  };
-  if (filters.industry_code)
-    params.industry_primary_code = String(filters.industry_code);
-  if (filters.city) params.address_city = String(filters.city);
-  if (filters.region) params.address_municipality = String(filters.region);
-  if (filters.company_type)
-    params.companyform_description = String(filters.company_type);
-  if (filters.min_employees)
-    params.employment_interval_low = String(filters.min_employees);
-  if (filters.founded_after)
-    params.life_start = String(filters.founded_after);
-  return params;
-}
 
 async function verifyAuth(req: NextRequest): Promise<boolean> {
   // Try QStash signature first (production)
@@ -58,21 +42,24 @@ async function processTriggers() {
     for (const trigger of dueTriggers) {
       try {
         const filters = (trigger.filters ?? {}) as Record<string, unknown>;
-        const searchParams = buildSearchParams(filters);
+        const esFilters = buildEsFilters(filters);
 
-        // Execute CVR search
-        const companies = await searchCompanies(searchParams);
-        const rawResults = Array.isArray(companies) ? companies : [];
+        // Paginate ES to collect up to 500 matches (5 pages × 100)
+        const ES_PAGE_SIZE = 100;
+        const MAX_PAGES = 5;
+        const all: ParsedCompany[] = [];
+        for (let p = 1; p <= MAX_PAGES; p++) {
+          const result = await searchCompaniesElasticsearch(esFilters, p, ES_PAGE_SIZE);
+          all.push(...result.companies);
+          if (!result.hasMore) break;
+        }
 
-        // Sort newest first and deduplicate
-        rawResults.sort((a, b) => {
-          const da = a.life?.start || "";
-          const db2 = b.life?.start || "";
-          return db2.localeCompare(da);
-        });
+        // Sort newest-founded first, deduplicate by VAT, exclude dissolved
+        all.sort((a, b) => (b.founded ?? "").localeCompare(a.founded ?? ""));
         const seen = new Set<number>();
-        const unique = rawResults.filter((c) => {
+        const unique = all.filter((c) => {
           if (seen.has(c.vat)) return false;
+          if (c.isDissolved) return false;
           seen.add(c.vat);
           return true;
         });
@@ -80,10 +67,10 @@ async function processTriggers() {
         // Store summary
         const companySummaries = unique.slice(0, 100).map((c) => ({
           vat: c.vat,
-          name: c.life?.name ?? "",
-          city: c.address?.cityname ?? "",
-          industry: c.industry?.primary?.text ?? "",
-          founded: c.life?.start ?? "",
+          name: c.name,
+          city: c.city,
+          industry: c.industry,
+          founded: c.founded,
         }));
 
         // Idempotency guard: QStash may retry if this request times out.
@@ -137,7 +124,7 @@ async function processTriggers() {
               message:
                 unique
                   .slice(0, 3)
-                  .map((c) => c.life?.name ?? "")
+                  .map((c) => c.name)
                   .filter(Boolean)
                   .join(", ") +
                 (unique.length > 3 ? ` +${unique.length - 3} more` : ""),

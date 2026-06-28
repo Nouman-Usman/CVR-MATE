@@ -1,14 +1,14 @@
 import "server-only";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 
-function getClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
-  return new GoogleGenerativeAI(apiKey);
+function getClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
+  return new Anthropic({ apiKey });
 }
 
-export type AiModel = "gemini-2.5-flash" | "gemini-2.5-pro" | "gemini-2.0-flash-lite";
+export type AiModel = "claude-haiku-4-5-20251001" | "claude-sonnet-4-6-20250514";
 
 interface GenerateOptions {
   model?: AiModel;
@@ -19,28 +19,27 @@ interface GenerateOptions {
 
 export async function generateAiResponse(options: GenerateOptions): Promise<string> {
   const {
-    model = "gemini-2.5-flash",
+    model = "claude-haiku-4-5-20251001",
     systemPrompt,
     userPrompt,
     maxTokens = 1024,
   } = options;
 
   const client = getClient();
-  const genModel = client.getGenerativeModel({
-    model,
-    systemInstruction: systemPrompt,
-    generationConfig: {
-      maxOutputTokens: maxTokens,
-    },
-  });
 
   try {
-    const result = await genModel.generateContent(userPrompt);
-    const text = result.response.text();
+    const result = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    const text = result.content[0]?.type === "text" ? result.content[0].text : "";
     return text;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    if (msg.includes("429") || msg.includes("quota") || msg.includes("Too Many Requests")) {
+    if (msg.includes("429") || msg.includes("rate_limit") || msg.includes("overloaded")) {
       throw new Error("AI rate limit reached. Please wait a moment and try again.");
     }
     throw err;
@@ -138,9 +137,18 @@ function extractJson<T>(raw: string): T {
     let inStr = false;
     let esc = false;
     for (const c of fixed) {
-      if (esc) { esc = false; continue; }
-      if (c === "\\") { esc = true; continue; }
-      if (c === '"') { inStr = !inStr; continue; }
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c === "\\") {
+        esc = true;
+        continue;
+      }
+      if (c === '"') {
+        inStr = !inStr;
+        continue;
+      }
       if (inStr) continue;
       if (c === "{") braces++;
       if (c === "}") braces--;
@@ -151,8 +159,14 @@ function extractJson<T>(raw: string): T {
     // If we're inside a string, close it
     if (inStr) fixed += '"';
     // Close open brackets/braces
-    while (brackets > 0) { fixed += "]"; brackets--; }
-    while (braces > 0) { fixed += "}"; braces--; }
+    while (brackets > 0) {
+      fixed += "]";
+      brackets--;
+    }
+    while (braces > 0) {
+      fixed += "}";
+      braces--;
+    }
 
     try {
       const parsed = JSON.parse(fixed);
@@ -170,74 +184,18 @@ function extractJson<T>(raw: string): T {
   throw new Error(`Failed to parse AI JSON response (response length: ${text.length} chars, possibly truncated or malformed). Preview: ${responsePreview}`);
 }
 
-/**
- * Extract the actual text content from a Gemini response,
- * handling thinking models where .text() may return empty.
- */
-function extractResponseText(result: { response: { text: () => string; candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] } }): string {
-  // Try the standard .text() first
-  const directText = result.response.text();
-  if (directText && directText.trim() !== "" && directText.trim() !== "{}") {
-    return directText;
-  }
-
-  // For thinking models (gemini-2.5-*), .text() can return empty.
-  // Walk the response parts and collect non-thought text parts.
-  const candidates = result.response.candidates;
-  if (candidates?.[0]?.content?.parts) {
-    const textParts: string[] = [];
-    for (const part of candidates[0].content.parts) {
-      // Skip thinking/thought parts — we only want the actual output
-      if (part.thought) continue;
-      if (part.text) textParts.push(part.text);
-    }
-    if (textParts.length > 0) {
-      return textParts.join("");
-    }
-
-    // If ALL parts are thought parts, try collecting those as last resort
-    for (const part of candidates[0].content.parts) {
-      if (part.text) textParts.push(part.text);
-    }
-    if (textParts.length > 0) {
-      return textParts.join("");
-    }
-  }
-
-  return directText;
-}
-
 export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
   const {
-    model = "gemini-2.5-flash",
+    model = "claude-haiku-4-5-20251001",
     systemPrompt,
     userPrompt,
     maxTokens = 1024,
   } = options;
 
-  const isThinkingModel = model.includes("2.5");
   const client = getClient();
 
-  // Thinking models (gemini-2.5-*) use thinking tokens that count toward maxOutputTokens.
-  // Budget internal reasoning heavily + reserve output space for actual JSON.
-  // Empirically, complex tasks need ~8x multiplier to avoid truncation.
-  const effectiveMaxTokens = isThinkingModel
-    ? Math.max(maxTokens * 8, 24576) // 8x budget for thinking + output
-    : maxTokens;
-
-  const genModel = client.getGenerativeModel({
-    model,
-    systemInstruction: systemPrompt,
-    generationConfig: {
-      maxOutputTokens: effectiveMaxTokens,
-      temperature: isThinkingModel ? 0.7 : 0, // Lower temp for JSON consistency on non-thinking models
-      ...(isThinkingModel ? {} : { responseMimeType: "application/json" }),
-    },
-  });
-
-  const jsonPrompt = isThinkingModel
-    ? `${userPrompt}\n\nIMPORTANT: Respond ONLY with a valid, complete JSON object. No markdown, no explanation outside JSON. Ensure all fields are present.`
-    : userPrompt;
+  const jsonPrompt =
+    `${userPrompt}\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no code fences, no explanation outside the JSON. Ensure all fields are present and complete.`;
 
   // Try up to 4 times with exponential backoff (initial + 3 retries)
   let lastError: unknown;
@@ -246,20 +204,21 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
       // Exponential backoff for retries: 0ms, 100ms, 300ms, 700ms
       if (attempt > 0) {
         const backoffMs = Math.pow(2, attempt) * 50 - 50;
-        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
 
-      const result = await genModel.generateContent(jsonPrompt);
-      const text = extractResponseText(result);
+      const result = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: "user", content: jsonPrompt }],
+      });
+
+      const text = result.content[0]?.type === "text" ? result.content[0].text : "";
       console.log(`[AI JSON] ${model} attempt ${attempt + 1}: ${text.length} chars`);
 
       if (!text || text.trim() === "" || text.trim() === "{}") {
         throw new Error("AI returned empty response");
-      }
-
-      // Sanity check: truncated responses are usually < 1000 chars for enrichment tasks
-      if (isThinkingModel && text.length < 500) {
-        throw new Error(`Response too short (${text.length} chars) — likely truncated`);
       }
 
       return extractJson<T>(text);
@@ -268,7 +227,7 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
       const msg = err instanceof Error ? err.message : "";
 
       // Rate limit — throw user-friendly error immediately (no retry)
-      if (msg.includes("429") || msg.includes("quota") || msg.includes("Too Many Requests")) {
+      if (msg.includes("429") || msg.includes("rate_limit") || msg.includes("overloaded")) {
         throw new Error("AI rate limit reached. Please wait a moment and try again.");
       }
 
@@ -279,7 +238,6 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
         msg.includes("truncated") ||
         msg.includes("empty response") ||
         msg.includes("empty object") ||
-        msg.includes("too short") ||
         msg.includes("fetch failed") ||
         msg.includes("ECONNRESET") ||
         msg.includes("timeout") ||

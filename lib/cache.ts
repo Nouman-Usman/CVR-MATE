@@ -39,7 +39,7 @@ export const cacheKey = {
 
   recent: (days: number) => {
     const today = new Date().toISOString().split("T")[0];
-    return `recent:${days}:${today}`;
+    return `recent:es:${days}:${today}`;
   },
 
   aiBriefing: (vat: string, locale: string) => `ai:briefing:${vat}:${locale}`,

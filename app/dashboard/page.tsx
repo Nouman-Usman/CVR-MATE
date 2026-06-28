@@ -14,14 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   SearchCheck,
   Zap,
   Bookmark,
@@ -152,7 +144,7 @@ export default function DashboardPage() {
 
       {/* ── Stat cards ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
-        {statCards.map((stat, idx) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Link key={stat.label} href={stat.href}>

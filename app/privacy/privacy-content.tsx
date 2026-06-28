@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { LegalPageShell, type LegalSection } from "@/components/legal-page-shell";
 
 const EFFECTIVE_DATE = "6. maj 2026 / 6 May 2026";

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchCompanies } from "@/lib/cvr-api";
+import { searchCompaniesElasticsearch, type ParsedCompany } from "@/lib/cvr-api-elasticsearch";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { auth } from "@/lib/auth";
@@ -29,64 +29,40 @@ export async function GET(req: NextRequest) {
     // Check Redis cache first (skip if force refresh)
     const key = cacheKey.recent(safeDays);
     if (!force) {
-      const cached = await cacheGet<{ results: unknown[]; count: number; from: string }>(key);
+      const cached = await cacheGet<{ results: ParsedCompany[]; count: number; from: string }>(key);
       if (cached) return NextResponse.json(cached);
     }
 
-    // Query each day individually — life_start is an exact-date filter,
-    // so a single call only returns companies founded on that one day.
-    const dates: string[] = [];
-    for (let i = 0; i < safeDays; i++) {
-      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      dates.push(d.toISOString().split("T")[0]);
-    }
-    const fromStr = dates[dates.length - 1];
+    const cutoff = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+    const cutoffDate = cutoff.toISOString().split("T")[0];
+    const fromStr = cutoffDate;
 
-    // Fetch ALL companies per day by paginating through results
-    const PAGE_LIMIT = 100;
-
-    async function fetchAllForDate(date: string) {
-      const all: Awaited<ReturnType<typeof searchCompanies>> = [];
-      let page = 1;
-       
-      while (true) {
-        const batch = await searchCompanies({
-          life_start: date,
-          companystatus_code: "20",
-          limit: String(PAGE_LIMIT),
-          page: String(page),
-        }).catch(() => [] as Awaited<ReturnType<typeof searchCompanies>>);
-        all.push(...batch);
-        // If we got fewer than the limit, we've reached the last page
-        if (batch.length < PAGE_LIMIT) break;
-        page++;
-      }
-      return all;
+    // Single ES range query on stiftelsesDato — paginate to collect all results
+    const ES_PAGE_SIZE = 100;
+    const MAX_PAGES = 10;
+    const all: ParsedCompany[] = [];
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      const result = await searchCompaniesElasticsearch(
+        { life_start: cutoffDate },
+        p,
+        ES_PAGE_SIZE
+      );
+      all.push(...result.companies);
+      if (!result.hasMore) break;
     }
 
-    const perDay = await Promise.all(dates.map(fetchAllForDate));
+    const todayStr = new Date().toISOString().split("T")[0];
+    const activeStatuses = new Set(["NORMAL", "AKTIV", "FREMTID", ""]);
 
-    // Strict filter: only keep companies founded within the last N days
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - safeDays * 24 * 60 * 60 * 1000);
-
-    const companies = perDay.flat().filter((c) => {
-      if (!c.life?.start) return false;
-      const startDate = new Date(c.life.start);
-      return startDate >= cutoff && startDate <= now;
-    });
-
-    // Sort newest first
-    companies.sort((a, b) => {
-      const da = a.life?.start || "";
-      const db = b.life?.start || "";
-      return db.localeCompare(da);
-    });
-
-    // Deduplicate by VAT
+    // Sort newest first, deduplicate by VAT, exclude future-dated and truly dissolved
+    all.sort((a, b) => (b.founded ?? "").localeCompare(a.founded ?? ""));
     const seen = new Set<number>();
-    const unique = companies.filter((c) => {
+    const unique = all.filter((c) => {
       if (seen.has(c.vat)) return false;
+      // Exclude future start dates (pre-registered companies not yet active)
+      if (c.founded && c.founded > todayStr) return false;
+      // Exclude dissolved/cancelled companies — only show active or future
+      if (c.status && !activeStatuses.has(c.status.toUpperCase())) return false;
       seen.add(c.vat);
       return true;
     });

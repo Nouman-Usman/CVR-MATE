@@ -5,11 +5,11 @@ import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { db } from "@/db";
 import { profileEnrichment } from "@/db/schema";
-import { cacheSet, cacheDel } from "@/lib/redis";
+import { cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -111,7 +111,7 @@ ${formatBrandContext(brand)}`;
     let raw: Record<string, unknown>;
     try {
       raw = await generateAiJson<Record<string, unknown>>({
-        model: "gemini-2.5-flash",
+        model: "claude-haiku-4-5-20251001",
         systemPrompt,
         userPrompt,
         maxTokens: 8192, // Increased from 4096 for thinking model token budget

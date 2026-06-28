@@ -53,5 +53,26 @@ AI-ENRICHED BRAND PROFILE:
 - Geographic focus: ${enrichment.geographicFocus}`;
   }
 
+  const aiDosList = Array.isArray(brand.aiDos) ? (brand.aiDos as string[]) : [];
+  const aiDontsList = Array.isArray(brand.aiDonts) ? (brand.aiDonts as string[]) : [];
+  const hasDos = aiDosList.length > 0;
+  const hasDonts = aiDontsList.length > 0;
+  const hasInstructions = brand.writingInstructions ? brand.writingInstructions.trim().length > 0 : false;
+
+  if (hasInstructions || hasDos || hasDonts) {
+    context += `
+
+AI WRITING STYLE:`;
+    if (hasInstructions && brand.writingInstructions) {
+      context += `\n- Instructions: ${brand.writingInstructions.trim()}`;
+    }
+    if (hasDos) {
+      context += `\n- Do: ${aiDosList.join(" | ")}`;
+    }
+    if (hasDonts) {
+      context += `\n- Don't: ${aiDontsList.join(" | ")}`;
+    }
+  }
+
   return context.trim();
 }

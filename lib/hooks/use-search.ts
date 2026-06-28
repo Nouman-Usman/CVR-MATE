@@ -5,20 +5,29 @@ import { useQuery } from "@tanstack/react-query";
 interface SearchResponse {
   results: Record<string, unknown>[];
   count: number;
+  total: number;
   hasMore: boolean;
+  truncated?: boolean;
   error?: string;
 }
 
 export function useSearchCompanies(
   params: URLSearchParams | null,
-  enabled: boolean
+  enabled: boolean,
+  page: number = 1,
+  limit: number = 10
 ) {
   const paramString = params?.toString() ?? "";
 
   return useQuery<SearchResponse>({
-    queryKey: ["search", paramString],
+    queryKey: ["search", paramString, page, limit],
     queryFn: async () => {
-      const res = await fetch(`/api/cvr/search?${paramString}`);
+      const url = new URL(`/api/cvr/search`, typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+      if (paramString) url.search = paramString;
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("limit", String(limit));
+
+      const res = await fetch(url.toString());
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const err = new Error(data.error || "Search failed") as Error & { upgrade?: boolean };

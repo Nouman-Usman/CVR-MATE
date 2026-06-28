@@ -4,9 +4,9 @@ import { profileEnrichment } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 

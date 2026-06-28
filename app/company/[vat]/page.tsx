@@ -11,7 +11,7 @@ import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/us
 import { useOutreach, useOutreachMessages } from "@/lib/hooks/use-outreach";
 import { useSuggestTodos } from "@/lib/hooks/use-suggest-todos";
 import { useCreateTodo } from "@/lib/hooks/use-todos";
-import { useActiveConnections, usePushToCrm, useSyncStatus } from "@/lib/hooks/use-integrations";
+import { useActiveConnections, usePushToCrm } from "@/lib/hooks/use-integrations";
 import { useEmailClientValue, buildComposeUrl } from "@/lib/hooks/use-email-client";
 import { InlineLoader } from "@/components/loading-screen";
 import { useCompanyEnrichment, useSavedEnrichment, type CompanyEnrichment } from "@/lib/hooks/use-enrichment";
@@ -394,8 +394,8 @@ export default function CompanyDetailPage() {
       },
       {
         onSuccess: () => setShowNoteModal(false),
-        onError: (err: any) => {
-          if (err.upgrade) {
+        onError: (err: Error) => {
+          if ((err as { upgrade?: boolean }).upgrade) {
             setShowNoteModal(false);
             triggerUpgrade("saved_company");
           }
@@ -531,10 +531,11 @@ export default function CompanyDetailPage() {
                             onClick={() => {
                               setShowCrmMenu(false);
                               // We need the company DB id — use the vat to fetch it
+                              const companyId = (company as unknown as Record<string, string | number | undefined>)?.id ? String((company as unknown as Record<string, string | number | undefined>).id) : String(vat);
                               pushToCrm.mutate(
-                                { connectionId: conn.id, companyId: (company as unknown as Record<string, string>)?.id || vat },
+                                { connectionId: conn.id, companyId },
                                 {
-                                  onSuccess: (res) => {
+                                  onSuccess: () => {
                                     setCrmToast({ msg: `${t.integrations.pushSuccess} ${conn.provider}`, type: "success" });
                                     setTimeout(() => setCrmToast(null), 3000);
                                   },

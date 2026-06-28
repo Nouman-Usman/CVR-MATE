@@ -4,7 +4,7 @@ import { userBrand } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
+import { cacheGet, cacheSet } from "@/lib/redis";
 
 const VALID_CLIENTS = ["default", "gmail", "outlook"] as const;
 type EmailClient = (typeof VALID_CLIENTS)[number];
