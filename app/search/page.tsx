@@ -798,31 +798,51 @@ function SearchPage() {
                     helpInfo={filterHelp.zipcode}
                     helpLabels={filterHelpLabels}
                   >
-                    <Input
-                      className="h-9 font-mono tabular-nums"
-                      inputMode="numeric"
-                      pattern="\d{4}"
-                      maxLength={4}
-                      placeholder={s.filters.zipcodePlaceholder}
-                      value={zipcode}
-                      onChange={(e) => {
-                        const newZip = e.target.value.replace(/\D/g, "");
-                        setFilter("zipcode", newZip);
-                        if (newZip.length === 4) {
-                          const match = zipcodeToRegionCity[newZip];
-                          if (match) {
-                            setFilter("region", match.region);
-                            setFilter("city", match.city);
-                          } else {
-                            setFilter("region", "all");
-                            setFilter("city", "");
-                          }
-                        } else if (!newZip) {
-                          setFilter("region", "all");
-                          setFilter("city", "");
-                        }
-                      }}
-                    />
+                    {(() => {
+                      const cityZips = city && region !== "all"
+                        ? (regionCityZipcodeMap[region]?.find(c => c.name === city)?.zipcodes ?? [])
+                        : [];
+                      if (cityZips.length > 1) {
+                        return (
+                          <FilterSelect
+                            value={zipcode}
+                            onChange={(v) => setFilter("zipcode", v)}
+                          >
+                            <option value="">{s.filters.zipcodePlaceholder}</option>
+                            {cityZips.map((z) => (
+                              <option key={z} value={z}>{z}</option>
+                            ))}
+                          </FilterSelect>
+                        );
+                      }
+                      return (
+                        <Input
+                          className="h-9 font-mono tabular-nums"
+                          inputMode="numeric"
+                          pattern="\d{4}"
+                          maxLength={4}
+                          placeholder={s.filters.zipcodePlaceholder}
+                          value={zipcode}
+                          onChange={(e) => {
+                            const newZip = e.target.value.replace(/\D/g, "");
+                            setFilter("zipcode", newZip);
+                            if (newZip.length === 4) {
+                              const match = zipcodeToRegionCity[newZip];
+                              if (match) {
+                                setFilter("region", match.region);
+                                setFilter("city", match.city);
+                              } else {
+                                setFilter("region", "all");
+                                setFilter("city", "");
+                              }
+                            } else if (!newZip) {
+                              setFilter("region", "all");
+                              setFilter("city", "");
+                            }
+                          }}
+                        />
+                      );
+                    })()}
                   </FilterField>
                   <FilterField
                     label={s.filters.region}
