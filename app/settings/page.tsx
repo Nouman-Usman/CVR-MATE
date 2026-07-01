@@ -121,17 +121,12 @@ function SubscriptionSection() {
   const resumeMutation = useResumeSubscription();
   const checkoutMutation = useCheckout();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("annual");
   const [subToast, setSubToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const showSubToast = (msg: string, type: "success" | "error" = "success") => {
     setSubToast({ msg, type });
     setTimeout(() => setSubToast(null), 5000);
   };
-
-  // Auto-detect billing interval from current subscription
-  useEffect(() => {
-    if (data?.billingInterval) setBillingInterval(data.billingInterval);
-  }, [data?.billingInterval]);
 
   // Post-checkout success / cancel feedback
   useEffect(() => {

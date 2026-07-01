@@ -59,6 +59,7 @@ import {
   Building2,
   MapPin,
   Users,
+  Sparkles,
 } from "lucide-react";
 
 interface Company {
@@ -682,12 +683,12 @@ function SearchPage() {
             <Button
               variant="outline"
               size="lg"
-              className="h-12 px-3 sm:px-4 rounded-xl shrink-0 gap-2"
+              className="h-12 px-3 sm:px-4 rounded-xl shrink-0 gap-2 border-indigo-200/60 hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700 transition-colors"
               onClick={() => setShowAIHelper(true)}
               title={s.aiHelper?.button || "AI Helper"}
             >
-              <span className="hidden sm:inline">{s.aiHelper?.button || "AI Helper"}</span>
-              <span className="sm:hidden">✨</span>
+              <Sparkles className="size-4 text-indigo-400" />
+              <span>{s.aiHelper?.button || "AI Helper"}</span>
             </Button>
 
             {/* Search button */}
