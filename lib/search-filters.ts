@@ -44,144 +44,10 @@ export const DEFAULT_SEARCH_FILTERS: SearchFiltersState = {
   skipMarketingOptOut: false,
 };
 
-// Region → comma-separated zipcode list for ES terms query
-export const regionZipcodeMap: Record<string, string> = {
-  hovedstaden: "1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200,2300,2400,2450,2500,2600,2605,2610,2620,2625,2630,2635,2640,2650,2660,2665,2670,2680,2690,2700,2720,2730,2740,2750,2760,2765,2770,2791,2800,2820,2830,2840,2850,2860,2870,2880,2900,2920,2930,2942,2950,2960,2970,2980,2990,3000,3050,3060,3070,3080,3100,3120,3140,3150,3200,3210,3230,3250,3300,3310,3320,3330,3360,3370,3390,3400,3450,3460,3480,3490,3500,3520,3540",
-  midtjylland: "7400,7430,7441,7442,7451,7470,7480,7490,7500,7540,7550,7560,7570,7600,7620,7650,7660,7670,7680,7700,7730,7741,7742,7752,7755,7760,7770,7790,8000,8200,8210,8220,8230,8240,8250,8260,8270,8300,8305,8310,8320,8330,8340,8350,8355,8360,8370,8380,8381,8382,8400,8410,8420,8444,8450,8462,8464,8471,8472,8500,8520,8530,8541,8543,8544,8550,8560,8570,8581,8585,8586,8592,8600,8620,8632,8641,8643,8653,8654,8660,8670,8680,8700,8721,8722,8723,8732,8740,8751,8752,8762,8763,8765,8766,8781,8783,8800,8830,8831,8832,8840,8850,8860,8870,8881,8882,8883,8900,8920,8930,8940,8950,8960,8961,8963,8970,8981,8983,8990",
-  syddanmark: "5000,5200,5210,5220,5230,5240,5250,5260,5270,5290,5300,5320,5330,5350,5370,5380,5390,5400,5450,5462,5463,5464,5466,5471,5474,5485,5491,5492,5500,5540,5550,5560,5580,5591,5592,5600,5610,5620,5631,5642,5672,5683,5690,5700,5750,5762,5771,5772,5792,5800,5853,5854,5856,5863,5871,5874,5881,5882,5883,5884,5892,5900,5932,5935,5943,5953,5960,5970,5985,6000,6040,6051,6052,6064,6070,6091,6092,6093,6094,6100,6200,6230,6240,6261,6270,6280,6300,6310,6320,6330,6340,6360,6372,6392,6400,6430,6470,6500,6510,6520,6534,6535,6541,6560,6580,6600,6621,6622,6623,6630,6640,6650,6660,6670,6682,6683,6690,6700,6705,6710,6715,6720,6731,6740,6752,6753,6760,6771,6780,6792,6800,6818,6823,6830,6840,6851,6852,6853,6854,6855,6857,6862,6870,6880,7000,7007,7080,7100,7120,7130,7140,7150,7160,7171,7173,7182,7183,7184,7190,7200,7300,7321,7323",
-  nordjylland: "7700,7730,7741,7742,7752,7755,7760,7770,7790,7800,7830,7840,7850,7860,7870,7884,7900,7950,7960,7970,7980,7990,7992,7993,7996,7998,8960,8961,8963,8970,8981,8983,8990,9000,9200,9210,9220,9230,9240,9260,9270,9280,9293,9300,9310,9320,9330,9340,9352,9362,9370,9380,9381,9382,9400,9430,9440,9460,9480,9490,9492,9493,9500,9510,9520,9530,9541,9550,9560,9574,9575,9600,9610,9620,9631,9632,9640,9670,9681,9690,9700,9740,9750,9760,9800,9830,9850,9870,9881,9900,9940,9970,9981,9982,9990",
-  sjaelland: "4000,4030,4040,4050,4060,4070,4100,4130,4140,4160,4171,4173,4174,4180,4190,4200,4220,4230,4241,4242,4243,4250,4261,4262,4270,4281,4291,4293,4295,4296,4300,4320,4330,4340,4350,4360,4370,4390,4400,4420,4440,4450,4460,4470,4480,4490,4500,4520,4532,4534,4540,4550,4560,4571,4572,4573,4581,4583,4591,4592,4593,4600,4621,4622,4623,4632,4640,4652,4653,4654,4660,4671,4672,4673,4681,4682,4683,4684,4690,4700,4720,4733,4735,4736,4750,4760,4771,4772,4773,4780,4791,4792,4793,4800,4840,4850,4862,4863,4871,4872,4873,4880,4891,4892,4894,4895,4900,4912,4913,4920,4930,4941,4942,4943,4944,4951,4952,4953,4960,4970,4983,4990",
-};
-
-// Region → cities with associated zipcodes
-export const regionCityZipcodeMap: Record<string, Array<{ name: string; zipcodes: string[] }>> = {
-  hovedstaden: [
-    { name: "Copenhagen", zipcodes: ["1000", "1100", "1200", "1300", "1400", "1500", "1600", "1700", "1800", "1900", "2000"] },
-    { name: "Frederiksberg", zipcodes: ["1900", "2000"] },
-    { name: "Gentofte", zipcodes: ["2820"] },
-    { name: "Glostrup", zipcodes: ["2600"] },
-    { name: "Allerød", zipcodes: ["3450"] },
-    { name: "Ballerup", zipcodes: ["2750"] },
-    { name: "Birkerød", zipcodes: ["3460"] },
-    { name: "Dragør", zipcodes: ["2791"] },
-    { name: "Hellerup", zipcodes: ["2900"] },
-    { name: "Hillerød", zipcodes: ["3400"] },
-    { name: "Hørsholm", zipcodes: ["2970"] },
-    { name: "Ishøj", zipcodes: ["2635"] },
-    { name: "Kastrup", zipcodes: ["2770"] },
-    { name: "Klampenborg", zipcodes: ["2930"] },
-    { name: "Kongens Lyngby", zipcodes: ["2800"] },
-    { name: "Køge", zipcodes: ["4600"] },
-    { name: "Lyngby", zipcodes: ["2800"] },
-    { name: "Nivå", zipcodes: ["2990"] },
-    { name: "Rødovre", zipcodes: ["2610"] },
-    { name: "Roskilde", zipcodes: ["4000"] },
-    { name: "Rungsted", zipcodes: ["2960"] },
-    { name: "Skovlunde", zipcodes: ["2740"] },
-    { name: "Søborg", zipcodes: ["2860"] },
-    { name: "Tårnby", zipcodes: ["2750"] },
-    { name: "Tåstrup", zipcodes: ["2630"] },
-    { name: "Valby", zipcodes: ["2500"] },
-    { name: "Vanløse", zipcodes: ["2720"] },
-    { name: "Vedbæk", zipcodes: ["2950"] },
-    { name: "Virum", zipcodes: ["2830"] },
-  ].sort((a, b) => a.name.localeCompare(b.name)),
-  midtjylland: [
-    { name: "Aarhus", zipcodes: ["8000", "8100", "8200", "8210", "8220", "8230"] },
-    { name: "Herning", zipcodes: ["7400"] },
-    { name: "Horsens", zipcodes: ["8700"] },
-    { name: "Viborg", zipcodes: ["8800"] },
-    { name: "Randers", zipcodes: ["8900"] },
-    { name: "Skanderborg", zipcodes: ["8660"] },
-    { name: "Holstebro", zipcodes: ["7500"] },
-    { name: "Hammel", zipcodes: ["8340"] },
-    { name: "Hadsten", zipcodes: ["8370"] },
-    { name: "Silkeborg", zipcodes: ["8600"] },
-    { name: "Svendborg", zipcodes: ["5700"] },
-    { name: "Lemvig", zipcodes: ["7620"] },
-    { name: "Ikast", zipcodes: ["7500"] },
-    { name: "Grenaa", zipcodes: ["8500"] },
-    { name: "Odder", zipcodes: ["8300"] },
-    { name: "Ebeltoft", zipcodes: ["8400"] },
-    { name: "Allingåbro", zipcodes: ["8420"] },
-    { name: "Brande", zipcodes: ["7330"] },
-    { name: "Brovst", zipcodes: ["7480"] },
-    { name: "Dalby", zipcodes: ["7450"] },
-    { name: "Farsø", zipcodes: ["7600"] },
-    { name: "Galten", zipcodes: ["8250"] },
-    { name: "Juelsminde", zipcodes: ["8130"] },
-    { name: "Lystrup", zipcodes: ["8310"] },
-    { name: "Vorup", zipcodes: ["8681"] },
-  ].sort((a, b) => a.name.localeCompare(b.name)),
-  syddanmark: [
-    { name: "Odense", zipcodes: ["5000", "5100", "5200", "5210", "5220"] },
-    { name: "Vejle", zipcodes: ["7100", "7200"] },
-    { name: "Kolding", zipcodes: ["6000"] },
-    { name: "Esbjerg", zipcodes: ["6700"] },
-    { name: "Sønderborg", zipcodes: ["6400"] },
-    { name: "Aabenraa", zipcodes: ["6200"] },
-    { name: "Haderslev", zipcodes: ["6100"] },
-    { name: "Ribe", zipcodes: ["6760"] },
-    { name: "Tønder", zipcodes: ["6270"] },
-    { name: "Billund", zipcodes: ["7190"] },
-    { name: "Assens", zipcodes: ["5610"] },
-    { name: "Bogense", zipcodes: ["5400"] },
-    { name: "Faaborg", zipcodes: ["5600"] },
-    { name: "Fredericia", zipcodes: ["7000"] },
-    { name: "Middelfart", zipcodes: ["5500"] },
-    { name: "Ringe", zipcodes: ["5680"] },
-    { name: "Rudkøbing", zipcodes: ["5900"] },
-    { name: "Otterup", zipcodes: ["5450"] },
-    { name: "Grindsted", zipcodes: ["7200"] },
-    { name: "Varde", zipcodes: ["6800"] },
-  ].sort((a, b) => a.name.localeCompare(b.name)),
-  nordjylland: [
-    { name: "Aalborg", zipcodes: ["9000", "9100", "9200", "9210"] },
-    { name: "Frederikshavn", zipcodes: ["9900"] },
-    { name: "Hjørring", zipcodes: ["9800"] },
-    { name: "Sæby", zipcodes: ["9300"] },
-    { name: "Brønderslev", zipcodes: ["9700"] },
-    { name: "Vorup", zipcodes: ["9520"] },
-    { name: "Nørresundby", zipcodes: ["9400"] },
-    { name: "Hals", zipcodes: ["9330"] },
-    { name: "Hanstholm", zipcodes: ["7730"] },
-    { name: "Løgstør", zipcodes: ["7900"] },
-    { name: "Skagen", zipcodes: ["9990"] },
-    { name: "Læsø", zipcodes: ["9940"] },
-    { name: "Mors", zipcodes: ["7960"] },
-    { name: "Dronninglund", zipcodes: ["9490"] },
-    { name: "Svendstrup", zipcodes: ["9400"] },
-    { name: "Tårs", zipcodes: ["7960"] },
-  ].sort((a, b) => a.name.localeCompare(b.name)),
-  sjaelland: [
-    { name: "Roskilde", zipcodes: ["4000"] },
-    { name: "Køge", zipcodes: ["4600"] },
-    { name: "Holbæk", zipcodes: ["4300"] },
-    { name: "Kalundborg", zipcodes: ["4400"] },
-    { name: "Helsingør", zipcodes: ["3000"] },
-    { name: "Hillerød", zipcodes: ["3400"] },
-    { name: "Frederiksværk", zipcodes: ["3200"] },
-    { name: "Sorø", zipcodes: ["4180"] },
-    { name: "Næstved", zipcodes: ["4700"] },
-    { name: "Vordingborg", zipcodes: ["4760"] },
-    { name: "Faxe", zipcodes: ["4640"] },
-    { name: "Ringsted", zipcodes: ["4100"] },
-    { name: "Hvalsø", zipcodes: ["4330"] },
-    { name: "Jyderup", zipcodes: ["4450"] },
-    { name: "Stenlille", zipcodes: ["4260"] },
-    { name: "Gørlev", zipcodes: ["4420"] },
-    { name: "Lejre", zipcodes: ["4320"] },
-    { name: "Høng", zipcodes: ["4480"] },
-  ].sort((a, b) => a.name.localeCompare(b.name)),
-};
-
-// For backward compatibility, extract city names only
-export const regionCityMap: Record<string, string[]> = Object.fromEntries(
-  Object.entries(regionCityZipcodeMap).map(([region, cities]) => [
-    region,
-    cities.map(c => c.name)
-  ])
-);
+// All Denmark geo data (regions, cities, zipcodes) lives in denmark-geodata.ts
+import { regionZipcodeMap as _regionZipcodeMap } from "@/lib/denmark-geodata";
+export { regionCityZipcodeMap, regionCityMap, regionZipcodeMap } from "@/lib/denmark-geodata";
+export type { DenmarkCity } from "@/lib/denmark-geodata";
 
 function foundedToDate(period: string): string | null {
   if (period === "all") return null;
@@ -231,7 +97,7 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
   if (filters.zipcode) {
     params.set("zipcode", filters.zipcode);
   } else if (filters.region !== "all") {
-    const zips = regionZipcodeMap[filters.region];
+    const zips = _regionZipcodeMap[filters.region];
     if (zips) params.set("zipcode_list", zips);
   }
 
