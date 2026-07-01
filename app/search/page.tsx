@@ -13,6 +13,7 @@ import {
   hydrateSearchFiltersFromParams,
   mergeSearchFilters,
   regionCityMap,
+  regionCityZipcodeMap,
   regionZipcodeMap,
   serializeSearchFilters,
 } from "@/lib/search-filters";
@@ -860,7 +861,10 @@ function SearchPage() {
                     label={s.filters.city}
                     help={zipcode
                       ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
-                      : (region === "all" ? (locale === "da" ? "Vælg en region først." : "Select a region first.") : undefined)
+                      : (region === "all" ? (locale === "da" ? "Vælg en region først." : "Select a region first.") : city && regionCityZipcodeMap[region] ? (() => {
+                        const cityData = regionCityZipcodeMap[region]?.find(c => c.name === city);
+                        return cityData ? `${locale === "da" ? "Postnumre" : "ZIP codes"}: ${cityData.zipcodes.join(", ")}` : undefined;
+                      })() : undefined)
                     }
                     helpInfo={filterHelp.city}
                     helpLabels={filterHelpLabels}
@@ -871,8 +875,8 @@ function SearchPage() {
                       disabled={!!zipcode || region === "all"}
                     >
                       <option value="">{s.filters.cityPlaceholder}</option>
-                      {region !== "all" && regionCityMap[region]?.map((c) => (
-                        <option key={c} value={c}>{c}</option>
+                      {region !== "all" && regionCityZipcodeMap[region]?.map((c) => (
+                        <option key={c.name} value={c.name}>{c.name}</option>
                       ))}
                     </FilterSelect>
                   </FilterField>
