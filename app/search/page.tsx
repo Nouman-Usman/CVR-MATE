@@ -16,6 +16,7 @@ import {
   regionCityZipcodeMap,
   regionZipcodeMap,
   serializeSearchFilters,
+  zipcodeToRegionCity,
 } from "@/lib/search-filters";
 import { useSearchCompanies } from "@/lib/hooks/use-search";
 import { useSavedCvrSet, useSaveCompany, useUnsaveCompany } from "@/lib/hooks/use-saved-companies";
@@ -825,7 +826,16 @@ function SearchPage() {
                       onChange={(e) => {
                         const newZip = e.target.value.replace(/\D/g, "");
                         setFilter("zipcode", newZip);
-                        if (newZip) {
+                        if (newZip.length === 4) {
+                          const match = zipcodeToRegionCity[newZip];
+                          if (match) {
+                            setFilter("region", match.region);
+                            setFilter("city", match.city);
+                          } else {
+                            setFilter("region", "all");
+                            setFilter("city", "");
+                          }
+                        } else if (!newZip) {
                           setFilter("region", "all");
                           setFilter("city", "");
                         }
