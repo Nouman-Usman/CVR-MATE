@@ -46,7 +46,7 @@ export const DEFAULT_SEARCH_FILTERS: SearchFiltersState = {
 
 // All Denmark geo data (regions, cities, zipcodes) lives in denmark-geodata.ts
 import { regionZipcodeMap as _regionZipcodeMap } from "@/lib/denmark-geodata";
-export { regionCityZipcodeMap, regionCityMap, regionZipcodeMap } from "@/lib/denmark-geodata";
+export { regionCityZipcodeMap, regionCityMap, regionZipcodeMap, zipcodeToRegionCity } from "@/lib/denmark-geodata";
 export type { DenmarkCity } from "@/lib/denmark-geodata";
 
 function foundedToDate(period: string): string | null {

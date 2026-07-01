@@ -248,6 +248,20 @@ export const regionCityZipcodeMap: Record<string, DenmarkCity[]> = {
   ].sort((a, b) => a.name.localeCompare(b.name, "da")),
 };
 
+// Zipcode → { region, city } reverse lookup — built once at module load
+export const zipcodeToRegionCity: Record<string, { region: string; city: string }> = (() => {
+  const map: Record<string, { region: string; city: string }> = {};
+  for (const [region, cities] of Object.entries(regionCityZipcodeMap)) {
+    for (const city of cities) {
+      for (const zip of city.zipcodes) {
+        // First match wins — prefer more specific cities if multiple cover same zip
+        if (!map[zip]) map[zip] = { region, city: city.name };
+      }
+    }
+  }
+  return map;
+})();
+
 // Flat city name list per region (for backward compatibility)
 export const regionCityMap: Record<string, string[]> = Object.fromEntries(
   Object.entries(regionCityZipcodeMap).map(([region, cities]) => [
