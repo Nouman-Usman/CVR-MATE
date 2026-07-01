@@ -7,7 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { ArrowRight, RotateCcw, X, AlertCircle } from "lucide-react";
+import { X, ArrowUpRight, RotateCcw, ChevronRight } from "lucide-react";
 
 interface ParseResult {
   filters: Partial<SearchFiltersState>;
@@ -15,81 +15,75 @@ interface ParseResult {
 }
 
 const FILTER_LABELS: Record<string, string> = {
-  query:                 "Name / keyword",
+  query:                 "Keyword",
   industryCode:          "Industry",
-  industrySecondaryCode: "Sub-industry code",
+  industrySecondaryCode: "Sub-industry",
   companyformCode:       "Company type",
   companystatusCode:     "Status",
   foundedPeriod:         "Founded",
   region:                "Region",
   city:                  "City",
-  zipcode:               "ZIP code",
+  zipcode:               "ZIP",
   municipality:          "Municipality",
   street:                "Street",
   contactPhone:          "Phone",
   contactEmail:          "Email",
   contactWww:            "Website",
-  skipMarketingOptOut:   "Contactable only",
+  skipMarketingOptOut:   "Contactable",
 };
 
-// Category → left-bar accent color
-const FILTER_ACCENT: Record<string, string> = {
-  query:                 "border-l-violet-400",
-  industryCode:          "border-l-blue-400",
-  industrySecondaryCode: "border-l-blue-300",
-  companyformCode:       "border-l-amber-400",
-  companystatusCode:     "border-l-emerald-400",
-  foundedPeriod:         "border-l-orange-400",
-  region:                "border-l-teal-400",
-  city:                  "border-l-teal-400",
-  zipcode:               "border-l-teal-400",
-  municipality:          "border-l-teal-300",
-  street:                "border-l-teal-300",
-  contactPhone:          "border-l-slate-400",
-  contactEmail:          "border-l-slate-400",
-  contactWww:            "border-l-slate-400",
-  skipMarketingOptOut:   "border-l-emerald-400",
+const FILTER_HUE: Record<string, string> = {
+  query:                 "#8b5cf6",
+  industryCode:          "#3b82f6",
+  industrySecondaryCode: "#60a5fa",
+  companyformCode:       "#f59e0b",
+  companystatusCode:     "#10b981",
+  foundedPeriod:         "#f97316",
+  region:                "#14b8a6",
+  city:                  "#14b8a6",
+  zipcode:               "#14b8a6",
+  municipality:          "#2dd4bf",
+  street:                "#2dd4bf",
+  contactPhone:          "#94a3b8",
+  contactEmail:          "#94a3b8",
+  contactWww:            "#94a3b8",
+  skipMarketingOptOut:   "#10b981",
 };
 
-const FOUNDED_LABELS: Record<string, string> = {
+const FOUNDED: Record<string, string> = {
   last30: "Last 30 days", last90: "Last 3 months",
   last365: "Last year",   last3y: "Last 3 years", all: "Any time",
 };
-
-const FORM_LABELS: Record<string, string> = {
-  "10": "ENK – Enkeltmandsvirksomhed",
-  "15": "PMV – Personal Minor Enterprise",
-  "30": "I/S – Interessentskab",
-  "60": "A/S – Aktieselskab",
-  "80": "ApS – Anpartsselskab",
-  "110": "Forening",
-  "115": "Frivillig forening",
-  "210": "Foreign company branch",
+const FORMS: Record<string, string> = {
+  "10": "ENK", "15": "PMV", "30": "I/S",
+  "60": "A/S", "80": "ApS", "110": "Forening",
+  "115": "Frivillig forening", "210": "Foreign branch",
+};
+const REGIONS: Record<string, string> = {
+  hovedstaden: "Capital Region",
+  sjaelland:   "Zealand",
+  syddanmark:  "Southern Denmark",
+  midtjylland: "Central Jutland",
+  nordjylland: "Northern Jutland",
 };
 
-const REGION_LABELS: Record<string, string> = {
-  hovedstaden: "Capital Region (Hovedstaden)",
-  sjaelland:   "Zealand (Sjælland)",
-  syddanmark:  "Southern Denmark (Syddanmark)",
-  midtjylland: "Central Jutland (Midtjylland)",
-  nordjylland: "Northern Jutland (Nordjylland)",
-};
-
-function humanValue(key: string, value: unknown): string {
+function display(key: string, value: unknown): string {
   const v = String(value);
-  if (key === "foundedPeriod")    return FOUNDED_LABELS[v] ?? v;
-  if (key === "companyformCode")  return FORM_LABELS[v] ?? v;
-  if (key === "region")           return REGION_LABELS[v] ?? v;
+  if (key === "foundedPeriod")       return FOUNDED[v] ?? v;
+  if (key === "companyformCode")     return FORMS[v] ?? v;
+  if (key === "region")              return REGIONS[v] ?? v;
   if (key === "skipMarketingOptOut") return "Yes";
   return v;
 }
 
 const EXAMPLES = [
-  "IT consultancies in Copenhagen founded last 3 years",
+  "IT firms in Copenhagen, founded last 3 years",
   "ApS restaurants in Aarhus",
   "Electricians in Southern Denmark",
-  "Newly registered A/S companies in Aalborg",
+  "New A/S companies in Aalborg",
 ];
+
+type Phase = "idle" | "loading" | "done" | "error";
 
 export function AIHelperDialog({
   open,
@@ -116,18 +110,21 @@ export function AIHelperDialog({
   const [query, setQuery]   = useState("");
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [error, setError]   = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase]   = useState<Phase>("idle");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (open && !parsed) setTimeout(() => textareaRef.current?.focus(), 80);
-  }, [open, parsed]);
+    if (open) {
+      setPhase("idle");
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [open]);
 
   const parseQuery = async () => {
-    if (!query.trim() || loading) return;
+    if (!query.trim() || phase === "loading") return;
     setError(null);
     setParsed(null);
-    setLoading(true);
+    setPhase("loading");
     try {
       const res = await fetch("/api/ai/parse-search-intent", {
         method: "POST",
@@ -135,14 +132,14 @@ export function AIHelperDialog({
         body: JSON.stringify({ query: query.trim() }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to parse");
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Failed to parse");
       }
-      setParsed((await res.json()) as ParseResult);
+      setParsed(await res.json());
+      setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : s.error);
-    } finally {
-      setLoading(false);
+      setPhase("error");
     }
   };
 
@@ -152,6 +149,7 @@ export function AIHelperDialog({
     onOpenChange(false);
     setQuery("");
     setParsed(null);
+    setPhase("idle");
   };
 
   const handleClose = () => {
@@ -159,11 +157,13 @@ export function AIHelperDialog({
     setQuery("");
     setParsed(null);
     setError(null);
+    setPhase("idle");
   };
 
   const handleReset = () => {
     setParsed(null);
     setError(null);
+    setPhase("idle");
     setTimeout(() => textareaRef.current?.focus(), 80);
   };
 
@@ -173,177 +173,194 @@ export function AIHelperDialog({
       )
     : [];
 
+  const statusDot = {
+    idle:    { bg: "bg-zinc-300",   label: "Ready" },
+    loading: { bg: "bg-amber-400 animate-pulse", label: "Analysing" },
+    done:    { bg: "bg-emerald-400", label: `${activeFilters.length} filter${activeFilters.length !== 1 ? "s" : ""}` },
+    error:   { bg: "bg-red-400",    label: "Error" },
+  }[phase];
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         showCloseButton={false}
-        className="p-0 gap-0 w-full max-w-[calc(100vw-2rem)] sm:max-w-[540px] rounded-xl overflow-hidden shadow-xl ring-1 ring-border/50"
+        className="p-0 gap-0 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-[520px] rounded-2xl overflow-hidden border-0 shadow-2xl"
+        style={{ background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)" }}
       >
-        {/* ── Top bar ── */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border/50">
+        {/* ── Status bar ── */}
+        <div className="flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-white/8">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] font-semibold tracking-widest text-muted-foreground/60 uppercase select-none">
-              AI
+            <span className={cn("size-1.5 rounded-full shrink-0", statusDot.bg)} />
+            <span className="text-[11px] font-mono font-medium text-zinc-400 tracking-wide uppercase">
+              {statusDot.label}
             </span>
-            <span className="w-px h-3 bg-border/60" />
-            <span className="text-[13px] font-medium text-foreground">{s.title}</span>
           </div>
-          <button
-            onClick={handleClose}
-            aria-label="Close"
-            className="size-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <X className="size-3.5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:block text-[10px] font-mono text-zinc-600">⏎ to analyse</span>
+            <button
+              onClick={handleClose}
+              className="size-6 rounded-md flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-white/8 transition-colors"
+              aria-label="Close"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* ── Input ── */}
-        <div className="px-4 pt-3 pb-2">
+        {/* ── Query input ── */}
+        <div className="px-4 pt-4 pb-3">
           <Textarea
             ref={textareaRef}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); if (error) setError(null); }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (phase === "error") setPhase("idle");
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); parseQuery(); }
             }}
             placeholder={s.placeholder}
-            rows={2}
-            disabled={loading}
+            rows={3}
+            disabled={phase === "loading"}
             className={cn(
-              "resize-none text-[13px] leading-relaxed border-0 shadow-none bg-transparent p-0",
-              "focus-visible:ring-0 placeholder:text-muted-foreground/40",
+              "w-full resize-none border-0 shadow-none p-0 bg-transparent",
+              "text-[15px] leading-relaxed font-normal text-zinc-100",
+              "placeholder:text-zinc-600 focus-visible:ring-0 focus-visible:outline-none",
             )}
           />
         </div>
 
-        {/* ── Examples ── */}
-        {!parsed && !loading && !error && (
-          <div className="px-4 pb-3 flex flex-wrap gap-x-3 gap-y-1">
-            {EXAMPLES.map((ex) => (
+        {/* ── Progress bar (loading) ── */}
+        <div className="h-px mx-4 bg-white/8 relative overflow-hidden">
+          {phase === "loading" && (
+            <span
+              className="absolute inset-y-0 left-0 bg-indigo-500"
+              style={{ animation: "ai-progress 1.8s ease-in-out infinite", width: "40%" }}
+            />
+          )}
+        </div>
+
+        {/* ── Examples (idle, no query) ── */}
+        {phase === "idle" && !query && (
+          <div className="px-4 pt-2.5 pb-1 flex flex-wrap gap-x-1 gap-y-0.5">
+            <span className="text-[11px] text-zinc-600 mr-1">Try:</span>
+            {EXAMPLES.map((ex, i) => (
               <button
                 key={ex}
                 onClick={() => { setQuery(ex); setTimeout(() => textareaRef.current?.focus(), 40); }}
-                className="text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                className="text-[11px] text-zinc-500 hover:text-zinc-200 transition-colors"
               >
-                {ex}
+                {ex}{i < EXAMPLES.length - 1 && <span className="text-zinc-700 ml-1">·</span>}
               </button>
             ))}
           </div>
         )}
 
-        {/* ── Divider ── */}
-        <div className="h-px bg-border/40 mx-4" />
+        {/* ── Error ── */}
+        {phase === "error" && error && (
+          <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/40">
+            <p className="text-[12px] text-red-400">{error}</p>
+          </div>
+        )}
 
-        {/* ── States ── */}
-        <div className="px-4 py-3 min-h-[80px]">
-
-          {/* Error */}
-          {error && (
-            <div className="flex gap-2 items-start text-[12px] text-red-600">
-              <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Loading */}
-          {loading && (
-            <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-              <span className="inline-flex gap-0.5">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="size-1 rounded-full bg-muted-foreground/40 animate-bounce"
-                    style={{ animationDelay: `${i * 120}ms` }}
-                  />
-                ))}
-              </span>
-              <span>{s.parsing}</span>
-            </div>
-          )}
-
-          {/* Empty query hint */}
-          {!parsed && !loading && !error && !query && (
-            <p className="text-[12px] text-muted-foreground/50">{s.help}</p>
-          )}
-
-          {/* Results */}
-          {parsed && !loading && (
-            <div className="space-y-3">
-              {activeFilters.length > 0 ? (
-                <div className="space-y-0.5">
-                  {activeFilters.map(([key, value]) => (
+        {/* ── Results ── */}
+        {phase === "done" && parsed && (
+          <div className="mx-4 mt-3 rounded-xl overflow-hidden border border-white/8">
+            {/* Filter rows */}
+            {activeFilters.length > 0 ? (
+              <div className="divide-y divide-white/5">
+                {activeFilters.map(([key, value]) => (
+                  <div key={key} className="flex items-center px-3 py-2.5 gap-4 hover:bg-white/4 transition-colors">
                     <div
-                      key={key}
-                      className={cn(
-                        "flex items-baseline gap-3 py-1.5 pl-3 border-l-2",
-                        FILTER_ACCENT[key] ?? "border-l-border"
-                      )}
-                    >
-                      <span className="text-[11px] text-muted-foreground w-32 shrink-0">
-                        {FILTER_LABELS[key] ?? key}
-                      </span>
-                      <span className="font-mono text-[12px] text-foreground font-medium">
-                        {humanValue(key, value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[12px] text-muted-foreground">
-                  No specific filters detected — will search broadly.
-                </p>
-              )}
+                      className="size-1.5 rounded-full shrink-0"
+                      style={{ background: FILTER_HUE[key] ?? "#6366f1" }}
+                    />
+                    <span className="text-[11px] text-zinc-500 w-28 shrink-0 capitalize">
+                      {FILTER_LABELS[key] ?? key}
+                    </span>
+                    <span className="text-[13px] font-mono text-zinc-100 font-medium truncate">
+                      {display(key, value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-3 py-3 text-[12px] text-zinc-500">
+                No specific filters — will search broadly.
+              </div>
+            )}
 
-              {/* Reasoning */}
-              {parsed.reasoning && (
-                <p className="text-[11px] text-muted-foreground/70 leading-relaxed border-t border-border/30 pt-2.5">
-                  {parsed.reasoning}
-                </p>
-              )}
-
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
-              >
-                <RotateCcw className="size-3" />
-                Try a different query
-              </button>
-            </div>
-          )}
-        </div>
+            {/* Reasoning */}
+            {parsed.reasoning && (
+              <div className="px-3 py-2.5 border-t border-white/8 bg-white/3">
+                <p className="text-[11px] text-zinc-500 leading-relaxed">{parsed.reasoning}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border/40 bg-muted/30">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
-            className="h-7 px-2.5 text-[12px] text-muted-foreground hover:text-foreground"
-          >
-            {s.cancel}
-          </Button>
-
-          {!parsed ? (
-            <Button
-              size="sm"
-              onClick={parseQuery}
-              disabled={!query.trim() || loading}
-              className="h-7 px-3 text-[12px] gap-1.5"
+        <div className="flex items-center justify-between gap-3 px-4 py-3.5 mt-3 border-t border-white/8">
+          {phase === "done" ? (
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
             >
-              Analyse
-              <ArrowRight className="size-3" />
-            </Button>
+              <RotateCcw className="size-3" />
+              Try again
+            </button>
           ) : (
-            <Button
-              size="sm"
-              onClick={handleApply}
-              disabled={activeFilters.length === 0}
-              className="h-7 px-3 text-[12px]"
-            >
-              {s.confirm}
-            </Button>
+            <span className="text-[11px] text-zinc-700 font-mono">CVR-MATE AI</span>
           )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClose}
+              className="h-7 px-2.5 text-[12px] text-zinc-500 hover:text-zinc-200 hover:bg-white/8"
+            >
+              {s.cancel}
+            </Button>
+
+            {phase !== "done" ? (
+              <button
+                onClick={parseQuery}
+                disabled={!query.trim() || phase === "loading"}
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium transition-all",
+                  "bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed",
+                  "shadow-[0_0_0_1px_rgba(99,102,241,0.4)]"
+                )}
+              >
+                Analyse
+                <ChevronRight className="size-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleApply}
+                disabled={activeFilters.length === 0}
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium transition-all",
+                  "bg-white text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed",
+                  "shadow-[0_0_0_1px_rgba(255,255,255,0.15)]"
+                )}
+              >
+                {s.confirm}
+                <ArrowUpRight className="size-3.5" />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Keyframe for progress animation */}
+        <style>{`
+          @keyframes ai-progress {
+            0%   { transform: translateX(-100%); }
+            50%  { transform: translateX(200%); }
+            100% { transform: translateX(-100%); }
+          }
+        `}</style>
       </DialogContent>
     </Dialog>
   );
