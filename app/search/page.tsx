@@ -14,7 +14,6 @@ import {
   mergeSearchFilters,
   regionCityMap,
   regionCityZipcodeMap,
-  regionZipcodeMap,
   serializeSearchFilters,
   zipcodeToRegionCity,
 } from "@/lib/search-filters";
@@ -588,23 +587,6 @@ function SearchPage() {
     { code: "210", description: "Udenlandsk", label: locale === "da" ? "210 - Anden udenlandsk virksomhed" : "210 - Other foreign company" },
   ];
 
-  const regionHelperCopy: Record<string, string> = useMemo(() => ({
-    hovedstaden: locale === "da"
-      ? `Postnumre: ${regionZipcodeMap.hovedstaden}`
-      : `ZIP codes: ${regionZipcodeMap.hovedstaden}`,
-    midtjylland: locale === "da"
-      ? `Postnumre: ${regionZipcodeMap.midtjylland}`
-      : `ZIP codes: ${regionZipcodeMap.midtjylland}`,
-    syddanmark: locale === "da"
-      ? `Postnumre: ${regionZipcodeMap.syddanmark}`
-      : `ZIP codes: ${regionZipcodeMap.syddanmark}`,
-    nordjylland: locale === "da"
-      ? `Postnumre: ${regionZipcodeMap.nordjylland}`
-      : `ZIP codes: ${regionZipcodeMap.nordjylland}`,
-    sjaelland: locale === "da"
-      ? `Postnumre: ${regionZipcodeMap.sjaelland}`
-      : `ZIP codes: ${regionZipcodeMap.sjaelland}`,
-  }), [locale]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const savingCvr = saveCompanyMutation.isPending ? (saveCompanyMutation.variables?.vat ?? null) : (unsaveCompanyMutation.isPending ? unsaveCompanyMutation.variables ?? null : null);
@@ -846,7 +828,7 @@ function SearchPage() {
                     label={s.filters.region}
                     help={zipcode
                       ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
-                      : (region !== "all" ? regionHelperCopy[region] : (locale === "da" ? "Vælg en region for regionale postnumre." : "Select a region for regional ZIPs."))
+                      : undefined
                     }
                     helpInfo={filterHelp.region}
                     helpLabels={filterHelpLabels}
