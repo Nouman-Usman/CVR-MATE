@@ -1,6 +1,4 @@
-import type { Dictionary } from "./da";
-
-const en: Dictionary = {
+const en = {
   nav: {
     home: "Home",
     howItWorks: "How it works",
