@@ -4,10 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import type { SearchFiltersState } from "@/lib/stores/search-store";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { X, ArrowUpRight, RotateCcw, ChevronRight } from "lucide-react";
+import { X, ArrowRight, RotateCcw, Info, AlertCircle } from "lucide-react";
 
 interface ParseResult {
   filters: Partial<SearchFiltersState>;
@@ -32,22 +30,22 @@ const FILTER_LABELS: Record<string, string> = {
   skipMarketingOptOut:   "Contactable",
 };
 
-const FILTER_HUE: Record<string, string> = {
-  query:                 "#8b5cf6",
-  industryCode:          "#3b82f6",
-  industrySecondaryCode: "#60a5fa",
-  companyformCode:       "#f59e0b",
-  companystatusCode:     "#10b981",
-  foundedPeriod:         "#f97316",
-  region:                "#14b8a6",
-  city:                  "#14b8a6",
-  zipcode:               "#14b8a6",
-  municipality:          "#2dd4bf",
-  street:                "#2dd4bf",
-  contactPhone:          "#94a3b8",
-  contactEmail:          "#94a3b8",
-  contactWww:            "#94a3b8",
-  skipMarketingOptOut:   "#10b981",
+const FILTER_DOT: Record<string, string> = {
+  query:                 "bg-violet-500",
+  industryCode:          "bg-blue-500",
+  industrySecondaryCode: "bg-blue-400",
+  companyformCode:       "bg-amber-500",
+  companystatusCode:     "bg-emerald-500",
+  foundedPeriod:         "bg-orange-500",
+  region:                "bg-teal-500",
+  city:                  "bg-teal-500",
+  zipcode:               "bg-teal-500",
+  municipality:          "bg-teal-400",
+  street:                "bg-teal-400",
+  contactPhone:          "bg-slate-400",
+  contactEmail:          "bg-slate-400",
+  contactWww:            "bg-slate-400",
+  skipMarketingOptOut:   "bg-emerald-500",
 };
 
 const FOUNDED: Record<string, string> = {
@@ -55,16 +53,21 @@ const FOUNDED: Record<string, string> = {
   last365: "Last year",   last3y: "Last 3 years", all: "Any time",
 };
 const FORMS: Record<string, string> = {
-  "10": "ENK", "15": "PMV", "30": "I/S",
-  "60": "A/S", "80": "ApS", "110": "Forening",
-  "115": "Frivillig forening", "210": "Foreign branch",
+  "10": "ENK – Enkeltmandsvirksomhed",
+  "15": "PMV",
+  "30": "I/S – Interessentskab",
+  "60": "A/S – Aktieselskab",
+  "80": "ApS – Anpartsselskab",
+  "110": "Forening",
+  "115": "Frivillig forening",
+  "210": "Foreign branch",
 };
 const REGIONS: Record<string, string> = {
-  hovedstaden: "Capital Region",
-  sjaelland:   "Zealand",
-  syddanmark:  "Southern Denmark",
-  midtjylland: "Central Jutland",
-  nordjylland: "Northern Jutland",
+  hovedstaden: "Capital Region (Hovedstaden)",
+  sjaelland:   "Zealand (Sjælland)",
+  syddanmark:  "Southern Denmark (Syddanmark)",
+  midtjylland: "Central Jutland (Midtjylland)",
+  nordjylland: "Northern Jutland (Nordjylland)",
 };
 
 function display(key: string, value: unknown): string {
@@ -77,10 +80,10 @@ function display(key: string, value: unknown): string {
 }
 
 const EXAMPLES = [
-  "IT firms in Copenhagen, founded last 3 years",
+  "IT consultancies in Copenhagen founded last 3 years",
   "ApS restaurants in Aarhus",
   "Electricians in Southern Denmark",
-  "New A/S companies in Aalborg",
+  "Newly registered A/S companies in Aalborg",
 ];
 
 type Phase = "idle" | "loading" | "done" | "error";
@@ -98,9 +101,9 @@ export function AIHelperDialog({
   const s = t.search.aiHelper || {
     button: "AI Helper",
     title: "Search with plain English",
-    placeholder: "Describe the companies you're looking for…",
-    help: "AI will parse and fill the filters for you.",
-    parsing: "Analysing…",
+    placeholder: "E.g., tech companies in Copenhagen founded in the last 3 years",
+    help: "Describe what you're looking for. AI will fill the filters for you.",
+    parsing: "Analysing your request…",
     preview: "Filter preview",
     confirm: "Apply filters",
     cancel: "Cancel",
@@ -173,194 +176,197 @@ export function AIHelperDialog({
       )
     : [];
 
-  const statusDot = {
-    idle:    { bg: "bg-zinc-300",   label: "Ready" },
-    loading: { bg: "bg-amber-400 animate-pulse", label: "Analysing" },
-    done:    { bg: "bg-emerald-400", label: `${activeFilters.length} filter${activeFilters.length !== 1 ? "s" : ""}` },
-    error:   { bg: "bg-red-400",    label: "Error" },
-  }[phase];
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         showCloseButton={false}
-        className="p-0 gap-0 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-[520px] rounded-2xl overflow-hidden border-0 shadow-2xl"
-        style={{ background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)" }}
+        className="p-0 gap-0 w-full max-w-[calc(100vw-2rem)] sm:max-w-[600px] rounded-xl overflow-hidden shadow-2xl border border-border/60"
       >
-        {/* ── Status bar ── */}
-        <div className="flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-white/8">
-          <div className="flex items-center gap-2">
-            <span className={cn("size-1.5 rounded-full shrink-0", statusDot.bg)} />
-            <span className="text-[11px] font-mono font-medium text-zinc-400 tracking-wide uppercase">
-              {statusDot.label}
-            </span>
-          </div>
+        {/* ── Header ── */}
+        <header className="px-6 h-16 border-b border-border flex items-center justify-between bg-background">
           <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-[10px] font-mono text-zinc-600">⏎ to analyse</span>
-            <button
-              onClick={handleClose}
-              className="size-6 rounded-md flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-white/8 transition-colors"
-              aria-label="Close"
-            >
-              <X className="size-3.5" />
-            </button>
+            <span className="font-mono text-[13px] font-semibold tracking-tighter text-foreground/50">AI</span>
+            <div className="w-px h-4 bg-border" />
+            <h1 className="text-[15px] font-semibold text-foreground">{s.title}</h1>
           </div>
-        </div>
+          <button
+            onClick={handleClose}
+            aria-label="Close"
+            className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <X className="size-4" />
+          </button>
+        </header>
 
-        {/* ── Query input ── */}
-        <div className="px-4 pt-4 pb-3">
-          <Textarea
-            ref={textareaRef}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              if (phase === "error") setPhase("idle");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); parseQuery(); }
-            }}
-            placeholder={s.placeholder}
-            rows={3}
-            disabled={phase === "loading"}
-            className={cn(
-              "w-full resize-none border-0 shadow-none p-0 bg-transparent",
-              "text-[15px] leading-relaxed font-normal text-zinc-100",
-              "placeholder:text-zinc-600 focus-visible:ring-0 focus-visible:outline-none",
-            )}
-          />
-        </div>
+        {/* ── Body ── */}
+        <div className="p-6 flex flex-col gap-5">
 
-        {/* ── Progress bar (loading) ── */}
-        <div className="h-px mx-4 bg-white/8 relative overflow-hidden">
-          {phase === "loading" && (
-            <span
-              className="absolute inset-y-0 left-0 bg-indigo-500"
-              style={{ animation: "ai-progress 1.8s ease-in-out infinite", width: "40%" }}
-            />
+          {/* Textarea container */}
+          {phase !== "done" && (
+            <div className={cn(
+              "border rounded-lg p-4 bg-background transition-all duration-200",
+              phase === "error" ? "border-destructive/50" : "border-border focus-within:border-foreground focus-within:shadow-[0_0_0_3px_rgba(0,0,0,0.05)]"
+            )}>
+              <textarea
+                ref={textareaRef}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  if (phase === "error") setPhase("idle");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); parseQuery(); }
+                }}
+                placeholder={s.placeholder}
+                rows={4}
+                disabled={phase === "loading"}
+                className="w-full bg-transparent border-none focus:ring-0 focus:outline-none resize-none text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 disabled:opacity-60"
+              />
+            </div>
           )}
-        </div>
 
-        {/* ── Examples (idle, no query) ── */}
-        {phase === "idle" && !query && (
-          <div className="px-4 pt-2.5 pb-1 flex flex-wrap gap-x-1 gap-y-0.5">
-            <span className="text-[11px] text-zinc-600 mr-1">Try:</span>
-            {EXAMPLES.map((ex, i) => (
-              <button
-                key={ex}
-                onClick={() => { setQuery(ex); setTimeout(() => textareaRef.current?.focus(), 40); }}
-                className="text-[11px] text-zinc-500 hover:text-zinc-200 transition-colors"
-              >
-                {ex}{i < EXAMPLES.length - 1 && <span className="text-zinc-700 ml-1">·</span>}
-              </button>
-            ))}
-          </div>
-        )}
+          {/* Error */}
+          {phase === "error" && error && (
+            <div className="flex gap-2.5 items-start p-3.5 rounded-lg bg-destructive/8 border border-destructive/20">
+              <AlertCircle className="size-4 shrink-0 text-destructive mt-0.5" />
+              <p className="text-[13px] text-destructive leading-relaxed">{error}</p>
+            </div>
+          )}
 
-        {/* ── Error ── */}
-        {phase === "error" && error && (
-          <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-950/60 border border-red-800/40">
-            <p className="text-[12px] text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* ── Results ── */}
-        {phase === "done" && parsed && (
-          <div className="mx-4 mt-3 rounded-xl overflow-hidden border border-white/8">
-            {/* Filter rows */}
-            {activeFilters.length > 0 ? (
-              <div className="divide-y divide-white/5">
-                {activeFilters.map(([key, value]) => (
-                  <div key={key} className="flex items-center px-3 py-2.5 gap-4 hover:bg-white/4 transition-colors">
-                    <div
-                      className="size-1.5 rounded-full shrink-0"
-                      style={{ background: FILTER_HUE[key] ?? "#6366f1" }}
+          {/* Loading */}
+          {phase === "loading" && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="size-1.5 rounded-full bg-sky-500 animate-bounce"
+                      style={{ animationDelay: `${i * 120}ms` }}
                     />
-                    <span className="text-[11px] text-zinc-500 w-28 shrink-0 capitalize">
-                      {FILTER_LABELS[key] ?? key}
-                    </span>
-                    <span className="text-[13px] font-mono text-zinc-100 font-medium truncate">
-                      {display(key, value)}
-                    </span>
+                  ))}
+                </div>
+                <span className="text-[13px] text-muted-foreground">{s.parsing}</span>
+              </div>
+              {/* Skeleton rows */}
+              <div className="space-y-2.5">
+                {[80, 60, 72].map((w, i) => (
+                  <div key={i} className="flex items-center gap-3 h-8">
+                    <div className="size-2 rounded-full bg-muted animate-pulse" />
+                    <div className="h-3 rounded bg-muted animate-pulse" style={{ width: `${w}px` }} />
+                    <div className="h-3 rounded bg-muted animate-pulse ml-auto" style={{ width: `${w + 40}px` }} />
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="px-3 py-3 text-[12px] text-zinc-500">
-                No specific filters — will search broadly.
-              </div>
-            )}
-
-            {/* Reasoning */}
-            {parsed.reasoning && (
-              <div className="px-3 py-2.5 border-t border-white/8 bg-white/3">
-                <p className="text-[11px] text-zinc-500 leading-relaxed">{parsed.reasoning}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5 mt-3 border-t border-white/8">
-          {phase === "done" ? (
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <RotateCcw className="size-3" />
-              Try again
-            </button>
-          ) : (
-            <span className="text-[11px] text-zinc-700 font-mono">CVR-MATE AI</span>
+            </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClose}
-              className="h-7 px-2.5 text-[12px] text-zinc-500 hover:text-zinc-200 hover:bg-white/8"
-            >
-              {s.cancel}
-            </Button>
+          {/* Results */}
+          {phase === "done" && parsed && (
+            <div className="flex flex-col gap-4">
+              {activeFilters.length > 0 ? (
+                <div className="border border-border rounded-lg overflow-hidden divide-y divide-border">
+                  {activeFilters.map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex items-center gap-4 px-4 py-3 bg-background hover:bg-muted/30 transition-colors"
+                    >
+                      <span className={cn("size-2 rounded-full shrink-0", FILTER_DOT[key] ?? "bg-blue-500")} />
+                      <span className="text-[12px] text-muted-foreground w-28 shrink-0">
+                        {FILTER_LABELS[key] ?? key}
+                      </span>
+                      <span className="text-[13px] font-mono font-medium text-foreground truncate">
+                        {display(key, value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-[13px] text-muted-foreground border border-border rounded-lg bg-muted/20">
+                  No specific filters detected — will search broadly.
+                </div>
+              )}
 
-            {phase !== "done" ? (
+              {/* Reasoning */}
+              {parsed.reasoning && (
+                <div className="flex items-start gap-2.5">
+                  <Info className="size-3.5 shrink-0 text-muted-foreground/60 mt-0.5" />
+                  <p className="text-[12px] text-muted-foreground leading-relaxed">{parsed.reasoning}</p>
+                </div>
+              )}
+
+              {/* Reset */}
               <button
-                onClick={parseQuery}
-                disabled={!query.trim() || phase === "loading"}
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium transition-all",
-                  "bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed",
-                  "shadow-[0_0_0_1px_rgba(99,102,241,0.4)]"
-                )}
+                onClick={handleReset}
+                className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors w-fit"
               >
-                Analyse
-                <ChevronRight className="size-3.5" />
+                <RotateCcw className="size-3" />
+                Try a different query
               </button>
-            ) : (
-              <button
-                onClick={handleApply}
-                disabled={activeFilters.length === 0}
-                className={cn(
-                  "inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium transition-all",
-                  "bg-white text-zinc-900 hover:bg-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed",
-                  "shadow-[0_0_0_1px_rgba(255,255,255,0.15)]"
-                )}
-              >
-                {s.confirm}
-                <ArrowUpRight className="size-3.5" />
-              </button>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Example chips — only in idle/error with no results */}
+          {(phase === "idle" || phase === "error") && (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    onClick={() => { setQuery(ex); setPhase("idle"); setError(null); setTimeout(() => textareaRef.current?.focus(), 40); }}
+                    className="px-3 py-1.5 bg-muted/60 border border-border/40 rounded-full text-[12px] text-muted-foreground hover:border-foreground hover:bg-secondary/20 hover:text-foreground transition-all"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Info className="size-3.5 text-muted-foreground/50 shrink-0" />
+                <p className="text-[12px] text-muted-foreground/70">{s.help}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Keyframe for progress animation */}
-        <style>{`
-          @keyframes ai-progress {
-            0%   { transform: translateX(-100%); }
-            50%  { transform: translateX(200%); }
-            100% { transform: translateX(-100%); }
-          }
-        `}</style>
+        {/* ── Footer ── */}
+        <footer className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between">
+          <button
+            onClick={handleClose}
+            className="text-[12px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors px-1"
+          >
+            {s.cancel}
+          </button>
+
+          {phase !== "done" ? (
+            <button
+              onClick={parseQuery}
+              disabled={!query.trim() || phase === "loading"}
+              className={cn(
+                "flex items-center gap-2.5 px-6 h-11 rounded-full text-[15px] font-semibold text-white transition-all",
+                "bg-sky-500 hover:bg-sky-600 active:scale-[0.97]",
+                "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
+                "shadow-sm"
+              )}
+            >
+              Analyse
+              <ArrowRight className="size-4" />
+            </button>
+          ) : (
+            <button
+              onClick={handleApply}
+              disabled={activeFilters.length === 0}
+              className={cn(
+                "flex items-center gap-2.5 px-6 h-11 rounded-full text-[15px] font-semibold text-white transition-all",
+                "bg-sky-500 hover:bg-sky-600 active:scale-[0.97]",
+                "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
+                "shadow-sm"
+              )}
+            >
+              {s.confirm}
+              <ArrowRight className="size-4" />
+            </button>
+          )}
+        </footer>
       </DialogContent>
     </Dialog>
   );
