@@ -851,20 +851,32 @@ function SearchPage() {
                   </FilterField>
                   <FilterField
                     label={s.filters.city}
-                    help={zipcode
-                      ? (locale === "da" ? "Låst — postnummer aktivt." : "Locked — ZIP active.")
-                      : (region === "all" ? (locale === "da" ? "Vælg en region først." : "Select a region first.") : city && regionCityZipcodeMap[region] ? (() => {
+                    help={region === "all"
+                      ? (locale === "da" ? "Vælg en region først." : "Select a region first.")
+                      : city && regionCityZipcodeMap[region] ? (() => {
                         const cityData = regionCityZipcodeMap[region]?.find(c => c.name === city);
                         return cityData ? `${locale === "da" ? "Postnumre" : "ZIP codes"}: ${cityData.zipcodes.join(", ")}` : undefined;
-                      })() : undefined)
+                      })() : undefined
                     }
                     helpInfo={filterHelp.city}
                     helpLabels={filterHelpLabels}
                   >
                     <FilterSelect
                       value={city}
-                      onChange={(v) => setFilter("city", v)}
-                      disabled={!!zipcode || region === "all"}
+                      onChange={(v) => {
+                        setFilter("city", v);
+                        if (v && region !== "all") {
+                          const cityData = regionCityZipcodeMap[region]?.find(c => c.name === v);
+                          if (cityData?.zipcodes.length === 1) {
+                            setFilter("zipcode", cityData.zipcodes[0]);
+                          } else {
+                            setFilter("zipcode", "");
+                          }
+                        } else {
+                          setFilter("zipcode", "");
+                        }
+                      }}
+                      disabled={region === "all"}
                     >
                       <option value="">{s.filters.cityPlaceholder}</option>
                       {region !== "all" && regionCityZipcodeMap[region]?.map((c) => (
