@@ -57,7 +57,6 @@ const EXAMPLE_QUERIES = [
   "IT companies in Copenhagen founded last year",
   "ApS restaurants in Aarhus",
   "Construction firms in Southern Denmark",
-  "Consulting companies with 10+ employees",
 ];
 
 function formatFilterValue(key: string, value: unknown): string {
