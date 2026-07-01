@@ -5,7 +5,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import type { SearchFiltersState } from "@/lib/stores/search-store";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { X, ArrowRight, RotateCcw, Info, AlertCircle } from "lucide-react";
+import { X, ArrowRight, RotateCcw, Info, AlertCircle, Sparkles } from "lucide-react";
 
 interface ParseResult {
   filters: Partial<SearchFiltersState>;
@@ -185,7 +185,10 @@ export function AIHelperDialog({
         {/* ── Header ── */}
         <header className="px-6 h-16 border-b border-border flex items-center justify-between bg-background">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[13px] font-semibold tracking-tighter text-foreground/50">AI</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 text-[11px] font-semibold tracking-tight border border-indigo-200/50">
+              <Sparkles className="size-3" />
+              AI
+            </span>
             <div className="w-px h-4 bg-border" />
             <h1 className="text-[15px] font-semibold text-foreground">{s.title}</h1>
           </div>
@@ -205,7 +208,7 @@ export function AIHelperDialog({
           {phase !== "done" && (
             <div className={cn(
               "border rounded-lg p-4 bg-background transition-all duration-200",
-              phase === "error" ? "border-destructive/50" : "border-border focus-within:border-foreground focus-within:shadow-[0_0_0_3px_rgba(0,0,0,0.05)]"
+              phase === "error" ? "border-destructive/50" : "border-border/60 focus-within:border-indigo-300 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
             )}>
               <textarea
                 ref={textareaRef}
@@ -219,8 +222,8 @@ export function AIHelperDialog({
                 }}
                 placeholder={s.placeholder}
                 rows={4}
-                disabled={phase === "loading"}
-                className="w-full bg-transparent border-none focus:ring-0 focus:outline-none resize-none text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 disabled:opacity-60"
+              disabled={phase === "loading"}
+              className="w-full bg-transparent border-none focus:ring-0 focus:outline-none resize-none text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/40 disabled:opacity-60"
               />
             </div>
           )}
@@ -241,7 +244,7 @@ export function AIHelperDialog({
                   {[0, 1, 2].map((i) => (
                     <span
                       key={i}
-                      className="size-1.5 rounded-full bg-sky-500 animate-bounce"
+                      className="size-1.5 rounded-full bg-indigo-500 animate-bounce"
                       style={{ animationDelay: `${i * 120}ms` }}
                     />
                   ))}
@@ -343,7 +346,7 @@ export function AIHelperDialog({
               disabled={!query.trim() || phase === "loading"}
               className={cn(
                 "flex items-center gap-2.5 px-6 h-11 rounded-full text-[15px] font-semibold text-white transition-all",
-                "bg-sky-500 hover:bg-sky-600 active:scale-[0.97]",
+                "bg-gradient-to-r from-indigo-600 to-violet-500 hover:from-indigo-700 hover:to-violet-600 active:scale-[0.97]",
                 "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
                 "shadow-sm"
               )}
@@ -357,7 +360,7 @@ export function AIHelperDialog({
               disabled={activeFilters.length === 0}
               className={cn(
                 "flex items-center gap-2.5 px-6 h-11 rounded-full text-[15px] font-semibold text-white transition-all",
-                "bg-sky-500 hover:bg-sky-600 active:scale-[0.97]",
+                "bg-gradient-to-r from-indigo-600 to-violet-500 hover:from-indigo-700 hover:to-violet-600 active:scale-[0.97]",
                 "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100",
                 "shadow-sm"
               )}
