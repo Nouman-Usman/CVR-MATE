@@ -5,6 +5,9 @@ import { headers } from "next/headers";
 import { regionCityZipcodeMap, zipcodeToRegionCity } from "@/lib/denmark-geodata";
 import type { SearchFiltersState } from "@/lib/stores/search-store";
 
+if (!process.env.ANTHROPIC_API_KEY) {
+  throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+}
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 interface ParseResponse {
