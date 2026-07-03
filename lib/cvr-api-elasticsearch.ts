@@ -294,6 +294,18 @@ function buildEsQuery(filters: Record<string, string>): unknown {
         "Vrvirksomhed.virksomhedMetadata.sammensatStatus": statusCode,
       },
     });
+  } else {
+    // By default, only show active companies (status NORMAL or AKTIV)
+    // User must explicitly set a status filter to see dissolved/closed companies
+    must.push({
+      bool: {
+        should: [
+          { match: { "Vrvirksomhed.virksomhedMetadata.sammensatStatus": "NORMAL" } },
+          { match: { "Vrvirksomhed.virksomhedMetadata.sammensatStatus": "AKTIV" } },
+        ],
+        minimum_should_match: 1,
+      },
+    });
   }
 
   // stiftelsesDato is a direct metadata field — no nested query needed
