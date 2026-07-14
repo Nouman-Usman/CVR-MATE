@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { lt, and, eq } from "drizzle-orm";
+import { lt, and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { activity, emailLog, orgAuditLog, notification } from "@/db/schema";
+import {
+  activity,
+  emailLog,
+  orgAuditLog,
+  notification,
+  contact,
+  companyNote,
+  deal,
+} from "@/db/schema";
 import { verifyQStashRequest } from "@/lib/qstash";
 
 export const runtime = "nodejs";
@@ -19,6 +27,9 @@ const RETENTION = {
   orgAuditLog: 365,
   // Read notifications — no value after 30 days
   readNotifications: 30,
+  // Grace window before soft-deleted CRM personal data is permanently purged.
+  // Short window supports GDPR erasure while allowing accidental-delete recovery.
+  crmSoftDeleteGrace: 30,
 } as const;
 
 function daysAgo(days: number): Date {
@@ -87,12 +98,35 @@ export async function POST(req: NextRequest) {
       .returning({ id: notification.id });
     results.readNotifications = deletedNotif.length;
 
+    // Native-CRM personal data — hard-purge rows soft-deleted beyond the grace
+    // window (GDPR erasure of contacts/notes/deals).
+    const crmCutoff = daysAgo(RETENTION.crmSoftDeleteGrace);
+
+    const purgedContacts = await db
+      .delete(contact)
+      .where(and(isNotNull(contact.deletedAt), lt(contact.deletedAt, crmCutoff)))
+      .returning({ id: contact.id });
+    results.contacts = purgedContacts.length;
+
+    const purgedNotes = await db
+      .delete(companyNote)
+      .where(and(isNotNull(companyNote.deletedAt), lt(companyNote.deletedAt, crmCutoff)))
+      .returning({ id: companyNote.id });
+    results.companyNotes = purgedNotes.length;
+
+    const purgedDeals = await db
+      .delete(deal)
+      .where(and(isNotNull(deal.deletedAt), lt(deal.deletedAt, crmCutoff)))
+      .returning({ id: deal.id });
+    results.deals = purgedDeals.length;
+
     const total = Object.values(results).reduce((a, b) => a + b, 0);
     console.log(`[data-cleanup] Deleted ${total} rows:`, results);
 
     return NextResponse.json({
       success: true,
       deleted: results,
+      total,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
