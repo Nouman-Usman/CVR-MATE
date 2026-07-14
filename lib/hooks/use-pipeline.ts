@@ -49,10 +49,14 @@ export function usePipelines() {
     queryKey: ["pipelines"],
     queryFn: async () => {
       const res = await fetch("/api/pipelines");
-      if (!res.ok) throw new Error("Failed to fetch pipelines");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to fetch pipelines");
+      }
       return res.json();
     },
     staleTime: 60_000,
+    retry: false,
   });
 }
 
