@@ -88,7 +88,6 @@ export async function POST(req: NextRequest) {
     results.readNotifications = deletedNotif.length;
 
     const total = Object.values(results).reduce((a, b) => a + b, 0);
-    console.log(`[data-cleanup] Deleted ${total} rows:`, results);
 
     return NextResponse.json({
       success: true,

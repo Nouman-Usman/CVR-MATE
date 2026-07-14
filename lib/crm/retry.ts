@@ -49,7 +49,6 @@ export async function withRetry<T>(
       // Cap at 30 seconds
       delayMs = Math.min(delayMs, 30_000);
 
-      console.log(`[CRM Retry] Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delayMs}ms`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }

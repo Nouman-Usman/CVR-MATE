@@ -146,9 +146,6 @@ export async function POST() {
     // The real guard is that webhook data is always canonical (subscriptionDataFromStripe),
     // and the next webhook will correct any temporary staleness.
 
-    console.log(
-      `[Sync] User ${session.user.id} synced: plan=${plan}, status=${stripeSub.status}, cancel=${stripeSub.cancel_at_period_end}`
-    );
 
     return NextResponse.json({
       synced: true,

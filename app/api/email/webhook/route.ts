@@ -139,9 +139,6 @@ async function handleComplained(event: ResendWebhookEvent) {
         .update(userBrand)
         .set({ emailNotificationsEnabled: false })
         .where(eq(userBrand.id, existing.id));
-      console.log(
-        `[email/webhook] Disabled email notifications for user ${userId} (spam complaint)`
-      );
     }
   }
 }

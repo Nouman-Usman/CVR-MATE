@@ -99,14 +99,7 @@ export async function dispatchNotificationEmail(
   if (isLocal) {
     // Direct send — QStash cannot reach localhost
     try {
-      const result = await sendNotificationEmail(payload);
-      if ("skipped" in result) {
-        console.log(`[email/dispatch] Skipped: ${result.reason}`);
-      } else {
-        console.log(
-          `[email/dispatch] Sent directly via ${result.provider} → ${result.to}`
-        );
-      }
+      await sendNotificationEmail(payload);
     } catch (err) {
       console.error("[email/dispatch] Direct send failed:", err);
     }

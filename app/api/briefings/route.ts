@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
       orderBy: [desc(companyBriefing.createdAt)],
     });
 
-    console.log(`[briefings GET] vat=${vat} userId=${session.user.id} found=${briefings.length}`);
 
     return NextResponse.json({ briefings });
   } catch (error) {
