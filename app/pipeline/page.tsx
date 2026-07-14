@@ -33,7 +33,7 @@ export default function PipelinePage() {
   const tr = (da: string, en: string) => (locale === "da" ? da : en);
   const { data: sub, isLoading: subLoading } = useSubscription();
 
-  const { data: pipelinesData } = usePipelines();
+  const { data: pipelinesData, isError: pipelinesError, error: pipelinesErrorObj } = usePipelines();
   const pipelines = pipelinesData?.pipelines ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const activePipelineId =
@@ -91,6 +91,8 @@ export default function PipelinePage() {
           <InlineLoader />
         ) : !hasCrm ? (
           <UpgradeNotice tr={tr} />
+        ) : pipelinesError ? (
+          <ErrorNotice message={(pipelinesErrorObj as Error)?.message} tr={tr} />
         ) : isLoading || !board ? (
           <InlineLoader />
         ) : (
@@ -126,6 +128,30 @@ function UpgradeNotice({ tr }: { tr: (da: string, en: string) => string }) {
       >
         {tr("Opgradér", "Upgrade")}
       </a>
+    </div>
+  );
+}
+
+function ErrorNotice({
+  message,
+  tr,
+}: {
+  message?: string;
+  tr: (da: string, en: string) => string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+      <span className="material-symbols-outlined text-4xl text-amber-500">error_outline</span>
+      <h2 className="mt-3 text-lg font-bold text-slate-900">
+        {tr("Kunne ikke indlæse pipeline", "Couldn't load pipeline")}
+      </h2>
+      <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto">
+        {message ||
+          tr(
+            "Der opstod en fejl. Prøv igen senere.",
+            "Something went wrong. Please try again later."
+          )}
+      </p>
     </div>
   );
 }
