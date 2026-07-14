@@ -77,6 +77,44 @@ export function useCreatePipeline() {
   });
 }
 
+export function useUpdatePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      name,
+      isDefault,
+    }: {
+      id: string;
+      name?: string;
+      isDefault?: boolean;
+    }) => {
+      const res = await fetch(`/api/pipelines/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, isDefault }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to update pipeline");
+      return data;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["pipelines"] }),
+  });
+}
+
+export function useDeletePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/pipelines/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to delete pipeline");
+      return data;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["pipelines"] }),
+  });
+}
+
 // ─── Board ──────────────────────────────────────────────────────────────────
 
 const boardKey = (pipelineId: string) => ["board", pipelineId] as const;
