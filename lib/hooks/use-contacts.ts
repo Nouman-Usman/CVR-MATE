@@ -30,6 +30,7 @@ const key = (vat: string) => ["contacts", vat] as const;
 export function useContacts(vat: string) {
   return useQuery<ContactsResponse>({
     queryKey: key(vat),
+    enabled: !!vat,
     queryFn: async () => {
       const res = await fetch(`/api/companies/${vat}/contacts`);
       if (!res.ok) throw new Error("Failed to fetch contacts");

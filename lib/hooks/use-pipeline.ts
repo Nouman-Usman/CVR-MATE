@@ -178,6 +178,61 @@ export function useMoveDeal(pipelineId: string) {
   });
 }
 
+export interface DealDetail extends BoardDeal {
+  currency: string;
+  lostReason: string | null;
+  createdAt: string;
+  stage: BoardStage;
+}
+
+const dealKey = (dealId: string) => ["deal", dealId] as const;
+
+export function useDeal(dealId: string | undefined) {
+  return useQuery<{ deal: DealDetail }>({
+    queryKey: dealKey(dealId ?? "none"),
+    enabled: !!dealId,
+    queryFn: async () => {
+      const res = await fetch(`/api/deals/${dealId}`);
+      if (!res.ok) throw new Error("Failed to fetch deal");
+      return res.json();
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useUpdateDeal(pipelineId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...body }: { id: string } & Record<string, unknown>) => {
+      const res = await fetch(`/api/deals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to update deal");
+      return data;
+    },
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: dealKey(id) });
+      qc.invalidateQueries({ queryKey: boardKey(pipelineId) });
+    },
+  });
+}
+
+export function useDeleteDeal(pipelineId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/deals/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to delete deal");
+      return data;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: boardKey(pipelineId) }),
+  });
+}
+
 export function useCreateDeal(pipelineId: string) {
   const qc = useQueryClient();
   return useMutation({

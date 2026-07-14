@@ -26,10 +26,17 @@ import {
   useCreatePipeline,
   useUpdatePipeline,
   useDeletePipeline,
+  useDeal,
+  useUpdateDeal,
+  useDeleteDeal,
   type BoardColumn,
   type BoardDeal,
   type PipelineSummary,
+  type DealDetail,
 } from "@/lib/hooks/use-pipeline";
+import { useSession } from "@/lib/auth-client";
+import { useOrganization } from "@/lib/hooks/use-team";
+import { useContacts } from "@/lib/hooks/use-contacts";
 
 const inputCls =
   "w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400";
@@ -48,6 +55,7 @@ export default function PipelinePage() {
 
   const { data: board, isLoading } = useBoard(activePipelineId);
   const moveDeal = useMoveDeal(activePipelineId ?? "");
+  const [openDealId, setOpenDealId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -103,12 +111,27 @@ export default function PipelinePage() {
           <DndContext sensors={sensors} onDragEnd={onDragEnd}>
             <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory sm:snap-none -mx-3 px-3 sm:mx-0 sm:px-0">
               {board.columns.map((col) => (
-                <Column key={col.stage.id} column={col} locale={locale} tr={tr} />
+                <Column
+                  key={col.stage.id}
+                  column={col}
+                  locale={locale}
+                  tr={tr}
+                  onOpenDeal={setOpenDealId}
+                />
               ))}
             </div>
           </DndContext>
         )}
       </div>
+      {openDealId && activePipelineId && (
+        <DealDetailPanel
+          dealId={openDealId}
+          pipelineId={activePipelineId}
+          locale={locale}
+          tr={tr}
+          onClose={() => setOpenDealId(null)}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -328,10 +351,12 @@ function Column({
   column,
   locale,
   tr,
+  onOpenDeal,
 }: {
   column: BoardColumn;
   locale: string;
   tr: (da: string, en: string) => string;
+  onOpenDeal: (dealId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.stage.id });
   const total = column.deals.reduce((sum, d) => sum + (d.amount ? Number(d.amount) : 0), 0);
@@ -358,7 +383,7 @@ function Column({
         }`}
       >
         {column.deals.map((d) => (
-          <DealCard key={d.id} deal={d} locale={locale} tr={tr} />
+          <DealCard key={d.id} deal={d} locale={locale} tr={tr} onOpen={() => onOpenDeal(d.id)} />
         ))}
         {column.deals.length === 0 && (
           <p className="text-xs text-slate-300 text-center py-6">{tr("Tom", "Empty")}</p>
@@ -372,10 +397,12 @@ function DealCard({
   deal,
   locale,
   tr,
+  onOpen,
 }: {
   deal: BoardDeal;
   locale: string;
   tr: (da: string, en: string) => string;
+  onOpen: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
@@ -400,7 +427,8 @@ function DealCard({
       style={{ ...style, opacity: isDragging ? 0.5 : 1 }}
       {...listeners}
       {...attributes}
-      className={`bg-white rounded-lg border shadow-sm p-3 cursor-grab active:cursor-grabbing touch-none ${
+      onClick={onOpen}
+      className={`bg-white rounded-lg border shadow-sm p-3 cursor-grab active:cursor-grabbing touch-none hover:shadow-md transition-shadow ${
         staleness === "red" ? "border-red-200" : "border-slate-100"
       }`}
     >
@@ -430,6 +458,248 @@ function DealCard({
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Deal detail panel: expanded view for a single deal ────────────────────
+
+function DealDetailPanel({
+  dealId,
+  pipelineId,
+  locale,
+  tr,
+  onClose,
+}: {
+  dealId: string;
+  pipelineId: string;
+  locale: string;
+  tr: (da: string, en: string) => string;
+  onClose: () => void;
+}) {
+  const { data: dealData, isLoading } = useDeal(dealId);
+  const deal = dealData?.deal;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-end sm:items-stretch sm:justify-end" onClick={onClose}>
+      <div
+        className="bg-white w-full sm:w-[420px] max-h-[85vh] sm:max-h-none sm:h-full overflow-y-auto rounded-t-2xl sm:rounded-none p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <h3 className="text-base font-bold text-slate-900">{tr("Aftaledetaljer", "Deal details")}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        {isLoading || !deal ? (
+          <InlineLoader />
+        ) : (
+          <DealForm
+            key={deal.id}
+            deal={deal}
+            pipelineId={pipelineId}
+            locale={locale}
+            tr={tr}
+            onClose={onClose}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DealForm({
+  deal,
+  pipelineId,
+  locale,
+  tr,
+  onClose,
+}: {
+  deal: DealDetail;
+  pipelineId: string;
+  locale: string;
+  tr: (da: string, en: string) => string;
+  onClose: () => void;
+}) {
+  const { data: session } = useSession();
+  const { data: orgData } = useOrganization(session?.user?.id);
+  const { data: contactsData } = useContacts(deal.company?.vat ?? "");
+  const updateDeal = useUpdateDeal(pipelineId);
+  const deleteDeal = useDeleteDeal(pipelineId);
+
+  // Initialized once from `deal` at mount — this component is remounted via
+  // `key={deal.id}` whenever a different deal opens, so no sync effect needed.
+  const [title, setTitle] = useState(deal.title);
+  const [amount, setAmount] = useState(deal.amount ?? "");
+  const [closeDate, setCloseDate] = useState(deal.closeDate ?? "");
+  const [assignedUserId, setAssignedUserId] = useState(deal.assignedUser?.id ?? "");
+  const [primaryContactId, setPrimaryContactId] = useState(deal.primaryContact?.id ?? "");
+  const [lostReason, setLostReason] = useState(deal.lostReason ?? "");
+
+  function save() {
+    if (!title.trim()) {
+      toast.error(tr("Titel kræves", "Title is required"));
+      return;
+    }
+    updateDeal.mutate(
+      {
+        id: deal.id,
+        title: title.trim(),
+        amount: amount.trim() ? amount.trim() : null,
+        // closeDate/lostReason only accept a value or absence (undefined) server-side,
+        // not an explicit null — the empty string is preprocessed to undefined there.
+        closeDate,
+        assignedUserId: assignedUserId || null,
+        primaryContactId: primaryContactId || null,
+        lostReason,
+      },
+      {
+        onSuccess: () => toast.success(tr("Gemt", "Saved")),
+        onError: (err) => toast.error((err as Error).message),
+      }
+    );
+  }
+
+  function remove() {
+    if (!window.confirm(tr(`Slet aftalen "${deal.title}"?`, `Delete deal "${deal.title}"?`))) return;
+    deleteDeal.mutate(deal.id, {
+      onSuccess: () => {
+        toast.success(tr("Aftale slettet", "Deal deleted"));
+        onClose();
+      },
+      onError: (err) => toast.error((err as Error).message),
+    });
+  }
+
+  const days = daysSince(deal.stageChangedAt);
+  const busy = updateDeal.isPending || deleteDeal.isPending;
+
+  return (
+    <>
+      {deal.company && (
+        <div className="bg-slate-50 rounded-lg px-3 py-2">
+          <p className="text-sm font-semibold text-slate-900 truncate">{deal.company.name}</p>
+          <a href={`/company/${deal.company.vat}`} className="text-xs text-blue-600 hover:underline">
+            CVR {deal.company.vat} · {tr("Se virksomhed", "View company")}
+          </a>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: deal.stage?.color ?? "#94a3b8" }}
+          />
+          {deal.stage?.name}
+        </span>
+        {deal.status === "won" && (
+          <span className="text-xs font-medium px-2 py-1 rounded-full bg-emerald-50 text-emerald-600">
+            {tr("Vundet", "Won")}
+          </span>
+        )}
+        {deal.status === "lost" && (
+          <span className="text-xs font-medium px-2 py-1 rounded-full bg-red-50 text-red-600">
+            {tr("Tabt", "Lost")}
+          </span>
+        )}
+        {days != null && (
+          <span className="text-xs text-slate-400">
+            {days}d {tr("i denne fase", "in this stage")}
+          </span>
+        )}
+      </div>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold text-slate-500">{tr("Titel", "Title")}</span>
+        <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold text-slate-500">{tr("Beløb (DKK)", "Amount (DKK)")}</span>
+        <input
+          className={inputCls}
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold text-slate-500">{tr("Lukkedato", "Close date")}</span>
+        <input
+          className={inputCls}
+          type="date"
+          value={closeDate}
+          onChange={(e) => setCloseDate(e.target.value)}
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold text-slate-500">{tr("Ansvarlig", "Assigned to")}</span>
+        <select
+          className={inputCls}
+          value={assignedUserId}
+          onChange={(e) => setAssignedUserId(e.target.value)}
+        >
+          <option value="">{tr("Ingen", "Unassigned")}</option>
+          {orgData?.org?.members?.map((m) => (
+            <option key={m.userId} value={m.userId}>
+              {m.user.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold text-slate-500">{tr("Primær kontakt", "Primary contact")}</span>
+        <select
+          className={inputCls}
+          value={primaryContactId}
+          onChange={(e) => setPrimaryContactId(e.target.value)}
+        >
+          <option value="">{tr("Ingen", "None")}</option>
+          {contactsData?.contacts.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {deal.status === "lost" && (
+        <label className="block space-y-1">
+          <span className="text-xs font-semibold text-slate-500">{tr("Årsag til tab", "Lost reason")}</span>
+          <textarea
+            className={`${inputCls} min-h-[70px] resize-none`}
+            value={lostReason}
+            onChange={(e) => setLostReason(e.target.value)}
+          />
+        </label>
+      )}
+
+      <p className="text-[11px] text-slate-400">
+        {tr("Oprettet", "Created")} {new Date(deal.createdAt).toLocaleDateString(locale)}
+      </p>
+
+      <div className="flex items-center justify-between gap-2 pt-2">
+        <button
+          onClick={remove}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-lg text-red-600 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+        >
+          {tr("Slet", "Delete")}
+        </button>
+        <button
+          onClick={save}
+          disabled={busy}
+          className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-60 cursor-pointer"
+        >
+          {updateDeal.isPending ? tr("Gemmer…", "Saving…") : tr("Gem", "Save")}
+        </button>
+      </div>
+    </>
   );
 }
 
