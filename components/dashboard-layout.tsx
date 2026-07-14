@@ -40,6 +40,7 @@ import {
   Bookmark,
   SearchCheck,
   ListTodo,
+  KanbanSquare,
   Download,
   UserCheck,
   Settings,
@@ -59,7 +60,7 @@ import {
 
 // ── Nav structure with grouped sections ──────────────────────────────
 
-type NavKey = "dashboard" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "exports" | "settings";
+type NavKey = "dashboard" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "pipeline" | "exports" | "settings";
 
 interface NavItem {
   key: NavKey;
@@ -98,6 +99,7 @@ const navSections: NavSection[] = [
     labelDa: "Værktøjer",
     items: [
       { key: "todos", icon: ListTodo, href: "/todos" },
+      { key: "pipeline", icon: KanbanSquare, href: "/pipeline" },
       { key: "exports", icon: Download, href: "/exports" },
     ],
   },

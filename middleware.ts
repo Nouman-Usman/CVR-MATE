@@ -39,6 +39,7 @@ const PROTECTED_ROUTES = [
   "/settings",
   "/company",
   "/todos",
+  "/pipeline",
   "/onboarding",
 ];
 
@@ -107,6 +108,7 @@ export const config = {
     "/settings/:path*",
     "/company/:path*",
     "/todos/:path*",
+    "/pipeline/:path*",
     "/onboarding/:path*",
     "/admin/:path*",
     "/login",

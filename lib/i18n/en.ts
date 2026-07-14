@@ -397,6 +397,7 @@ const en = {
       savedSearches: "Saved searches",
       todos: "Tasks",
       followedPeople: "Followed people",
+      pipeline: "Pipeline",
       exports: "Exports",
       settings: "Settings",
     },
