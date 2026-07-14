@@ -18,16 +18,14 @@ interface ComingSoonOverlayProps {
 
 export function ComingSoonOverlay({ feature, description }: ComingSoonOverlayProps) {
   const titles: Record<ComingSoonFeature, string> = {
-    team: "Team Features Coming Soon",
     crm: "CRM Integrations Coming Soon",
   }
 
   const defaultDescriptions: Record<ComingSoonFeature, string> = {
-    team: "Team workspaces, role-based access, and audit logging are coming soon.",
     crm: "HubSpot, Pipedrive, and LeadConnector integrations are coming soon.",
   }
 
-  const subject = `CVR-MATE ${feature === "team" ? "Team Features" : "CRM Integration"} Inquiry`
+  const subject = `CVR-MATE ${feature === "crm" ? "CRM Integration" : "Feature"} Inquiry`
 
   return (
     <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-amber-50/95 to-amber-100/95 backdrop-blur-sm flex items-center justify-center z-50">

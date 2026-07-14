@@ -9,7 +9,7 @@ import { useSession } from "@/lib/auth-client";
 import { LogoFull } from "@/components/logo";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { COMING_SOON_FEATURES, CONTACT_EMAIL } from "@/lib/constants";
+import { CONTACT_EMAIL } from "@/lib/constants";
 import { ComingSoonBadge } from "@/components/ui/coming-soon";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -757,9 +757,6 @@ export default function Home() {
                     <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.enterprise.name}</h3>
                     <p className="text-sm text-slate-500">{t.pricing.enterprise.desc}</p>
                   </div>
-                  {COMING_SOON_FEATURES.has("team") && (
-                    <ComingSoonBadge />
-                  )}
                 </div>
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1.5">
@@ -783,21 +780,12 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                {COMING_SOON_FEATURES.has("team") ? (
-                  <a
-                    href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("CVR-MATE Enterprise Inquiry")}`}
-                    className="block w-full py-3 rounded-xl bg-amber-600 text-center font-bold text-sm text-white hover:bg-amber-700 transition-all"
-                  >
-                    Contact us
-                  </a>
-                ) : (
-                  <Link
-                    href="/signup"
-                    className="block w-full py-3 rounded-xl border border-white/[0.12] text-center font-bold text-sm text-slate-300 hover:bg-white/[0.06] transition-all"
-                  >
-                    {t.pricing.enterprise.cta}
-                  </Link>
-                )}
+                <Link
+                  href="/signup"
+                  className="block w-full py-3 rounded-xl border border-white/[0.12] text-center font-bold text-sm text-slate-300 hover:bg-white/[0.06] transition-all"
+                >
+                  {t.pricing.enterprise.cta}
+                </Link>
               </GlassCard>
             </div>
           </div>
