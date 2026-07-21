@@ -43,66 +43,17 @@ const en = {
     },
   },
   features: {
-    title: "Everything your sales team needs, in one place",
-    subtitle: "From first search to closed deal — one platform, no exports required.",
-    tabs: [
-      {
-        title: "Search & Company Intelligence",
-        subtitle: "Find and understand any Danish company in seconds",
-        body: "Search the full CVR registry with instant autocomplete, then drill into financials, management history, and ownership — no more juggling separate lookups.",
-        bullets: [
-          "CVR registry search with live autocomplete",
-          "Full financials and management-change history",
-          "Saved companies and saved searches",
-          "One-click data export",
-        ],
-      },
-      {
-        title: "AI Insights & Outreach",
-        subtitle: "Gemini-powered briefings and ready-to-send outreach",
-        body: "Let AI do the prep work: auto-generated briefings surface what matters, and outreach drafts are ready before you've finished your coffee.",
-        bullets: [
-          "AI company briefings — financials, growth signals, management changes",
-          "Auto-drafted email, LinkedIn, and phone outreach",
-          "Person and company enrichment",
-          "AI-suggested follow-up tasks",
-        ],
-      },
-      {
-        title: "Native CRM & Pipeline",
-        subtitle: "Manage the whole deal lifecycle without leaving CVR-MATE",
-        body: "Stop exporting leads to manage them elsewhere. Track contacts, move deals across a kanban pipeline, and see the full activity history in one place.",
-        bullets: [
-          "Multi-pipeline kanban deal board",
-          "Per-company contacts, fully encrypted",
-          "Unified activity timeline",
-          "Team-assignable deals",
-        ],
-        badge: "Enterprise",
-      },
-      {
-        title: "Triggers & Automation",
-        subtitle: "Get notified the moment a company matches your criteria",
-        body: "Set your criteria once. We monitor the market around the clock and alert you the moment a company changes in a way that matters to you.",
-        bullets: [
-          "Scheduled lead triggers on company or financial changes",
-          "Manual on-demand runs",
-          "Real-time in-app notifications",
-          "Email alerts",
-        ],
-      },
-      {
-        title: "Integrations & Export",
-        subtitle: "Sync straight into the CRM your team already uses",
-        body: "Already living in HubSpot, Pipedrive, or LeadConnector? Push data straight there — individually or in bulk — and keep a clear sync history.",
-        bullets: [
-          "HubSpot, Pipedrive, and LeadConnector sync",
-          "Bulk push",
-          "Sync history and health status",
-          "CSV and data export",
-        ],
-      },
-    ],
+    title: "More than company data: Full company intelligence",
+    subtitle: "We connect the dots between data and sales potential.",
+    card1Title: "AI-powered briefings",
+    card1Desc:
+      "Gemini analyzes company financials, management changes, and growth patterns in seconds. Get rich intelligence profiles auto-generated for every prospect.",
+    card2Title: "Smart lead scoring",
+    card2Desc:
+      "Our AI rates buying signals and matches company changes to your ideal customer profile. Real-time scoring tells you exactly who to target.",
+    card3Title: "Autonomous market monitoring",
+    card3Desc:
+      "The AI monitors the entire Danish market 24/7, detecting growth spikes, leadership changes, and trigger events before your competitors.",
   },
   products: {
     title: "Three tiers of intelligence",

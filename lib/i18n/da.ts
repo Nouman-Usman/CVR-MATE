@@ -43,66 +43,17 @@ const da = {
     },
   },
   features: {
-    title: "Alt dit salgsteam behøver, samlet ét sted",
-    subtitle: "Fra første søgning til lukket aftale — én platform, ingen eksport nødvendig.",
-    tabs: [
-      {
-        title: "Søgning & virksomhedsindsigt",
-        subtitle: "Find og forstå enhver dansk virksomhed på sekunder",
-        body: "Søg hele CVR-registret med live autocomplete, og dyk ned i økonomi, ledelseshistorik og ejerskab — uden at skulle jonglere separate opslag.",
-        bullets: [
-          "CVR-registersøgning med live autocomplete",
-          "Fuld økonomi- og ledelsesændringshistorik",
-          "Gemte virksomheder og gemte søgninger",
-          "Dataeksport med ét klik",
-        ],
-      },
-      {
-        title: "AI-indsigt & henvendelser",
-        subtitle: "Gemini-drevne profiler og klar-til-afsendelse henvendelser",
-        body: "Lad AI klare forarbejdet: automatisk genererede profiler viser det vigtigste, og udkast til henvendelser er klar, før du har drukket din kaffe.",
-        bullets: [
-          "AI-virksomhedsprofiler — økonomi, vækstsignaler, ledelsesændringer",
-          "Automatiske udkast til e-mail, LinkedIn og telefon",
-          "Person- og virksomhedsberigelse",
-          "AI-foreslåede opfølgningsopgaver",
-        ],
-      },
-      {
-        title: "Indbygget CRM & pipeline",
-        subtitle: "Håndter hele aftaleforløbet uden at forlade CVR-MATE",
-        body: "Undgå at eksportere leads for at håndtere dem andetsteds. Følg kontakter, flyt aftaler gennem en kanban-pipeline, og se hele aktivitetshistorikken samlet ét sted.",
-        bullets: [
-          "Kanban-aftalebræt med flere pipelines",
-          "Kontakter pr. virksomhed, fuldt krypteret",
-          "Samlet aktivitetstidslinje",
-          "Aftaler kan tildeles teammedlemmer",
-        ],
-        badge: "Enterprise",
-      },
-      {
-        title: "Triggere & automatisering",
-        subtitle: "Bliv adviseret, i det øjeblik en virksomhed matcher dine kriterier",
-        body: "Sæt dine kriterier én gang. Vi overvåger markedet døgnet rundt og advarer dig, så snart en virksomhed ændrer sig på en måde, der betyder noget for dig.",
-        bullets: [
-          "Planlagte triggere ved virksomheds- eller økonomiændringer",
-          "Manuel kørsel efter behov",
-          "Notifikationer i realtid i appen",
-          "E-mailadvarsler",
-        ],
-      },
-      {
-        title: "Integrationer & eksport",
-        subtitle: "Synkronisér direkte til det CRM, dit team allerede bruger",
-        body: "Bruger I allerede HubSpot, Pipedrive eller LeadConnector? Skub data direkte derhen — enkeltvis eller samlet — og hold styr på synkroniseringshistorikken.",
-        bullets: [
-          "Synkronisering med HubSpot, Pipedrive og LeadConnector",
-          "Bulk-overførsel",
-          "Synkroniseringshistorik og statustjek",
-          "CSV- og dataeksport",
-        ],
-      },
-    ],
+    title: "Mere end virksomhedsdata: Fuld virksomhedsintelligens",
+    subtitle: "Vi forbinder prikkerne mellem data og salgspotentiale.",
+    card1Title: "AI-drevne profiler",
+    card1Desc:
+      "Gemini analyserer økonomi, ledelsesændringer og væksttendenser på sekunder. Få righoldig intelligens automatisk genereret for hver prospect.",
+    card2Title: "Smart lead-scoring",
+    card2Desc:
+      "Vores AI vurderer købssignaler og matcher virksomhedsændringer til din ideelle kundeprofil. Realtidsscoring viser dig præcis hvem du skal målrette.",
+    card3Title: "Autonom markedsovervågning",
+    card3Desc:
+      "AI'en overvåger hele det danske marked 24/7 og registrerer vækststigninger, ledelsesændringer og triggerhændelser før dine konkurrenter.",
   },
   products: {
     title: "Tre niveauer af intelligens",

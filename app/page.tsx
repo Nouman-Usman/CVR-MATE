@@ -3,14 +3,14 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
+import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSession } from "@/lib/auth-client";
 import { LogoFull } from "@/components/logo";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { CONTACT_EMAIL } from "@/lib/constants";
-import { FeatureShowcase, type ShowcaseTab } from "@/components/landing/feature-showcase";
+import { ComingSoonBadge } from "@/components/ui/coming-soon";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -109,6 +109,74 @@ function GlassCard({ children, className = "", glow = false }: {
         {children}
       </div>
     </div>
+  );
+}
+
+/* ─── Interactive Feature Card ─────────────────────────────────────── */
+
+function InteractiveFeatureCard({ children, className = "" }: { children: React.ReactNode, className?: string }) {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  const rotateX = useSpring(useMotionValue(0), { damping: 30, stiffness: 200, mass: 2 });
+  const rotateY = useSpring(useMotionValue(0), { damping: 30, stiffness: 200, mass: 2 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - left;
+    const y = e.clientY - top;
+    
+    mouseX.set(x);
+    mouseY.set(y);
+    
+    const xPct = (x / width - 0.5) * 2;
+    const yPct = (y / height - 0.5) * 2;
+    
+    rotateX.set(yPct * -10); // tilt up/down
+    rotateY.set(xPct * 10); // tilt left/right
+  };
+
+  const handleMouseLeave = () => {
+    rotateX.set(0);
+    rotateY.set(0);
+  };
+
+  return (
+    <motion.div
+      className={`relative group h-full ${className}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        rotateX,
+        rotateY,
+        transformStyle: "preserve-3d",
+        perspective: 1000,
+      }}
+    >
+      {/* Dynamic Spotlight Hover */}
+      <motion.div
+        className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition duration-500 group-hover:opacity-100 z-10"
+        style={{
+          background: useMotionTemplate`
+            radial-gradient(
+              600px circle at ${mouseX}px ${mouseY}px,
+              rgba(56, 189, 248, 0.15),
+              transparent 80%
+            )
+          `,
+        }}
+      />
+      {/* Outer static glow */}
+      <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-blue-500/20 via-cyan-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-md z-0" />
+      
+      {/* Actual Card */}
+      <div 
+        className="relative h-full bg-[#0a0f1e]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-8 z-10 transition-colors duration-500 group-hover:border-white/[0.15]"
+        style={{ transform: "translateZ(30px)" }}
+      >
+        {children}
+      </div>
+    </motion.div>
   );
 }
 
@@ -253,19 +321,11 @@ export default function Home() {
     { label: t.nav.aboutAiMate, href: "#features" },
   ];
 
-  const showcaseIcons = ["search", "auto_awesome", "dashboard", "notifications_active", "hub"];
-  const showcaseScreenshots = [
-    "/landing/showcase/search.png",
-    "/landing/showcase/ai-insights.png",
-    "/landing/showcase/pipeline.png",
-    "/landing/showcase/triggers.png",
-    "/landing/showcase/integrations.png",
+  const features = [
+    { icon: "auto_awesome", title: t.features.card1Title, desc: t.features.card1Desc, gradient: "from-violet-500 to-fuchsia-400", comingSoon: false },
+    { icon: "trending_up", title: t.features.card2Title, desc: t.features.card2Desc, gradient: "from-emerald-500 to-teal-400", comingSoon: false },
+    { icon: "radar", title: t.features.card3Title, desc: t.features.card3Desc, gradient: "from-orange-500 to-rose-400", comingSoon: false },
   ];
-  const showcaseTabs: ShowcaseTab[] = t.features.tabs.map((tab, i) => ({
-    ...tab,
-    icon: showcaseIcons[i],
-    screenshot: showcaseScreenshots[i],
-  }));
 
   const steps = [
     { num: "01", label: t.howItWorks.steps[0].title, desc: t.howItWorks.steps[0].desc, icon: "search" },
@@ -500,7 +560,23 @@ export default function Home() {
             <p className="text-lg text-slate-500 max-w-xl mx-auto">{t.features.subtitle}</p>
           </div>
 
-          <FeatureShowcase tabs={showcaseTabs} />
+          {/* Feature cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {features.map((f, i) => (
+              <div key={i} className="feature-card">
+                <InteractiveFeatureCard>
+                  <div className="flex items-start justify-between mb-5">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center shadow-lg`}>
+                      <span className="material-symbols-outlined text-2xl text-white">{f.icon}</span>
+                    </div>
+                    {f.comingSoon && <ComingSoonBadge />}
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-3 font-[family-name:var(--font-manrope)]">{f.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+                </InteractiveFeatureCard>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
