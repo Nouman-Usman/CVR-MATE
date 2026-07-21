@@ -9,37 +9,17 @@ const da = {
     getStarted: "Kom i gang",
   },
   hero: {
-    badge: "B2B Lead Intelligence",
     headline: "Find nye kunder — før de begynder at lede efter dig.",
     description:
       "CVR-MATE transformerer rå data til handlingsorienteret indsigt. Identificer købsklare virksomheder i realtid og boost din salgspipeline.",
     bookDemo: "Book en demo",
     explorePlatform: "Udforsk platformen",
-    pills: [
-      "Live CVR-opdateringer",
-      "Ingen bindingsperiode",
-    ],
-    stat: "Lead Konverteringshastighed",
-    dashNewLeads: "Nye Leads",
-    dashGrowth: "Vækst",
-    dashExport: "Eksport",
-    dashAutoSync: "Auto-sync aktiv",
-    dashTopCompanies: "Top Virksomheder",
-    dashSeeAll: "SE ALLE",
-    appPreview: {
-      liveFeed: "Live Feed",
-      growthSignal: "Vækst Signal",
-      saaS_dk: "SaaS sektor - Danmark",
-      speed: "42k/sek",
-      acc: "99.9% ACC",
-      growthValue: "Voksende",
-      liveValue: "Aktiv",
-      status_growth: "VÆKST",
-      status_new: "NY",
-      status_stable: "STABIL",
-      ind_saas: "SaaS",
-      ind_data: "Data",
-      ind_fintech: "Fintech",
+    demo: {
+      examples: [
+        { query: "Ørsted", industry: "Energi" },
+        { query: "Novo Nordisk", industry: "Medicinal" },
+        { query: "Maersk", industry: "Logistik" },
+      ],
     },
   },
   features: {
