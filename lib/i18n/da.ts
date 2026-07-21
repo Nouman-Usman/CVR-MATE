@@ -4,7 +4,7 @@ const da = {
     howItWorks: "Sådan virker det",
     integrations: "Integrationer",
     pricing: "Priser",
-    aboutAiMate: "Om AI-MATE",
+    aboutAiMate: "Om CVR-MATE",
     login: "Log ind",
     getStarted: "Kom i gang",
   },
@@ -14,11 +14,11 @@ const da = {
       "Vi holder øje med alle danske virksomheder og markerer, hvem der er klar til at købe — før nogen andre opdager det.",
     bookDemo: "Book en demo",
     explorePlatform: "Udforsk platformen",
-    demo: {
-      examples: [
-        { query: "Ørsted", industry: "Energi" },
-        { query: "Novo Nordisk", industry: "Medicinal" },
-        { query: "Maersk", industry: "Logistik" },
+    stream: {
+      items: [
+        { company: "Ørsted", signal: "Udvidelse annonceret" },
+        { company: "Novo Nordisk", signal: "Ny ledelsesregistrering" },
+        { company: "Maersk", signal: "Vækstsignal registreret" },
       ],
     },
   },

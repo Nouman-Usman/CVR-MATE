@@ -14,11 +14,11 @@ const en = {
       "We watch every Danish company and flag who's ready to buy — before anyone else notices.",
     bookDemo: "Book a demo",
     explorePlatform: "Explore the platform",
-    demo: {
-      examples: [
-        { query: "Ørsted", industry: "Energy" },
-        { query: "Novo Nordisk", industry: "Pharma" },
-        { query: "Maersk", industry: "Logistics" },
+    stream: {
+      items: [
+        { company: "Ørsted", signal: "Expansion announcement" },
+        { company: "Novo Nordisk", signal: "New leadership filing" },
+        { company: "Maersk", signal: "Growth signal detected" },
       ],
     },
   },
