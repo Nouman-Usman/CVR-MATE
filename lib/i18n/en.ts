@@ -4,7 +4,7 @@ const en = {
     howItWorks: "How it works",
     integrations: "Integrations",
     pricing: "Pricing",
-    aboutAiMate: "About AI-MATE",
+    aboutAiMate: "About CVR-MATE",
     login: "Log in",
     getStarted: "Get started",
   },
@@ -17,8 +17,6 @@ const en = {
     explorePlatform: "Explore the platform",
     pills: [
       "Live CVR updates",
-      "AI-powered lead scoring",
-      "Direct CRM export",
       "No lock-in period",
     ],
     stat: "Lead Conversion Velocity",
@@ -34,6 +32,8 @@ const en = {
       saaS_dk: "SaaS sector - Denmark",
       speed: "42k/sec",
       acc: "99.9% ACC",
+      growthValue: "Growing",
+      liveValue: "Active",
       status_growth: "GROWING",
       status_new: "NEW",
       status_stable: "STABLE",
@@ -43,17 +43,47 @@ const en = {
     },
   },
   features: {
-    title: "More than company data: Full company intelligence",
-    subtitle: "We connect the dots between data and sales potential.",
-    card1Title: "AI-powered briefings",
-    card1Desc:
-      "Gemini analyzes company financials, management changes, and growth patterns in seconds. Get rich intelligence profiles auto-generated for every prospect.",
-    card2Title: "Smart lead scoring",
-    card2Desc:
-      "Our AI rates buying signals and matches company changes to your ideal customer profile. Real-time scoring tells you exactly who to target.",
-    card3Title: "Autonomous market monitoring",
-    card3Desc:
-      "The AI monitors the entire Danish market 24/7, detecting growth spikes, leadership changes, and trigger events before your competitors.",
+    title: "Everything you need to find your next customer",
+    subtitle:
+      "One workspace connecting live CVR data, AI analysis, and outreach — no CRM required to get started.",
+    items: [
+      {
+        title: "Instant CVR search",
+        desc: "Search Denmark's entire business registry by name, CVR number, or industry, with autocomplete that finds the right company in seconds.",
+      },
+      {
+        title: "AI company briefings",
+        desc: "Gemini reads financials, ownership, and recent changes for you and writes a plain-English briefing — no spreadsheets, no digging.",
+      },
+      {
+        title: "Natural-language search",
+        desc: "Describe the company you're looking for in your own words — \"growing fintechs in Aarhus with under 20 employees\" — and get matching results.",
+      },
+      {
+        title: "AI outreach drafts",
+        desc: "Generate a ready-to-send email, LinkedIn message, or call script for any company, personalized with what the AI already knows about them.",
+      },
+      {
+        title: "Lead triggers & monitoring",
+        desc: "Set a trigger on a company or sector and get notified automatically when something changes — new management, financial filings, or growth signals.",
+      },
+      {
+        title: "Real-time notifications",
+        desc: "Live updates land in-app the moment they happen, with an email digest option so nothing important gets missed between sessions.",
+      },
+      {
+        title: "Saved companies & searches",
+        desc: "Keep a running list of prospects and re-run your best searches with one click. Recently viewed companies are always one click away.",
+      },
+      {
+        title: "AI enrichment",
+        desc: "Automatically enrich company and contact records with additional context the AI pulls together, so every profile is more than raw registry data.",
+      },
+      {
+        title: "Smart task suggestions",
+        desc: "The AI suggests follow-up tasks based on what's happening with a company, so nothing falls through the cracks between first look and first call.",
+      },
+    ],
   },
   products: {
     title: "Three tiers of intelligence",
@@ -274,7 +304,7 @@ const en = {
   cta: {
     title: "Build a smarter B2B pipeline today.",
     subtitle:
-      "Join over 500 Danish companies already using CVR-MATE to win the market.",
+      "Join Danish companies already prospecting smarter with CVR-MATE.",
     button1: "Create your account now",
     button2: "Book a walkthrough",
     note: "No credit card required",

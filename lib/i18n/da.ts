@@ -17,8 +17,6 @@ const da = {
     explorePlatform: "Udforsk platformen",
     pills: [
       "Live CVR-opdateringer",
-      "AI-drevet lead scoring",
-      "Direkte CRM eksport",
       "Ingen bindingsperiode",
     ],
     stat: "Lead Konverteringshastighed",
@@ -34,6 +32,8 @@ const da = {
       saaS_dk: "SaaS sektor - Danmark",
       speed: "42k/sek",
       acc: "99.9% ACC",
+      growthValue: "Voksende",
+      liveValue: "Aktiv",
       status_growth: "VÆKST",
       status_new: "NY",
       status_stable: "STABIL",
@@ -43,17 +43,47 @@ const da = {
     },
   },
   features: {
-    title: "Mere end virksomhedsdata: Fuld virksomhedsintelligens",
-    subtitle: "Vi forbinder prikkerne mellem data og salgspotentiale.",
-    card1Title: "AI-drevne profiler",
-    card1Desc:
-      "Gemini analyserer økonomi, ledelsesændringer og væksttendenser på sekunder. Få righoldig intelligens automatisk genereret for hver prospect.",
-    card2Title: "Smart lead-scoring",
-    card2Desc:
-      "Vores AI vurderer købssignaler og matcher virksomhedsændringer til din ideelle kundeprofil. Realtidsscoring viser dig præcis hvem du skal målrette.",
-    card3Title: "Autonom markedsovervågning",
-    card3Desc:
-      "AI'en overvåger hele det danske marked 24/7 og registrerer vækststigninger, ledelsesændringer og triggerhændelser før dine konkurrenter.",
+    title: "Alt hvad du behøver for at finde din næste kunde",
+    subtitle:
+      "Ét workspace, der forbinder live CVR-data, AI-analyse og opsøgende salg — uden krav om et CRM for at komme i gang.",
+    items: [
+      {
+        title: "Øjeblikkelig CVR-søgning",
+        desc: "Søg i hele Danmarks virksomhedsregister på navn, CVR-nummer eller branche, med autocomplete der finder den rette virksomhed på sekunder.",
+      },
+      {
+        title: "AI-virksomhedsbriefinger",
+        desc: "Gemini læser regnskaber, ejerforhold og seneste ændringer for dig og skriver en briefing i almindeligt sprog — ingen regneark, ingen graven.",
+      },
+      {
+        title: "Naturligt sprog-søgning",
+        desc: "Beskriv den virksomhed du leder efter med dine egne ord — \"voksende fintechs i Aarhus med under 20 ansatte\" — og få matchende resultater.",
+      },
+      {
+        title: "AI-udkast til opsøgende salg",
+        desc: "Generér en klar-til-afsendelse e-mail, LinkedIn-besked eller opkaldsscript for enhver virksomhed, personaliseret ud fra hvad AI'en allerede ved.",
+      },
+      {
+        title: "Lead-triggere & overvågning",
+        desc: "Sæt en trigger på en virksomhed eller branche og få automatisk besked, når noget ændrer sig — ny ledelse, regnskaber eller vækstsignaler.",
+      },
+      {
+        title: "Notifikationer i realtid",
+        desc: "Live-opdateringer lander i appen med det samme, med et valgfrit e-mail-resumé, så intet vigtigt går tabt mellem sessioner.",
+      },
+      {
+        title: "Gemte virksomheder & søgninger",
+        desc: "Hold styr på en løbende liste af prospekter og genkør dine bedste søgninger med ét klik. Nyligt viste virksomheder er altid ét klik væk.",
+      },
+      {
+        title: "AI-berigelse",
+        desc: "Berig automatisk virksomheds- og kontaktprofiler med ekstra kontekst, AI'en samler sammen, så hver profil er mere end rå registerdata.",
+      },
+      {
+        title: "Smarte opgaveforslag",
+        desc: "AI'en foreslår opfølgende opgaver baseret på, hvad der sker med en virksomhed, så intet falder mellem to stole fra første kig til første opkald.",
+      },
+    ],
   },
   products: {
     title: "Tre niveauer af intelligens",
@@ -274,7 +304,7 @@ const da = {
   cta: {
     title: "Byg en smartere B2B-pipeline i dag.",
     subtitle:
-      "Slut dig til over 500 danske virksomheder, der allerede bruger CVR-MATE til at vinde markedet.",
+      "Bliv en del af de danske virksomheder, der allerede prospekterer smartere med CVR-MATE.",
     button1: "Opret din konto nu",
     button2: "Book en fremvisning",
     note: "Ingen kreditkort påkrævet",

@@ -19,80 +19,6 @@ const HeroScene = dynamic(() => import("@/components/landing/hero-scene"), {
   loading: () => <div className="absolute inset-0 bg-[#0a0f1e]" />,
 });
 
-/* ─── Glass Dashboard Preview ─────────────────────────────────────── */
-
-const GlassDashboard = () => {
-  const { t } = useLanguage();
-  const [frame, setFrame] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFrame((prev) => (prev + 1) % 100);
-    }, 50);
-    return () => clearInterval(interval);
-  }, []);
-
-  const companies = [
-    { name: "TECHCORP A/S", industry: t.hero.appPreview.ind_saas, status: t.hero.appPreview.status_growth, score: 98, growth: 28 },
-    { name: "NORDIC BI", industry: t.hero.appPreview.ind_data, status: t.hero.appPreview.status_new, score: 92, growth: 15 },
-    { name: "DATAFLOW ApS", industry: t.hero.appPreview.ind_fintech, status: t.hero.appPreview.status_stable, score: 85, growth: 5 },
-  ];
-
-  return (
-    <div className="w-full bg-[#0a0f1e]/80 backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 shadow-2xl shadow-blue-900/20 text-left">
-      {/* Header */}
-      <div className="flex justify-between items-center border-b border-white/[0.1] pb-4">
-        <div className="flex gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500/80" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-          <div className="w-3 h-3 rounded-full bg-green-500/80" />
-        </div>
-        <div className="font-mono text-xs text-slate-300 font-bold uppercase flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-          </span>
-          {t.hero.appPreview.liveFeed}
-        </div>
-      </div>
-      
-      {/* List */}
-      <div className="flex flex-col gap-3 pt-4">
-        {companies.map((c, i) => (
-          <div 
-            key={i} 
-            className="flex flex-col sm:flex-row justify-between sm:items-center bg-white/[0.03] border border-white/[0.05] rounded-xl p-4 hover:bg-white/[0.06] transition-all hover:scale-[1.02] gap-3"
-          >
-            <div className="flex flex-col">
-              <div className="font-semibold text-white text-sm sm:text-base">{c.name}</div>
-              <div className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">{c.industry}</div>
-            </div>
-            
-            <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
-              <div className="flex items-center gap-3 w-28">
-                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" style={{ width: `${(c.growth / 30) * 100}%` }} />
-                </div>
-                <span className="font-mono text-xs font-bold text-emerald-400">+{c.growth}%</span>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md uppercase ${
-                  c.status === t.hero.appPreview.status_growth ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
-                  c.status === t.hero.appPreview.status_new ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-white/5 text-slate-300 border border-white/10'
-                }`}>
-                  {c.status}
-                </span>
-                <span className="font-mono font-bold text-lg w-8 text-right text-white">{c.score}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 /* ─── Glass Card ────────────────────────────────────────────────── */
 
 function GlassCard({ children, className = "", glow = false }: {
@@ -171,7 +97,7 @@ function InteractiveFeatureCard({ children, className = "" }: { children: React.
       
       {/* Actual Card */}
       <div 
-        className="relative h-full bg-[#0a0f1e]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-8 z-10 transition-colors duration-500 group-hover:border-white/[0.15]"
+        className="relative h-full bg-[#0a0f1e]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-7 lg:p-8 z-10 transition-colors duration-500 group-hover:border-white/[0.15]"
         style={{ transform: "translateZ(30px)" }}
       >
         {children}
@@ -189,6 +115,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [pricingInterval, setPricingInterval] = useState<"monthly" | "annual">("monthly");
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   // Refs for GSAP
   const heroRef = useRef<HTMLDivElement>(null);
@@ -203,6 +130,27 @@ export default function Home() {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Scroll-spy: highlight the nav link matching the section in view
+  const [activeSection, setActiveSection] = useState("hero");
+  useEffect(() => {
+    const sections = [heroRef, featuresRef, stepsRef, pricingRef]
+      .map((ref) => ref.current)
+      .filter((el): el is HTMLDivElement => el !== null);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) setActiveSection(visible.target.id);
+      },
+      { rootMargin: "-40% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] }
+    );
+
+    sections.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
   }, []);
 
   // GSAP Animations
@@ -321,11 +269,18 @@ export default function Home() {
     { label: t.nav.aboutAiMate, href: "#features" },
   ];
 
-  const features = [
-    { icon: "auto_awesome", title: t.features.card1Title, desc: t.features.card1Desc, gradient: "from-violet-500 to-fuchsia-400", comingSoon: false },
-    { icon: "trending_up", title: t.features.card2Title, desc: t.features.card2Desc, gradient: "from-emerald-500 to-teal-400", comingSoon: false },
-    { icon: "radar", title: t.features.card3Title, desc: t.features.card3Desc, gradient: "from-orange-500 to-rose-400", comingSoon: false },
+  const featureIcons = [
+    { icon: "search", gradient: "from-blue-500 to-cyan-400" },
+    { icon: "auto_awesome", gradient: "from-violet-500 to-fuchsia-400" },
+    { icon: "psychology", gradient: "from-cyan-500 to-blue-400" },
+    { icon: "forward_to_inbox", gradient: "from-emerald-500 to-teal-400" },
+    { icon: "radar", gradient: "from-orange-500 to-rose-400" },
+    { icon: "notifications_active", gradient: "from-pink-500 to-rose-400" },
+    { icon: "bookmark", gradient: "from-indigo-500 to-violet-400" },
+    { icon: "auto_fix_high", gradient: "from-teal-500 to-emerald-400" },
+    { icon: "task_alt", gradient: "from-sky-500 to-blue-400" },
   ];
+  const features = t.features.items.map((item, i) => ({ ...item, ...featureIcons[i] }));
 
   const steps = [
     { num: "01", label: t.howItWorks.steps[0].title, desc: t.howItWorks.steps[0].desc, icon: "search" },
@@ -344,18 +299,30 @@ export default function Home() {
           : "bg-transparent"
       }`}>
         <div className="flex justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20">
-          <LogoFull size="small" variant="dark" />
+          <Link href="/" aria-label="CVR-MATE home">
+            <LogoFull size="small" variant="dark" />
+          </Link>
 
           <div className="hidden lg:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-sm font-semibold text-slate-400 hover:text-white transition-colors font-[family-name:var(--font-manrope)]"
-              >
-                {link.label}
-              </a>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = link.href === `#${activeSection}`;
+              return (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className={`relative text-sm font-semibold transition-colors font-[family-name:var(--font-manrope)] pb-1 ${
+                    isActive ? "text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {link.label}
+                  <span
+                    className={`absolute -bottom-0.5 left-0 h-[2px] w-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-opacity duration-300 ${
+                      isActive ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
+                </a>
+              );
+            })}
           </div>
 
           <div className="flex items-center gap-3">
@@ -372,18 +339,18 @@ export default function Home() {
             {isLoggedIn ? (
               <Link
                 href="/dashboard"
-                className="hidden sm:flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all border border-white/10"
+                className="hidden lg:flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all border border-white/10"
               >
                 Dashboard
               </Link>
             ) : (
               <>
-                <Link href="/login" className="hidden sm:block font-semibold text-sm text-slate-400 hover:text-white px-4 transition-colors">
+                <Link href="/login" className="hidden lg:block font-semibold text-sm text-slate-400 hover:text-white px-4 transition-colors">
                   {t.nav.login}
                 </Link>
                 <Link
                   href="/signup"
-                  className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-blue-500/25 transition-all"
+                  className="hidden lg:flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-blue-500/25 transition-all"
                 >
                   {t.nav.getStarted}
                 </Link>
@@ -406,16 +373,23 @@ export default function Home() {
         {mobileMenuOpen && (
           <div className="lg:hidden bg-[#0a0f1e]/95 backdrop-blur-2xl border-t border-white/[0.06] px-4 pb-6 pt-2 animate-slide-down">
             <div className="flex flex-col gap-1">
-              {navLinks.map((link) => (
-                <a
-                  key={link.label}
-                  className="py-3 px-4 rounded-lg font-semibold text-sm text-slate-400 hover:text-white hover:bg-white/[0.04] transition-all"
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {link.label}
-                </a>
-              ))}
+              {navLinks.map((link) => {
+                const isActive = link.href === `#${activeSection}`;
+                return (
+                  <a
+                    key={link.label}
+                    className={`py-3 px-4 rounded-lg font-semibold text-sm transition-all ${
+                      isActive
+                        ? "text-white bg-white/[0.06]"
+                        : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
+                    }`}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {link.label}
+                  </a>
+                );
+              })}
             </div>
             <div className="mt-4 pt-4 border-t border-white/[0.06] flex flex-col gap-3">
               {isLoggedIn ? (
@@ -450,13 +424,6 @@ export default function Home() {
 
         {/* Content */}
         <div ref={heroTextRef} className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center pt-20">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/[0.06] backdrop-blur-sm rounded-full border border-white/[0.1] mb-8">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-widest text-cyan-300">
-              {t.hero.badge}
-            </span>
-          </div>
 
           {/* Headline */}
           <h1 className="font-[family-name:var(--font-manrope)] text-4xl sm:text-6xl lg:text-8xl font-extrabold leading-[1.05] tracking-tight mb-6">
@@ -492,55 +459,11 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Pills */}
-          <div className="flex flex-wrap justify-center gap-3 mb-16">
-            {t.hero.pills.map((pill: string) => (
-              <span
-                key={pill}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-full text-xs font-medium text-slate-400"
-              >
-                <span className="material-symbols-outlined text-xs text-cyan-400">check_circle</span>
-                {pill}
-              </span>
-            ))}
-          </div>
 
           {/* Visualization Area */}
           <div className="relative mt-8 flex items-center justify-center w-full max-w-4xl mx-auto">
-            <div className="w-full max-w-2xl z-20">
-              <GlassDashboard />
-            </div>
-
-            {/* Floating Elements */}
-            <div className="absolute -top-12 -right-4 lg:-right-12 hidden md:block z-30 animate-pulse" style={{ animationDuration: '4s' }}>
-              <GlassCard className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                  <span className="material-symbols-outlined text-xl text-emerald-400">trending_up</span>
-                </div>
-                <div className="text-left">
-                  <div className="text-xs text-slate-400 font-medium">{t.hero.appPreview.growthSignal}</div>
-                  <div className="text-lg font-bold text-white">+12.4%</div>
-                </div>
-              </GlassCard>
-            </div>
-
-            <div className="absolute -bottom-8 -left-4 lg:-left-12 hidden md:block z-30 animate-pulse" style={{ animationDuration: '5s', animationDelay: '0.5s' }}>
-              <GlassCard className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                  <span className="material-symbols-outlined text-xl text-cyan-400">database</span>
-                </div>
-                <div className="text-left">
-                  <div className="text-xs text-slate-400 font-medium">{t.hero.appPreview.liveFeed}</div>
-                  <div className="text-lg font-bold text-white">{t.hero.appPreview.speed}</div>
-                </div>
-              </GlassCard>
-            </div>
+            {/* SearchDemo inserted in Task 3 */}
           </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 animate-bounce">
-          <span className="material-symbols-outlined text-xl text-slate-500">expand_more</span>
         </div>
       </section>
 
@@ -561,15 +484,14 @@ export default function Home() {
           </div>
 
           {/* Feature cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
             {features.map((f, i) => (
               <div key={i} className="feature-card">
                 <InteractiveFeatureCard>
-                  <div className="flex items-start justify-between mb-5">
+                  <div className="flex items-start justify-between mb-4 sm:mb-5">
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.gradient} flex items-center justify-center shadow-lg`}>
                       <span className="material-symbols-outlined text-2xl text-white">{f.icon}</span>
                     </div>
-                    {f.comingSoon && <ComingSoonBadge />}
                   </div>
                   <h3 className="text-lg font-bold text-white mb-3 font-[family-name:var(--font-manrope)]">{f.title}</h3>
                   <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
@@ -588,7 +510,7 @@ export default function Home() {
               Process
             </span>
             <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight mb-4">
-              <span className="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-white via-cyan-100 to-white bg-clip-text text-transparent">
                 {t.howItWorks.title}
               </span>
             </h2>
@@ -627,12 +549,10 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <span className="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 rounded-full text-xs font-bold uppercase tracking-widest text-violet-400 mb-4 border border-violet-500/20">
-              {t.pricing.title}
+              {t.nav.pricing}
             </span>
-            <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight mb-4">
-              <span className="bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                {t.pricing.title}
-              </span>
+            <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight mb-4 text-white">
+              {t.pricing.title}
             </h2>
             <p className="text-lg text-slate-500 max-w-xl mx-auto mb-8">{t.pricing.subtitle}</p>
 
@@ -666,7 +586,38 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
+            {/* Free */}
+            <div className="pricing-card">
+              <GlassCard>
+                <div className="mb-5">
+                  <h3 className="text-lg font-bold text-white mb-1 font-[family-name:var(--font-manrope)]">{t.pricing.free.name}</h3>
+                  <p className="text-sm text-slate-500">{t.pricing.free.desc}</p>
+                </div>
+                <div className="mb-6">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-4xl font-extrabold text-white font-[family-name:var(--font-manrope)]">
+                      {t.pricing.freeForever}
+                    </span>
+                  </div>
+                </div>
+                <ul className="space-y-2.5 mb-8">
+                  {t.pricing.free.features.map((f: string) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-slate-400">
+                      <span className="material-symbols-outlined text-sm text-cyan-400 mt-0.5 shrink-0">check_circle</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/signup"
+                  className="block w-full py-3 rounded-xl border border-white/[0.12] text-center font-bold text-sm text-slate-300 hover:bg-white/[0.06] transition-all"
+                >
+                  {t.pricing.free.cta}
+                </Link>
+              </GlassCard>
+            </div>
+
             {/* Starter */}
             <div className="pricing-card">
               <GlassCard>
@@ -804,17 +755,68 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ─── FAQ ─────────────────────────────────────────────── */}
+      <section className="relative py-24 sm:py-32">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12 sm:mb-16">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded-full text-xs font-bold uppercase tracking-widest text-emerald-400 mb-4 border border-emerald-500/20">
+              FAQ
+            </span>
+            <h2 className="font-[family-name:var(--font-manrope)] text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
+              {t.pricing.faq.title}
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+            {t.pricing.faq.items.map((item: { q: string; a: string }, i: number) => {
+              const isOpen = openFaqIndex === i;
+              return (
+                <div
+                  key={item.q}
+                  className="bg-white/[0.04] border border-white/[0.06] rounded-xl overflow-hidden"
+                >
+                  <button
+                    onClick={() => setOpenFaqIndex(isOpen ? null : i)}
+                    className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left cursor-pointer"
+                  >
+                    <span className="text-sm sm:text-base font-bold text-white">{item.q}</span>
+                    <span
+                      className={`material-symbols-outlined text-slate-400 shrink-0 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+                    >
+                      expand_more
+                    </span>
+                  </button>
+                  <motion.div
+                    initial={false}
+                    animate={{ height: isOpen ? "auto" : 0 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <p className="px-5 pb-4 text-sm text-slate-400 leading-relaxed">{item.a}</p>
+                  </motion.div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* ─── TRUST ───────────────────────────────────────────── */}
       <section className="py-16 sm:py-20 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+          <div className="flex flex-wrap justify-center gap-4">
             {t.trust.items.map((item: { icon: string; title: string; desc: string }, i: number) => (
-              <div key={i} className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl text-blue-400">{item.icon}</span>
+              <div
+                key={i}
+                className="flex flex-row items-center gap-4 text-left border border-white/[0.06] rounded-full px-5 py-3 bg-white/[0.02]"
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-lg text-blue-400">{item.icon}</span>
                 </div>
-                <h4 className="text-sm font-bold text-white">{item.title}</h4>
-                <p className="text-xs text-slate-500">{item.desc}</p>
+                <div>
+                  <h4 className="text-sm font-bold text-white">{item.title}</h4>
+                  <p className="text-xs text-slate-500">{item.desc}</p>
+                </div>
               </div>
             ))}
           </div>
