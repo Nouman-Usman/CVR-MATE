@@ -9,9 +9,9 @@ const da = {
     getStarted: "Kom i gang",
   },
   hero: {
-    headline: "Find nye kunder — før de begynder at lede efter dig.",
+    headline: "Først til at vide det. Først til at lukke aftalen.",
     description:
-      "CVR-MATE transformerer rå data til handlingsorienteret indsigt. Identificer købsklare virksomheder i realtid og boost din salgspipeline.",
+      "Vi holder øje med alle danske virksomheder og markerer, hvem der er klar til at købe — før nogen andre opdager det.",
     bookDemo: "Book en demo",
     explorePlatform: "Udforsk platformen",
     demo: {

@@ -9,9 +9,9 @@ const en = {
     getStarted: "Get started",
   },
   hero: {
-    headline: "Find new customers — before they start looking for you.",
+    headline: "First to know. First to close.",
     description:
-      "CVR-MATE transforms raw data into actionable insights. Identify purchase-ready companies in real time and boost your sales pipeline.",
+      "We watch every Danish company and flag who's ready to buy — before anyone else notices.",
     bookDemo: "Book a demo",
     explorePlatform: "Explore the platform",
     demo: {
