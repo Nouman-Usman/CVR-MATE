@@ -19,6 +19,81 @@ const HeroScene = dynamic(() => import("@/components/landing/hero-scene"), {
   loading: () => <div className="absolute inset-0 bg-[#0a0f1e]" />,
 });
 
+/* ─── Search Demo (scripted, illustrative — not a real search) ────── */
+
+const SearchDemo = () => {
+  const { t } = useLanguage();
+  const examples = t.hero.demo.examples;
+  const [exampleIndex, setExampleIndex] = useState(0);
+  const [typedChars, setTypedChars] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+
+  useEffect(() => {
+    const current = examples[exampleIndex].query;
+    let cancelled = false;
+
+    if (typedChars < current.length) {
+      const typeTimer = setTimeout(() => {
+        if (!cancelled) setTypedChars((c) => c + 1);
+      }, 70);
+      return () => {
+        cancelled = true;
+        clearTimeout(typeTimer);
+      };
+    }
+
+    const resultTimer = setTimeout(() => {
+      if (!cancelled) setShowResult(true);
+    }, 300);
+
+    const holdTimer = setTimeout(() => {
+      if (!cancelled) {
+        setShowResult(false);
+        setTypedChars(0);
+        setExampleIndex((i) => (i + 1) % examples.length);
+      }
+    }, 2200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(resultTimer);
+      clearTimeout(holdTimer);
+    };
+  }, [typedChars, exampleIndex, examples]);
+
+  const current = examples[exampleIndex];
+  const typedText = current.query.slice(0, typedChars);
+
+  return (
+    <div
+      aria-hidden="true"
+      className="w-full max-w-2xl bg-[#0a0f1e]/80 backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 shadow-2xl shadow-blue-900/20 text-left"
+    >
+      <div className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3">
+        <span className="material-symbols-outlined text-slate-500 text-xl">search</span>
+        <span className="font-mono text-base text-white">
+          {typedText}
+          <span className="inline-block w-[2px] h-5 bg-cyan-400 ml-0.5 align-middle animate-pulse" />
+        </span>
+      </div>
+
+      <div
+        className={`mt-3 flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl p-4 transition-opacity duration-300 ${
+          showResult ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <div className="flex flex-col">
+          <span className="font-semibold text-white text-sm sm:text-base">{current.query}</span>
+          <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
+            {current.industry}
+          </span>
+        </div>
+        <span className="material-symbols-outlined text-slate-500">arrow_forward</span>
+      </div>
+    </div>
+  );
+};
+
 /* ─── Glass Card ────────────────────────────────────────────────── */
 
 function GlassCard({ children, className = "", glow = false }: {
@@ -462,7 +537,7 @@ export default function Home() {
 
           {/* Visualization Area */}
           <div className="relative mt-8 flex items-center justify-center w-full max-w-4xl mx-auto">
-            {/* SearchDemo inserted in Task 3 */}
+            <SearchDemo />
           </div>
         </div>
       </section>
