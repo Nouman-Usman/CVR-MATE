@@ -19,51 +19,72 @@ const HeroScene = dynamic(() => import("@/components/landing/hero-scene"), {
   loading: () => <div className="absolute inset-0 bg-[#0a0f1e]" />,
 });
 
-/* ─── Live Signal Stream (scripted, illustrative — not real-time data) ─── */
+/* ─── Glass Dashboard Preview ─────────────────────────────────────── */
 
-const STREAM_ROWS = 3;
-const STREAM_ADVANCE_MS = 2500;
-
-const LiveSignalStream = () => {
+const GlassDashboard = () => {
   const { t } = useLanguage();
-  const items = t.hero.stream.items;
-  const [offset, setOffset] = useState(0);
+  const [frame, setFrame] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    const timer = setInterval(() => {
-      if (!cancelled) setOffset((o) => o + 1);
-    }, STREAM_ADVANCE_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
+    const interval = setInterval(() => {
+      setFrame((prev) => (prev + 1) % 100);
+    }, 50);
+    return () => clearInterval(interval);
   }, []);
 
-  const visible = Array.from({ length: STREAM_ROWS }, (_, i) => items[(offset + i) % items.length]);
+  const companies = [
+    { name: "TECHCORP A/S", industry: t.hero.appPreview.ind_saas, status: t.hero.appPreview.status_growth, score: 98, growth: 28 },
+    { name: "NORDIC BI", industry: t.hero.appPreview.ind_data, status: t.hero.appPreview.status_new, score: 92, growth: 15 },
+    { name: "DATAFLOW ApS", industry: t.hero.appPreview.ind_fintech, status: t.hero.appPreview.status_stable, score: 85, growth: 5 },
+  ];
 
   return (
-    <div
-      aria-hidden="true"
-      className="w-full max-w-xl flex flex-col gap-4 py-4"
-      style={{
-        maskImage: "linear-gradient(to bottom, transparent, black 25%, black 75%, transparent)",
-        WebkitMaskImage: "linear-gradient(to bottom, transparent, black 25%, black 75%, transparent)",
-      }}
-    >
-      {visible.map((item, i) => (
-        <div
-          key={`${offset}-${i}`}
-          className="flex items-center justify-center gap-3 transition-opacity duration-500"
-          style={{ opacity: 0.4 + (i / (STREAM_ROWS - 1)) * 0.6 }}
-        >
-          <span className="font-semibold text-white text-sm sm:text-base">{item.company}</span>
-          <span className="text-slate-600">·</span>
-          <span className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-            {item.signal}
-          </span>
+    <div className="w-full bg-[#0a0f1e]/80 backdrop-blur-2xl border border-white/[0.1] rounded-2xl p-6 shadow-2xl shadow-blue-900/20 text-left">
+      {/* Header */}
+      <div className="flex justify-between items-center border-b border-white/[0.1] pb-4">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
         </div>
-      ))}
+        <div className="font-mono text-xs text-slate-300 font-bold uppercase flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+          </span>
+          {t.hero.appPreview.liveFeed}
+        </div>
+      </div>
+      
+      {/* List */}
+      <div className="flex flex-col gap-3 pt-4">
+        {companies.map((c, i) => (
+          <div 
+            key={i} 
+            className="flex flex-col sm:flex-row justify-between sm:items-center bg-white/[0.03] border border-white/[0.05] rounded-xl p-4 hover:bg-white/[0.06] transition-all hover:scale-[1.02] gap-3"
+          >
+            <div className="flex flex-col">
+              <div className="font-semibold text-white text-sm sm:text-base">{c.name}</div>
+              <div className="font-mono text-[10px] text-cyan-400 font-bold uppercase tracking-wider">{c.industry}</div>
+            </div>
+            
+            <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+              <div className="w-28">
+                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" style={{ width: `${(c.growth / 30) * 100}%` }} />
+                </div>
+              </div>
+
+              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md uppercase ${
+                c.status === t.hero.appPreview.status_growth ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                c.status === t.hero.appPreview.status_new ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-white/5 text-slate-300 border border-white/10'
+              }`}>
+                {c.status}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -473,6 +494,13 @@ export default function Home() {
 
         {/* Content */}
         <div ref={heroTextRef} className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center pt-20">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/[0.06] backdrop-blur-sm rounded-full border border-white/[0.1] mb-8">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+              {t.hero.badge}
+            </span>
+          </div>
 
           {/* Headline */}
           <h1 className="font-[family-name:var(--font-manrope)] text-4xl sm:text-6xl lg:text-8xl font-extrabold leading-[1.05] tracking-tight mb-6">
@@ -508,11 +536,55 @@ export default function Home() {
             </Link>
           </div>
 
+          {/* Pills */}
+          <div className="flex flex-wrap justify-center gap-3 mb-16">
+            {t.hero.pills.map((pill: string) => (
+              <span
+                key={pill}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-full text-xs font-medium text-slate-400"
+              >
+                <span className="material-symbols-outlined text-xs text-cyan-400">check_circle</span>
+                {pill}
+              </span>
+            ))}
+          </div>
 
           {/* Visualization Area */}
           <div className="relative mt-8 flex items-center justify-center w-full max-w-4xl mx-auto">
-            <LiveSignalStream />
+            <div className="w-full max-w-2xl z-20">
+              <GlassDashboard />
+            </div>
+
+            {/* Floating Elements */}
+            <div className="absolute -top-8 -right-2 md:-right-4 lg:-right-12 hidden md:block z-30 animate-pulse" style={{ animationDuration: '4s' }}>
+              <GlassCard className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                  <span className="material-symbols-outlined text-xl text-emerald-400">trending_up</span>
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-slate-400 font-medium">{t.hero.appPreview.growthSignal}</div>
+                  <div className="text-lg font-bold text-white">{t.hero.appPreview.growthValue}</div>
+                </div>
+              </GlassCard>
+            </div>
+
+            <div className="absolute -bottom-6 -left-2 md:-left-4 lg:-left-12 hidden md:block z-30 animate-pulse" style={{ animationDuration: '5s', animationDelay: '0.5s' }}>
+              <GlassCard className="p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                  <span className="material-symbols-outlined text-xl text-cyan-400">database</span>
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-slate-400 font-medium">{t.hero.appPreview.liveFeed}</div>
+                  <div className="text-lg font-bold text-white">{t.hero.appPreview.liveValue}</div>
+                </div>
+              </GlassCard>
+            </div>
           </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 animate-bounce">
+          <span className="material-symbols-outlined text-xl text-slate-500">expand_more</span>
         </div>
       </section>
 
@@ -826,7 +898,6 @@ export default function Home() {
                 >
                   <button
                     onClick={() => setOpenFaqIndex(isOpen ? null : i)}
-                    aria-expanded={isOpen}
                     className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left cursor-pointer"
                   >
                     <span className="text-sm sm:text-base font-bold text-white">{item.q}</span>
