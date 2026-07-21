@@ -852,6 +852,7 @@ export default function Home() {
                 >
                   <button
                     onClick={() => setOpenFaqIndex(isOpen ? null : i)}
+                    aria-expanded={isOpen}
                     className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left cursor-pointer"
                   >
                     <span className="text-sm sm:text-base font-bold text-white">{item.q}</span>
