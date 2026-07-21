@@ -569,6 +569,31 @@ function SubscriptionSection() {
                     const colors = PLAN_COLORS[targetPlan] ?? PLAN_COLORS.free;
                     const price = billingInterval === "annual" ? annualPrices[targetPlan] : monthlyPrices[targetPlan];
                     const priceId = getPriceId(targetPlan, billingInterval);
+                    const isEnterprise = targetPlan === "enterprise";
+
+                    if (isEnterprise) {
+                      return (
+                        <a
+                          key="enterprise"
+                          href="mailto:dev@fourmates.dk"
+                          className="flex flex-col p-5 rounded-xl border-2 border-amber-200 hover:border-amber-400 hover:bg-amber-50/30 hover:shadow-md transition-all text-left group"
+                        >
+                          <div className="flex items-center justify-between w-full mb-3">
+                            <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700">
+                              Enterprise
+                            </span>
+                            <span className="material-symbols-outlined text-sm text-slate-300 group-hover:text-slate-500 transition-colors">mail</span>
+                          </div>
+                          <p className="text-base font-black text-slate-900 mb-0.5">
+                            {locale === "da" ? "Kontakt os" : "Contact us"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {planDescs[targetPlan]?.[locale === "da" ? "da" : "en"]}
+                          </p>
+                        </a>
+                      );
+                    }
+
                     return (
                       <button
                         key={targetPlan}
@@ -585,8 +610,6 @@ function SubscriptionSection() {
                         className={`flex flex-col p-5 rounded-xl border-2 transition-all text-left group ${
                           targetPlan === "professional"
                             ? "border-violet-200 hover:border-violet-400 hover:bg-violet-50/30"
-                            : targetPlan === "enterprise"
-                            ? "border-amber-200 hover:border-amber-400 hover:bg-amber-50/30"
                             : "border-blue-200 hover:border-blue-400 hover:bg-blue-50/30"
                         } hover:shadow-md cursor-pointer disabled:opacity-50`}
                       >

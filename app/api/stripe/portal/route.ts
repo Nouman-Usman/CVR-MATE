@@ -37,21 +37,6 @@ export async function POST() {
     }
 
     const stripe = getStripe();
-
-    // Same deleted-customer check as checkout: retrieve() resolves with
-    // { deleted: true } instead of throwing.
-    const customer = await stripe.customers.retrieve(sub.stripeCustomerId);
-    if (customer.deleted) {
-      await db
-        .update(subscription)
-        .set({ stripeCustomerId: null, stripeSubscriptionId: null, plan: "free", status: "canceled" })
-        .where(eq(subscription.id, sub.id));
-      return NextResponse.json(
-        { error: "No billing account found. You are on the Free plan." },
-        { status: 400 }
-      );
-    }
-
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: sub.stripeCustomerId,
       return_url: `${appUrl}/settings?tab=subscription`,

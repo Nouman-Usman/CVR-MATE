@@ -93,15 +93,10 @@ export async function POST(req: NextRequest) {
         .where(eq(subscription.id, existingSub.id));
     }
 
-    // Verify existing customer still exists in Stripe, create new one if not.
-    // Note: retrieve() does NOT throw for a deleted customer — it resolves
-    // with { deleted: true } instead — so both paths must be checked.
+    // Verify existing customer still exists in Stripe, create new one if not
     if (stripeCustomerId) {
       try {
-        const customer = await stripe.customers.retrieve(stripeCustomerId);
-        if (customer.deleted) {
-          stripeCustomerId = undefined;
-        }
+        await stripe.customers.retrieve(stripeCustomerId);
       } catch {
         // Customer was deleted from Stripe — clear it so we create a new one
         stripeCustomerId = undefined;

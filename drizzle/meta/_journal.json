@@ -169,20 +169,6 @@
       "when": 1780821047879,
       "tag": "0023_mute_nehzno",
       "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1784009042530,
-      "tag": "0024_natural_scarlet_witch",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1784009042531,
-      "tag": "0025_enable_rls_crm_tables",
-      "breakpoints": true
     }
   ]
 }

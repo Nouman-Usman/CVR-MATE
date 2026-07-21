@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
-import { eq, and, count, gte, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, count, gte, desc } from "drizzle-orm";
 import {
   savedCompany,
   savedSearch,
   leadTrigger,
   triggerResult,
   todo,
-  deal,
 } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { validateActiveOrg } from "@/lib/team/permissions";
 
 export async function GET() {
   try {
@@ -135,42 +133,6 @@ export async function GET() {
       if (recentCompanies.length >= 8) break;
     }
 
-    // Native-CRM pipeline metrics — additive and org-scoped. Omitted entirely
-    // when the user has no active org, so personal dashboards are unaffected.
-    let pipeline: {
-      byStatus: { status: string; total: number; count: number }[];
-      openValue: number;
-      openCount: number;
-    } | null = null;
-
-    const activeOrgId = await validateActiveOrg(
-      userId,
-      session.session?.activeOrganizationId
-    );
-    if (activeOrgId) {
-      const rows = await db
-        .select({
-          status: deal.status,
-          total: sql<string>`coalesce(sum(${deal.amount}), 0)`,
-          count: count(),
-        })
-        .from(deal)
-        .where(and(eq(deal.organizationId, activeOrgId), isNull(deal.deletedAt)))
-        .groupBy(deal.status);
-
-      const byStatus = rows.map((r) => ({
-        status: r.status,
-        total: Number(r.total),
-        count: r.count,
-      }));
-      const open = byStatus.find((r) => r.status === "open");
-      pipeline = {
-        byStatus,
-        openValue: open?.total ?? 0,
-        openCount: open?.count ?? 0,
-      };
-    }
-
     return NextResponse.json({
       stats: {
         savedCompanies: savedCompanyCount,
@@ -180,7 +142,6 @@ export async function GET() {
       },
       weeklyActivity,
       recentCompanies: recentCompanies.slice(0, 8),
-      ...(pipeline ? { pipeline } : {}),
     });
   } catch (error) {
     console.error("Dashboard stats error:", error);

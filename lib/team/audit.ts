@@ -16,11 +16,7 @@ export type AuditAction =
   | "role_changed"
   | "ownership_transferred"
   | "seat_limit_reached"
-  | "permission_denied"
-  // Native CRM security-relevant events
-  | "crm_contact_deleted"
-  | "crm_deal_deleted"
-  | "crm_data_exported";
+  | "permission_denied";
 
 interface LogOrgEventParams {
   organizationId: string;

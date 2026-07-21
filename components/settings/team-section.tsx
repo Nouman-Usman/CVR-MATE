@@ -18,7 +18,9 @@ import {
   useDeleteOrg,
   type OrgMember,
 } from "@/lib/hooks/use-team";
-import { Loader2, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, X, ChevronDown, ChevronUp, Mail } from "lucide-react";
+import { COMING_SOON_FEATURES } from "@/lib/constants";
+import { ComingSoonOverlay } from "@/components/ui/coming-soon";
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
@@ -163,6 +165,35 @@ export default function TeamSection() {
     "w-full bg-slate-50 border-none rounded-lg py-3 px-4 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 outline-none";
   const btnPrimary =
     "px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-full hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
+
+  // ── Coming Soon gate ──────────────────────────────────────────────────────
+  if (COMING_SOON_FEATURES.has("team")) {
+    return (
+      <div className={`${cardClass} relative`}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="material-symbols-outlined text-slate-400 text-xl">groups</span>
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">{st.title}</h2>
+        </div>
+        <p className="text-xs text-slate-400 mb-6">{st.subtitle}</p>
+
+        {/* Contact Us Button */}
+        <div className="mb-6">
+          <a
+            href="mailto:dev@fourmates.dk"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Contact Us
+          </a>
+        </div>
+
+        <ComingSoonOverlay
+          feature="team"
+          description="Team workspaces, role-based access, and audit logging are coming soon."
+        />
+      </div>
+    );
+  }
 
   // ── Plan gate — non-enterprise with no existing org ──────────────────────
   if (!isEnterprise && !org && !orgLoading) {

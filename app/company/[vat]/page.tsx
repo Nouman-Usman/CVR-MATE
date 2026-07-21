@@ -17,7 +17,6 @@ import { InlineLoader } from "@/components/loading-screen";
 import { useCompanyEnrichment, useSavedEnrichment, type CompanyEnrichment } from "@/lib/hooks/use-enrichment";
 import { useSubscription } from "@/lib/hooks/use-subscription";
 import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
-import CrmTab from "@/components/company/CrmTab";
 
 interface AccountingSummary {
   revenue?: number | null;
@@ -328,7 +327,7 @@ export default function CompanyDetailPage() {
   const saving = saveMutation.isPending || unsaveMutation.isPending;
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "financials" | "contact" | "people" | "ai-insights" | "crm"
+    "overview" | "financials" | "contact" | "people" | "ai-insights"
   >("overview");
 
   // AI features
@@ -406,15 +405,11 @@ export default function CompanyDetailPage() {
   };
 
   const ai = t.ai;
-  // Native CRM is an Enterprise/team feature — only surface the tab when the
-  // plan includes team features (the API enforces this regardless).
-  const hasCrm = sub?.limits.teamFeatures ?? false;
   const tabs = [
     { key: "overview" as const, label: cd.overview, icon: "info" },
     { key: "financials" as const, label: cd.financials, icon: "bar_chart" },
     { key: "contact" as const, label: cd.contact, icon: "call" },
     { key: "people" as const, label: cd.people, icon: "groups" },
-    ...(hasCrm ? [{ key: "crm" as const, label: "CRM", icon: "contacts" }] : []),
     { key: "ai-insights" as const, label: ai.enrichment.tab, icon: "psychology" },
   ];
 
@@ -1365,9 +1360,6 @@ export default function CompanyDetailPage() {
               )}
             </div>
           )}
-
-          {/* CRM Tab (Enterprise/team) */}
-          {activeTab === "crm" && <CrmTab vat={vat} />}
 
           {/* AI Insights Tab */}
           {activeTab === "ai-insights" && (() => {

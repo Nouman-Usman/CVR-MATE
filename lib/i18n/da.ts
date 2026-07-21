@@ -397,7 +397,6 @@ const da = {
       savedSearches: "Gemte søgninger",
       todos: "Opgaver",
       followedPeople: "Fulgte personer",
-      pipeline: "Pipeline",
       exports: "Eksport",
       settings: "Indstillinger",
     },

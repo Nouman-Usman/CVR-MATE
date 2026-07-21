@@ -1,7 +1,6 @@
 import "server-only";
 
 import { Redis } from "@upstash/redis";
-import { NextResponse } from "next/server";
 
 function createRedisClient(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -68,13 +67,4 @@ export async function checkRateLimit(
     }
     return { allowed: true, remaining: maxRequests, resetAt };
   }
-}
-
-/** Standard 429 response for a rejected `checkRateLimit`. */
-export function tooManyRequests(resetAt: number): NextResponse {
-  const retryAfterSec = resetAt ? Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)) : 60;
-  return NextResponse.json(
-    { error: "Too many requests. Please slow down.", retryAfter: retryAfterSec },
-    { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
-  );
 }
