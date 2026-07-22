@@ -1546,6 +1546,8 @@ const da = {
     notFound: "Virksomhed ikke fundet.",
     error: "Kunne ikke indlæse virksomhedsdata.",
     adProtected: "Reklamebeskyttet",
+    adProtectedTitle: "Markedsføring frabedt",
+    adProtectedDesc: "Registreret som reklamebeskyttet i CVR — virksomheden har frabedt sig uanmodet markedsføring. Brug den ikke til kold kanvas.",
     bankrupt: "Konkurs",
   },
   personDetail: {

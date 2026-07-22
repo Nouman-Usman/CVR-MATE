@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { signUp } from "@/lib/auth-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,7 +11,7 @@ export function InlineSignupForm({
   onSignedUp,
 }: {
   sessionId: string;
-  onSignedUp: (params: { userId: string; email: string }) => void;
+  onSignedUp: (params: { email: string }) => void;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,25 +25,28 @@ export function InlineSignupForm({
     setLoading(true);
 
     try {
-      const { data, error: authError } = await signUp.email({ email, password, name });
-      if (authError || !data?.user?.id) {
-        setError(authError?.message || "Sign up failed");
-        setLoading(false);
-        return;
-      }
-
+      // The route creates the account server-side (better-auth) and binds the
+      // trial in one step — the client never asserts an identity of its own.
       const res = await fetch("/api/chat-landing/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, name, email, password }),
       });
       if (!res.ok) {
-        setError("Something went wrong finishing signup. Please try again.");
+        // Surface the server's reason — a re-used session says so plainly
+        // instead of an unactionable "try again".
+        const data = await res.json().catch(() => null);
+        // A spent session (409) can never succeed again, so drop the cached id
+        // — a reload then starts a fresh chat instead of dead-ending forever.
+        if (res.status === 409) {
+          sessionStorage.removeItem("chat-landing-session-id");
+        }
+        setError(data?.error || "We couldn't finish setting up your trial. Please try again.");
         setLoading(false);
         return;
       }
 
-      onSignedUp({ userId: data.user.id, email });
+      onSignedUp({ email });
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);

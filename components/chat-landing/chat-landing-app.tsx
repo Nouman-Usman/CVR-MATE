@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageList, type ChatMessage } from "./message-list";
 import { ChatInput } from "./chat-input";
 import { MaskedPreviewCard } from "./masked-preview-card";
@@ -8,12 +8,6 @@ import { RecommendationBanner } from "./recommendation-banner";
 import { InlineSignupForm } from "./inline-signup-form";
 import type { PlanId } from "@/lib/stripe/plans";
 import type { MaskedCompanyPreview } from "@/lib/chat-landing/masking";
-
-const MONTHLY_PRICE_ID_BY_PLAN: Partial<Record<PlanId, string | undefined>> = {
-  starter: process.env.NEXT_PUBLIC_STRIPE_STARTER_MONTHLY_PRICE_ID,
-  professional: process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID,
-  enterprise: process.env.NEXT_PUBLIC_STRIPE_ENT_MONTHLY_PRICE_ID,
-};
 
 type Phase = "loading" | "chatting" | "recommended" | "signup" | "done";
 
@@ -25,6 +19,13 @@ const INITIAL_ASSISTANT_MESSAGE: ChatMessage = {
     "Hi! Tell me a bit about your business — what do you sell, and who are you trying to reach in Denmark?",
 };
 
+// Concrete ways in for a first-time visitor — each is a real opening message.
+const STARTER_PROMPTS = [
+  "We sell B2B software to Danish manufacturers",
+  "Recruitment agency looking for growing startups",
+  "I want to find companies by CVR number",
+];
+
 export function ChatLandingApp() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -32,7 +33,11 @@ export function ChatLandingApp() {
   const [isTyping, setIsTyping] = useState(false);
   const [recommendedPlan, setRecommendedPlan] = useState<PlanId | null>(null);
   const [preview, setPreview] = useState<MaskedCompanyPreview[]>([]);
+  const [signupEmail, setSignupEmail] = useState("");
   const [error, setError] = useState("");
+  // Synchronous lock — set before any await, so two clicks in the same tick
+  // (before isTyping re-renders) can't both start a turn.
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -55,7 +60,11 @@ export function ChatLandingApp() {
   }, []);
 
   const sendMessage = async (text: string) => {
-    if (!sessionId) return;
+    // Guard against a double-fire (chip + Enter, or a fast double-click before
+    // isTyping flips): one turn in flight at a time. The ref is the real lock;
+    // isTyping just drives the disabled UI.
+    if (!sessionId || inFlightRef.current) return;
+    inFlightRef.current = true;
     setError("");
     const updated = [...messages, { role: "user" as const, content: text }];
     setMessages(updated);
@@ -80,6 +89,7 @@ export function ChatLandingApp() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
+      inFlightRef.current = false;
       setIsTyping(false);
     }
   };
@@ -97,10 +107,39 @@ export function ChatLandingApp() {
       <MessageList messages={messages} isTyping={isTyping}>
         {error && <p className="text-sm text-red-400">{error}</p>}
 
+        {/* Starter prompts — only before the visitor has said anything */}
+        {phase === "chatting" && messages.length === 1 && !isTyping && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {STARTER_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                disabled={!sessionId || isTyping}
+                onClick={() => sendMessage(prompt)}
+                className="rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-[13px] text-slate-300 transition-colors hover:border-cyan-400/40 hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 disabled:opacity-50"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
+
         {phase === "done" && (
-          <p className="font-mono text-sm text-slate-400 animate-pulse">
-            &gt; setting up your trial, redirecting to checkout...
-          </p>
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.05] p-5">
+            <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
+              </span>
+              Account created
+            </p>
+            <p className="mt-2 text-[15px] font-semibold text-white">Check your email to activate your trial</p>
+            <p className="mt-1 text-sm text-slate-400">
+              We sent a verification link to{" "}
+              <span className="font-medium text-slate-200">{signupEmail}</span>. Confirm it and your
+              14-day trial starts — no charge today.
+            </p>
+          </div>
         )}
 
         {phase === "recommended" && recommendedPlan && sessionId && (
@@ -119,24 +158,12 @@ export function ChatLandingApp() {
         {phase === "signup" && sessionId && (
           <InlineSignupForm
             sessionId={sessionId}
-            onSignedUp={async () => {
+            onSignedUp={({ email }) => {
+              // Email verification is required, so the user is not logged in yet —
+              // we can't push them into Stripe checkout here. Confirm the account
+              // and route them to verify; the trial is recorded server-side.
+              setSignupEmail(email);
               setPhase("done");
-              const priceId = recommendedPlan ? MONTHLY_PRICE_ID_BY_PLAN[recommendedPlan] : undefined;
-              if (!priceId) {
-                window.location.href = "/settings";
-                return;
-              }
-              try {
-                const res = await fetch("/api/stripe/checkout", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ priceId }),
-                });
-                const data = await res.json();
-                window.location.href = data.url ?? "/settings";
-              } catch {
-                window.location.href = "/settings";
-              }
             }}
           />
         )}

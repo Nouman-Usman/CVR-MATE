@@ -1546,6 +1546,8 @@ const en = {
     notFound: "Company not found.",
     error: "Failed to load company data.",
     adProtected: "Ad-protected",
+    adProtectedTitle: "Marketing contact restricted",
+    adProtectedDesc: "Registered as ad-protected (reklamebeskyttet) in the CVR — this company has opted out of unsolicited marketing. Do not use it for cold outreach.",
     bankrupt: "Bankrupt",
   },
   personDetail: {

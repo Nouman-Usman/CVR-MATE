@@ -232,14 +232,19 @@ function InfoRow({
   value,
   href,
   badge,
+  mono,
 }: {
   icon: string;
   label: string;
   value: string | null | undefined;
   href?: string;
   badge?: { text: string; color: string } | null;
+  // Identifiers and figures (CVR, codes, dates) render in tabular mono —
+  // the same register data-language the header and stat strip use.
+  mono?: boolean;
 }) {
   const display = value || "–";
+  const valueType = mono ? "font-mono text-[13px] tabular-nums tracking-tight" : "text-sm font-medium";
   return (
     <div className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0">
       <span className="material-symbols-outlined text-lg text-slate-400 mt-0.5 shrink-0">
@@ -255,12 +260,12 @@ function InfoRow({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:text-blue-700 hover:underline break-all"
+              className={`text-blue-600 hover:text-blue-700 hover:underline break-all ${valueType}`}
             >
               {display}
             </a>
           ) : (
-            <p className="text-sm font-medium text-slate-800 break-all">
+            <p className={`text-slate-800 break-all ${valueType}`}>
               {display}
             </p>
           )}
@@ -277,6 +282,8 @@ function InfoRow({
   );
 }
 
+// One cell of the key-stats strip. Values are set in monospace tabular
+// figures — the register's data language — so numbers align and read as data.
 function StatCard({
   label,
   value,
@@ -287,18 +294,16 @@ function StatCard({
   icon: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-100 p-4 flex items-start gap-3">
-      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-        <span className="material-symbols-outlined text-blue-600 text-xl">
+    <div className="bg-white p-4 sm:p-5">
+      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        <span className="material-symbols-outlined text-[15px] text-slate-300">
           {icon}
         </span>
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          {label}
-        </p>
-        <p className="text-lg font-bold text-slate-900 truncate">{value}</p>
-      </div>
+        {label}
+      </p>
+      <p className="mt-2 truncate font-mono text-[22px] font-semibold tabular-nums tracking-tight text-slate-900">
+        {value}
+      </p>
     </div>
   );
 }
@@ -466,41 +471,22 @@ export default function CompanyDetailPage() {
               </span>
               {cd.backToSearch}
             </button>
+            {/* Action toolbar — one uniform set. The primary (Save) is a
+                single dark solid; everything else is a quiet white control.
+                No pill shapes, no per-button pastel tints. */}
             <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto">
               <button
                 onClick={() => setShowOutreach(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 w-full md:w-auto"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 md:w-auto"
               >
-                <span className="material-symbols-outlined text-lg">edit_note</span>
+                <span className="material-symbols-outlined text-[18px] text-slate-400">edit_note</span>
                 {ai.outreach.button}
               </button>
               <button
-                onClick={handleSaveToggle}
-                disabled={saving}
-                className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer disabled:opacity-50 w-full md:w-auto ${
-                  isSaved
-                    ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                }`}
-              >
-                <span
-                  className="material-symbols-outlined text-lg"
-                  style={
-                    isSaved
-                      ? { fontVariationSettings: "'FILL' 1" }
-                      : undefined
-                  }
-                >
-                  bookmark
-                </span>
-                {saving ? "..." : isSaved ? cd.saved : cd.save}
-              </button>
-
-              <button
                 onClick={() => { setShowQuickTask(true); setQuickTaskTitle(""); setQuickTaskPriority("medium"); setQuickTaskDue(""); }}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 w-full md:w-auto"
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 md:w-auto"
               >
-                <span className="material-symbols-outlined text-lg">task_alt</span>
+                <span className="material-symbols-outlined text-[18px] text-slate-400">task_alt</span>
                 {locale === "da" ? "Opret opgave" : "Create task"}
               </button>
 
@@ -510,12 +496,12 @@ export default function CompanyDetailPage() {
                   <button
                     onClick={() => !pushToCrm.isPending && setShowCrmMenu(!showCrmMenu)}
                     disabled={pushToCrm.isPending}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed w-full md:w-auto"
+                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
                   >
                     {pushToCrm.isPending ? (
-                      <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                      <span className="material-symbols-outlined text-[18px] text-slate-400 animate-spin">progress_activity</span>
                     ) : (
-                      <span className="material-symbols-outlined text-lg">sync</span>
+                      <span className="material-symbols-outlined text-[18px] text-slate-400">sync</span>
                     )}
                     {pushToCrm.isPending
                       ? (locale === "da" ? "Sender..." : "Pushing...")
@@ -524,7 +510,7 @@ export default function CompanyDetailPage() {
                   {showCrmMenu && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowCrmMenu(false)} />
-                      <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-xl shadow-xl border border-slate-100 py-2 min-w-[200px]">
+                      <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 min-w-[200px]">
                         {activeConnections.map((conn) => (
                           <button
                             key={conn.id}
@@ -563,6 +549,26 @@ export default function CompanyDetailPage() {
                   )}
                 </div>
               )}
+
+              {/* Primary action — dark solid when it's available to do,
+                  quiet white with a filled mark once done. */}
+              <button
+                onClick={handleSaveToggle}
+                disabled={saving}
+                className={`group inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg px-4 text-[13px] font-semibold transition-colors disabled:opacity-50 md:w-auto ${
+                  isSaved
+                    ? "border border-slate-200 bg-white text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    : "border border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+                }`}
+              >
+                <span
+                  className={`material-symbols-outlined text-[18px] ${isSaved ? "text-blue-600 group-hover:text-red-500" : "text-white"}`}
+                  style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                >
+                  bookmark
+                </span>
+                {saving ? "…" : isSaved ? cd.saved : cd.save}
+              </button>
             </div>
           </div>
 
@@ -590,11 +596,11 @@ export default function CompanyDetailPage() {
                   .toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)] mb-1">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 font-[family-name:var(--font-manrope)] mb-1.5">
                   {company.life.name}
                 </h1>
-                <div className="flex items-center gap-3 flex-wrap text-sm text-slate-500">
-                  <span className="tabular-nums font-medium">
+                <div className="flex items-center gap-2.5 flex-wrap text-sm text-slate-500">
+                  <span className="font-mono text-[13px] font-medium tabular-nums tracking-tight text-slate-600">
                     CVR {company.vat}
                   </span>
                   <span className="w-1 h-1 rounded-full bg-slate-300" />
@@ -605,7 +611,7 @@ export default function CompanyDetailPage() {
                   {company.address?.cityname && (
                     <>
                       <span className="w-1 h-1 rounded-full bg-slate-300" />
-                      <span>
+                      <span className="tabular-nums">
                         {company.address.zipcode} {company.address.cityname}
                       </span>
                     </>
@@ -623,7 +629,8 @@ export default function CompanyDetailPage() {
                     </span>
                   )}
                   {company.life?.adprotected && (
-                    <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-red-50 text-red-700 border border-red-200">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
                       {cd.adProtected}
                     </span>
                   )}
@@ -637,8 +644,28 @@ export default function CompanyDetailPage() {
             </div>
           </div>
 
-          {/* Key Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {/* Ad-protection is a compliance signal for a lead tool — the
+              company opted out of marketing contact — so it gets a real
+              banner, not just a badge. */}
+          {company.life?.adprotected && (
+            <div className="mb-6 flex items-start gap-3.5 rounded-2xl border border-amber-300/80 bg-amber-50 p-4 sm:p-5">
+              <span
+                className="material-symbols-outlined mt-0.5 shrink-0 text-[22px] text-amber-600"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                campaign
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-amber-900">{cd.adProtectedTitle}</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-amber-800/90">
+                  {cd.adProtectedDesc}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Key Stats — connected strip, hairline-divided like a data readout */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px mb-6 overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-200/70 shadow-sm">
             <StatCard
               label={cd.employees}
               value={
@@ -710,6 +737,7 @@ export default function CompanyDetailPage() {
                   icon="badge"
                   label={cd.cvr}
                   value={String(company.vat)}
+                  mono
                 />
                 <InfoRow
                   icon="business"
@@ -741,6 +769,7 @@ export default function CompanyDetailPage() {
                   icon="calendar_month"
                   label={cd.founded}
                   value={formatDate(company.life.start, locale)}
+                  mono
                 />
                 <InfoRow
                   icon="factory"
@@ -755,6 +784,7 @@ export default function CompanyDetailPage() {
                       ? String(company.industry.primary.code)
                       : null
                   }
+                  mono
                 />
               </div>
 
@@ -784,6 +814,7 @@ export default function CompanyDetailPage() {
                       ? String(company.address.zipcode)
                       : null
                   }
+                  mono
                 />
                 <InfoRow
                   icon="location_city"
