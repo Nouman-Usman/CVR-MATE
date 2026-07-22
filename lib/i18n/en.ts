@@ -9,43 +9,45 @@ const en = {
     getStarted: "Get started",
   },
   hero: {
-    badge: "B2B Lead Intelligence",
+    eyebrow: "The Danish Central Business Register",
     headline: "Find new customers — before they start looking for you.",
     description:
-      "CVR-MATE transforms raw data into actionable insights. Identify purchase-ready companies in real time and boost your sales pipeline.",
-    bookDemo: "Book a demo",
+      "Every Danish company is on file in the CVR register. Describe the ones you want, and we re-run that search on your schedule — newest first.",
     explorePlatform: "Explore the platform",
-    pills: [
-      "Live CVR updates",
-      "No lock-in period",
-    ],
-    stat: "Lead Conversion Velocity",
-    dashNewLeads: "New Leads",
-    dashGrowth: "Growth",
-    dashExport: "Export",
-    dashAutoSync: "Auto-sync active",
-    dashTopCompanies: "Top Companies",
-    dashSeeAll: "SEE ALL",
-    appPreview: {
-      liveFeed: "Live Feed",
-      growthSignal: "Growth Signal",
-      saaS_dk: "SaaS sector - Denmark",
-      speed: "42k/sec",
-      acc: "99.9% ACC",
-      growthValue: "Growing",
-      liveValue: "Active",
-      status_growth: "GROWING",
-      status_new: "NEW",
-      status_stable: "STABLE",
-      ind_saas: "SaaS",
-      ind_data: "Data",
-      ind_fintech: "Fintech",
+    card: {
+      fromTrigger: "From trigger",
+      triggers: {
+        transport: "New transport firms in Greater Copenhagen",
+        software: "Software companies in Aarhus",
+        metal: "Metal industry in South Denmark",
+      },
+      director: "Director",
+      employees: "Employees",
+      revenue: "Revenue",
+      profit: "Profit",
+      sample: "Sample data — not a real company",
+      next: "Next card",
+      stampNew: "NEW",
+      stampActive: "ON FILE",
+      industries: {
+        transport: "494100 Road freight transport",
+        software: "620100 Software development",
+        metal: "251100 Metal structures",
+      },
     },
   },
   features: {
     title: "Everything you need to find your next customer",
     subtitle:
       "One workspace connecting live CVR data, AI analysis, and outreach — no CRM required to get started.",
+    groups: {
+      find: "Find",
+      understand: "Understand",
+      act: "Act",
+      watch: "Watch",
+    },
+    filed: "filed",
+    sources: { cvr: "CVR", ai: "AI", app: "App" },
     items: [
       {
         title: "Instant CVR search",
@@ -53,7 +55,7 @@ const en = {
       },
       {
         title: "AI company briefings",
-        desc: "Gemini reads financials, ownership, and recent changes for you and writes a plain-English briefing — no spreadsheets, no digging.",
+        desc: "The AI reads financials, ownership, and recent changes for you and writes a plain-English briefing — no spreadsheets, no digging.",
       },
       {
         title: "Natural-language search",
@@ -65,11 +67,11 @@ const en = {
       },
       {
         title: "Lead triggers & monitoring",
-        desc: "Set a trigger on a company or sector and get notified automatically when something changes — new management, financial filings, or growth signals.",
+        desc: "Save a search as a trigger — industry, region, size, company form — and it re-runs daily or weekly, surfacing the newest matches for you.",
       },
       {
         title: "Real-time notifications",
-        desc: "Live updates land in-app the moment they happen, with an email digest option so nothing important gets missed between sessions.",
+        desc: "Every trigger run drops its matches in the app, with an optional email summary, so nothing waits for you to remember to check.",
       },
       {
         title: "Saved companies & searches",
@@ -149,28 +151,37 @@ const en = {
     quoteRole: "Head of Sales, NordicTech",
   },
   howItWorks: {
-    title: "The Path to Intelligence",
-    subtitle: "Four steps to a fully automated lead machine.",
+    title: "How it works",
+    subtitle: "Set it up once. After that it runs on your schedule.",
+    phases: {
+      setup: "Set up once",
+      run: "Runs on your schedule",
+    },
+    cadence: "daily or weekly",
     steps: [
       {
         num: "01",
-        title: "Identify",
-        desc: "The system monitors all Danish businesses for signals and changes.",
+        title: "Define",
+        desc: "Describe your ideal customer as a CVR search — industry, region, size, and company form.",
+        artifact: "Industry · Region · Size",
       },
       {
         num: "02",
-        title: "Filter",
-        desc: "Your specific ICP (Ideal Customer Profile) criteria are applied automatically.",
+        title: "Save as trigger",
+        desc: "Save the search as a trigger and choose whether it runs daily or weekly.",
+        artifact: "Daily / Weekly",
       },
       {
         num: "03",
-        title: "Deliver",
-        desc: "Enriched leads with contact info and context are sent directly to your dashboard.",
+        title: "Review",
+        desc: "Each run drops the newest matches in the app with an optional email summary — newest first.",
+        artifact: "12 new matches · today",
       },
       {
         num: "04",
-        title: "Activate",
-        desc: "Export to CRM or start your outreach with a single click.",
+        title: "Act",
+        desc: "Open a company for an AI briefing, draft outreach, or export straight to your CRM.",
+        artifact: "AI briefing · CRM export",
       },
     ],
   },
@@ -283,6 +294,8 @@ const en = {
     },
   },
   trust: {
+    heading: "Verified data source",
+    source: "Danish Business Authority · Central Business Register",
     items: [
       {
         icon: "api",
@@ -292,7 +305,7 @@ const en = {
       {
         icon: "database",
         title: "Reliable Data",
-        desc: "99.9% uptime on all data streams.",
+        desc: "Continuously updated, straight from the register.",
       },
       {
         icon: "workflow",
@@ -302,6 +315,8 @@ const en = {
     ],
   },
   cta: {
+    eyebrow: "Ready when you are",
+    stamp: "READY",
     title: "Build a smarter B2B pipeline today.",
     subtitle:
       "Join Danish companies already prospecting smarter with CVR-MATE.",
@@ -1102,6 +1117,8 @@ const en = {
       nextBilling: "Next billing date",
       cancelNotice: "Your plan will be canceled at the end of the billing period.",
       pastDueWarning: "Your payment failed. Please update your payment method to keep your plan.",
+      trialBanner: "Trial ends in {days} days.",
+      trialBannerLastDay: "Trial ends today.",
       freePlan: "You are on the Free plan with limited features.",
       updatePayment: "Update payment",
       perMonth: "/mo",

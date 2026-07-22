@@ -780,9 +780,11 @@ export const subscription = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     stripePriceId: text("stripe_price_id"),
     plan: text("plan").default("free").notNull(), // 'free' | 'starter' | 'professional' | 'enterprise'
-    status: text("status").default("active").notNull(), // 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete'
+    status: text("status").default("active").notNull(), // 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'trialing'
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    trialStart: timestamp("trial_start", { withTimezone: true }),
+    trialEnd: timestamp("trial_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
     pendingPlanChange: text("pending_plan_change"), // null when no change pending; set by change-plan, cleared by webhook
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -797,6 +799,35 @@ export const subscription = pgTable(
     uniqueIndex("subscription_stripe_sub_idx").on(table.stripeSubscriptionId),
     index("subscription_plan_idx").on(table.plan),
     index("subscription_status_idx").on(table.status),
+  ]
+);
+
+// ─── CHAT LANDING SESSION (start.cvr-mate.dk ad-traffic chat) ──────────────
+
+export const chatLandingSession = pgTable(
+  "chat_landing_session",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    transcript: jsonb("transcript").default([]).notNull(), // { role, content }[]
+    qualifyingAnswers: jsonb("qualifying_answers").default({}).notNull(),
+    recommendedPlan: text("recommended_plan"),
+    previewCompanyVats: jsonb("preview_company_vats").default([]), // number[]
+    previewCompanySnapshot: jsonb("preview_company_snapshot"), // unmasked, server-only
+    signupUserId: text("signup_user_id").references(() => user.id, { onDelete: "set null" }),
+    signupEmail: text("signup_email"),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    slackNotifiedAt: timestamp("slack_notified_at", { withTimezone: true }),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("chat_landing_session_signup_user_idx").on(table.signupUserId),
+    index("chat_landing_session_created_idx").on(table.createdAt),
   ]
 );
 

@@ -169,6 +169,20 @@
       "when": 1780821047879,
       "tag": "0023_mute_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784632753804,
+      "tag": "0024_pink_firebrand",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784698423028,
+      "tag": "0025_enable_rls_public_tables",
+      "breakpoints": true
     }
   ]
 }

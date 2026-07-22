@@ -156,6 +156,10 @@ function SubscriptionSection() {
   const isPaid = plan !== "free";
   const isPastDue = data?.status === "past_due";
   const isCanceling = data?.cancelAtPeriodEnd === true;
+  const isTrialing = data?.status === "trialing";
+  const trialDaysLeft = data?.trialEnd
+    ? Math.max(0, Math.ceil((new Date(data.trialEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : null;
 
   const nextBillingDate = data?.currentPeriodEnd
     ? new Date(data.currentPeriodEnd).toLocaleDateString(
@@ -222,6 +226,19 @@ function SubscriptionSection() {
                   {sub.updatePayment as string}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Trial banner */}
+          {isTrialing && trialDaysLeft !== null && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+              <span className="material-symbols-outlined text-blue-500 text-lg mt-0.5 shrink-0">schedule</span>
+              <p className="text-sm font-semibold text-blue-700">
+                {(trialDaysLeft <= 0
+                  ? (sub.trialBannerLastDay as string)
+                  : (sub.trialBanner as string).replace("{days}", String(trialDaysLeft))
+                )}
+              </p>
             </div>
           )}
 

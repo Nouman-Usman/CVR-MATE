@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { readTrialOriginCookie, clearTrialOriginCookie } from "@/lib/chat-landing/trial-cookie";
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
     // When cancelAtPeriodEnd === true, checkout is allowed (user canceled and wants a new plan).
     if (
       existingSub?.stripeSubscriptionId &&
-      existingSub.status === "active" &&
+      (existingSub.status === "active" || existingSub.status === "trialing") &&
       !existingSub.cancelAtPeriodEnd
     ) {
       return NextResponse.json(
@@ -132,6 +133,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const isChatLandingTrial = readTrialOriginCookie(req) !== null;
+
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: "subscription",
@@ -142,6 +145,7 @@ export async function POST(req: NextRequest) {
       metadata: { userId },
       subscription_data: {
         metadata: { userId },
+        ...(isChatLandingTrial ? { trial_period_days: 14 } : {}),
       },
       allow_promotion_codes: true,
     });
@@ -153,7 +157,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ url: checkoutSession.url });
+    const response = NextResponse.json({ url: checkoutSession.url });
+    if (isChatLandingTrial) clearTrialOriginCookie(response);
+    return response;
   } catch (error) {
     console.error("Stripe checkout error:", error);
     const message = error instanceof Error ? error.message : "Failed to create checkout";

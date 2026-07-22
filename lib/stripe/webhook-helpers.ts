@@ -10,7 +10,7 @@ export const STATUS_MAP: Record<string, string> = {
   unpaid: "unpaid",
   incomplete: "incomplete",
   incomplete_expired: "canceled",
-  trialing: "incomplete",
+  trialing: "trialing",
   paused: "past_due",
 };
 
@@ -67,6 +67,8 @@ export function subscriptionDataFromStripe(stripeSub: Stripe.Subscription) {
     status,
     currentPeriodStart: period.start,
     currentPeriodEnd: period.end,
+    trialStart: stripeSub.trial_start ? new Date(stripeSub.trial_start * 1000) : null,
+    trialEnd: stripeSub.trial_end ? new Date(stripeSub.trial_end * 1000) : null,
     cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
   };
 }

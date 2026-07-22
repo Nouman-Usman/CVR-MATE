@@ -17,6 +17,7 @@ export interface SubscriptionData {
   currency: string;
   status: string;
   currentPeriodEnd: string | null;
+  trialEnd: string | null;
   cancelAtPeriodEnd: boolean;
   stripePriceId: string | null;
   billingInterval: "monthly" | "annual";

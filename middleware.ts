@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/get-client-ip";
 
 // ─── Rate limiting for invite pages (prevents invitation ID enumeration) ────
 
@@ -56,10 +57,19 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isLoggedIn = hasSessionCookie(req);
 
+  // Chat-first landing page: rewrite the ad-traffic subdomain to /start
+  const CHAT_LANDING_HOSTNAME = process.env.CHAT_LANDING_HOSTNAME || "start.cvr-mate.dk";
+  const hostname = req.headers.get("host")?.split(":")[0];
+  if (hostname === CHAT_LANDING_HOSTNAME && !pathname.startsWith("/api/chat-landing")) {
+    const url = req.nextUrl.clone();
+    url.pathname = pathname === "/" ? "/start" : `/start${pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
   // Rate limit /invite/* and /api/team/invitations/*/details to prevent enumeration
   if (pathname.startsWith("/invite/") || pathname.includes("/invitations/") && pathname.includes("/details")) {
     maybeCleanupRateMap();
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    const ip = getClientIp(req);
     if (!checkInviteRateLimit(ip)) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -113,5 +123,6 @@ export const config = {
     "/signup",
     "/invite/:path*",
     "/api/team/invitations/:path*/details",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
