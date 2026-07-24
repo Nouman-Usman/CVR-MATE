@@ -3,10 +3,10 @@ import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { chatLandingSession } from "@/db/schema";
-import { and, eq, ne, or, isNotNull } from "drizzle-orm";
+import { and, eq, ne, or, isNotNull, gt } from "drizzle-orm";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
-import { setTrialOriginCookie } from "@/lib/chat-landing/trial-cookie";
+import { grantChatLandingTrial } from "@/lib/chat-landing/grant-trial";
 import { notifySlackChatLandingSignup } from "@/lib/slack";
 
 export async function POST(req: NextRequest) {
@@ -49,19 +49,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // One trial per email and per network. `email` here is only a lookup key for
-    // prior conversions, not an identity claim — the authoritative identity comes
-    // from the account we create below.
+    // Anti-farming: one trial per email (ever), and a cap per network within a
+    // rolling window. `email` here is only a lookup key for prior conversions,
+    // not an identity claim — the authoritative identity comes from the account
+    // we create below.
+    //
+    // The IP check is windowed (not permanent) and skips loopback: a permanent
+    // per-IP ban wrongly locks out whole offices behind one NAT, and on
+    // localhost every request shares ::1, which would block all dev signups
+    // after the first.
     const normalizedEmail = email.trim().toLowerCase();
-    const ipKnown = ip && ip !== "unknown";
-    const dupMatch = ipKnown
-      ? or(eq(chatLandingSession.signupEmail, normalizedEmail), eq(chatLandingSession.ipAddress, ip))
-      : eq(chatLandingSession.signupEmail, normalizedEmail);
+    const LOOPBACK = new Set(["::1", "127.0.0.1", "::ffff:127.0.0.1"]);
+    const ipUsable = Boolean(ip) && ip !== "unknown" && !LOOPBACK.has(ip);
+    const IP_DEDUP_WINDOW = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const dupClauses = [eq(chatLandingSession.signupEmail, normalizedEmail)];
+    if (ipUsable) {
+      dupClauses.push(
+        and(
+          eq(chatLandingSession.ipAddress, ip),
+          gt(chatLandingSession.convertedAt, IP_DEDUP_WINDOW)
+        )!
+      );
+    }
+
     const priorConversion = await db.query.chatLandingSession.findFirst({
       where: and(
         ne(chatLandingSession.id, sessionId),
         isNotNull(chatLandingSession.convertedAt),
-        dupMatch
+        or(...dupClauses)
       ),
       columns: { id: true },
     });
@@ -102,8 +118,19 @@ export async function POST(req: NextRequest) {
       })
       .where(eq(chatLandingSession.id, sessionId));
 
+    // Grant the trial directly — no Checkout redirect (email verification would
+    // block it). Best-effort: a Stripe failure must not fail the whole signup.
+    try {
+      await grantChatLandingTrial({
+        userId: createdUser.id,
+        email: createdUser.email,
+        plan: sessionRow.recommendedPlan,
+      });
+    } catch (err) {
+      console.error("chat-landing trial grant failed:", err);
+    }
+
     const response = NextResponse.json({ success: true });
-    setTrialOriginCookie(response, sessionId);
 
     notifySlackChatLandingSignup({
       email: createdUser.email,

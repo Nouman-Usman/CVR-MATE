@@ -94,6 +94,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       assistantMessage: aiResult.assistantMessage,
+      // Tappable answers for the next turn — suppressed once we recommend,
+      // since the recommendation UI takes over the conversation from here.
+      suggestedReplies: readyToRecommend ? [] : (aiResult.suggestedReplies ?? []).slice(0, 3),
       readyToRecommend,
       recommendedPlan,
       preview: maskedPreview,

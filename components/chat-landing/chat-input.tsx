@@ -38,7 +38,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           rows={1}
-          placeholder="Describe your business, or paste a CVR number..."
+          placeholder="Type your own answer…"
           className="resize-none min-h-[46px] max-h-32 bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 rounded-xl focus-visible:border-cyan-400/50 focus-visible:ring-cyan-400/20"
         />
         <Button

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageList, type ChatMessage } from "./message-list";
 import { ChatInput } from "./chat-input";
+import { SuggestedReplies } from "./suggested-replies";
 import { MaskedPreviewCard } from "./masked-preview-card";
 import { RecommendationBanner } from "./recommendation-banner";
 import { InlineSignupForm } from "./inline-signup-form";
@@ -13,13 +14,16 @@ type Phase = "loading" | "chatting" | "recommended" | "signup" | "done";
 
 const SESSION_STORAGE_KEY = "chat-landing-session-id";
 
+// Roughly how many questions the intake asks — drives the progress meter only.
+const INTAKE_QUESTIONS = 5;
+
 const INITIAL_ASSISTANT_MESSAGE: ChatMessage = {
   role: "assistant",
   content:
     "Hi! Tell me a bit about your business — what do you sell, and who are you trying to reach in Denmark?",
 };
 
-// Concrete ways in for a first-time visitor — each is a real opening message.
+// Seed replies for the opening question, before the AI starts suggesting its own.
 const STARTER_PROMPTS = [
   "We sell B2B software to Danish manufacturers",
   "Recruitment agency looking for growing startups",
@@ -31,6 +35,7 @@ export function ChatLandingApp() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_ASSISTANT_MESSAGE]);
   const [isTyping, setIsTyping] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(STARTER_PROMPTS);
   const [recommendedPlan, setRecommendedPlan] = useState<PlanId | null>(null);
   const [preview, setPreview] = useState<MaskedCompanyPreview[]>([]);
   const [signupEmail, setSignupEmail] = useState("");
@@ -59,6 +64,8 @@ export function ChatLandingApp() {
   const sendMessage = async (text: string) => {
     if (!sessionId) return;
     setError("");
+    // Chips vanish the moment an answer is chosen or typed, Claude-style.
+    setSuggestions([]);
     const updated = [...messages, { role: "user" as const, content: text }];
     setMessages(updated);
     setIsTyping(true);
@@ -73,6 +80,7 @@ export function ChatLandingApp() {
       if (!res.ok) throw new Error(data.error || "Something went wrong");
 
       setMessages([...updated, { role: "assistant", content: data.assistantMessage }]);
+      setSuggestions(data.suggestedReplies ?? []);
 
       if (data.readyToRecommend) {
         setRecommendedPlan(data.recommendedPlan);
@@ -88,36 +96,45 @@ export function ChatLandingApp() {
 
   if (phase === "loading") {
     return (
-      <div className="flex-1 flex items-center justify-center font-mono text-sm text-slate-500">
-        Connecting...
+      <div className="flex h-full flex-1 items-center justify-center font-mono text-sm text-slate-500">
+        Connecting…
       </div>
     );
   }
 
+  const userTurns = messages.filter((m) => m.role === "user").length;
+  const progress =
+    phase === "chatting" ? Math.min(userTurns / INTAKE_QUESTIONS, 0.92) : 1;
+  const showProgress = phase === "chatting" || phase === "recommended";
+
   return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto w-full">
+    <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
+      {/* Intake meter — an ambient sense of progress, no scary "5 questions" */}
+      {showProgress && (
+        <div className="shrink-0 px-4 pt-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-slate-500">
+              Building your profile
+            </span>
+            <div className="h-px flex-1 overflow-hidden bg-white/8">
+              <div
+                className="h-full bg-linear-to-r from-blue-500 to-cyan-400 transition-[width] duration-700 ease-out"
+                style={{ width: `${progress * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <MessageList messages={messages} isTyping={isTyping}>
         {error && <p className="text-sm text-red-400">{error}</p>}
 
-        {/* Starter prompts — only before the visitor has said anything */}
-        {phase === "chatting" && messages.length === 1 && !isTyping && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {STARTER_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                disabled={!sessionId}
-                onClick={() => sendMessage(prompt)}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-[13px] text-slate-300 transition-colors hover:border-cyan-400/40 hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 disabled:opacity-50"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
+        {phase === "chatting" && !isTyping && (
+          <SuggestedReplies options={suggestions} onPick={sendMessage} disabled={!sessionId} />
         )}
 
         {phase === "done" && (
-          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.05] p-5">
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-5">
             <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
               <span className="relative flex size-1.5">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -125,11 +142,13 @@ export function ChatLandingApp() {
               </span>
               Account created
             </p>
-            <p className="mt-2 text-[15px] font-semibold text-white">Check your email to activate your trial</p>
+            <p className="mt-2 text-[15px] font-semibold text-white">
+              Your 14-day trial is active — no charge today
+            </p>
             <p className="mt-1 text-sm text-slate-400">
               We sent a verification link to{" "}
-              <span className="font-medium text-slate-200">{signupEmail}</span>. Confirm it and your
-              14-day trial starts — no charge today.
+              <span className="font-medium text-slate-200">{signupEmail}</span>. Confirm it to log in
+              and start using CVR-MATE.
             </p>
           </div>
         )}
@@ -151,9 +170,6 @@ export function ChatLandingApp() {
           <InlineSignupForm
             sessionId={sessionId}
             onSignedUp={({ email }) => {
-              // Email verification is required, so the user is not logged in yet —
-              // we can't push them into Stripe checkout here. Confirm the account
-              // and route them to verify; the trial is recorded server-side.
               setSignupEmail(email);
               setPhase("done");
             }}
