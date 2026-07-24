@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { MessageList, type ChatMessage } from "./message-list";
 import { ChatInput } from "./chat-input";
 import { MaskedPreviewCard } from "./masked-preview-card";
@@ -35,9 +35,6 @@ export function ChatLandingApp() {
   const [preview, setPreview] = useState<MaskedCompanyPreview[]>([]);
   const [signupEmail, setSignupEmail] = useState("");
   const [error, setError] = useState("");
-  // Synchronous lock — set before any await, so two clicks in the same tick
-  // (before isTyping re-renders) can't both start a turn.
-  const inFlightRef = useRef(false);
 
   useEffect(() => {
     const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -60,11 +57,7 @@ export function ChatLandingApp() {
   }, []);
 
   const sendMessage = async (text: string) => {
-    // Guard against a double-fire (chip + Enter, or a fast double-click before
-    // isTyping flips): one turn in flight at a time. The ref is the real lock;
-    // isTyping just drives the disabled UI.
-    if (!sessionId || inFlightRef.current) return;
-    inFlightRef.current = true;
+    if (!sessionId) return;
     setError("");
     const updated = [...messages, { role: "user" as const, content: text }];
     setMessages(updated);
@@ -89,7 +82,6 @@ export function ChatLandingApp() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      inFlightRef.current = false;
       setIsTyping(false);
     }
   };
@@ -114,7 +106,7 @@ export function ChatLandingApp() {
               <button
                 key={prompt}
                 type="button"
-                disabled={!sessionId || isTyping}
+                disabled={!sessionId}
                 onClick={() => sendMessage(prompt)}
                 className="rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-[13px] text-slate-300 transition-colors hover:border-cyan-400/40 hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 disabled:opacity-50"
               >
