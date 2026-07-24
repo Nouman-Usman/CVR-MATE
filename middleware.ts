@@ -58,7 +58,7 @@ export function middleware(req: NextRequest) {
   const isLoggedIn = hasSessionCookie(req);
 
   // Chat-first landing page: rewrite the ad-traffic subdomain to /start
-  const CHAT_LANDING_HOSTNAME = process.env.CHAT_LANDING_HOSTNAME || "start.cvr-mate.dk";
+  const CHAT_LANDING_HOSTNAME = process.env.NEXT_PUBLIC_CHAT_LANDING_HOSTNAME || "start.cvr-mate.dk";
   const hostname = req.headers.get("host")?.split(":")[0];
   if (hostname === CHAT_LANDING_HOSTNAME && !pathname.startsWith("/api/chat-landing")) {
     const url = req.nextUrl.clone();
