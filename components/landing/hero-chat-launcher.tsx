@@ -11,6 +11,11 @@ import { useLanguage } from "@/lib/i18n/language-context";
    the highest-intent way onto the qualified path.
 ─────────────────────────────────────────────────────────────────── */
 
+// The chat lives on its own subdomain in production (start.cvr-mate.dk). This
+// is a client component, so it needs the public mirror of CHAT_LANDING_HOSTNAME;
+// unset (local/dev) falls back to the /start path on the current origin.
+const CHAT_HOST = process.env.NEXT_PUBLIC_CHAT_LANDING_HOSTNAME;
+
 export function HeroChatLauncher() {
   const { t } = useLanguage();
   const router = useRouter();
@@ -19,7 +24,13 @@ export function HeroChatLauncher() {
 
   const launch = (text: string) => {
     const trimmed = text.trim();
-    router.push(trimmed ? `/start?q=${encodeURIComponent(trimmed)}` : "/start");
+    const query = trimmed ? `?q=${encodeURIComponent(trimmed)}` : "";
+    if (CHAT_HOST) {
+      // Cross-subdomain — a full navigation to the chat host, not an app route.
+      window.location.href = `https://${CHAT_HOST}/${query}`;
+    } else {
+      router.push(`/start${query}`);
+    }
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -32,7 +43,7 @@ export function HeroChatLauncher() {
   return (
     <div className="max-w-[42ch]">
       {/* Input styled like the chat's own composer */}
-      <div className="relative flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.04] p-2 pl-4 backdrop-blur-md transition-colors focus-within:border-cyan-400/50">
+      <div className="relative flex items-center gap-2 rounded-2xl border border-white/12 bg-white/4 p-2 pl-4 backdrop-blur-md transition-colors focus-within:border-cyan-400/50">
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -44,7 +55,7 @@ export function HeroChatLauncher() {
         <button
           type="button"
           onClick={() => launch(value)}
-          className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-bold text-white transition-shadow hover:shadow-lg hover:shadow-cyan-500/25"
+          className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-linear-to-r from-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-bold text-white transition-shadow hover:shadow-lg hover:shadow-cyan-500/25"
         >
           {l.start}
           <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-0.5">
@@ -60,7 +71,7 @@ export function HeroChatLauncher() {
             key={prompt}
             type="button"
             onClick={() => launch(prompt)}
-            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] text-slate-300 transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
+            className="rounded-full border border-white/10 bg-white/3 px-3 py-1.5 text-[12px] text-slate-300 transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/6 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
           >
             {prompt}
           </button>
