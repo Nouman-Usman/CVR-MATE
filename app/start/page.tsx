@@ -1,7 +1,14 @@
 import { ChatLandingApp } from "@/components/chat-landing/chat-landing-app";
 import { LogoFull } from "@/components/logo";
 
-export default function ChatLandingPage() {
+export default async function ChatLandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
+  const { q } = await searchParams;
+  const seed = (Array.isArray(q) ? q[0] : q)?.slice(0, 500) || undefined;
+
   return (
     <main className="relative flex h-screen flex-col overflow-hidden bg-[#0a0f1e] text-white">
       {/* Site-standard atmosphere, weighted to focus the centre column */}
@@ -34,7 +41,7 @@ export default function ChatLandingPage() {
       </header>
 
       <div className="relative z-20 min-h-0 flex-1">
-        <ChatLandingApp />
+        <ChatLandingApp seed={seed} />
       </div>
     </main>
   );

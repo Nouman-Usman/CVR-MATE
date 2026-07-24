@@ -14,6 +14,16 @@ const da = {
     description:
       "Hver dansk virksomhed står i CVR-registret. Beskriv dem, du vil have fat i, så kører vi søgningen igen efter din plan — nyeste først.",
     explorePlatform: "Udforsk platformen",
+    launcher: {
+      placeholder: "Beskriv din virksomhed, eller indsæt et CVR-nummer…",
+      start: "Start",
+      caption: "Svar på et par hurtige spørgsmål — få en plan og live virksomhedsmatch på under et minut.",
+      prompts: [
+        "Vi sælger B2B-software til producenter",
+        "Rekrutteringsbureau i København",
+        "Find virksomheder via CVR-nummer",
+      ],
+    },
     card: {
       fromTrigger: "Fra trigger",
       triggers: {

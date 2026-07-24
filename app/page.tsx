@@ -9,6 +9,7 @@ import { LogoFull } from "@/components/logo";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { HeroKartotek } from "@/components/landing/hero-kartotek";
+import { HeroChatLauncher } from "@/components/landing/hero-chat-launcher";
 import { FeatureDrawer } from "@/components/landing/feature-drawer";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { PricingCards } from "@/components/landing/pricing-cards";
@@ -358,19 +359,12 @@ export default function Home() {
               {t.hero.description}
             </p>
 
-            <div className="mt-10 flex flex-wrap items-center gap-x-7 gap-y-4">
-              <Link
-                href="/signup"
-                className="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl px-7 py-3.5 text-base font-bold"
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 transition-transform group-hover:scale-105" />
-                <span className="relative z-10 flex items-center gap-2">
-                  {t.nav.getStarted}
-                  <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-0.5">
-                    arrow_forward
-                  </span>
-                </span>
-              </Link>
+            {/* Primary action: start the conversation, seeded into the funnel */}
+            <div className="mt-9">
+              <HeroChatLauncher />
+            </div>
+
+            <div className="mt-6">
               <Link
                 href="#how-it-works"
                 className="text-sm font-medium text-slate-400 underline decoration-white/20 underline-offset-[6px] transition-colors hover:text-white hover:decoration-cyan-400"

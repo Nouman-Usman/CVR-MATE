@@ -14,6 +14,16 @@ const en = {
     description:
       "Every Danish company is on file in the CVR register. Describe the ones you want, and we re-run that search on your schedule — newest first.",
     explorePlatform: "Explore the platform",
+    launcher: {
+      placeholder: "Describe your business, or paste a CVR number…",
+      start: "Start",
+      caption: "Answer a few quick questions — get a plan and live company matches in under a minute.",
+      prompts: [
+        "We sell B2B software to manufacturers",
+        "Recruitment agency in Copenhagen",
+        "Find companies by CVR number",
+      ],
+    },
     card: {
       fromTrigger: "From trigger",
       triggers: {

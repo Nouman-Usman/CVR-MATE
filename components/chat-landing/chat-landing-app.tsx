@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageList, type ChatMessage } from "./message-list";
 import { ChatInput } from "./chat-input";
 import { SuggestedReplies } from "./suggested-replies";
@@ -30,7 +30,7 @@ const STARTER_PROMPTS = [
   "I want to find companies by CVR number",
 ];
 
-export function ChatLandingApp() {
+export function ChatLandingApp({ seed }: { seed?: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_ASSISTANT_MESSAGE]);
@@ -61,7 +61,7 @@ export function ChatLandingApp() {
       .catch(() => setPhase("chatting"));
   }, []);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!sessionId) return;
     setError("");
     // Chips vanish the moment an answer is chosen or typed, Claude-style.
@@ -92,7 +92,17 @@ export function ChatLandingApp() {
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [sessionId, messages]);
+
+  // Seeded from the marketing hero (/start?q=…): send that opener once the
+  // session is live, so the visitor lands already one turn into the chat.
+  const seedSentRef = useRef(false);
+  useEffect(() => {
+    if (seed && sessionId && phase === "chatting" && !seedSentRef.current) {
+      seedSentRef.current = true;
+      sendMessage(seed);
+    }
+  }, [seed, sessionId, phase, sendMessage]);
 
   if (phase === "loading") {
     return (
