@@ -183,6 +183,13 @@
       "when": 1784698423028,
       "tag": "0025_enable_rls_public_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785047409201,
+      "tag": "0026_majestic_post",
+      "breakpoints": true
     }
   ]
 }

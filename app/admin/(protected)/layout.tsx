@@ -16,5 +16,5 @@ export default async function AdminLayout({
     redirect("/admin/login");
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return <AdminShell adminEmail={adminEmail}>{children}</AdminShell>;
 }

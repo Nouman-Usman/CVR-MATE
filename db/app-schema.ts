@@ -334,6 +334,34 @@ export const orgAuditLog = pgTable(
   ]
 );
 
+// ─── ADMIN AUDIT LOG (super-admin action trail) ─────────────────────────────
+// Records every mutating action taken from the super-admin console. The actor
+// is the super-admin email (independent of Better Auth) so there is no user FK.
+
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    actorEmail: text("actor_email").notNull(),
+    action: text("action").notNull(),
+    // Actions: user_verify_resent | user_force_verified | user_sessions_revoked
+    //          user_plan_changed | user_trial_extended | user_deleted
+    //          subscription_canceled | trigger_run | changefeed_lock_cleared
+    //          inquiry_marked_handled
+    targetType: text("target_type"), // 'user' | 'subscription' | 'trigger' | 'inquiry' | ...
+    targetId: text("target_id"),
+    metadata: jsonb("metadata").default({}),
+    ipAddress: text("ip_address"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("admin_audit_actor_idx").on(t.actorEmail),
+    index("admin_audit_action_idx").on(t.action),
+    index("admin_audit_created_idx").on(t.createdAt),
+    index("admin_audit_target_idx").on(t.targetType, t.targetId),
+  ]
+);
+
 // ─── ENTERPRISE INQUIRY ─────────────────────────────────────────────────────
 
 export const enterpriseInquiry = pgTable("enterprise_inquiry", {
@@ -343,6 +371,9 @@ export const enterpriseInquiry = pgTable("enterprise_inquiry", {
   company: text("company").notNull(),
   phone: text("phone"),
   message: text("message"),
+  // Admin inbox triage — set when a super-admin marks the lead as handled.
+  handledAt: timestamp("handled_at", { withTimezone: true }),
+  handledBy: text("handled_by"), // super-admin email
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

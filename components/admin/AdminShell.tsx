@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Video, LogOut, Shield, Menu, X, ArrowRight, User } from "lucide-react";
+import {
+  LayoutDashboard, Users, CreditCard, Filter, Activity, Mail, Plug,
+  Video, LogOut, Shield, Menu, ArrowRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -16,27 +18,52 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
-const NAV = [
-  { label: "Overview", href: "/admin/overview", icon: LayoutDashboard },
-  { label: "Videos", href: "/admin/videos", icon: Video },
+// Grouped navigation — each section becomes a labelled block in the sidebar.
+const SECTIONS = [
+  { title: "Analytics", items: [{ label: "Overview", href: "/admin/overview", icon: LayoutDashboard }] },
+  { title: "Users", items: [{ label: "Users", href: "/admin/users", icon: Users }] },
+  {
+    title: "Revenue",
+    items: [
+      { label: "Billing", href: "/admin/billing", icon: CreditCard },
+      { label: "Funnel", href: "/admin/funnel", icon: Filter },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { label: "Health", href: "/admin/health", icon: Activity },
+      { label: "Email", href: "/admin/email", icon: Mail },
+      { label: "Integrations", href: "/admin/integrations", icon: Plug },
+    ],
+  },
+  { title: "Content", items: [{ label: "Videos", href: "/admin/videos", icon: Video }] },
 ];
+
+/** "dev@fourmates.dk" → "DE" for the avatar fallback. */
+function initials(email: string): string {
+  const local = email.split("@")[0] ?? email;
+  return local.slice(0, 2).toUpperCase() || "AD";
+}
 
 function SidebarContent({
   pathname,
+  adminEmail,
   onLogout,
   onNav,
 }: {
   pathname: string;
+  adminEmail: string;
   onLogout: () => void;
   onNav?: () => void;
 }) {
   return (
     <div className="flex flex-col h-full py-8 px-4 font-[family-name:var(--font-manrope)]">
       {/* Brand */}
-      <div className="flex items-center gap-3 px-3 mb-10">
+      <div className="flex items-center gap-3 px-3 mb-8">
         <div className="size-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
           <Shield size={18} className="text-white" />
         </div>
@@ -46,57 +73,61 @@ function SidebarContent({
         </div>
       </div>
 
-      <div className="space-y-1">
-        <p className="px-4 mb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Platform
-        </p>
+      <nav className="space-y-6 overflow-y-auto flex-1 -mx-1 px-1">
+        {SECTIONS.map((section) => (
+          <div key={section.title} className="space-y-1">
+            <p className="px-4 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {section.title}
+            </p>
+            {section.items.map(({ label, href, icon: Icon }) => {
+              const active = pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNav}
+                  className={cn(
+                    "group flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm transition-all duration-300",
+                    active
+                      ? "bg-white text-blue-600 font-extrabold shadow-sm border border-slate-100 shadow-blue-600/5"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                  )}
+                >
+                  <div className={cn(
+                    "p-1.5 rounded-lg transition-colors",
+                    active ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm"
+                  )}>
+                    <Icon size={16} />
+                  </div>
+                  <span className="flex-1">{label}</span>
+                  {active && <ArrowRight size={14} className="opacity-40" />}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
 
-        {NAV.map(({ label, href, icon: Icon }) => {
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNav}
-              className={cn(
-                "group flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-all duration-300",
-                active
-                  ? "bg-white text-blue-600 font-extrabold shadow-sm border border-slate-100 shadow-blue-600/5"
-                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-              )}
-            >
-              <div className={cn(
-                "p-1.5 rounded-lg transition-colors",
-                active ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm"
-              )}>
-                <Icon size={16} />
-              </div>
-              <span className="flex-1">{label}</span>
-              {active && <ArrowRight size={14} className="opacity-40" />}
-            </Link>
-          );
-        })}
-      </div>
-
-      <div className="mt-auto pt-8 border-t border-slate-100">
+      <div className="mt-6 pt-6 border-t border-slate-100">
         <DropdownMenu>
-          <DropdownMenuTrigger 
+          <DropdownMenuTrigger
             render={
               <button className="flex items-center gap-3 px-4 py-3 rounded-2xl w-full text-left hover:bg-slate-50 transition-all group outline-none" />
             }
           >
             <Avatar className="size-9 border-2 border-white shadow-sm">
-              <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">AD</AvatarFallback>
+              <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">{initials(adminEmail)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 truncate">System Admin</p>
-              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Verified</p>
+              <p className="text-sm font-bold text-slate-900 truncate">{adminEmail}</p>
+              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Super-admin</p>
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-xl border-slate-100">
-            <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 py-1.5">My Account</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 py-1.5">Signed in as</DropdownMenuLabel>
+            <p className="px-2 pb-1.5 text-xs font-medium text-slate-600 truncate">{adminEmail}</p>
             <DropdownMenuSeparator className="bg-slate-50" />
-            <DropdownMenuItem 
+            <DropdownMenuItem
               className="rounded-lg font-medium text-rose-600 focus:text-rose-600 cursor-pointer"
               onClick={onLogout}
             >
@@ -109,7 +140,7 @@ function SidebarContent({
   );
 }
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({ children, adminEmail }: { children: React.ReactNode; adminEmail: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -125,7 +156,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 h-16 flex items-center px-6 gap-4">
         {/* Mobile hamburger */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger 
+          <SheetTrigger
             render={
               <Button
                 variant="ghost"
@@ -142,6 +173,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </SheetHeader>
             <SidebarContent
               pathname={pathname}
+              adminEmail={adminEmail}
               onLogout={() => { setMobileOpen(false); logout(); }}
               onNav={() => setMobileOpen(false)}
             />
@@ -163,49 +195,26 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex-1" />
 
-        {/* Desktop nav shortcuts */}
-        <nav className="hidden md:flex items-center gap-1">
-          {NAV.map(({ label, href }) => {
-            const active = pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                  active
-                    ? "text-blue-600 bg-blue-50/50"
-                    : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"
-                )}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <Separator orientation="vertical" className="h-6 mx-2 hidden md:block opacity-50" />
-
-        {/* User status */}
+        {/* Admin identity */}
         <DropdownMenu>
-          <DropdownMenuTrigger 
+          <DropdownMenuTrigger
             render={
               <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-white shadow-sm p-0 outline-none" />
             }
           >
             <Avatar className="h-full w-full">
-              <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">AD</AvatarFallback>
+              <AvatarFallback className="bg-blue-600 text-white font-bold text-xs">{initials(adminEmail)}</AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-xl border-slate-100">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-bold leading-none">System Admin</p>
-                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest leading-none mt-1">Verified Account</p>
+                <p className="text-sm font-bold leading-none truncate">{adminEmail}</p>
+                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest leading-none mt-1">Super-admin</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-slate-50" />
-            <DropdownMenuItem 
+            <DropdownMenuItem
               className="rounded-lg font-medium text-rose-600 focus:text-rose-600 cursor-pointer"
               onClick={logout}
             >
@@ -219,7 +228,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 min-h-0">
         {/* Desktop sidebar */}
         <aside className="w-64 shrink-0 bg-[#fafbfc] border-r border-slate-100 hidden md:block">
-          <SidebarContent pathname={pathname} onLogout={logout} />
+          <SidebarContent pathname={pathname} adminEmail={adminEmail} onLogout={logout} />
         </aside>
 
         {/* Main */}
