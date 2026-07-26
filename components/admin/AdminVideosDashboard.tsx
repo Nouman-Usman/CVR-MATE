@@ -47,8 +47,6 @@ function Slot({
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const videoUrl = slot?.videoPath ? `${supabaseUrl}/storage/v1/object/public/cvr-videos/${slot.videoPath}` : null;
 
-  useEffect(() => { setConfirmDel(false); }, [slot?.id]);
-
   // ── Empty: a keyboard-accessible drop target ──
   if (!slot) {
     const onDrop = (e: React.DragEvent) => {
@@ -64,7 +62,7 @@ function Slot({
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={onDrop}
-        className={cn("flex min-h-[176px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-slate-300", drag ? "bg-slate-50" : "hover:bg-slate-50/70")}
+        className={cn("flex min-h-44 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-slate-300", drag ? "bg-slate-50" : "hover:bg-slate-50/70")}
         style={{ borderColor: drag ? INK : HAIR }}
       >
         <span className="mb-1 flex items-center gap-1.5">
@@ -80,7 +78,7 @@ function Slot({
 
   // ── Filled: thumbnail + actions ──
   return (
-    <div className="flex min-h-[176px] flex-col rounded-xl border p-3" style={{ borderColor: HAIR }}>
+    <div className="flex min-h-44 flex-col rounded-xl border p-3" style={{ borderColor: HAIR }}>
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{locale} · {localeName.toLowerCase()}</span>
         <SlotStatus status={slot.status} />
@@ -390,12 +388,12 @@ export function AdminVideosDashboard() {
                       }
                     >
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <Slot locale="da" slot={feature.da}
+                        <Slot key={feature.da?.id ?? `${feature.key}-da`} locale="da" slot={feature.da}
                           onOpenUpload={(file) => setTarget({ featureKey: feature.key, locale: "da", file })}
                           onPreview={(url, title) => setPreview({ url, title })}
                           onPublish={(id) => publishMutation.mutate(id)}
                           onDelete={(id) => deleteMutation.mutate(id)} />
-                        <Slot locale="en" slot={feature.en}
+                        <Slot key={feature.en?.id ?? `${feature.key}-en`} locale="en" slot={feature.en}
                           onOpenUpload={(file) => setTarget({ featureKey: feature.key, locale: "en", file })}
                           onPreview={(url, title) => setPreview({ url, title })}
                           onPublish={(id) => publishMutation.mutate(id)}
