@@ -3,17 +3,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  Activity, Zap, PauseCircle, AlertTriangle, PlayCircle, Target, Unlock,
-  Loader2, RefreshCw, CheckCircle2, type LucideProps,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PlayCircle, Unlock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import {
+  INK, HAIR, POS, WARN, NEG,
+  ConsoleShell, StatusHeader, RefreshButton, Ledger, LedgerTier, StatCell,
+  Panel, ConsoleTable, ActionButton, ErrorBar, EmptyLine,
+  rowClass, rowStyle, num, fmtTime,
+} from "./console";
 
 interface HealthData {
   generatedAt: string;
@@ -23,9 +21,6 @@ interface HealthData {
   staleLocks: number;
 }
 
-function fmtTime(d?: string | null) {
-  return d ? new Date(d).toLocaleString("en", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
-}
 function overdueBy(d: string | null) {
   if (!d) return "—";
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -33,22 +28,6 @@ function overdueBy(d: string | null) {
   const h = Math.floor(mins / 60);
   if (h < 24) return `${h}h late`;
   return `${Math.floor(h / 24)}d late`;
-}
-
-function Kpi({ label, value, icon: Icon, accent }: { label: string; value: number; icon: React.FC<LucideProps>; accent: string }) {
-  return (
-    <Card className="border-[#e2e8f0] shadow-sm" style={{ borderTopWidth: 3, borderTopColor: accent }}>
-      <CardContent className="pt-5 pb-4 px-5">
-        <div className="flex justify-between items-start mb-3">
-          <span className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">{label}</span>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${accent}15` }}>
-            <Icon size={16} color={accent} />
-          </div>
-        </div>
-        <p className="text-2xl font-bold text-[#191c1e] leading-none tabular-nums">{value.toLocaleString()}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 export function AdminHealthDashboard() {
@@ -84,113 +63,100 @@ export function AdminHealthDashboard() {
   };
 
   const t = data?.triggers;
+  const overdueCount = data?.triggers.overdue ?? 0;
+  const staleCount = data?.staleLocks ?? 0;
+  const needAttention = overdueCount + staleCount;
+  const attention = overdueCount > 0 || staleCount > 0;
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[#191c1e] flex items-center gap-2">
-            <Activity size={22} className="text-amber-600" /> Operational Health
-          </h1>
-          <p className="text-sm text-[#64748b] mt-1">Trigger jobs &amp; change-feed cron</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-2 text-[#64748b] border-[#e2e8f0]">
-          <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} /> Refresh
-        </Button>
-      </div>
+    <ConsoleShell>
+      <StatusHeader
+        tone={attention ? "warn" : "ok"}
+        eyebrow={attention ? `${needAttention} need attention` : "all jobs on schedule"}
+        title="Operational health"
+      >
+        <RefreshButton onClick={() => refetch()} isFetching={isFetching} generatedAt={data?.generatedAt} />
+      </StatusHeader>
 
-      {isError && (
-        <Card className="border-rose-200 bg-rose-50 shadow-sm mb-6">
-          <CardContent className="py-4 px-5 text-sm text-rose-700 font-medium">Couldn&apos;t load health data.
-            <button className="underline ml-1" onClick={() => refetch()}>Retry</button>
-          </CardContent>
-        </Card>
+      {isError && <ErrorBar message="couldn't load health data." onRetry={() => refetch()} />}
+
+      {/* ── VITALS LEDGER — job readout ── */}
+      {isLoading || !t ? (
+        <Skeleton className="mb-6 h-56 w-full rounded-xl" />
+      ) : (
+        <Ledger caption="job readout">
+          <LedgerTier cols={4}>
+            <StatCell label="Active triggers" value={num(t.active)} sub="scheduled & enabled" />
+            <StatCell label="Paused" value={num(t.paused)} sub="disabled by owner" />
+            <StatCell danger={t.overdue > 0} label="Overdue" value={num(t.overdue)} sub="past due window" />
+            <StatCell danger={data!.staleLocks > 0} label="Stale locks" value={num(data!.staleLocks)} sub="stuck cursors" />
+          </LedgerTier>
+          <LedgerTier cols={4} top>
+            <StatCell label="Runs · 24h" value={num(t.runs24h)} sub="trigger executions" />
+            <StatCell label="Runs · 7d" value={num(t.runs7d)} sub="trigger executions" />
+            <StatCell label="Matches · 7d" value={num(t.matches7d)} sub="companies surfaced" />
+          </LedgerTier>
+        </Ledger>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {isLoading || !t ? (
-          Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
-        ) : (
-          <>
-            <Kpi label="Active Triggers" value={t.active} icon={Zap} accent="#2563eb" />
-            <Kpi label="Paused" value={t.paused} icon={PauseCircle} accent="#94a3b8" />
-            <Kpi label="Overdue" value={t.overdue} icon={AlertTriangle} accent={t.overdue > 0 ? "#ef4444" : "#94a3b8"} />
-            <Kpi label="Stale Locks" value={data!.staleLocks} icon={Unlock} accent={data!.staleLocks > 0 ? "#ef4444" : "#94a3b8"} />
-            <Kpi label="Runs · 24h" value={t.runs24h} icon={PlayCircle} accent="#06b6d4" />
-            <Kpi label="Runs · 7d" value={t.runs7d} icon={PlayCircle} accent="#8b5cf6" />
-            <Kpi label="Matches · 7d" value={t.matches7d} icon={Target} accent="#10b981" />
-          </>
-        )}
-      </div>
-
-      {/* Overdue triggers */}
-      <Card className="border-[#e2e8f0] shadow-sm mb-6">
-        <CardHeader className="pb-2 pt-5 px-5"><CardTitle className="text-sm font-semibold text-[#191c1e]">Overdue triggers</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-[#f1f5f9]">
-                {["Trigger", "Owner", "Freq", "Was due", "Last run", ""].map((h, i) => (
-                  <TableHead key={i} className={cn("text-[10px] uppercase tracking-wider text-[#64748b] font-semibold px-5", i === 5 && "text-right")}>{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="px-5 py-6"><Skeleton className="h-4 w-40" /></TableCell></TableRow>
-              ) : (data?.overdueTriggers.length ?? 0) === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-sm text-emerald-600"><CheckCircle2 size={14} className="inline mr-1" /> All triggers on schedule</TableCell></TableRow>
-              ) : (
-                data!.overdueTriggers.map((tr) => (
-                  <TableRow key={tr.id} className="border-[#f1f5f9]">
-                    <TableCell className="px-5 py-3 text-sm font-medium text-[#191c1e]">{tr.name}</TableCell>
-                    <TableCell className="px-5 py-3 text-xs text-[#64748b]">{tr.email}</TableCell>
-                    <TableCell className="px-5 py-3 text-xs capitalize">{tr.frequency}</TableCell>
-                    <TableCell className="px-5 py-3"><span className="text-xs font-bold text-rose-600">{overdueBy(tr.nextRunAt)}</span></TableCell>
-                    <TableCell className="px-5 py-3 text-xs text-[#64748b]">{fmtTime(tr.lastRunAt)}</TableCell>
-                    <TableCell className="px-5 py-3 text-right">
-                      <Button size="sm" variant="outline" className="h-7 text-xs border-[#e2e8f0] gap-1"
-                        disabled={busy === tr.id} onClick={() => act(tr.id, { action: "queue_trigger", triggerId: tr.id })}>
-                        {busy === tr.id ? <Loader2 size={12} className="animate-spin" /> : <><PlayCircle size={12} /> Queue now</>}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Change-feed cursors */}
-      <Card className="border-[#e2e8f0] shadow-sm">
-        <CardHeader className="pb-2 pt-5 px-5"><CardTitle className="text-sm font-semibold text-[#191c1e]">Change-feed cursors</CardTitle></CardHeader>
-        <CardContent className="px-5 pb-5 space-y-3">
+      {/* ── Overdue triggers ── */}
+      <Panel title="Overdue triggers" className="mb-6">
+        <ConsoleTable head={["trigger", "owner", "freq", "was due", "last run", ""]}>
           {isLoading ? (
-            <Skeleton className="h-16 w-full" />
-          ) : (data?.cursors.length ?? 0) === 0 ? (
-            <p className="text-sm text-slate-400 py-2">No change-feed cursors yet</p>
+            <tr><td colSpan={6} className="py-6"><Skeleton className="h-4 w-40" /></td></tr>
+          ) : (data?.overdueTriggers.length ?? 0) === 0 ? (
+            <tr><td colSpan={6} className="py-8 text-center"><EmptyLine>all triggers on schedule — nothing overdue.</EmptyLine></td></tr>
           ) : (
-            data!.cursors.map((c) => (
-              <div key={c.feedType} className={cn("flex items-center gap-3 rounded-xl border p-3", c.stale ? "border-rose-200 bg-rose-50/50" : "border-slate-100")}>
-                <div className={cn("size-2.5 rounded-full shrink-0", c.stale ? "bg-rose-500" : c.isProcessing ? "bg-amber-400" : "bg-emerald-500")} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[#191c1e]">{c.feedType}</p>
-                  <p className="text-[11px] text-[#64748b]">
-                    {c.stale ? "Stale lock — stuck processing" : c.isProcessing ? "Processing…" : "Idle"} · last processed {fmtTime(c.processedAt)}
-                  </p>
-                </div>
-                {(c.stale || c.isProcessing) && (
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-rose-200 text-rose-700 gap-1"
-                    disabled={busy === `lock-${c.feedType}`} onClick={() => act(`lock-${c.feedType}`, { action: "clear_lock", feedType: c.feedType })}>
-                    {busy === `lock-${c.feedType}` ? <Loader2 size={12} className="animate-spin" /> : <><Unlock size={12} /> Clear lock</>}
-                  </Button>
-                )}
-              </div>
+            data!.overdueTriggers.map((tr) => (
+              <tr key={tr.id} className={rowClass} style={rowStyle}>
+                <td className="py-2.5 font-mono text-[12px] font-semibold" style={{ color: INK }}>{tr.name}</td>
+                <td className="py-2.5 font-mono text-[11px] text-slate-500">{tr.email}</td>
+                <td className="py-2.5 font-mono text-[11px] capitalize text-slate-500">{tr.frequency}</td>
+                <td className="py-2.5 font-mono text-[11px] font-bold" style={{ color: NEG }}>{overdueBy(tr.nextRunAt)}</td>
+                <td className="py-2.5 font-mono text-[11px] tabular-nums text-slate-400">{fmtTime(tr.lastRunAt)}</td>
+                <td className="py-2.5 text-right">
+                  <ActionButton busy={busy === tr.id} onClick={() => act(tr.id, { action: "queue_trigger", triggerId: tr.id })}>
+                    <PlayCircle size={12} /> queue now
+                  </ActionButton>
+                </td>
+              </tr>
             ))
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </ConsoleTable>
+      </Panel>
+
+      {/* ── Change-feed cursors ── */}
+      <Panel title="Change-feed cursors">
+        {isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : (data?.cursors.length ?? 0) === 0 ? (
+          <EmptyLine>no change-feed cursors yet.</EmptyLine>
+        ) : (
+          <div>
+            {data!.cursors.map((c, i) => {
+              const dot = c.stale ? NEG : c.isProcessing ? WARN : POS;
+              const state = c.stale ? "stale lock — stuck processing" : c.isProcessing ? "processing…" : "idle";
+              return (
+                <div key={c.feedType}
+                  className={cn("flex items-center gap-3 py-3", i < data!.cursors.length - 1 && "border-b")}
+                  style={{ borderColor: HAIR }}>
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: dot }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[12px] font-bold" style={{ color: INK }}>{c.feedType}</p>
+                    <p className="font-mono text-[11px] text-slate-500">{state} · last processed {fmtTime(c.processedAt)}</p>
+                  </div>
+                  {(c.stale || c.isProcessing) && (
+                    <ActionButton tone="danger" busy={busy === `lock-${c.feedType}`}
+                      onClick={() => act(`lock-${c.feedType}`, { action: "clear_lock", feedType: c.feedType })}>
+                      <Unlock size={12} /> clear lock
+                    </ActionButton>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
+    </ConsoleShell>
   );
 }

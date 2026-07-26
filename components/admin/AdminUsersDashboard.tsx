@@ -6,58 +6,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Search, ChevronLeft, ChevronRight, ShieldCheck, MailCheck, LogOut as RevokeIcon,
-  Rocket, Trash2, X, Loader2, Users as UsersIcon, Globe, Monitor,
+  Trash2, X, Globe, Monitor,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+  INK, HAIR, MUTE, POS, PLAN_COLOR, SUBSTATUS_COLOR,
+  ConsoleShell, StatusHeader, Panel, ConsoleTable, Tag, ActionButton, EmptyLine,
+  rowClass, rowStyle, ago, fmtDate, num,
+} from "./console";
 
-const PLAN_COLOR: Record<string, string> = {
-  free: "#94a3b8", starter: "#2563eb", professional: "#8b5cf6", enterprise: "#10b981",
-};
-const STATUS_COLOR: Record<string, string> = {
-  active: "#10b981", trialing: "#06b6d4", past_due: "#f59e0b",
-  canceled: "#ef4444", unpaid: "#ef4444", incomplete: "#94a3b8",
-};
 const PLANS = ["free", "starter", "professional", "enterprise"];
+const selectClass = "h-8 rounded-lg border bg-white px-3 font-mono text-[11px] text-slate-700 outline-none focus:border-slate-400";
 
-function fmtDate(d?: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" });
-}
-function timeAgo(d: string) {
-  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-function PlanTag({ plan }: { plan: string | null }) {
-  const p = plan ?? "free";
-  const c = PLAN_COLOR[p] ?? "#94a3b8";
-  return (
-    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize border"
-      style={{ color: c, background: `${c}15`, borderColor: `${c}40` }}>{p}</span>
-  );
-}
-function StatusTag({ status }: { status: string | null }) {
-  if (!status) return <span className="text-xs text-slate-400">—</span>;
-  const c = STATUS_COLOR[status] ?? "#94a3b8";
-  return (
-    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
-      style={{ color: c, background: `${c}15` }}>{status.replace("_", " ")}</span>
-  );
-}
-
-// ── Types ──
 interface UserRow {
   id: string; name: string; email: string; emailVerified: boolean;
   language: string | null; createdAt: string;
@@ -82,10 +43,8 @@ export function AdminUsersDashboard() {
   const [plan, setPlan] = useState("");
   const [verified, setVerified] = useState("");
   const [page, setPage] = useState(1);
-  // Initialise from the overview "click a row" drill-down (?focus=<id>).
   const [selected, setSelected] = useState<string | null>(() => focusId);
 
-  // Debounce the search box.
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedQ(q); setPage(1); }, 300);
     return () => clearTimeout(t);
@@ -112,110 +71,78 @@ export function AdminUsersDashboard() {
   const to = Math.min(page * limit, total);
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[#191c1e] flex items-center gap-2">
-            <UsersIcon size={22} className="text-blue-600" /> User Management
-          </h1>
-          <p className="text-sm text-[#64748b] mt-1">{total.toLocaleString()} user{total === 1 ? "" : "s"} · search, inspect & act</p>
-        </div>
-      </div>
+    <ConsoleShell>
+      <StatusHeader tone="neutral" eyebrow={`${num(total)} users`} title="User management" />
 
       {/* Filters */}
-      <Card className="border-[#e2e8f0] shadow-sm mb-4">
-        <CardContent className="p-4 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" className="pl-9 border-[#e2e8f0]" />
-          </div>
-          <select value={plan} onChange={(e) => { setPlan(e.target.value); setPage(1); }}
-            className="h-9 rounded-md border border-[#e2e8f0] bg-white px-3 text-sm text-[#191c1e] outline-none focus:border-blue-400">
-            <option value="">All plans</option>
-            {PLANS.map((p) => <option key={p} value={p} className="capitalize">{p}</option>)}
-          </select>
-          <select value={verified} onChange={(e) => { setVerified(e.target.value); setPage(1); }}
-            className="h-9 rounded-md border border-[#e2e8f0] bg-white px-3 text-sm text-[#191c1e] outline-none focus:border-blue-400">
-            <option value="">All statuses</option>
-            <option value="true">Verified</option>
-            <option value="false">Pending</option>
-          </select>
-        </CardContent>
-      </Card>
-
-      {/* Table */}
-      <Card className="border-[#e2e8f0] shadow-sm">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-[#f1f5f9]">
-                {["User", "Plan", "Status", "Verified", "Lang", "Joined"].map((h) => (
-                  <TableHead key={h} className="text-[10px] uppercase tracking-wider text-[#64748b] font-semibold px-5">{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <TableRow key={i} className="border-[#f1f5f9]">
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <TableCell key={j} className="px-5"><Skeleton className="h-4 w-20" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : isError ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-sm text-rose-600">
-                  Failed to load. <button className="underline" onClick={() => refetch()}>Retry</button>
-                </TableCell></TableRow>
-              ) : (data?.users.length ?? 0) === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-sm text-slate-400">No users match your filters.</TableCell></TableRow>
-              ) : (
-                data!.users.map((u) => (
-                  <TableRow key={u.id} onClick={() => setSelected(u.id)}
-                    className="border-[#f1f5f9] hover:bg-[#f8fafc] cursor-pointer">
-                    <TableCell className="px-5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-[#191c1e] truncate">{u.name}</p>
-                          <p className="text-xs text-[#64748b] truncate">{u.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-5 py-3"><PlanTag plan={u.plan} /></TableCell>
-                    <TableCell className="px-5 py-3"><StatusTag status={u.status} /></TableCell>
-                    <TableCell className="px-5 py-3">
-                      {u.emailVerified
-                        ? <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 text-[10px]">Verified</Badge>
-                        : <Badge variant="secondary" className="bg-[#f1f5f9] text-[#64748b] text-[10px]">Pending</Badge>}
-                    </TableCell>
-                    <TableCell className="px-5 py-3 text-xs text-[#64748b] uppercase">{u.language ?? "—"}</TableCell>
-                    <TableCell className="px-5 py-3 text-xs text-[#64748b] whitespace-nowrap">{timeAgo(u.createdAt)}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-4">
-        <p className="text-xs text-[#64748b]">Showing {from}–{to} of {total.toLocaleString()}</p>
+      <Panel title="Directory" right={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="border-[#e2e8f0]" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            <ChevronLeft size={14} /> Prev
-          </Button>
-          <span className="text-xs text-[#64748b] tabular-nums">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" className="border-[#e2e8f0]" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-            Next <ChevronRight size={14} />
-          </Button>
+          <select value={plan} onChange={(e) => { setPlan(e.target.value); setPage(1); }} className={selectClass} style={{ borderColor: HAIR }}>
+            <option value="">all plans</option>
+            {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={verified} onChange={(e) => { setVerified(e.target.value); setPage(1); }} className={selectClass} style={{ borderColor: HAIR }}>
+            <option value="">any status</option>
+            <option value="true">verified</option>
+            <option value="false">pending</option>
+          </select>
         </div>
-      </div>
+      }>
+        <div className="relative mb-4">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="search name or email…"
+            className="h-9 w-full rounded-lg border bg-white pl-9 pr-3 font-mono text-[12px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-slate-400"
+            style={{ borderColor: HAIR }} />
+        </div>
 
-      {/* Detail drawer */}
+        {isError ? (
+          <div className="py-8 text-center"><EmptyLine>couldn&apos;t load users. <button className="underline" onClick={() => refetch()}>retry</button></EmptyLine></div>
+        ) : (
+          <ConsoleTable head={["user", "plan", "status", "verified", "lang", "joined"]}>
+            {isLoading ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i} className="border-b" style={rowStyle}>
+                  {Array.from({ length: 6 }).map((__, j) => <td key={j} className="py-3"><Skeleton className="h-4 w-16" /></td>)}
+                </tr>
+              ))
+            ) : (data?.users.length ?? 0) === 0 ? (
+              <tr><td colSpan={6} className="py-10 text-center"><EmptyLine>no users match these filters.</EmptyLine></td></tr>
+            ) : (
+              data!.users.map((u) => (
+                <tr key={u.id} onClick={() => setSelected(u.id)} className={`cursor-pointer ${rowClass}`} style={rowStyle}>
+                  <td className="py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-md font-mono text-[11px] font-bold text-white" style={{ background: INK }}>
+                        {u.name.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold" style={{ color: INK }}>{u.name}</p>
+                        <p className="font-mono text-[11px] text-slate-500">{u.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-2.5"><Tag color={PLAN_COLOR[u.plan ?? "free"] ?? MUTE}>{u.plan ?? "free"}</Tag></td>
+                  <td className="py-2.5">{u.status ? <Tag color={SUBSTATUS_COLOR[u.status] ?? MUTE}>{u.status.replace("_", " ")}</Tag> : <span className="font-mono text-[11px] text-slate-300">—</span>}</td>
+                  <td className="py-2.5"><span className="font-mono text-[10px] font-bold uppercase" style={{ color: u.emailVerified ? POS : MUTE }}>{u.emailVerified ? "verified" : "pending"}</span></td>
+                  <td className="py-2.5 font-mono text-[11px] uppercase text-slate-400">{u.language ?? "—"}</td>
+                  <td className="py-2.5 text-right font-mono text-[11px] tabular-nums text-slate-400">{ago(u.createdAt)} ago</td>
+                </tr>
+              ))
+            )}
+          </ConsoleTable>
+        )}
+
+        {/* Pagination */}
+        <div className="mt-4 flex items-center justify-between">
+          <span className="font-mono text-[11px] text-slate-400">showing {from}–{to} / {num(total)}</span>
+          <div className="flex items-center gap-2">
+            <ActionButton onClick={() => setPage((p) => p - 1)} disabled={page <= 1}><ChevronLeft size={13} /> prev</ActionButton>
+            <span className="font-mono text-[11px] tabular-nums text-slate-500">{page}/{totalPages}</span>
+            <ActionButton onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>next <ChevronRight size={13} /></ActionButton>
+          </div>
+        </div>
+      </Panel>
+
       <UserDrawer
         userId={selected}
         onClose={() => setSelected(null)}
@@ -223,23 +150,15 @@ export function AdminUsersDashboard() {
           qc.invalidateQueries({ queryKey: ["admin-users"] });
           if (selected) qc.invalidateQueries({ queryKey: ["admin-user", selected] });
         }}
-        onDeleted={() => {
-          setSelected(null);
-          qc.invalidateQueries({ queryKey: ["admin-users"] });
-        }}
+        onDeleted={() => { setSelected(null); qc.invalidateQueries({ queryKey: ["admin-users"] }); }}
       />
-    </div>
+    </ConsoleShell>
   );
 }
 
-// ── Detail drawer ────────────────────────────────────────────────────────────
-function UserDrawer({
-  userId, onClose, onChanged, onDeleted,
-}: {
-  userId: string | null;
-  onClose: () => void;
-  onChanged: () => void;
-  onDeleted: () => void;
+/* ── Detail drawer ───────────────────────────────────────────────────────── */
+function UserDrawer({ userId, onClose, onChanged, onDeleted }: {
+  userId: string | null; onClose: () => void; onChanged: () => void; onDeleted: () => void;
 }) {
   const [planChoice, setPlanChoice] = useState("");
   const [trialDays, setTrialDays] = useState(14);
@@ -263,19 +182,14 @@ function UserDrawer({
     setBusy(action);
     try {
       const res = await fetch(`/api/admin/users/${userId}/actions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...extra }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Action failed");
       toast.success(body.message || "Done");
       onChanged();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Action failed");
-    } finally {
-      setBusy(null);
-    }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Action failed"); }
+    finally { setBusy(null); }
   };
 
   const deleteUser = async () => {
@@ -287,166 +201,123 @@ function UserDrawer({
       if (!res.ok) throw new Error(body.error || "Delete failed");
       toast.success("User deleted");
       onDeleted();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
-    } finally {
-      setBusy(null);
-    }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Delete failed"); }
+    finally { setBusy(null); }
   };
 
   const u = data?.user;
 
   return (
     <Sheet open={!!userId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
-          <SheetTitle className="text-base font-bold text-[#191c1e]">User details</SheetTitle>
+      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg" style={{ background: "#FFFFFF" }}>
+        <SheetHeader className="border-b px-6 pb-4 pt-6" style={{ borderColor: HAIR }}>
+          <SheetTitle className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-600">User record</SheetTitle>
         </SheetHeader>
 
         {isLoading || !u ? (
-          <div className="p-6 space-y-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-          </div>
+          <div className="space-y-4 p-6">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
         ) : (
-          <div className="p-6 space-y-6">
-            {/* Identity */}
+          <div className="space-y-6 p-6">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-lg font-bold text-white">
-                {u.name.charAt(0).toUpperCase()}
-              </div>
+              <span className="flex size-11 items-center justify-center rounded-lg text-lg font-black text-white" style={{ background: INK }}>{u.name.charAt(0).toUpperCase()}</span>
               <div className="min-w-0">
-                <p className="font-bold text-[#191c1e] truncate">{u.name}</p>
-                <p className="text-sm text-[#64748b] truncate">{u.email}</p>
+                <p className="font-bold" style={{ color: INK }}>{u.name}</p>
+                <p className="font-mono text-[12px] text-slate-500">{u.email}</p>
               </div>
-              <div className="ml-auto">
-                {u.emailVerified
-                  ? <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 text-[10px]">Verified</Badge>
-                  : <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Pending</Badge>}
-              </div>
+              <span className="ml-auto font-mono text-[10px] font-bold uppercase" style={{ color: u.emailVerified ? POS : "#B45309" }}>{u.emailVerified ? "verified" : "pending"}</span>
             </div>
 
-            {/* Meta grid */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <Meta label="Joined" value={fmtDate(u.createdAt)} />
-              <Meta label="Language" value={(u.language ?? "—").toUpperCase()} />
-              <Meta label="Auth" value={data!.providers.join(", ") || "—"} />
-              <Meta label="Orgs" value={data!.memberships.length ? data!.memberships.map((m) => `${m.orgName} (${m.role})`).join(", ") : "—"} />
+            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border" style={{ background: HAIR, borderColor: HAIR }}>
+              <Meta label="joined" value={fmtDate(u.createdAt)} />
+              <Meta label="language" value={(u.language ?? "—").toUpperCase()} />
+              <Meta label="auth" value={data!.providers.join(", ") || "—"} />
+              <Meta label="orgs" value={data!.memberships.length ? data!.memberships.map((m) => `${m.orgName} (${m.role})`).join(", ") : "—"} />
             </div>
 
-            {/* Subscription */}
             <Section title="Subscription">
               {data!.subscription ? (
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <Meta label="Plan" value={<PlanTag plan={data!.subscription.plan} />} />
-                  <Meta label="Status" value={<StatusTag status={data!.subscription.status} />} />
-                  <Meta label="Trial ends" value={fmtDate(data!.subscription.trialEnd)} />
-                  <Meta label="Renews" value={fmtDate(data!.subscription.currentPeriodEnd)} />
+                <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border" style={{ background: HAIR, borderColor: HAIR }}>
+                  <Meta label="plan" value={<Tag color={PLAN_COLOR[data!.subscription.plan] ?? MUTE}>{data!.subscription.plan}</Tag>} />
+                  <Meta label="status" value={<Tag color={SUBSTATUS_COLOR[data!.subscription.status] ?? MUTE}>{data!.subscription.status.replace("_", " ")}</Tag>} />
+                  <Meta label="trial ends" value={fmtDate(data!.subscription.trialEnd)} />
+                  <Meta label="renews" value={fmtDate(data!.subscription.currentPeriodEnd)} />
                 </div>
-              ) : <p className="text-xs text-slate-400">No subscription (free tier)</p>}
+              ) : <EmptyLine>no subscription — free tier.</EmptyLine>}
             </Section>
 
-            {/* Usage this month */}
             <Section title="Usage · this month">
               {data!.usage.length ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {data!.usage.map((f) => (
-                    <span key={f.feature} className="text-[11px] bg-slate-50 border border-slate-100 rounded-md px-2 py-1 text-slate-600">
-                      {f.feature} <span className="font-bold text-slate-900">{f.total}</span>
+                    <span key={f.feature} className="rounded-md border px-2 py-1 font-mono text-[10px] text-slate-600" style={{ borderColor: HAIR }}>
+                      {f.feature} <span className="font-bold" style={{ color: INK }}>{f.total}</span>
                     </span>
                   ))}
                 </div>
-              ) : <p className="text-xs text-slate-400">No usage recorded this month</p>}
+              ) : <EmptyLine>no usage recorded this month.</EmptyLine>}
             </Section>
 
-            {/* Sessions */}
-            <Section title={`Sessions (${data!.sessions.length})`}>
+            <Section title={`Sessions · ${data!.sessions.length}`}>
               {data!.sessions.length ? (
                 <div className="space-y-2">
                   {data!.sessions.slice(0, 5).map((s) => (
-                    <div key={s.id} className="flex items-center gap-2 text-[11px] text-slate-600">
-                      <Globe size={12} className="text-slate-400 shrink-0" />
-                      <span className="font-mono">{s.ipAddress ?? "—"}</span>
-                      <Monitor size={12} className="text-slate-400 shrink-0 ml-1" />
-                      <span className="truncate flex-1">{(s.userAgent ?? "—").slice(0, 40)}</span>
-                      <span className="text-slate-400 shrink-0">{timeAgo(s.updatedAt)}</span>
+                    <div key={s.id} className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
+                      <Globe size={12} className="shrink-0 text-slate-400" /><span>{s.ipAddress ?? "—"}</span>
+                      <Monitor size={12} className="ml-1 shrink-0 text-slate-400" /><span className="flex-1 truncate">{(s.userAgent ?? "—").slice(0, 38)}</span>
+                      <span className="shrink-0 text-slate-400">{ago(s.updatedAt)}</span>
                     </div>
                   ))}
                 </div>
-              ) : <p className="text-xs text-slate-400">No active sessions</p>}
+              ) : <EmptyLine>no active sessions.</EmptyLine>}
             </Section>
 
-            {/* Recent activity */}
             <Section title="Recent activity">
               {data!.activity.length ? (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                <div className="max-h-40 space-y-1.5 overflow-y-auto">
                   {data!.activity.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 text-[11px] text-slate-600">
-                      <span className="capitalize">{a.entityType}</span>
-                      <span className="font-semibold text-blue-600">{a.action}</span>
-                      <span className="ml-auto text-slate-400">{timeAgo(a.createdAt)}</span>
+                    <div key={a.id} className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
+                      <span>{a.entityType}</span><span className="font-bold" style={{ color: "#0891B2" }}>{a.action}</span>
+                      <span className="ml-auto text-slate-400">{ago(a.createdAt)}</span>
                     </div>
                   ))}
                 </div>
-              ) : <p className="text-xs text-slate-400">No activity yet</p>}
+              ) : <EmptyLine>no activity yet.</EmptyLine>}
             </Section>
 
-            {/* Actions */}
             <Section title="Actions">
               <div className="space-y-3">
                 {!u.emailVerified && (
                   <div className="flex gap-2">
-                    <ActionBtn icon={MailCheck} label="Resend verification" busy={busy === "resend_verification"} onClick={() => runAction("resend_verification")} />
-                    <ActionBtn icon={ShieldCheck} label="Force verify" busy={busy === "force_verify"} onClick={() => runAction("force_verify")} />
+                    <div className="flex-1"><ActionButton onClick={() => runAction("resend_verification")} busy={busy === "resend_verification"}><MailCheck size={13} /> resend verify</ActionButton></div>
+                    <div className="flex-1"><ActionButton onClick={() => runAction("force_verify")} busy={busy === "force_verify"}><ShieldCheck size={13} /> force verify</ActionButton></div>
                   </div>
                 )}
-                <ActionBtn icon={RevokeIcon} label="Revoke all sessions" busy={busy === "revoke_sessions"} onClick={() => runAction("revoke_sessions")} />
+                <ActionButton onClick={() => runAction("revoke_sessions")} busy={busy === "revoke_sessions"}><RevokeIcon size={13} /> revoke all sessions</ActionButton>
 
-                {/* Comp / change plan */}
                 <div className="flex items-center gap-2">
-                  <select value={planChoice} onChange={(e) => setPlanChoice(e.target.value)}
-                    className="h-9 flex-1 rounded-md border border-[#e2e8f0] bg-white px-3 text-sm outline-none focus:border-blue-400">
-                    <option value="">Select plan…</option>
-                    {PLANS.map((p) => <option key={p} value={p} className="capitalize">{p}</option>)}
+                  <select value={planChoice} onChange={(e) => setPlanChoice(e.target.value)} className={`flex-1 ${selectClass}`} style={{ borderColor: HAIR }}>
+                    <option value="">select plan…</option>
+                    {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  <Button size="sm" variant="outline" className="border-[#e2e8f0]"
-                    disabled={!planChoice || busy === "set_plan"}
-                    onClick={() => runAction("set_plan", { plan: planChoice })}>
-                    {busy === "set_plan" ? <Loader2 size={14} className="animate-spin" /> : "Comp plan"}
-                  </Button>
+                  <ActionButton onClick={() => runAction("set_plan", { plan: planChoice })} busy={busy === "set_plan"} disabled={!planChoice}>comp plan</ActionButton>
                 </div>
 
-                {/* Extend trial */}
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 flex-1">
-                    <Rocket size={14} className="text-cyan-500" />
-                    <Input type="number" min={1} max={90} value={trialDays}
-                      onChange={(e) => setTrialDays(Number(e.target.value))}
-                      className="h-9 w-20 border-[#e2e8f0]" />
-                    <span className="text-xs text-slate-500">days</span>
-                  </div>
-                  <Button size="sm" variant="outline" className="border-[#e2e8f0]"
-                    disabled={busy === "extend_trial"}
-                    onClick={() => runAction("extend_trial", { days: trialDays })}>
-                    {busy === "extend_trial" ? <Loader2 size={14} className="animate-spin" /> : "Extend trial"}
-                  </Button>
+                  <input type="number" min={1} max={90} value={trialDays} onChange={(e) => setTrialDays(Number(e.target.value))}
+                    className="h-8 w-20 rounded-lg border bg-white px-3 font-mono text-[12px] text-slate-700 outline-none focus:border-slate-400" style={{ borderColor: HAIR }} />
+                  <span className="font-mono text-[11px] text-slate-500">days</span>
+                  <div className="ml-auto"><ActionButton onClick={() => runAction("extend_trial", { days: trialDays })} busy={busy === "extend_trial"}>extend trial</ActionButton></div>
                 </div>
 
-                {/* Delete (two-click confirm) */}
-                <div className="pt-3 border-t border-slate-100">
+                <div className="border-t pt-3" style={{ borderColor: HAIR }}>
                   {confirmDelete ? (
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 border-slate-200" onClick={() => setConfirmDelete(false)}>
-                        <X size={14} className="mr-1" /> Cancel
-                      </Button>
-                      <Button size="sm" className="flex-1 bg-rose-600 hover:bg-rose-700 text-white" disabled={busy === "delete"} onClick={deleteUser}>
-                        {busy === "delete" ? <Loader2 size={14} className="animate-spin mr-1" /> : <Trash2 size={14} className="mr-1" />}
-                        Confirm delete
-                      </Button>
+                      <div className="flex-1"><ActionButton onClick={() => setConfirmDelete(false)}><X size={13} /> cancel</ActionButton></div>
+                      <div className="flex-1"><ActionButton onClick={deleteUser} busy={busy === "delete"} tone="danger"><Trash2 size={13} /> confirm delete</ActionButton></div>
                     </div>
                   ) : (
-                    <button onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-2 text-xs font-semibold text-rose-600 hover:text-rose-700">
-                      <Trash2 size={14} /> Delete this user permanently
+                    <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-2 font-mono text-[11px] font-bold" style={{ color: "#E11D48" }}>
+                      <Trash2 size={13} /> delete this user permanently
                     </button>
                   )}
                 </div>
@@ -462,23 +333,16 @@ function UserDrawer({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{title}</p>
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">{title}</p>
       {children}
     </div>
   );
 }
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="bg-slate-50 rounded-lg px-3 py-2">
-      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
-      <div className="text-slate-800 font-medium mt-0.5 truncate">{value}</div>
+    <div className="bg-white px-3 py-2.5">
+      <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-slate-400">{label}</p>
+      <div className="mt-1 truncate font-mono text-[12px] font-medium" style={{ color: INK }}>{value}</div>
     </div>
-  );
-}
-function ActionBtn({ icon: Icon, label, busy, onClick }: { icon: React.FC<{ size?: number; className?: string }>; label: string; busy: boolean; onClick: () => void }) {
-  return (
-    <Button size="sm" variant="outline" className="border-[#e2e8f0] gap-1.5 flex-1" disabled={busy} onClick={onClick}>
-      {busy ? <Loader2 size={14} className="animate-spin" /> : <Icon size={14} />} {label}
-    </Button>
   );
 }
