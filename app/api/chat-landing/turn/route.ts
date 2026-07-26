@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { generateAiJson } from "@/lib/ai";
-import { CHAT_LANDING_SYSTEM_PROMPT, buildChatTurnPrompt, type ChatTurnResult } from "@/lib/chat-landing/prompts";
+import { chatLandingSystemPrompt, buildChatTurnPrompt, type ChatTurnResult } from "@/lib/chat-landing/prompts";
 import { recommendPlan, type QualifyingAnswers } from "@/lib/chat-landing/plan-recommendation";
 import { searchCompanies } from "@/lib/cvr-api";
 import { maskCompanyForPreview } from "@/lib/chat-landing/masking";
@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { sessionId, transcript } = body as { sessionId?: string; transcript?: TranscriptTurn[] };
+    const { sessionId, transcript, locale: rawLocale } = body as {
+      sessionId?: string; transcript?: TranscriptTurn[]; locale?: string;
+    };
+    const locale: "da" | "en" = rawLocale === "en" ? "en" : "da";
 
     if (!sessionId || typeof sessionId !== "string" || !Array.isArray(transcript)) {
       return NextResponse.json({ error: "sessionId and transcript are required" }, { status: 400 });
@@ -43,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const userPrompt = buildChatTurnPrompt(transcript);
     const aiResult = await generateAiJson<ChatTurnResult>({
-      systemPrompt: CHAT_LANDING_SYSTEM_PROMPT,
+      systemPrompt: chatLandingSystemPrompt(locale),
       userPrompt,
       maxTokens: 512,
     });
@@ -78,6 +81,7 @@ export async function POST(req: NextRequest) {
           transcript: updatedTranscript,
           qualifyingAnswers: mergedAnswers,
           recommendedPlan,
+          locale,
           previewCompanyVats: companies.map((c) => c.vat),
           previewCompanySnapshot: companies,
         })
@@ -88,6 +92,7 @@ export async function POST(req: NextRequest) {
         .set({
           transcript: updatedTranscript,
           qualifyingAnswers: mergedAnswers,
+          locale,
         })
         .where(eq(chatLandingSession.id, sessionId));
     }

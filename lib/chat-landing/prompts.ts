@@ -30,6 +30,18 @@ Respond ONLY as JSON matching this shape:
   "readyToRecommend": boolean
 }`;
 
+/**
+ * The system prompt with a language directive appended. The visitor picks a
+ * language on the page; the AI must answer (and phrase its tappable replies) in
+ * that language so the conversation actually works for them.
+ */
+export function chatLandingSystemPrompt(locale: "da" | "en"): string {
+  const directive = locale === "da"
+    ? "Write assistantMessage and every suggestedReplies entry in Danish (dansk). Keep the JSON keys and enum values exactly as specified in English."
+    : "Write assistantMessage and every suggestedReplies entry in English.";
+  return `${CHAT_LANDING_SYSTEM_PROMPT}\n\n7. ${directive}`;
+}
+
 /** Serializes a transcript into a single prompt string — generateAiJson takes one userPrompt, not a message array. */
 export function buildChatTurnPrompt(transcript: { role: "user" | "assistant"; content: string }[]): string {
   const lines = transcript.map((turn) => `${turn.role === "user" ? "User" : "Assistant"}: ${turn.content}`);

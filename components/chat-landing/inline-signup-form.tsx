@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n/language-context";
 
 export function InlineSignupForm({
   sessionId,
@@ -13,6 +14,7 @@ export function InlineSignupForm({
   sessionId: string;
   onSignedUp: (params: { email: string }) => void;
 }) {
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,14 +43,14 @@ export function InlineSignupForm({
         if (res.status === 409) {
           sessionStorage.removeItem("chat-landing-session-id");
         }
-        setError(data?.error || "We couldn't finish setting up your trial. Please try again.");
+        setError(data?.error || t.chat.signup.errTrial);
         setLoading(false);
         return;
       }
 
       onSignedUp({ email });
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t.chat.signup.errGeneric);
       setLoading(false);
     }
   };
@@ -64,15 +66,15 @@ export function InlineSignupForm({
     >
       {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="space-y-1.5">
-        <Label htmlFor="chat-landing-name" className={labelClass}>Name</Label>
+        <Label htmlFor="chat-landing-name" className={labelClass}>{t.chat.signup.name}</Label>
         <Input id="chat-landing-name" className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} required />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="chat-landing-email" className={labelClass}>Email</Label>
+        <Label htmlFor="chat-landing-email" className={labelClass}>{t.chat.signup.email}</Label>
         <Input id="chat-landing-email" className={fieldClass} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="chat-landing-password" className={labelClass}>Password</Label>
+        <Label htmlFor="chat-landing-password" className={labelClass}>{t.chat.signup.password}</Label>
         <Input
           id="chat-landing-password"
           className={fieldClass}
@@ -84,7 +86,7 @@ export function InlineSignupForm({
         />
       </div>
       <Button type="submit" disabled={loading} variant="gradient" size="lg" className="w-full rounded-xl">
-        {loading ? <Loader2 className="size-4 animate-spin" /> : "Start my free trial"}
+        {loading ? <Loader2 className="size-4 animate-spin" /> : t.chat.signup.submit}
       </Button>
     </form>
   );

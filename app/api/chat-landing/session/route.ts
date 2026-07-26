@@ -14,10 +14,12 @@ export async function POST(req: NextRequest) {
     }
 
     const userAgent = req.headers.get("user-agent") ?? null;
+    const body = await req.json().catch(() => ({}));
+    const locale: "da" | "en" = body?.locale === "en" ? "en" : "da";
 
     const [row] = await db
       .insert(chatLandingSession)
-      .values({ ipAddress: ip, userAgent })
+      .values({ ipAddress: ip, userAgent, locale })
       .returning({ id: chatLandingSession.id });
 
     return NextResponse.json({ sessionId: row.id });

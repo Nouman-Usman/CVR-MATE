@@ -842,6 +842,7 @@ export const chatLandingSession = pgTable(
     transcript: jsonb("transcript").default([]).notNull(), // { role, content }[]
     qualifyingAnswers: jsonb("qualifying_answers").default({}).notNull(),
     recommendedPlan: text("recommended_plan"),
+    locale: text("locale").default("da").notNull(), // 'da' | 'en' — language the visitor chatted in
     previewCompanyVats: jsonb("preview_company_vats").default([]), // number[]
     previewCompanySnapshot: jsonb("preview_company_snapshot"), // unmasked, server-only
     signupUserId: text("signup_user_id").references(() => user.id, { onDelete: "set null" }),

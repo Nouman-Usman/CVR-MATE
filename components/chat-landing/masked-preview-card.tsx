@@ -2,6 +2,7 @@
 
 import { Lock } from "lucide-react";
 import type { MaskedCompanyPreview } from "@/lib/chat-landing/masking";
+import { useLanguage } from "@/lib/i18n/language-context";
 
 /* ─── Masked Preview Card ─────────────────────────────────────────
    The chat deals you cards straight from the register, so a preview is
@@ -24,13 +25,14 @@ const CARD_EDGE = {
   ].join(", "),
 } as const;
 
-const LOCKED_FIELDS = [
-  { label: "Email", width: "w-24" },
-  { label: "Phone", width: "w-20" },
-  { label: "Revenue", width: "w-16" },
-];
-
 export function MaskedPreviewCard({ company }: { company: MaskedCompanyPreview }) {
+  const { t } = useLanguage();
+  const lockedFields = [
+    { label: t.chat.preview.email, width: "w-24" },
+    { label: t.chat.preview.phone, width: "w-20" },
+    { label: t.chat.preview.revenue, width: "w-16" },
+  ];
+
   return (
     <div style={{ background: PAPER, ...CARD_EDGE }} className="p-4">
       {/* Header — mono CVR number and the live status stamp */}
@@ -71,10 +73,10 @@ export function MaskedPreviewCard({ company }: { company: MaskedCompanyPreview }
           style={{ color: `${INK}80` }}
         >
           <Lock className="size-2.5" />
-          Unlocks with trial
+          {t.chat.preview.unlocks}
         </p>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {LOCKED_FIELDS.map((field) => (
+          {lockedFields.map((field) => (
             <div key={field.label} className="flex items-center gap-1.5">
               <span
                 className="font-mono text-[10px] uppercase tracking-[0.1em]"

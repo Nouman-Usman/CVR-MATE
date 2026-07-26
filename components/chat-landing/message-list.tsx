@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n/language-context";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -17,6 +18,7 @@ export function MessageList({
   isTyping: boolean;
   children?: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function MessageList({
       )}
       {isTyping && (
         <p className="font-mono text-xs text-cyan-400/60 animate-pulse">
-          &gt; querying the registry...
+          {t.chat.typing}
         </p>
       )}
       {children}

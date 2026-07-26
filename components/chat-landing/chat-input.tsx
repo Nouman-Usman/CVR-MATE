@@ -4,6 +4,7 @@ import { useState, type KeyboardEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ArrowUp } from "lucide-react";
+import { useLanguage } from "@/lib/i18n/language-context";
 
 export function ChatInput({
   onSend,
@@ -12,6 +13,7 @@ export function ChatInput({
   onSend: (text: string) => void;
   disabled: boolean;
 }) {
+  const { t } = useLanguage();
   const [value, setValue] = useState("");
 
   const submit = () => {
@@ -38,7 +40,7 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           rows={1}
-          placeholder="Type your own answer…"
+          placeholder={t.chat.inputPlaceholder}
           className="resize-none min-h-[46px] max-h-32 bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 rounded-xl focus-visible:border-cyan-400/50 focus-visible:ring-cyan-400/20"
         />
         <Button

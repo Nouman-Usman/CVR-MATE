@@ -1,5 +1,5 @@
 import { ChatLandingApp } from "@/components/chat-landing/chat-landing-app";
-import { LogoFull } from "@/components/logo";
+import { StartHeader } from "@/components/chat-landing/start-header";
 
 export default async function ChatLandingPage({
   searchParams,
@@ -28,17 +28,7 @@ export default async function ChatLandingPage({
           backgroundSize: "clamp(56px, 7vw, 104px) 100%",
         }}
       />
-      <header className="relative z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/6 bg-[#0a0f1e]/80 px-4 backdrop-blur-2xl sm:px-6">
-        <LogoFull size="small" variant="dark" />
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">
-          <span className="relative flex size-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
-          </span>
-          <span className="hidden sm:inline">CVR-registret · live</span>
-          <span className="sm:hidden">Live</span>
-        </div>
-      </header>
+      <StartHeader />
 
       <div className="relative z-20 min-h-0 flex-1">
         <ChatLandingApp seed={seed} />
