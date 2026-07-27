@@ -17,7 +17,7 @@ export async function POST() {
       where: eq(subscription.userId, session.user.id),
     });
 
-    if (!sub?.stripeSubscriptionId || sub.status !== "active") {
+    if (!sub?.stripeSubscriptionId || (sub.status !== "active" && sub.status !== "trialing")) {
       return NextResponse.json(
         { error: "No active subscription to cancel" },
         { status: 400 }

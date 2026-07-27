@@ -215,7 +215,6 @@ export async function generateAiJson<T>(options: GenerateOptions): Promise<T> {
       });
 
       const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-      console.log(`[AI JSON] ${model} attempt ${attempt + 1}: ${text.length} chars`);
 
       if (!text || text.trim() === "" || text.trim() === "{}") {
         throw new Error("AI returned empty response");

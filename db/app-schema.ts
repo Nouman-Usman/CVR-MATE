@@ -334,6 +334,34 @@ export const orgAuditLog = pgTable(
   ]
 );
 
+// ─── ADMIN AUDIT LOG (super-admin action trail) ─────────────────────────────
+// Records every mutating action taken from the super-admin console. The actor
+// is the super-admin email (independent of Better Auth) so there is no user FK.
+
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    actorEmail: text("actor_email").notNull(),
+    action: text("action").notNull(),
+    // Actions: user_verify_resent | user_force_verified | user_sessions_revoked
+    //          user_plan_changed | user_trial_extended | user_deleted
+    //          subscription_canceled | trigger_run | changefeed_lock_cleared
+    //          inquiry_marked_handled
+    targetType: text("target_type"), // 'user' | 'subscription' | 'trigger' | 'inquiry' | ...
+    targetId: text("target_id"),
+    metadata: jsonb("metadata").default({}),
+    ipAddress: text("ip_address"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("admin_audit_actor_idx").on(t.actorEmail),
+    index("admin_audit_action_idx").on(t.action),
+    index("admin_audit_created_idx").on(t.createdAt),
+    index("admin_audit_target_idx").on(t.targetType, t.targetId),
+  ]
+);
+
 // ─── ENTERPRISE INQUIRY ─────────────────────────────────────────────────────
 
 export const enterpriseInquiry = pgTable("enterprise_inquiry", {
@@ -343,6 +371,9 @@ export const enterpriseInquiry = pgTable("enterprise_inquiry", {
   company: text("company").notNull(),
   phone: text("phone"),
   message: text("message"),
+  // Admin inbox triage — set when a super-admin marks the lead as handled.
+  handledAt: timestamp("handled_at", { withTimezone: true }),
+  handledBy: text("handled_by"), // super-admin email
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -950,9 +981,11 @@ export const subscription = pgTable(
     stripeSubscriptionId: text("stripe_subscription_id"),
     stripePriceId: text("stripe_price_id"),
     plan: text("plan").default("free").notNull(), // 'free' | 'starter' | 'professional' | 'enterprise'
-    status: text("status").default("active").notNull(), // 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete'
+    status: text("status").default("active").notNull(), // 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'trialing'
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    trialStart: timestamp("trial_start", { withTimezone: true }),
+    trialEnd: timestamp("trial_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
     pendingPlanChange: text("pending_plan_change"), // null when no change pending; set by change-plan, cleared by webhook
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -967,6 +1000,36 @@ export const subscription = pgTable(
     uniqueIndex("subscription_stripe_sub_idx").on(table.stripeSubscriptionId),
     index("subscription_plan_idx").on(table.plan),
     index("subscription_status_idx").on(table.status),
+  ]
+);
+
+// ─── CHAT LANDING SESSION (start.cvr-mate.dk ad-traffic chat) ──────────────
+
+export const chatLandingSession = pgTable(
+  "chat_landing_session",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    transcript: jsonb("transcript").default([]).notNull(), // { role, content }[]
+    qualifyingAnswers: jsonb("qualifying_answers").default({}).notNull(),
+    recommendedPlan: text("recommended_plan"),
+    locale: text("locale").default("da").notNull(), // 'da' | 'en' — language the visitor chatted in
+    previewCompanyVats: jsonb("preview_company_vats").default([]), // number[]
+    previewCompanySnapshot: jsonb("preview_company_snapshot"), // unmasked, server-only
+    signupUserId: text("signup_user_id").references(() => user.id, { onDelete: "set null" }),
+    signupEmail: text("signup_email"),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    slackNotifiedAt: timestamp("slack_notified_at", { withTimezone: true }),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("chat_landing_session_signup_user_idx").on(table.signupUserId),
+    index("chat_landing_session_created_idx").on(table.createdAt),
   ]
 );
 

@@ -49,5 +49,5 @@ export const cacheKey = {
   todos: (userId: string) => `todos:${userId}`,
   enrichment: (type: string, entityId: string, userId: string) =>
     `enrichment:${type}:${entityId}:${userId}`,
-  adminOverview: () => "admin:overview",
+  adminOverview: (range = "30d") => `admin:overview:${range}`,
 };

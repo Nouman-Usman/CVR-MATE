@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
       orderBy: [desc(outreachMessage.createdAt)],
     });
 
-    console.log(`[outreach GET] vat=${vat} userId=${session.user.id} found=${messages.length}`);
 
     return NextResponse.json({ messages });
   } catch (error) {

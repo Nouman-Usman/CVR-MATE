@@ -271,7 +271,7 @@ export async function executeRichPush(
       .slice(0, maxContacts);
 
     if (participants.length > maxContacts) {
-      console.log(`[RichPush] Capped contacts at ${maxContacts} (${participants.length} total)`);
+      // Capped at max contacts limit
     }
 
     for (const participant of sorted) {

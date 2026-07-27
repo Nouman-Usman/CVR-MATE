@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/get-client-ip";
 
 // ─── Rate limiting for invite pages (prevents invitation ID enumeration) ────
 
@@ -57,10 +58,39 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isLoggedIn = hasSessionCookie(req);
 
+  // ─── Chat-first landing: serve the chat funnel on its own hostname ─────────
+  // The chat page lives at /start. On its dedicated host(s) — a domain attached
+  // to THIS Vercel project (e.g. start.cvr-mate.dk) — rewrite only PAGE requests
+  // to /start; APIs, _next assets, and files must resolve unchanged, or the page
+  // loads but its scripts/auth calls 404. CHAT_LANDING_HOSTNAME may be a
+  // comma-separated list so a .vercel.app alias and a custom domain both work.
+  const chatHosts = (
+    process.env.CHAT_LANDING_HOSTNAME ||
+    process.env.NEXT_PUBLIC_CHAT_LANDING_HOSTNAME ||
+    "start.cvr-mate.dk"
+  )
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "")
+    .split(":")[0]
+    .toLowerCase();
+
+  if (chatHosts.includes(host)) {
+    const isAssetOrApi =
+      pathname.startsWith("/_next") || pathname.startsWith("/api") || pathname.includes(".");
+    if (!isAssetOrApi && !pathname.startsWith("/start")) {
+      const url = req.nextUrl.clone();
+      url.pathname = pathname === "/" ? "/start" : `/start${pathname}`;
+      return NextResponse.rewrite(url);
+    }
+    return NextResponse.next();
+  }
+
   // Rate limit /invite/* and /api/team/invitations/*/details to prevent enumeration
   if (pathname.startsWith("/invite/") || pathname.includes("/invitations/") && pathname.includes("/details")) {
     maybeCleanupRateMap();
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    const ip = getClientIp(req);
     if (!checkInviteRateLimit(ip)) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -115,5 +145,6 @@ export const config = {
     "/signup",
     "/invite/:path*",
     "/api/team/invitations/:path*/details",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

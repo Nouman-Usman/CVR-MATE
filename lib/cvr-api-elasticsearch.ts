@@ -100,8 +100,6 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
   });
 
   const url = `${ES_BASE_URL}${ES_ENDPOINT}`;
-  console.log(`[ES Search] URL: ${url}`);
-  console.log(`[ES Search] Query: ${body.slice(0, 200)}...`);
 
   try {
     const res = await fetch(url, {
@@ -120,7 +118,6 @@ async function esSearch(query: unknown, from: number = 0, size: number = 20): Pr
     }
 
     const data = await res.json();
-    console.log(`[ES Search] Got ${data.hits?.hits?.length || 0} results (total: ${typeof data.hits.total === "number" ? data.hits.total : data.hits.total?.value})`);
     return data;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -9,51 +9,136 @@ const da = {
     getStarted: "Kom i gang",
   },
   hero: {
-    badge: "B2B Lead Intelligence",
+    eyebrow: "Det Centrale Virksomhedsregister",
     headline: "Find nye kunder — før de begynder at lede efter dig.",
     description:
-      "CVR-MATE transformerer rå data til handlingsorienteret indsigt. Identificer købsklare virksomheder i realtid og boost din salgspipeline.",
-    bookDemo: "Book en demo",
+      "Hver dansk virksomhed står i CVR-registret. Beskriv dem, du vil have fat i, så kører vi søgningen igen efter din plan — nyeste først.",
     explorePlatform: "Udforsk platformen",
-    pills: [
-      "Live CVR-opdateringer",
-      "AI-drevet lead scoring",
-      "Direkte CRM eksport",
-      "Ingen bindingsperiode",
+    launcher: {
+      placeholder: "Beskriv din virksomhed, eller indsæt et CVR-nummer…",
+      start: "Start",
+      caption: "Svar på et par hurtige spørgsmål — få en plan og live virksomhedsmatch på under et minut.",
+      prompts: [
+        "Vi sælger B2B-software til producenter",
+        "Rekrutteringsbureau i København",
+        "Find virksomheder via CVR-nummer",
+      ],
+    },
+    card: {
+      fromTrigger: "Fra trigger",
+      triggers: {
+        transport: "Nye transportfirmaer i Hovedstaden",
+        software: "Softwarevirksomheder i Aarhus",
+        metal: "Metalindustri i Syddanmark",
+      },
+      director: "Direktør",
+      employees: "Ansatte",
+      revenue: "Omsætning",
+      profit: "Resultat",
+      sample: "Eksempeldata — ikke en rigtig virksomhed",
+      next: "Næste kort",
+      stampNew: "NY",
+      stampActive: "AKTIV",
+      industries: {
+        transport: "494100 Vejgodstransport",
+        software: "620100 Softwareudvikling",
+        metal: "251100 Metalkonstruktioner",
+      },
+    },
+  },
+  chat: {
+    live: "CVR-registret · live",
+    liveShort: "Live",
+    toggleAria: "Skift til engelsk",
+    connecting: "Forbinder…",
+    buildingProfile: "Bygger din profil",
+    intro: "Hej! Fortæl lidt om din virksomhed — hvad sælger I, og hvem forsøger I at nå i Danmark?",
+    starterPrompts: [
+      "Vi sælger B2B-software til danske producenter",
+      "Rekrutteringsbureau, der leder efter voksende startups",
+      "Jeg vil finde virksomheder via CVR-nummer",
     ],
-    stat: "Lead Konverteringshastighed",
-    dashNewLeads: "Nye Leads",
-    dashGrowth: "Vækst",
-    dashExport: "Eksport",
-    dashAutoSync: "Auto-sync aktiv",
-    dashTopCompanies: "Top Virksomheder",
-    dashSeeAll: "SE ALLE",
-    appPreview: {
-      liveFeed: "Live Feed",
-      growthSignal: "Vækst Signal",
-      saaS_dk: "SaaS sektor - Danmark",
-      speed: "42k/sek",
-      acc: "99.9% ACC",
-      status_growth: "VÆKST",
-      status_new: "NY",
-      status_stable: "STABIL",
-      ind_saas: "SaaS",
-      ind_data: "Data",
-      ind_fintech: "Fintech",
+    inputPlaceholder: "Skriv dit eget svar…",
+    typing: "> søger i registret...",
+    error: "Noget gik galt",
+    done: {
+      badge: "Konto oprettet",
+      title: "Din 14-dages prøveperiode er aktiv — ingen betaling i dag",
+      body: "Vi har sendt et bekræftelseslink til",
+      bodyAfter: ". Bekræft det for at logge ind og komme i gang med CVR-MATE.",
+    },
+    signup: {
+      name: "Navn",
+      email: "E-mail",
+      password: "Adgangskode",
+      submit: "Start min gratis prøveperiode",
+      errTrial: "Vi kunne ikke oprette din prøveperiode. Prøv igen.",
+      errGeneric: "Noget gik galt. Prøv igen.",
+    },
+    preview: {
+      unlocks: "Låses op med prøveperiode",
+      email: "E-mail",
+      phone: "Telefon",
+      revenue: "Omsætning",
+    },
+    reco: {
+      recommended: "Anbefalet",
+      perMonthAfterTrial: "/md efter prøveperiode",
+      freeTrial: "14 dages gratis prøveperiode, ingen betaling i dag",
+      onboarding: "Personlig onboarding med vores team",
+      cta: "Start min gratis prøveperiode",
     },
   },
   features: {
-    title: "Mere end virksomhedsdata: Fuld virksomhedsintelligens",
-    subtitle: "Vi forbinder prikkerne mellem data og salgspotentiale.",
-    card1Title: "AI-drevne profiler",
-    card1Desc:
-      "Gemini analyserer økonomi, ledelsesændringer og væksttendenser på sekunder. Få righoldig intelligens automatisk genereret for hver prospect.",
-    card2Title: "Smart lead-scoring",
-    card2Desc:
-      "Vores AI vurderer købssignaler og matcher virksomhedsændringer til din ideelle kundeprofil. Realtidsscoring viser dig præcis hvem du skal målrette.",
-    card3Title: "Autonom markedsovervågning",
-    card3Desc:
-      "AI'en overvåger hele det danske marked 24/7 og registrerer vækststigninger, ledelsesændringer og triggerhændelser før dine konkurrenter.",
+    title: "Alt hvad du behøver for at finde din næste kunde",
+    subtitle:
+      "Ét workspace, der forbinder live CVR-data, AI-analyse og opsøgende salg — uden krav om et CRM for at komme i gang.",
+    groups: {
+      find: "Find",
+      understand: "Forstå",
+      act: "Handl",
+      watch: "Overvåg",
+    },
+    filed: "arkiveret",
+    sources: { cvr: "CVR", ai: "AI", app: "App" },
+    items: [
+      {
+        title: "Øjeblikkelig CVR-søgning",
+        desc: "Søg i hele Danmarks virksomhedsregister på navn, CVR-nummer eller branche, med autocomplete der finder den rette virksomhed på sekunder.",
+      },
+      {
+        title: "AI-virksomhedsbriefinger",
+        desc: "AI'en læser regnskaber, ejerforhold og seneste ændringer for dig og skriver en briefing i almindeligt sprog — ingen regneark, ingen graven.",
+      },
+      {
+        title: "Naturligt sprog-søgning",
+        desc: "Beskriv den virksomhed du leder efter med dine egne ord — \"voksende fintechs i Aarhus med under 20 ansatte\" — og få matchende resultater.",
+      },
+      {
+        title: "AI-udkast til opsøgende salg",
+        desc: "Generér en klar-til-afsendelse e-mail, LinkedIn-besked eller opkaldsscript for enhver virksomhed, personaliseret ud fra hvad AI'en allerede ved.",
+      },
+      {
+        title: "Lead-triggere & overvågning",
+        desc: "Gem en søgning som trigger — branche, region, størrelse, selskabsform — og den kører dagligt eller ugentligt og henter de nyeste match.",
+      },
+      {
+        title: "Notifikationer i realtid",
+        desc: "Hver trigger-kørsel lægger sine match i appen, med et valgfrit e-mail-resumé, så du ikke skal huske at tjekke efter.",
+      },
+      {
+        title: "Gemte virksomheder & søgninger",
+        desc: "Hold styr på en løbende liste af prospekter og genkør dine bedste søgninger med ét klik. Nyligt viste virksomheder er altid ét klik væk.",
+      },
+      {
+        title: "AI-berigelse",
+        desc: "Berig automatisk virksomheds- og kontaktprofiler med ekstra kontekst, AI'en samler sammen, så hver profil er mere end rå registerdata.",
+      },
+      {
+        title: "Smarte opgaveforslag",
+        desc: "AI'en foreslår opfølgende opgaver baseret på, hvad der sker med en virksomhed, så intet falder mellem to stole fra første kig til første opkald.",
+      },
+    ],
   },
   products: {
     title: "Tre niveauer af intelligens",
@@ -119,28 +204,37 @@ const da = {
     quoteRole: "Head of Sales, NordicTech",
   },
   howItWorks: {
-    title: "Vejen til Intelligens",
-    subtitle: "Fire trin til en fuldautomatisk lead-maskine.",
+    title: "Sådan virker det",
+    subtitle: "Sæt det op én gang. Derefter kører det efter din plan.",
+    phases: {
+      setup: "Sæt op én gang",
+      run: "Kører efter din plan",
+    },
+    cadence: "dagligt eller ugentligt",
     steps: [
       {
         num: "01",
-        title: "Identificér",
-        desc: "Systemet overvåger hele det danske erhvervsliv for signaler og ændringer.",
+        title: "Afgræns",
+        desc: "Beskriv din ideelle kunde som en søgning i CVR — branche, region, størrelse og selskabsform.",
+        artifact: "Branche · Region · Størrelse",
       },
       {
         num: "02",
-        title: "Filtrér",
-        desc: "Dine specifikke ICP (Ideal Customer Profile) kriterier anvendes automatisk.",
+        title: "Gem som trigger",
+        desc: "Gem søgningen som en trigger, og vælg om den skal køre dagligt eller ugentligt.",
+        artifact: "Dagligt / Ugentligt",
       },
       {
         num: "03",
-        title: "Levér",
-        desc: "Berigede leads med kontaktinfo og kontekst sendes direkte til dit dashboard.",
+        title: "Gennemse",
+        desc: "Hver kørsel lægger de nyeste match i appen med et valgfrit e-mail-resumé — nyeste først.",
+        artifact: "12 nye match · i dag",
       },
       {
         num: "04",
-        title: "Aktivér",
-        desc: "Eksportér til CRM eller start din outreach med ét enkelt klik.",
+        title: "Handl",
+        desc: "Åbn en virksomhed for en AI-briefing, udkast til outreach, eller eksportér til dit CRM.",
+        artifact: "AI-briefing · CRM-eksport",
       },
     ],
   },
@@ -253,6 +347,8 @@ const da = {
     },
   },
   trust: {
+    heading: "Verificeret datakilde",
+    source: "Erhvervsstyrelsen · Det Centrale Virksomhedsregister",
     items: [
       {
         icon: "api",
@@ -262,7 +358,7 @@ const da = {
       {
         icon: "database",
         title: "Pålidelig Data",
-        desc: "99.9% uptime på alle datastrømme.",
+        desc: "Opdateres løbende, direkte fra registret.",
       },
       {
         icon: "workflow",
@@ -272,9 +368,11 @@ const da = {
     ],
   },
   cta: {
+    eyebrow: "Klar når du er",
+    stamp: "KLAR",
     title: "Byg en smartere B2B-pipeline i dag.",
     subtitle:
-      "Slut dig til over 500 danske virksomheder, der allerede bruger CVR-MATE til at vinde markedet.",
+      "Bliv en del af de danske virksomheder, der allerede prospekterer smartere med CVR-MATE.",
     button1: "Opret din konto nu",
     button2: "Book en fremvisning",
     note: "Ingen kreditkort påkrævet",
@@ -1073,6 +1171,8 @@ const da = {
       nextBilling: "N\u00e6ste faktureringsdato",
       cancelNotice: "Din plan vil blive annulleret ved slutningen af faktureringsperioden.",
       pastDueWarning: "Din betaling mislykkedes. Opdater venligst din betalingsmetode for at beholde din plan.",
+      trialBanner: "Prøveperiode slutter om {days} dage.",
+      trialBannerLastDay: "Prøveperiode slutter i dag.",
       freePlan: "Du er p\u00e5 den gratis plan med begr\u00e6nsede funktioner.",
       updatePayment: "Opdater betaling",
       perMonth: "/md",
@@ -1500,6 +1600,8 @@ const da = {
     notFound: "Virksomhed ikke fundet.",
     error: "Kunne ikke indlæse virksomhedsdata.",
     adProtected: "Reklamebeskyttet",
+    adProtectedTitle: "Markedsføring frabedt",
+    adProtectedDesc: "Registreret som reklamebeskyttet i CVR — virksomheden har frabedt sig uanmodet markedsføring. Brug den ikke til kold kanvas.",
     bankrupt: "Konkurs",
   },
   personDetail: {

@@ -97,8 +97,6 @@ export async function DELETE() {
       }
     }
 
-    console.log(`[GDPR] User ${userId} deleted (right to erasure)`);
-
     return NextResponse.json({ deleted: true });
   } catch (err) {
     console.error("[GDPR] User deletion failed:", err);

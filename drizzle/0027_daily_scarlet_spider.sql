@@ -1,0 +1,1 @@
+ALTER TABLE "chat_landing_session" ADD COLUMN "locale" text DEFAULT 'da' NOT NULL;

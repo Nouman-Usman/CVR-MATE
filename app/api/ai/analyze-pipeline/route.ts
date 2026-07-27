@@ -125,7 +125,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[AI Pipeline] Analyzing ${companySummaries.length} companies (${cvrCompanies.length} from CVR API, ${dbCompanies.length} from DB)`);
 
     const lang = locale === "da" ? "Danish" : "English";
     const brand = await getUserBrand(session.user.id);
@@ -234,8 +233,6 @@ ${formatBrandContext(brand)}`;
         action: na.action ?? "",
       })),
     };
-
-    console.log(`[AI Pipeline] Done — ${result.prioritized.length} prioritized, ${result.segments.length} segments, ${result.nextActions.length} actions`);
 
     await recordUsage(session.user.id, "ai_usage");
     return NextResponse.json(result);

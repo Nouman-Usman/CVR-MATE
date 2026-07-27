@@ -209,3 +209,28 @@ export function priceToPlan(stripePriceId: string | null | undefined): PlanId {
 
   return priceMap[stripePriceId] ?? "free";
 }
+
+/** True when the Stripe Price ID is one of the annual (yearly) plan prices. */
+export function isAnnualPriceId(stripePriceId: string | null | undefined): boolean {
+  if (!stripePriceId) return false;
+  return [
+    process.env.NEXT_PUBLIC_STRIPE_STARTER_ANNUAL_PRICE_ID,
+    process.env.NEXT_PUBLIC_STRIPE_PRO_ANNUAL_PRICE_ID,
+    process.env.NEXT_PUBLIC_STRIPE_ENT_ANNUAL_PRICE_ID,
+  ].includes(stripePriceId);
+}
+
+/**
+ * Normalized monthly recurring revenue (DKK) for a single subscription.
+ * The DB stores no amount, so we derive it: annual subscribers are billed the
+ * discounted `annualPrice` (already expressed per-month); everyone else pays the
+ * monthly `price`. Free/unknown plans contribute 0.
+ */
+export function monthlyRevenueForSubscription(
+  plan: string,
+  stripePriceId: string | null | undefined
+): number {
+  const def = PLANS[resolvePlanId(plan)];
+  if (!def || def.id === "free") return 0;
+  return isAnnualPriceId(stripePriceId) ? def.annualPrice : def.price;
+}

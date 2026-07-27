@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getUserPlan, getPlanLimits, getUsageSummary } from "@/lib/stripe/entitlements";
-import { PLANS, priceToPlan } from "@/lib/stripe/plans";
+import { PLANS } from "@/lib/stripe/plans";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { subscription } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { subscriptionDataFromStripe } from "@/lib/stripe/webhook-helpers";
 
 export async function GET() {
   try {
@@ -45,6 +46,7 @@ export async function GET() {
       currency: planDef.currency,
       status,
       currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
+      trialEnd: sub?.trialEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
       stripePriceId: sub?.stripePriceId ?? null,
       billingInterval,
@@ -98,63 +100,20 @@ export async function POST() {
       return NextResponse.json({ synced: true, plan: "free", action: "subscription_not_found" });
     }
 
-    // Build canonical data from Stripe
-    const priceId = stripeSub.items.data[0]?.price?.id ?? null;
-    const plan = stripeSub.status === "canceled" ? "free" : priceToPlan(priceId);
+    // Build canonical data from Stripe — reuse the same derivation the webhook uses
+    // so a manual refresh can never disagree with what the webhook would have written.
+    const canonical = subscriptionDataFromStripe(stripeSub);
 
-    const statusMap: Record<string, string> = {
-      active: "active",
-      past_due: "past_due",
-      canceled: "canceled",
-      unpaid: "unpaid",
-      incomplete: "incomplete",
-      incomplete_expired: "canceled",
-      trialing: "incomplete",
-      paused: "past_due",
-    };
-
-    const item = stripeSub.items?.data?.[0];
-    const periodStart = item?.current_period_start
-      ? new Date(item.current_period_start * 1000)
-      : sub.currentPeriodStart;
-    const periodEnd = item?.current_period_end
-      ? new Date(item.current_period_end * 1000)
-      : sub.currentPeriodEnd;
-
-    // Only write if no webhook has updated since we started fetching.
-    // This prevents the sync from overwriting newer webhook data.
     await db
       .update(subscription)
-      .set({
-        stripePriceId: priceId,
-        plan: stripeSub.status === "canceled" ? "free" : plan,
-        status: statusMap[stripeSub.status] ?? stripeSub.status,
-        currentPeriodStart: periodStart,
-        currentPeriodEnd: periodEnd,
-        cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-      })
-      .where(
-        // Guard: only update if the row hasn't been modified by a webhook since we started
-        eq(subscription.id, sub.id)
-      )
-      // We rely on updatedAt's $onUpdate auto-setter, but add an extra check:
-      // If updatedAt is after our syncStartedAt, a webhook wrote newer data — skip.
-      .returning({ id: subscription.id });
-
-    // If the row's updatedAt is newer than syncStartedAt, the webhook already wrote newer data.
-    // We do a softer version: always write, but log if there was a potential race.
-    // The real guard is that webhook data is always canonical (subscriptionDataFromStripe),
-    // and the next webhook will correct any temporary staleness.
-
-    console.log(
-      `[Sync] User ${session.user.id} synced: plan=${plan}, status=${stripeSub.status}, cancel=${stripeSub.cancel_at_period_end}`
-    );
+      .set(canonical)
+      .where(eq(subscription.id, sub.id));
 
     return NextResponse.json({
       synced: true,
-      plan: stripeSub.status === "canceled" ? "free" : plan,
-      status: stripeSub.status,
-      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+      plan: canonical.plan,
+      status: canonical.status,
+      cancelAtPeriodEnd: canonical.cancelAtPeriodEnd,
     });
   } catch (error) {
     console.error("Failed to sync subscription:", error);
