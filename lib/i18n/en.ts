@@ -1,4 +1,29 @@
 const en = {
+  agent: {
+    title: "AI Search Agent",
+    subtitle:
+      "Describe who you're looking for and the agent searches, researches, and acts on Danish companies for you.",
+    starters: [
+      "Find software companies in Copenhagen founded in the last year",
+      "Show manufacturing companies in the Central Denmark region with 10-50 employees",
+      "Write a briefing on the company with VAT 12345678",
+      "Find accounting firms in Aarhus and identify the key contacts",
+    ],
+    placeholder: "Ask the agent to find, research, or act on companies…",
+    send: "Send",
+    thinking: "The agent is working…",
+    disclaimer: "The agent can make mistakes. Verify important details.",
+    newChat: "New conversation",
+    loading: "Loading…",
+    noConversations: "No conversations yet",
+    untitled: "Untitled",
+    deleteConversation: "Delete conversation",
+    confirm: {
+      title: "Confirmation required",
+      approve: "Approve",
+      reject: "Reject",
+    },
+  },
   nav: {
     home: "Home",
     howItWorks: "How it works",
@@ -488,6 +513,7 @@ const en = {
     createFirstTrigger: "Create your first trigger",
     nav: {
       dashboard: "Dashboard",
+      agent: "AI Agent",
       search: "Search companies",
       recentCompanies: "Recent companies",
       triggers: "Lead Triggers",

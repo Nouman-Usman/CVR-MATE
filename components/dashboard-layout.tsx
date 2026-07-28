@@ -60,7 +60,7 @@ import {
 
 // ── Nav structure with grouped sections ──────────────────────────────
 
-type NavKey = "dashboard" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "pipeline" | "exports" | "settings";
+type NavKey = "dashboard" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "pipeline" | "exports" | "settings";
 
 interface NavItem {
   key: NavKey;
@@ -80,6 +80,7 @@ const navSections: NavSection[] = [
     labelDa: "Oversigt",
     items: [
       { key: "dashboard", icon: Home, href: "/dashboard" },
+      { key: "agent", icon: Sparkles, href: "/agent" },
       { key: "search", icon: Search, href: "/search" },
       { key: "recentCompanies", icon: Building2, href: "/recent-companies" },
     ],

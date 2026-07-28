@@ -1033,6 +1033,56 @@ export const chatLandingSession = pgTable(
   ]
 );
 
+// ─── AGENT SESSIONS (conversational search agent — /agent) ──────────────────
+
+export const agentSession = pgTable(
+  "agent_session",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Nullable, team-scoped like `todo`: personal rows are null, team rows carry the org.
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    title: text("title"), // derived from the first user message
+    locale: text("locale").default("da").notNull(), // 'da' | 'en'
+    status: text("status").default("active").notNull(), // 'active' | 'awaiting_confirmation' | 'archived'
+    // Pending write-action awaiting user confirmation: { toolUseId, toolName, input }
+    pendingInterrupt: jsonb("pending_interrupt"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("agent_session_user_created_idx").on(table.userId, table.createdAt),
+    index("agent_session_org_idx").on(table.organizationId),
+  ]
+);
+
+// ─── AGENT MESSAGES (agent transcript — Anthropic content blocks, verbatim) ──
+
+export const agentMessage = pgTable(
+  "agent_message",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => agentSession.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // 'user' | 'assistant' | 'tool_result'
+    // Anthropic ContentBlock[] stored verbatim (text / tool_use / tool_result) so
+    // history rebuilds losslessly for the next messages.stream() call.
+    content: jsonb("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("agent_message_session_created_idx").on(table.sessionId, table.createdAt),
+  ]
+);
+
 // ─── USAGE RECORDS (monthly quota tracking) ─────────────────────────────────
 
 export const usageRecord = pgTable(
@@ -1309,6 +1359,18 @@ export const usageRecordRelations = relations(usageRecord, ({ one }) => ({
   user: one(user, { fields: [usageRecord.userId], references: [user.id] }),
 }));
 
+export const agentSessionRelations = relations(agentSession, ({ one, many }) => ({
+  user: one(user, { fields: [agentSession.userId], references: [user.id] }),
+  messages: many(agentMessage),
+}));
+
+export const agentMessageRelations = relations(agentMessage, ({ one }) => ({
+  session: one(agentSession, {
+    fields: [agentMessage.sessionId],
+    references: [agentSession.id],
+  }),
+}));
+
 export const profileEnrichmentRelations = relations(profileEnrichment, ({ one }) => ({
   user: one(user, { fields: [profileEnrichment.userId], references: [user.id] }),
 }));
@@ -1348,4 +1410,5 @@ export const userRelations = relations(user, ({ many, one }) => ({
   usageRecords: many(usageRecord),
   followedPeople: many(followedPerson),
   emailLogs: many(emailLog),
+  agentSessions: many(agentSession),
 }));

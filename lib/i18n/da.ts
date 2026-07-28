@@ -1,4 +1,29 @@
 const da = {
+  agent: {
+    title: "AI Search Agent",
+    subtitle:
+      "Beskriv hvem du leder efter, så søger, analyserer og handler agenten på danske virksomheder for dig.",
+    starters: [
+      "Find softwarevirksomheder i København stiftet det seneste år",
+      "Vis produktionsvirksomheder i Region Midtjylland med 10-50 ansatte",
+      "Lav et briefing om virksomheden med CVR 12345678",
+      "Find revisionsfirmaer i Aarhus og udpeg de vigtigste kontaktpersoner",
+    ],
+    placeholder: "Spørg agenten om at finde, researche eller handle på virksomheder…",
+    send: "Send",
+    thinking: "Agenten arbejder…",
+    disclaimer: "Agenten kan lave fejl. Bekræft vigtige oplysninger.",
+    newChat: "Ny samtale",
+    loading: "Indlæser…",
+    noConversations: "Ingen samtaler endnu",
+    untitled: "Uden titel",
+    deleteConversation: "Slet samtale",
+    confirm: {
+      title: "Bekræftelse påkrævet",
+      approve: "Godkend",
+      reject: "Afvis",
+    },
+  },
   nav: {
     home: "Hjem",
     howItWorks: "Sådan virker det",
@@ -488,6 +513,7 @@ const da = {
     createFirstTrigger: "Opret din første trigger",
     nav: {
       dashboard: "Dashboard",
+      agent: "AI-Agent",
       search: "Søg virksomheder",
       recentCompanies: "Nye virksomheder",
       triggers: "Lead Triggers",
