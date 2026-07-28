@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 import type { StreamEvent } from "@/lib/agent/types";
@@ -94,6 +94,9 @@ export function useSearchAgent(): UseSearchAgent {
   const [sessionId, setSessionId] = useState<string | null>(null);
   // The assistant message currently receiving stream events.
   const currentAssistantId = useRef<string | null>(null);
+  // Coalesce token deltas: buffer them and flush once per animation frame.
+  const textBufferRef = useRef<{ id: string; text: string }>({ id: "", text: "" });
+  const rafRef = useRef<number | null>(null);
 
   const setSession = useCallback((id: string) => {
     sessionIdRef.current = id;
@@ -115,15 +118,47 @@ export function useSearchAgent(): UseSearchAgent {
     []
   );
 
+  const flushBuffer = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    const { id, text } = textBufferRef.current;
+    if (!id || !text) return;
+    textBufferRef.current = { id, text: "" };
+    patchAssistant(id, (m) => ({ ...m, text: m.text + text }));
+  }, [patchAssistant]);
+
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current != null) return;
+    if (typeof requestAnimationFrame === "undefined") {
+      flushBuffer();
+      return;
+    }
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      flushBuffer();
+    });
+  }, [flushBuffer]);
+
+  // Cancel any pending frame on unmount.
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
   const handleEvent = useCallback(
     (e: StreamEvent) => {
+      // Apply any buffered text before a non-text event so ordering is preserved.
+      if (e.type !== "text") flushBuffer();
       switch (e.type) {
         case "session":
           setSession(e.sessionId);
           break;
         case "text": {
           const id = ensureAssistantMessage();
-          patchAssistant(id, (m) => ({ ...m, text: m.text + e.delta }));
+          textBufferRef.current.id = id;
+          textBufferRef.current.text += e.delta;
+          scheduleFlush();
           break;
         }
         case "tool_call": {
@@ -167,13 +202,18 @@ export function useSearchAgent(): UseSearchAgent {
           break;
       }
     },
-    [ensureAssistantMessage, patchAssistant, setSession, triggerUpgrade]
+    [ensureAssistantMessage, patchAssistant, setSession, triggerUpgrade, flushBuffer, scheduleFlush]
   );
 
   const runRequest = useCallback(
     async (body: Record<string, unknown>) => {
       setError(null);
       currentAssistantId.current = null;
+      textBufferRef.current = { id: "", text: "" };
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       setStatus("streaming");
       try {
         const res = await fetch("/api/agent/search", {
@@ -189,6 +229,7 @@ export function useSearchAgent(): UseSearchAgent {
           return;
         }
         await readStream(res, handleEvent);
+        flushBuffer(); // apply any tail text if the stream closed without a terminal event
         // If the stream ended without a terminal event, settle to idle.
         setStatus((s) => (s === "streaming" ? "idle" : s));
       } catch (err) {
@@ -196,7 +237,7 @@ export function useSearchAgent(): UseSearchAgent {
         setStatus("error");
       }
     },
-    [handleEvent, triggerUpgrade]
+    [handleEvent, triggerUpgrade, flushBuffer]
   );
 
   const sendMessage = useCallback(

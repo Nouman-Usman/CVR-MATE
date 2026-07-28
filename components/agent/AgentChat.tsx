@@ -68,8 +68,12 @@ export function AgentChat() {
               <EmptyState onPick={(p) => setInput(p)} />
             ) : (
               <div className="space-y-5">
-                {messages.map((m) => (
-                  <AgentMessage key={m.id} message={m} />
+                {messages.map((m, idx) => (
+                  <AgentMessage
+                    key={m.id}
+                    message={m}
+                    streaming={status === "streaming" && idx === messages.length - 1 && m.role === "assistant"}
+                  />
                 ))}
                 {pendingConfirm && <ConfirmCard pending={pendingConfirm} onDecision={confirm} />}
                 {showThinking && (

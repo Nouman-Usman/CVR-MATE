@@ -1,12 +1,12 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { UiMessage } from "@/lib/hooks/use-search-agent";
 import { ToolTrace } from "./ToolTrace";
 import { CompanyResults, companiesFromDisplay, type AgentCompany } from "./CompanyResults";
+import { Markdown } from "./Markdown";
 
-export function AgentMessage({ message }: { message: UiMessage }) {
+export function AgentMessage({ message, streaming = false }: { message: UiMessage; streaming?: boolean }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -45,14 +45,9 @@ export function AgentMessage({ message }: { message: UiMessage }) {
             ))}
           </div>
         )}
-        {message.text && (
-          <div
-            className={cn(
-              "prose prose-sm max-w-none text-sm leading-relaxed text-foreground",
-              "whitespace-pre-wrap wrap-break-word"
-            )}
-          >
-            {message.text}
+        {(message.text || streaming) && (
+          <div className="wrap-break-word">
+            <Markdown text={streaming && message.text ? `${message.text} ▍` : message.text} />
           </div>
         )}
         {companies.length > 0 && <CompanyResults companies={companies} />}
