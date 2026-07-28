@@ -3,6 +3,7 @@
 import { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { remarkLinkVat } from "./remark-link-vat";
 
 /**
  * Chat markdown renderer. Each element is mapped to an explicitly-styled node
@@ -60,7 +61,7 @@ const components: Components = {
 function MarkdownImpl({ text }: { text: string }) {
   return (
     <div className="text-sm text-foreground">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkLinkVat]} components={components}>
         {text}
       </ReactMarkdown>
     </div>

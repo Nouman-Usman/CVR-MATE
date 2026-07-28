@@ -8,12 +8,20 @@ import { searchTools } from "./search";
 import { companyTools } from "./company";
 import { peopleTools } from "./people";
 import { aiAnalysisTools } from "./ai-analysis";
+import { actionTools } from "./actions";
 
 /**
- * The full tool registry. Read/search tools (Phase 1) + AI-analysis tools
- * (Phase 2); write/action tools (Phase 3) are appended as they land.
+ * The full tool registry: read/search tools (Phase 1), AI-analysis tools
+ * (Phase 2), and write/action tools (Phase 3, `kind: "write"` — the runtime
+ * pauses these for user confirmation).
  */
-const REGISTRY: AgentTool[] = [...searchTools, ...companyTools, ...peopleTools, ...aiAnalysisTools];
+const REGISTRY: AgentTool[] = [
+  ...searchTools,
+  ...companyTools,
+  ...peopleTools,
+  ...aiAnalysisTools,
+  ...actionTools,
+];
 
 export function getTools(): AgentTool[] {
   return REGISTRY;
