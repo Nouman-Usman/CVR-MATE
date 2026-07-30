@@ -588,7 +588,12 @@ function SubscriptionSection() {
                     const priceId = getPriceId(targetPlan, billingInterval);
                     const isEnterprise = targetPlan === "enterprise";
 
-                    if (isEnterprise) {
+                    // Fall back to a contact-sales mailto only while Enterprise
+                    // has no configured Stripe price. Once the ENT price IDs are
+                    // set (and the app redeployed, since they're NEXT_PUBLIC and
+                    // inlined at build time), Enterprise renders the normal
+                    // checkout button below like the other paid plans.
+                    if (isEnterprise && !priceId) {
                       return (
                         <a
                           key="enterprise"
@@ -627,7 +632,9 @@ function SubscriptionSection() {
                         className={`flex flex-col p-5 rounded-xl border-2 transition-all text-left group ${
                           targetPlan === "professional"
                             ? "border-violet-200 hover:border-violet-400 hover:bg-violet-50/30"
-                            : "border-blue-200 hover:border-blue-400 hover:bg-blue-50/30"
+                            : targetPlan === "enterprise"
+                              ? "border-amber-200 hover:border-amber-400 hover:bg-amber-50/30"
+                              : "border-blue-200 hover:border-blue-400 hover:bg-blue-50/30"
                         } hover:shadow-md cursor-pointer disabled:opacity-50`}
                       >
                         <div className="flex items-center justify-between w-full mb-3">
