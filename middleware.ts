@@ -31,6 +31,7 @@ function maybeCleanupRateMap() {
 
 const PROTECTED_ROUTES = [
   "/dashboard",
+  "/matches",
   "/agent",
   "/search",
   "/recent-companies",
@@ -130,6 +131,7 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/matches/:path*",
     "/agent/:path*",
     "/search/:path*",
     "/recent-companies/:path*",

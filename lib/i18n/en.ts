@@ -24,6 +24,32 @@ const en = {
       reject: "Reject",
     },
   },
+  matches: {
+    title: "Daily Matches",
+    subtitle: "Fresh leads matched to your business, every morning.",
+    whyFits: "Why this fits you",
+    accept: "Save lead",
+    reject: "Pass",
+    founded: "Founded",
+    employees: "Employees",
+    keyboardHint: "← Pass · Save →",
+    progress: "{current} of {total}",
+    score: {
+      high: "Strong match",
+      medium: "Good match",
+      low: "Possible match",
+    },
+    empty: {
+      title: "You're all caught up",
+      subtitle: "New matches arrive tomorrow morning.",
+    },
+    locked: {
+      title: "Unlock Daily Matches",
+      subtitle:
+        "Get a fresh, ranked shortlist of leads every day. Available on Professional and Enterprise.",
+      cta: "Upgrade",
+    },
+  },
   nav: {
     home: "Home",
     howItWorks: "How it works",
@@ -513,6 +539,7 @@ const en = {
     createFirstTrigger: "Create your first trigger",
     nav: {
       dashboard: "Dashboard",
+      matches: "Matches",
       agent: "AI Agent",
       search: "Search companies",
       recentCompanies: "Recent companies",

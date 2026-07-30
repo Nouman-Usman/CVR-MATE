@@ -24,6 +24,32 @@ const da = {
       reject: "Afvis",
     },
   },
+  matches: {
+    title: "Dagens match",
+    subtitle: "Friske leads matchet til din virksomhed – hver morgen.",
+    whyFits: "Derfor passer det til dig",
+    accept: "Gem lead",
+    reject: "Spring over",
+    founded: "Stiftet",
+    employees: "Ansatte",
+    keyboardHint: "← Spring over · Gem →",
+    progress: "{current} af {total}",
+    score: {
+      high: "Stærkt match",
+      medium: "Godt match",
+      low: "Muligt match",
+    },
+    empty: {
+      title: "Du er ajour",
+      subtitle: "Nye match ankommer i morgen tidlig.",
+    },
+    locked: {
+      title: "Lås Dagens match op",
+      subtitle:
+        "Få en frisk, rangeret liste med leads hver dag. Tilgængelig på Professional og Enterprise.",
+      cta: "Opgrader",
+    },
+  },
   nav: {
     home: "Hjem",
     howItWorks: "Sådan virker det",
@@ -513,6 +539,7 @@ const da = {
     createFirstTrigger: "Opret din første trigger",
     nav: {
       dashboard: "Dashboard",
+      matches: "Match",
       agent: "AI-Agent",
       search: "Søg virksomheder",
       recentCompanies: "Nye virksomheder",
