@@ -46,6 +46,7 @@ export interface PlanLimits {
   calendarExport: boolean;
   contextMenus: boolean;
   prioritySupport: boolean;
+  matchFeed: boolean; // daily matched-leads feed (Professional + Enterprise)
 }
 
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
@@ -70,6 +71,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     calendarExport: true,
     contextMenus: true,
     prioritySupport: false,
+    matchFeed: false,
   },
   starter: {
     savedCompanies: 25,
@@ -92,6 +94,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     calendarExport: true,
     contextMenus: true,
     prioritySupport: false,
+    matchFeed: false,
   },
   professional: {
     savedCompanies: 100,
@@ -114,6 +117,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     calendarExport: true,
     contextMenus: true,
     prioritySupport: false,
+    matchFeed: true,
   },
   enterprise: {
     savedCompanies: Infinity,
@@ -136,6 +140,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     calendarExport: true,
     contextMenus: true,
     prioritySupport: true,
+    matchFeed: true,
   },
 };
 

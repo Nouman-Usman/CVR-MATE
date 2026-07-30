@@ -1189,6 +1189,66 @@ export const userVideoView = pgTable(
   ]
 );
 
+// ─── MATCH FEED ITEM (daily matched leads: feed + exclusion set + feedback log) ─
+export const matchFeedItem = pgTable(
+  "match_feed_item",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    // nullable: ES-sourced candidates may have no canonical company row until accepted
+    companyId: uuid("company_id").references(() => company.id, { onDelete: "set null" }),
+    cvr: text("cvr").notNull(),
+    // denormalized display snapshot so the feed renders without a join/ES refetch
+    // shape: { name, city, industry, industryCode, founded, employees, form }
+    companySnapshot: jsonb("company_snapshot"),
+    feedDate: date("feed_date").notNull(), // local date this match was generated
+    rank: integer("rank").notNull(),
+    score: text("score").notNull(), // 'high' | 'medium' | 'low' (enforced in TS)
+    reason: text("reason"), // LLM "why this fits you"
+    status: text("status").default("pending").notNull(), // 'pending' | 'accepted' | 'rejected'
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // one row per user per company EVER — the "never reappear" mechanism.
+    // Retrieval anti-joins this; inserts use onConflictDoNothing. Mirrors
+    // saved_company_user_cvr_idx.
+    uniqueIndex("match_feed_item_user_cvr_idx").on(table.userId, table.cvr),
+    index("match_feed_item_user_date_status_idx").on(table.userId, table.feedDate, table.status),
+    index("match_feed_item_user_status_idx").on(table.userId, table.status),
+    index("match_feed_item_org_idx").on(table.organizationId),
+  ]
+);
+
+// ─── MATCH PROFILE (per-user cached filters + learned preferences) ─────────────
+export const matchProfile = pgTable(
+  "match_profile",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // TriggerFilter-shaped filters derived from the user's brand/KB (cached)
+    cachedFilters: jsonb("cached_filters"),
+    // compared against userBrand.updatedAt to detect staleness
+    filtersComputedAt: timestamp("filters_computed_at", { withTimezone: true }),
+    // learned weights: { industry: {code: weight}, size: {bucket: weight}, region: {region: weight} }
+    preferences: jsonb("preferences").default({}).notNull(),
+    lastGeneratedAt: timestamp("last_generated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [uniqueIndex("match_profile_user_idx").on(table.userId)]
+);
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
@@ -1218,6 +1278,19 @@ export const savedCompanyRelations = relations(savedCompany, ({ one }) => ({
 
 export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
   user: one(user, { fields: [savedSearch.userId], references: [user.id] }),
+}));
+
+export const matchFeedItemRelations = relations(matchFeedItem, ({ one }) => ({
+  user: one(user, { fields: [matchFeedItem.userId], references: [user.id] }),
+  organization: one(organization, {
+    fields: [matchFeedItem.organizationId],
+    references: [organization.id],
+  }),
+  company: one(company, { fields: [matchFeedItem.companyId], references: [company.id] }),
+}));
+
+export const matchProfileRelations = relations(matchProfile, ({ one }) => ({
+  user: one(user, { fields: [matchProfile.userId], references: [user.id] }),
 }));
 
 export const leadTriggerRelations = relations(leadTrigger, ({ one, many }) => ({
