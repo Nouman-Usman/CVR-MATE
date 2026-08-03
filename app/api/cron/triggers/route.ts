@@ -22,6 +22,16 @@ async function verifyAuth(req: NextRequest): Promise<boolean> {
   return !!cronSecret && authHeader === `Bearer ${cronSecret}`;
 }
 
+/**
+ * Rolling recency window (in days) for a trigger, from its cadence. Bounds each
+ * run to recently-founded companies so results don't accumulate since creation.
+ * daily → last 1 day, weekly → last 7 days, custom → last 1 day (default).
+ */
+function windowDaysFor(frequency: string): number {
+  if (frequency === "weekly") return 7;
+  return 1; // daily / custom / default
+}
+
 async function processTriggers() {
   try {
     const now = new Date();
@@ -41,7 +51,15 @@ async function processTriggers() {
 
     for (const trigger of dueTriggers) {
       try {
-        const filters = (trigger.filters ?? {}) as Record<string, unknown>;
+        // Rolling recency window — overrides any stored founded_after so results
+        // are bounded to recently-founded companies (daily → 1d, weekly → 7d)
+        // instead of accumulating since the trigger was created.
+        const windowDays = windowDaysFor(trigger.frequency);
+        const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+        const filters = {
+          ...((trigger.filters ?? {}) as Record<string, unknown>),
+          founded_after: windowStart.toISOString().slice(0, 10), // YYYY-MM-DD
+        };
         const esFilters = buildEsFilters(filters);
 
         // Paginate ES to collect up to 500 matches (5 pages × 100)
@@ -64,8 +82,26 @@ async function processTriggers() {
           return true;
         });
 
-        // Store summary
-        const companySummaries = unique.slice(0, 100).map((c) => ({
+        // Exclude companies this trigger already reported within the window, so
+        // the date-granular overlap between consecutive runs doesn't re-notify
+        // the same leads. Prior runs' companies live on triggerResult.companies.
+        const priorResults = await db.query.triggerResult.findMany({
+          where: and(
+            eq(triggerResult.triggerId, trigger.id),
+            gte(triggerResult.createdAt, windowStart)
+          ),
+          columns: { companies: true },
+        });
+        const alreadyReported = new Set<number>();
+        for (const pr of priorResults) {
+          for (const c of ((pr.companies as { vat?: number }[]) ?? [])) {
+            if (typeof c?.vat === "number") alreadyReported.add(c.vat);
+          }
+        }
+        const fresh = unique.filter((c) => !alreadyReported.has(c.vat));
+
+        // Store summary (only the fresh, newly-surfaced companies)
+        const companySummaries = fresh.slice(0, 100).map((c) => ({
           vat: c.vat,
           name: c.name,
           city: c.city,
@@ -93,7 +129,7 @@ async function processTriggers() {
           triggerId: trigger.id,
           userId: trigger.userId,
           companies: companySummaries,
-          matchCount: unique.length,
+          matchCount: fresh.length,
         });
 
         // Compute next run
@@ -113,21 +149,21 @@ async function processTriggers() {
 
         // Dispatch notifications according to the trigger's notificationChannels setting.
         // Each channel is opt-in: ["in_app"] | ["email"] | ["in_app", "email"]
-        if (unique.length > 0) {
+        if (fresh.length > 0) {
           const channels = (trigger.notificationChannels ?? ["in_app"]) as string[];
 
           if (channels.includes("in_app")) {
             await createNotification({
               userId: trigger.userId,
               type: "trigger",
-              title: `${trigger.name}: ${unique.length} matches`,
+              title: `${trigger.name}: ${fresh.length} matches`,
               message:
-                unique
+                fresh
                   .slice(0, 3)
                   .map((c) => c.name)
                   .filter(Boolean)
                   .join(", ") +
-                (unique.length > 3 ? ` +${unique.length - 3} more` : ""),
+                (fresh.length > 3 ? ` +${fresh.length - 3} more` : ""),
               link: `/triggers`,
             });
           }
@@ -140,7 +176,7 @@ async function processTriggers() {
               data: {
                 triggerName: trigger.name,
                 triggerId: trigger.id,
-                matchCount: unique.length,
+                matchCount: fresh.length,
                 companies: companySummaries.map((c) => ({
                   vat: String(c.vat),
                   name: c.name,
@@ -154,7 +190,7 @@ async function processTriggers() {
           }
         }
 
-        results.push({ triggerId: trigger.id, matchCount: unique.length });
+        results.push({ triggerId: trigger.id, matchCount: fresh.length });
       } catch (err) {
         console.error(`Cron: trigger ${trigger.id} failed:`, err);
         results.push({
