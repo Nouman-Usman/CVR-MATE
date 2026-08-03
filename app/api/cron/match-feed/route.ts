@@ -11,13 +11,11 @@ import {
   toFeedDate,
 } from "@/lib/match-feed/generate";
 
-// Cron endpoint: generates the daily match feed for every paid user whose
-// preferred notification hour matches the current hour (Europe/Copenhagen).
+// Cron endpoint: generates the daily match feed for every paid user, at most
+// once per UTC day. The same-day idempotency guard (matchProfile.lastGeneratedAt)
+// dedupes across the hourly runs, so a user's feed generates on the FIRST run of
+// the day and is skipped for the rest — there is no per-user notification-hour gate.
 // Secured via QStash signature (production) or CRON_SECRET Bearer token (local).
-// Scheduled via Upstash QStash (POST) — GET kept for manual testing.
-//
-// NOTE: the hourly QStash schedule that INVOKES this route must be registered
-// out-of-band — there is no schedules.create in this codebase.
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -198,11 +196,14 @@ async function processMatchFeed() {
       counts.processed++;
     };
 
-    // Users due right now.
+    // Every user with a brand profile is eligible on every run — no hour shard.
+    // The plan gate (processUser step a) and the same-day idempotency guard
+    // (step b) keep this correct and cheap: each user generates once per UTC day
+    // and is skipped for the remaining hourly runs. See the >MAX_USERS_PER_RUN
+    // note if the user base ever exceeds this cap.
     const dueUsers = await db
       .select({ userId: userBrand.userId })
       .from(userBrand)
-      .where(eq(userBrand.emailNotificationHour, currentHour))
       .limit(MAX_USERS_PER_RUN);
 
     // Bounded batches — a single user's failure must not abort the batch.
