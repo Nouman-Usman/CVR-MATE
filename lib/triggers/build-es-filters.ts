@@ -38,8 +38,14 @@ export function buildEsFilters(filters: Record<string, unknown>): Record<string,
   if (filters.city) out.city = String(filters.city);
 
   if (filters.region) {
-    const region = String(filters.region).toLowerCase();
-    const zips = regionZipcodeMap[region];
+    // region may be a single region ("hovedstaden") or a comma-separated list
+    // ("Hovedstaden, Midtjylland"). Union each known region's zipcode list;
+    // unknown names are skipped. A single region behaves exactly as before.
+    const zips = String(filters.region)
+      .split(",")
+      .map((r) => regionZipcodeMap[r.trim().toLowerCase()])
+      .filter((z): z is string => Boolean(z))
+      .join(",");
     if (zips) out.zipcode_list = zips;
   }
 

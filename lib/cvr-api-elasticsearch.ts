@@ -171,6 +171,28 @@ function parseCompany(data: EsCompanyData): ParsedCompany | null {
   };
 }
 
+/**
+ * Build a NACE branchekode clause from a single code ("62") or a comma-separated
+ * list ("62, 63, 70"). Each code is a prefix — "62" matches "620100", "621000", …
+ * A single code stays a plain `prefix`; a list becomes a `bool.should` (OR) of
+ * prefixes. Non-numeric segments are dropped; returns null when nothing valid
+ * remains. Backward-compatible: a lone code produces the exact same query as before.
+ */
+function buildBranchePrefixClause(field: string, raw: string): unknown | null {
+  const codes = raw
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => /^\d+$/.test(c));
+  if (codes.length === 0) return null;
+  if (codes.length === 1) return { prefix: { [field]: codes[0] } };
+  return {
+    bool: {
+      should: codes.map((c) => ({ prefix: { [field]: c } })),
+      minimum_should_match: 1,
+    },
+  };
+}
+
 // Build Elasticsearch query from search filters
 function buildEsQuery(filters: Record<string, string>): unknown {
   const must: unknown[] = [];
@@ -255,23 +277,24 @@ function buildEsQuery(filters: Record<string, string>): unknown {
     });
   }
 
+  // industry_primary_code may be one code or a comma-separated list; each is a
+  // 2-digit-or-more NACE prefix ("47" → "470000", "471100", …).
   const industryCode = filters.industry_primary_code;
   if (industryCode) {
-    // 2-digit prefix matches all 6-digit NACE sub-codes (e.g. "47" → "470000", "471100", …)
-    must.push({
-      prefix: {
-        "Vrvirksomhed.virksomhedMetadata.nyesteHovedbranche.branchekode": industryCode,
-      },
-    });
+    const clause = buildBranchePrefixClause(
+      "Vrvirksomhed.virksomhedMetadata.nyesteHovedbranche.branchekode",
+      industryCode
+    );
+    if (clause) must.push(clause);
   }
 
   const industrySecondaryCode = filters.industry_secondary_code;
   if (industrySecondaryCode) {
-    must.push({
-      prefix: {
-        "Vrvirksomhed.virksomhedMetadata.nyesteBibranche1.branchekode": industrySecondaryCode,
-      },
-    });
+    const clause = buildBranchePrefixClause(
+      "Vrvirksomhed.virksomhedMetadata.nyesteBibranche1.branchekode",
+      industrySecondaryCode
+    );
+    if (clause) must.push(clause);
   }
 
   const companyformCode = filters.companyform_code;
