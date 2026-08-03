@@ -6,6 +6,7 @@ export type EmailTemplateId =
   | "welcome"
   | "team_invitation"
   | "daily_lead_update"
+  | "match_feed"
   | "weekly_summary"
   | "payment_succeeded"
   | "payment_failed"
@@ -39,14 +40,20 @@ export interface EmailProviderClient {
 // ─── QStash payload for /api/email/notify ─────────────────────────────────
 
 export interface EmailQueuePayload {
-  templateId: "daily_lead_update" | "weekly_summary";
+  templateId: "daily_lead_update" | "weekly_summary" | "match_feed";
   userId: string;
-  data: DailyLeadUpdateData | WeeklySummaryData;
+  data: DailyLeadUpdateData | WeeklySummaryData | MatchFeedReadyData;
 }
 
 export interface DailyLeadUpdateData {
   triggerName: string;
   triggerId: string;
+  matchCount: number;
+  companies: { vat: string; name: string; city: string; industry: string }[];
+}
+
+/** Payload for the daily "your match feed is ready" email. */
+export interface MatchFeedReadyData {
   matchCount: number;
   companies: { vat: string; name: string; city: string; industry: string }[];
 }

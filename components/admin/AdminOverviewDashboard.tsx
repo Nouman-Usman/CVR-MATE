@@ -128,6 +128,132 @@ function TrendTip({ active, payload, label }: { active?: boolean; payload?: { va
   );
 }
 
+/* ── Match-feed cron panel (daily lead matches) ──────────────────────────── */
+interface MatchFeedStats {
+  lastRunAt: string | null;
+  isProcessing: boolean;
+  processingStartedAt: string | null;
+  lockStale: boolean;
+  generatedToday: number;
+  pending: number;
+  usersWithPending: number;
+  totalItems: number;
+}
+interface MatchFeedRunCounts {
+  processed: number; generated: number; notified: number; emailed: number;
+  skippedGated: number; skippedAlreadyToday: number; errors: number;
+}
+
+function MatchFeedPanel() {
+  const { data, refetch, isLoading } = useQuery<MatchFeedStats>({
+    queryKey: ["admin-match-feed"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/match-feed");
+      if (!res.ok) throw new Error("Failed to load match-feed status");
+      return res.json();
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [runErr, setRunErr] = useState<string | null>(null);
+
+  const run = async () => {
+    setRunning(true);
+    setRunMsg(null);
+    setRunErr(null);
+    try {
+      const res = await fetch("/api/admin/match-feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run_now" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Run failed");
+      const r = json.result;
+      if (r?.skipped === "locked") {
+        setRunMsg("locked — another run is in progress");
+      } else {
+        const c = r.counts as MatchFeedRunCounts;
+        setRunMsg(
+          `processed ${c.processed} · generated ${c.generated} · emailed ${c.emailed} · gated ${c.skippedGated} · already-today ${c.skippedAlreadyToday} · errors ${c.errors}`
+        );
+      }
+      refetch();
+    } catch (e) {
+      setRunErr(e instanceof Error ? e.message : "Run failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const num = (v?: number) => nf.format(v ?? 0);
+  const lockLabel = data?.isProcessing
+    ? data.lockStale
+      ? "running · STALE LOCK"
+      : "running…"
+    : "idle";
+
+  return (
+    <Panel title="Match-feed cron" meta="daily lead matches" className="mb-6">
+      {isLoading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <>
+          <div
+            className="mb-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border sm:grid-cols-4"
+            style={{ background: HAIR, borderColor: HAIR }}
+          >
+            <Cell label="Generated today" value={num(data?.generatedToday)} sub="feed rows · UTC day" />
+            <Cell label="Pending" value={num(data?.pending)} sub="awaiting a decision" />
+            <Cell label="Users w/ pending" value={num(data?.usersWithPending)} sub="distinct" />
+            <Cell
+              label="Last run"
+              value={data?.lastRunAt ? `${ago(data.lastRunAt)} ago` : "—"}
+              sub={lockLabel}
+              danger={data?.lockStale}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={run}
+              disabled={running}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] font-bold text-white transition-opacity disabled:opacity-50"
+              style={{ background: INK }}
+            >
+              {running ? <RefreshCw size={12} className="animate-spin" /> : <Play size={12} />}
+              {running ? "running…" : "Run now"}
+            </button>
+            <span className="font-mono text-[10px] text-slate-400">
+              runs the generation inline · same-day guard still applies
+            </span>
+          </div>
+
+          {runMsg && (
+            <p
+              className="mt-3 rounded-md border bg-slate-50 px-3 py-2 font-mono text-[11px]"
+              style={{ borderColor: HAIR, color: INK }}
+            >
+              {runMsg}
+            </p>
+          )}
+          {runErr && (
+            <p
+              className="mt-3 rounded-md border px-3 py-2 font-mono text-[11px]"
+              style={{ borderColor: "#FBD5DE", background: "#FEF2F4", color: NEG }}
+            >
+              {runErr}
+            </p>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 /* ── Dashboard ───────────────────────────────────────────────────────────── */
 export function AdminOverviewDashboard() {
   const router = useRouter();
@@ -331,6 +457,9 @@ export function AdminOverviewDashboard() {
             )}
           </Panel>
         </div>
+
+        {/* ── Match-feed cron ── */}
+        <MatchFeedPanel />
 
         {/* ── Recent registrations ── */}
         <Panel title="Recent registrations" meta="click a row to manage">

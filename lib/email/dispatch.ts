@@ -5,10 +5,12 @@ import { db } from "@/db";
 import { user, userBrand } from "@/db/schema";
 import { sendDailyLeadUpdateEmail } from "./senders/daily-lead-update";
 import { sendWeeklySummaryEmail } from "./senders/weekly-summary";
+import { sendMatchFeedReadyEmail } from "./senders/match-feed-ready";
 import type {
   EmailQueuePayload,
   DailyLeadUpdateData,
   WeeklySummaryData,
+  MatchFeedReadyData,
 } from "./types";
 
 type SendResult =
@@ -54,6 +56,9 @@ export async function sendNotificationEmail(
     return { skipped: true, reason: "notifications_disabled" };
   if (templateId === "daily_lead_update" && !prefs.dailyLeadEmails)
     return { skipped: true, reason: "daily_leads_disabled" };
+  // Match-feed emails ride the same "daily leads" opt-out.
+  if (templateId === "match_feed" && !prefs.dailyLeadEmails)
+    return { skipped: true, reason: "daily_leads_disabled" };
   if (templateId === "weekly_summary" && !prefs.weeklySummaryEmails)
     return { skipped: true, reason: "weekly_summary_disabled" };
 
@@ -65,6 +70,14 @@ export async function sendNotificationEmail(
       userName: userRow.name,
       userId,
       data: data as DailyLeadUpdateData,
+      language: (userRow.language as "en" | "da") || "da",
+    });
+  } else if (templateId === "match_feed") {
+    result = await sendMatchFeedReadyEmail({
+      to: userRow.email,
+      userName: userRow.name,
+      userId,
+      data: data as MatchFeedReadyData,
       language: (userRow.language as "en" | "da") || "da",
     });
   } else if (templateId === "weekly_summary") {
