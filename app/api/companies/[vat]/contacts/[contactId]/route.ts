@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { contact } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { serializeContact } from "@/lib/crm/serialize";
-import { encryptField, blindIndex } from "@/lib/pii/crypto";
+import { encryptField, blindIndex, blindIndexPhone } from "@/lib/pii/crypto";
 import { parseBody, contactUpdateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
@@ -61,7 +61,10 @@ export async function PATCH(
     const updateData: Partial<typeof contact.$inferInsert> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.title !== undefined) updateData.title = input.title ?? null;
-    if (input.phone !== undefined) updateData.phoneEnc = encryptField(input.phone);
+    if (input.phone !== undefined) {
+      updateData.phoneEnc = encryptField(input.phone);
+      updateData.phoneHash = blindIndexPhone(input.phone);
+    }
     if (input.linkedinUrl !== undefined) updateData.linkedinEnc = encryptField(input.linkedinUrl);
     if (input.notes !== undefined) updateData.notesEnc = encryptField(input.notes);
     if (input.isPrimary !== undefined) updateData.isPrimary = input.isPrimary;
@@ -146,7 +149,7 @@ export async function DELETE(
     // Soft delete + clear the blind index so the (org,company,email) slot frees up.
     await db
       .update(contact)
-      .set({ deletedAt: new Date(), emailHash: null })
+      .set({ deletedAt: new Date(), emailHash: null, phoneHash: null })
       .where(eq(contact.id, existing.id));
 
     await logActivity({

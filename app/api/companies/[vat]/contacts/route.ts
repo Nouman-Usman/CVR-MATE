@@ -5,7 +5,7 @@ import { contact, company } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { resolveCompanyIdByVat } from "@/lib/crm/company-resolver";
 import { serializeContact, parsePagination } from "@/lib/crm/serialize";
-import { encryptField, blindIndex } from "@/lib/pii/crypto";
+import { encryptField, blindIndex, blindIndexPhone } from "@/lib/pii/crypto";
 import { parseBody, contactCreateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
@@ -106,6 +106,7 @@ export async function POST(
         linkedinEnc: encryptField(input.linkedinUrl),
         notesEnc: encryptField(input.notes),
         emailHash,
+        phoneHash: blindIndexPhone(input.phone),
         isPrimary: input.isPrimary ?? false,
         lawfulBasis: input.lawfulBasis ?? "legitimate_interest",
         source: input.source ?? "manual",

@@ -44,6 +44,13 @@ import {
   KanbanSquare,
   Download,
   UserCheck,
+  UserPlus,
+  ScanSearch,
+  MessagesSquare,
+  BarChart3,
+  FileText,
+  ShoppingCart,
+  Package,
   Settings,
   Menu,
   Bell,
@@ -61,7 +68,7 @@ import {
 
 // ── Nav structure with grouped sections ──────────────────────────────
 
-type NavKey = "dashboard" | "matches" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "pipeline" | "exports" | "settings";
+type NavKey = "dashboard" | "matches" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "prospects" | "records" | "interactions" | "pipeline" | "reports" | "quotes" | "orders" | "products" | "exports" | "settings";
 
 interface NavItem {
   key: NavKey;
@@ -102,8 +109,21 @@ const navSections: NavSection[] = [
     labelDa: "Værktøjer",
     items: [
       { key: "todos", icon: ListTodo, href: "/todos" },
+      { key: "prospects", icon: UserPlus, href: "/prospects/new" },
+      { key: "records", icon: ScanSearch, href: "/records" },
+      { key: "interactions", icon: MessagesSquare, href: "/interactions" },
       { key: "pipeline", icon: KanbanSquare, href: "/pipeline" },
+      { key: "reports", icon: BarChart3, href: "/reports" },
       { key: "exports", icon: Download, href: "/exports" },
+    ],
+  },
+  {
+    label: "Sales",
+    labelDa: "Salg",
+    items: [
+      { key: "quotes", icon: FileText, href: "/quotes" },
+      { key: "orders", icon: ShoppingCart, href: "/orders" },
+      { key: "products", icon: Package, href: "/products" },
     ],
   },
 ];

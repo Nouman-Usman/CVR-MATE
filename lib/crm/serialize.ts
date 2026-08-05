@@ -1,9 +1,10 @@
 import "server-only";
 
 import { decryptField } from "@/lib/pii/crypto";
-import type { contact } from "@/db/schema";
+import type { contact, interaction } from "@/db/schema";
 
 export type ContactRow = typeof contact.$inferSelect;
+export type InteractionRow = typeof interaction.$inferSelect;
 
 export interface SerializedContact {
   id: string;
@@ -38,6 +39,47 @@ export function serializeContact(row: ContactRow): SerializedContact {
     lawfulBasis: row.lawfulBasis,
     source: row.source,
     consentAt: row.consentAt,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+export interface SerializedInteraction {
+  id: string;
+  companyId: string;
+  contactId: string | null;
+  dealId: string | null;
+  type: string;
+  direction: string;
+  occurredAt: Date;
+  subject: string | null;
+  body: string | null;
+  topics: string[];
+  nextStep: string | null;
+  nextStepAt: string | null; // "YYYY-MM-DD"
+  source: string;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Decrypt an interaction row's body into a client-safe DTO. */
+export function serializeInteraction(row: InteractionRow): SerializedInteraction {
+  return {
+    id: row.id,
+    companyId: row.companyId,
+    contactId: row.contactId,
+    dealId: row.dealId,
+    type: row.type,
+    direction: row.direction,
+    occurredAt: row.occurredAt,
+    subject: row.subject,
+    body: decryptField(row.bodyEnc),
+    topics: Array.isArray(row.topics) ? (row.topics as string[]) : [],
+    nextStep: row.nextStep,
+    nextStepAt: row.nextStepAt,
+    source: row.source,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

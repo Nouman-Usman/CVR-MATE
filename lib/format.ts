@@ -33,6 +33,25 @@ export function formatDKK(
   }).format(n);
 }
 
+/**
+ * Format an amount given in ØRE (integer minor units) as DKK with 2 decimals —
+ * the quotation/order display counterpart to øre storage. Use this (not
+ * `formatDKK`, which drops fractions) wherever quote/order money is shown.
+ */
+export function formatOre(
+  ore: number | string | null | undefined,
+  locale: string
+): string {
+  const n = toNumber(ore);
+  if (n == null) return "–";
+  return new Intl.NumberFormat(resolveLocale(locale), {
+    style: "currency",
+    currency: "DKK",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n / 100);
+}
+
 /** Format a plain number with locale grouping. Returns "–" for null/invalid. */
 export function formatNumber(
   value: number | string | null | undefined,

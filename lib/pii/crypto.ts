@@ -71,6 +71,35 @@ export function blindIndex(value: string | null | undefined): string | null {
   return createHmac("sha256", getBlindIndexKey()).update(normalized).digest("hex");
 }
 
+/**
+ * Normalize a phone number to a canonical digit string for blind indexing so
+ * that "+45 12 34 56 78", "0045 12345678", and "12345678" all hash the same.
+ * Strips formatting; a leading "+"/"00" marks an international number, and a
+ * bare 8-digit number is treated as Danish (prefixed 45). Returns null when
+ * there aren't enough digits to be a real number.
+ */
+export function normalizePhone(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  const intl = trimmed.startsWith("+") || trimmed.startsWith("00");
+  const digits = trimmed.replace(/\D/g, "").replace(/^00/, "");
+  if (digits.length < 6) return null;
+  if (!intl && digits.length === 8) return `45${digits}`; // bare Danish local number
+  return digits;
+}
+
+/**
+ * Deterministic blind index of a phone number — the phone equivalent of
+ * `blindIndex`, but normalized via `normalizePhone` instead of lowercase/trim so
+ * formatting variants collapse to one hash. Same key as `blindIndex`.
+ */
+export function blindIndexPhone(value: string | null | undefined): string | null {
+  const normalized = normalizePhone(value);
+  if (!normalized) return null;
+  return createHmac("sha256", getBlindIndexKey()).update(normalized).digest("hex");
+}
+
 /** Constant-time comparison of two blind-index hashes. */
 export function blindIndexEquals(a: string | null, b: string | null): boolean {
   if (a == null || b == null) return a === b;

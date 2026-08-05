@@ -5,6 +5,7 @@ import {
   timestamp,
   boolean,
   integer,
+  bigint,
   numeric,
   jsonb,
   uuid,
@@ -257,6 +258,11 @@ export const todo = pgTable(
     }),
     assignedUserId: text("assigned_user_id").references(() => user.id, { onDelete: "set null" }),
     dueDate: date("due_date"),
+    // Set when this todo is the follow-up of an interaction (P3). Nullable FK —
+    // manual todos have none; on interaction hard-delete the link clears.
+    interactionId: uuid("interaction_id").references(() => interaction.id, {
+      onDelete: "set null",
+    }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -271,6 +277,7 @@ export const todo = pgTable(
     index("todo_company_idx").on(table.companyId),
     index("todo_org_idx").on(table.organizationId),
     index("todo_priority_idx").on(table.userId, table.priority),
+    index("todo_interaction_idx").on(table.interactionId),
   ]
 );
 
@@ -602,6 +609,8 @@ export const contact = pgTable(
     notesEnc: text("notes_enc"),
     // HMAC-SHA256 blind index of the normalized email (dedup / exact match)
     emailHash: text("email_hash"),
+    // HMAC-SHA256 blind index of the normalized phone (own-records exact search)
+    phoneHash: text("phone_hash"),
     isPrimary: boolean("is_primary").default(false).notNull(),
     // GDPR lawful basis + provenance
     lawfulBasis: text("lawful_basis").default("legitimate_interest").notNull(), // 'legitimate_interest' | 'consent' | 'contract'
@@ -619,6 +628,7 @@ export const contact = pgTable(
     index("contact_org_idx").on(table.organizationId),
     index("contact_created_by_idx").on(table.createdBy),
     index("contact_email_hash_idx").on(table.organizationId, table.emailHash),
+    index("contact_phone_hash_idx").on(table.organizationId, table.phoneHash),
     // One live contact per (org, company, email). Partial: ignores soft-deleted
     // rows and contacts without an email.
     uniqueIndex("contact_org_company_email_uq")
@@ -629,6 +639,363 @@ export const contact = pgTable(
       sql`${table.lawfulBasis} in ('legitimate_interest','consent','contract')`
     ),
     check("contact_source_check", sql`${table.source} in ('manual','cvr','import')`),
+  ]
+);
+
+// ─── INTERACTION (typed CRM touchpoint — meeting/visit/call/email/note) ──────
+// Org-scoped, and DISTINCT from the append-only `activity` audit log: an
+// interaction is user-authored content (what was discussed, next steps), not a
+// system event. `subject` stays plaintext so the timeline renders without
+// decrypting; `bodyEnc` is AES-256-GCM encrypted. A next-step spawns a linked
+// follow-up `todo` (todo.interactionId). Email/import provenance is reserved for
+// a later mailbox phase; for now everything is source='manual'.
+
+export const interaction = pgTable(
+  "interaction",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id").references(() => contact.id, { onDelete: "set null" }),
+    dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    type: text("type").notNull(), // 'meeting' | 'visit' | 'call' | 'email' | 'note'
+    direction: text("direction").default("outbound").notNull(), // 'inbound' | 'outbound' | 'internal'
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+    subject: text("subject"), // plaintext — rendered in the timeline without decrypt
+    bodyEnc: text("body_enc"), // AES-256-GCM encrypted freeform body
+    topics: jsonb("topics").default([]), // string[]
+    nextStep: text("next_step"),
+    nextStepAt: date("next_step_at"),
+    source: text("source").default("manual").notNull(), // 'manual' | 'email' | 'import'
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("interaction_org_idx").on(table.organizationId),
+    index("interaction_company_idx").on(table.companyId),
+    index("interaction_org_company_idx").on(table.organizationId, table.companyId),
+    index("interaction_occurred_idx").on(table.occurredAt),
+    index("interaction_contact_idx").on(table.contactId),
+    check(
+      "interaction_type_check",
+      sql`${table.type} in ('meeting','visit','call','email','note')`
+    ),
+    check(
+      "interaction_direction_check",
+      sql`${table.direction} in ('inbound','outbound','internal')`
+    ),
+    check("interaction_source_check", sql`${table.source} in ('manual','email','import')`),
+  ]
+);
+
+// ─── CONTRACT (agreement with a company; drives renewal reminders + reporting) ─
+// Org-scoped. `value` is WHOLE DKK (kroner) to match deal.amount + formatDKK —
+// bigint only for range headroom, not sub-krone precision. A renewal cron
+// notifies when expiry enters the notice window; `renewalNotifiedAt` makes that
+// idempotent.
+
+export const contract = pgTable(
+  "contract",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    status: text("status").default("active").notNull(), // 'draft' | 'active' | 'expired' | 'cancelled' | 'renewed'
+    startDate: date("start_date"),
+    expiryDate: date("expiry_date"),
+    value: bigint("value", { mode: "number" }), // whole DKK (kroner), nullable
+    currency: text("currency").default("DKK").notNull(),
+    renewalNoticeDays: integer("renewal_notice_days").default(30).notNull(),
+    autoRenew: boolean("auto_renew").default(false).notNull(),
+    externalRef: text("external_ref"),
+    notes: text("notes"),
+    renewalNotifiedAt: timestamp("renewal_notified_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("contract_org_idx").on(table.organizationId),
+    index("contract_company_idx").on(table.companyId),
+    index("contract_org_expiry_idx").on(table.organizationId, table.expiryDate),
+    index("contract_org_status_idx").on(table.organizationId, table.status),
+    check(
+      "contract_status_check",
+      sql`${table.status} in ('draft','active','expired','cancelled','renewed')`
+    ),
+  ]
+);
+
+// ─── SEGMENT (normalized partner grouping — a reporting axis) ─────────────────
+// Distinct from freeform `companyWorkspace.tags`: a segment is a first-class,
+// named, colored group companies are assigned to via `company_segment`.
+
+export const segment = pgTable(
+  "segment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color").default("#94a3b8").notNull(),
+    description: text("description"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("segment_org_idx").on(table.organizationId),
+    uniqueIndex("segment_org_name_idx").on(table.organizationId, table.name),
+  ]
+);
+
+export const companySegment = pgTable(
+  "company_segment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    segmentId: uuid("segment_id")
+      .notNull()
+      .references(() => segment.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("company_segment_uq").on(table.segmentId, table.companyId),
+    index("company_segment_org_idx").on(table.organizationId),
+    index("company_segment_company_idx").on(table.companyId),
+    index("company_segment_segment_idx").on(table.segmentId),
+  ]
+);
+
+// ─── QUOTATION / ORDER ENGINE (built-in commercial documents) ────────────────
+// All money is INTEGER ØRE (1 DKK = 100 øre) for exact per-line VAT rounding —
+// distinct from contract.value / deal.amount which are whole DKK. quantity /
+// vatRate / discountPct are numeric (read back as string → Number() at the
+// boundary). Server ALWAYS recomputes stored totals from line inputs via
+// lib/quotes/totals.ts; client-sent totals are never trusted. Document numbers
+// are assigned atomically per org via `document_sequence`.
+
+export const product = pgTable(
+  "product",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    sku: text("sku"),
+    description: text("description"),
+    unitPrice: bigint("unit_price", { mode: "number" }).default(0).notNull(), // øre
+    vatRate: numeric("vat_rate").default("25").notNull(), // percent
+    unit: text("unit"), // e.g. 'stk', 'hour', 'month'
+    active: boolean("active").default(true).notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("product_org_idx").on(table.organizationId),
+    index("product_org_active_idx").on(table.organizationId, table.active),
+  ]
+);
+
+// Atomic monotonic counter per (org, docType). Assigned via INSERT .. ON
+// CONFLICT DO UPDATE nextNumber+1 RETURNING nextNumber — race-safe.
+export const documentSequence = pgTable(
+  "document_sequence",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    docType: text("doc_type").notNull(), // 'quote' | 'order'
+    nextNumber: bigint("next_number", { mode: "number" }).default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("document_sequence_org_type_idx").on(table.organizationId, table.docType),
+  ]
+);
+
+export const quote = pgTable(
+  "quote",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    number: text("number").notNull(),
+    status: text("status").default("draft").notNull(), // draft|sent|accepted|rejected|expired|converted
+    currency: text("currency").default("DKK").notNull(),
+    issueDate: date("issue_date"),
+    validUntil: date("valid_until"),
+    subtotal: bigint("subtotal", { mode: "number" }).default(0).notNull(), // øre, net
+    discountTotal: bigint("discount_total", { mode: "number" }).default(0).notNull(),
+    vatTotal: bigint("vat_total", { mode: "number" }).default(0).notNull(),
+    total: bigint("total", { mode: "number" }).default(0).notNull(),
+    terms: text("terms"),
+    notes: text("notes"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    convertedOrderId: uuid("converted_order_id"), // plain uuid — no FK, avoids quote↔order cycle
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("quote_org_idx").on(table.organizationId),
+    index("quote_company_idx").on(table.companyId),
+    index("quote_org_status_idx").on(table.organizationId, table.status),
+    uniqueIndex("quote_org_number_idx").on(table.organizationId, table.number),
+    check(
+      "quote_status_check",
+      sql`${table.status} in ('draft','sent','accepted','rejected','expired','converted')`
+    ),
+  ]
+);
+
+export const quoteLine = pgTable(
+  "quote_line",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    quoteId: uuid("quote_id")
+      .notNull()
+      .references(() => quote.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => product.id, { onDelete: "set null" }),
+    description: text("description").notNull(),
+    quantity: numeric("quantity").default("1").notNull(),
+    unitPrice: bigint("unit_price", { mode: "number" }).default(0).notNull(), // øre
+    discountPct: numeric("discount_pct").default("0").notNull(),
+    vatRate: numeric("vat_rate").default("25").notNull(),
+    lineSubtotal: bigint("line_subtotal", { mode: "number" }).default(0).notNull(),
+    lineDiscount: bigint("line_discount", { mode: "number" }).default(0).notNull(),
+    lineVat: bigint("line_vat", { mode: "number" }).default(0).notNull(),
+    lineTotal: bigint("line_total", { mode: "number" }).default(0).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("quote_line_quote_idx").on(table.quoteId),
+    index("quote_line_org_idx").on(table.organizationId),
+  ]
+);
+
+export const salesOrder = pgTable(
+  "sales_order",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
+    quoteId: uuid("quote_id").references(() => quote.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    number: text("number").notNull(),
+    status: text("status").default("open").notNull(), // open|confirmed|fulfilled|cancelled
+    currency: text("currency").default("DKK").notNull(),
+    orderDate: date("order_date"),
+    expectedDelivery: date("expected_delivery"),
+    subtotal: bigint("subtotal", { mode: "number" }).default(0).notNull(),
+    discountTotal: bigint("discount_total", { mode: "number" }).default(0).notNull(),
+    vatTotal: bigint("vat_total", { mode: "number" }).default(0).notNull(),
+    total: bigint("total", { mode: "number" }).default(0).notNull(),
+    notes: text("notes"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("sales_order_org_idx").on(table.organizationId),
+    index("sales_order_company_idx").on(table.companyId),
+    index("sales_order_org_status_idx").on(table.organizationId, table.status),
+    uniqueIndex("sales_order_org_number_idx").on(table.organizationId, table.number),
+    check(
+      "sales_order_status_check",
+      sql`${table.status} in ('open','confirmed','fulfilled','cancelled')`
+    ),
+  ]
+);
+
+export const salesOrderLine = pgTable(
+  "sales_order_line",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => salesOrder.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => product.id, { onDelete: "set null" }),
+    description: text("description").notNull(),
+    quantity: numeric("quantity").default("1").notNull(),
+    unitPrice: bigint("unit_price", { mode: "number" }).default(0).notNull(),
+    discountPct: numeric("discount_pct").default("0").notNull(),
+    vatRate: numeric("vat_rate").default("25").notNull(),
+    lineSubtotal: bigint("line_subtotal", { mode: "number" }).default(0).notNull(),
+    lineDiscount: bigint("line_discount", { mode: "number" }).default(0).notNull(),
+    lineVat: bigint("line_vat", { mode: "number" }).default(0).notNull(),
+    lineTotal: bigint("line_total", { mode: "number" }).default(0).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("sales_order_line_order_idx").on(table.orderId),
+    index("sales_order_line_org_idx").on(table.organizationId),
   ]
 );
 
