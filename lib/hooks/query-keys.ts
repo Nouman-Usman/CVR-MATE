@@ -19,6 +19,12 @@ export const qk = {
   products: () => ["products"] as const,
   segments: () => ["segments"] as const,
   interactionsFeed: () => ["interactions-feed"] as const,
+  /** Keyed by the serialised filter string so each filter combination caches separately. */
+  activityFeed: (qs: string) => ["activity-feed", qs] as const,
+  /** Prefix — invalidates every filter combination at once. */
+  activityFeedAll: () => ["activity-feed"] as const,
+  activityActors: () => ["activity-actors"] as const,
+  attachments: (interactionId: string) => ["attachments", interactionId] as const,
   recordsSearch: (q: string) => ["records-search", q] as const,
   /** Prefix — invalidates every cached search term at once. */
   recordsSearchAll: () => ["records-search"] as const,

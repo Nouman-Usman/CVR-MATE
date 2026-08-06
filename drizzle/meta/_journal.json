@@ -274,6 +274,20 @@
       "when": 1786015088038,
       "tag": "0038_fantastic_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786036491592,
+      "tag": "0039_bored_beyonder",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786037690021,
+      "tag": "0040_solid_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

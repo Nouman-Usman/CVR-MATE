@@ -553,6 +553,11 @@ export const activity = pgTable(
     index("activity_entity_idx").on(table.entityType, table.entityId),
     index("activity_org_idx").on(table.organizationId),
     index("activity_created_idx").on(table.createdAt),
+    // The org-wide audit feed filters by org and sorts by time. Neither
+    // single-column index serves that: `activity_org_idx` returns every row the
+    // org ever produced and then sorts them, which is the one table guaranteed
+    // to grow forever. Descending matches the query's ORDER BY exactly.
+    index("activity_org_created_idx").on(table.organizationId, table.createdAt.desc()),
     index("activity_user_type_idx").on(table.userId, table.entityType),
   ]
 );
@@ -708,6 +713,43 @@ export const interaction = pgTable(
       sql`${table.direction} in ('inbound','outbound','internal')`
     ),
     check("interaction_source_check", sql`${table.source} in ('manual','email','import')`),
+  ]
+);
+
+// ─── INTERACTION ATTACHMENT (the "materials provided" deferred in P3) ─────────
+// Files live in a PRIVATE Supabase bucket; this table is the metadata + the
+// authorization boundary. `storagePath` is generated server-side and never
+// accepted from a client — a client-supplied path is a directory-traversal hole
+// straight into another org's files. Downloads go through a short-lived signed
+// URL minted per request, so a leaked link expires instead of being permanent.
+
+export const interactionAttachment = pgTable(
+  "interaction_attachment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    interactionId: uuid("interaction_id")
+      .notNull()
+      .references(() => interaction.id, { onDelete: "cascade" }),
+    // Path within the bucket. Unique so a replayed "confirm upload" cannot
+    // register the same object twice under two rows.
+    storagePath: text("storage_path").notNull(),
+    /** Original name, shown to users. Never used to build the storage path. */
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    uploadedBy: text("uploaded_by").references(() => user.id, { onDelete: "set null" }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("interaction_attachment_path_uq").on(table.storagePath),
+    index("interaction_attachment_interaction_idx").on(table.interactionId),
+    index("interaction_attachment_org_idx").on(table.organizationId),
+    index("interaction_attachment_uploaded_by_idx").on(table.uploadedBy),
+    check("interaction_attachment_size_check", sql`${table.sizeBytes} > 0`),
   ]
 );
 

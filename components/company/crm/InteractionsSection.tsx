@@ -12,6 +12,7 @@ import {
   useDeleteInteraction,
   type CreateInteractionInput,
 } from "@/lib/hooks/use-company-crm";
+import { Attachments } from "./Attachments";
 import {
   card,
   Field,
@@ -240,6 +241,7 @@ export function InteractionsSection({ vat }: { vat: string }) {
                     <p className="text-[11px] text-muted-foreground mt-1">
                       {formatDate(i.occurredAt, locale)}
                     </p>
+                    <Attachments interactionId={i.id} />
                   </div>
                   <button
                     onClick={() => remove(i.id, i.subject || typeLabel(i.type, tr))}

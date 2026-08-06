@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, ilike, isNull } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { company, companyWorkspace, savedCompany, contact } from "@/db/schema";
+import {
+  company,
+  companyWorkspace,
+  savedCompany,
+  contact,
+  quote,
+  salesOrder,
+  deal,
+} from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { blindIndex, blindIndexPhone } from "@/lib/pii/crypto";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -38,6 +46,23 @@ interface ContactHit {
   id: string;
   name: string;
   title: string | null;
+  companyVat: string;
+  companyName: string;
+}
+/** A quote or sales order, matched by document number. */
+interface DocumentHit {
+  kind: "quote" | "order";
+  id: string;
+  number: string;
+  status: string;
+  total: number; // øre
+  companyVat: string;
+  companyName: string;
+}
+interface DealHit {
+  id: string;
+  title: string;
+  amount: number | null; // øre
   companyVat: string;
   companyName: string;
 }
@@ -182,9 +207,94 @@ export async function GET(req: NextRequest) {
         )
         .limit(RESULT_LIMIT);
 
+    // ── Commercial documents + deals ──────────────────────────────────────────
+    // These are what the palette is actually for: "Q-00042" and "Acme renewal"
+    // are how people refer to work in progress, and neither was findable
+    // anywhere before — the quotes list had no search at all.
+    /**
+     * `match` is applied to the document number (substring search) or the
+     * company's CVR (exact) depending on how the query was classified. Both
+     * shapes run the same pair of queries, so the predicate is the only thing
+     * that varies — filtering in JS after a LIMIT would silently drop matches.
+     */
+    const findDocuments = async (
+      by: { number: string } | { vat: string }
+    ): Promise<DocumentHit[]> => {
+      const quotePredicate =
+        "number" in by ? ilike(quote.number, by.number) : eq(company.vat, by.vat);
+      const orderPredicate =
+        "number" in by ? ilike(salesOrder.number, by.number) : eq(company.vat, by.vat);
+
+      const [quotes, orders] = await Promise.all([
+        db
+          .select({
+            id: quote.id,
+            number: quote.number,
+            status: quote.status,
+            total: quote.total,
+            companyVat: company.vat,
+            companyName: company.name,
+          })
+          .from(quote)
+          .innerJoin(company, eq(quote.companyId, company.id))
+          .where(
+            and(eq(quote.organizationId, organizationId), isNull(quote.deletedAt), quotePredicate)
+          )
+          .orderBy(desc(quote.createdAt))
+          .limit(RESULT_LIMIT),
+        db
+          .select({
+            id: salesOrder.id,
+            number: salesOrder.number,
+            status: salesOrder.status,
+            total: salesOrder.total,
+            companyVat: company.vat,
+            companyName: company.name,
+          })
+          .from(salesOrder)
+          .innerJoin(company, eq(salesOrder.companyId, company.id))
+          .where(
+            and(
+              eq(salesOrder.organizationId, organizationId),
+              isNull(salesOrder.deletedAt),
+              orderPredicate
+            )
+          )
+          .orderBy(desc(salesOrder.createdAt))
+          .limit(RESULT_LIMIT),
+      ]);
+      return [
+        ...quotes.map((q) => ({ kind: "quote" as const, ...q })),
+        ...orders.map((o) => ({ kind: "order" as const, ...o })),
+      ].slice(0, RESULT_LIMIT);
+    };
+
+    const dealsByTitle = (like: string) =>
+      db
+        .select({
+          id: deal.id,
+          title: deal.title,
+          amount: deal.amount,
+          companyVat: company.vat,
+          companyName: company.name,
+        })
+        .from(deal)
+        .innerJoin(company, eq(deal.companyId, company.id))
+        .where(
+          and(
+            eq(deal.organizationId, organizationId),
+            isNull(deal.deletedAt),
+            ilike(deal.title, like)
+          )
+        )
+        .orderBy(desc(deal.createdAt))
+        .limit(RESULT_LIMIT);
+
     let mode: Mode;
     let companies: CompanyHit[] = [];
     let contacts: ContactHit[] = [];
+    let documents: DocumentHit[] = [];
+    let deals: DealHit[] = [];
 
     if (isEmail) {
       mode = "email";
@@ -195,13 +305,17 @@ export async function GET(req: NextRequest) {
       const phoneHash = blindIndexPhone(q);
       if (bareEight) {
         mode = "cvr";
-        const [ws, sv, ph] = await Promise.all([
+        const [ws, sv, ph, docs] = await Promise.all([
           workspaceByCvr(digitsOnly),
           savedByCvr(digitsOnly),
           phoneHash ? contactsByHash(contact.phoneHash, phoneHash) : Promise.resolve([] as ContactHit[]),
+          // Pasting a CVR is usually "show me everything about this company",
+          // and its open quotes and orders are the most actionable part.
+          findDocuments({ vat: digitsOnly }),
         ]);
         companies = mergeCompanies(ws, sv);
         contacts = ph;
+        documents = docs;
       } else {
         mode = "phone";
         if (phoneHash) contacts = await contactsByHash(contact.phoneHash, phoneHash);
@@ -210,16 +324,20 @@ export async function GET(req: NextRequest) {
       mode = "name";
       // Escape LIKE wildcards so user input is a literal substring.
       const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-      const [ws, sv, ct] = await Promise.all([
+      const [ws, sv, ct, docs, dl] = await Promise.all([
         workspaceByName(like),
         savedByName(like),
         contactsByName(like),
+        findDocuments({ number: like }),
+        dealsByTitle(like),
       ]);
       companies = mergeCompanies(ws, sv);
       contacts = ct;
+      documents = docs;
+      deals = dl;
     }
 
-    return NextResponse.json({ query: q, mode, companies, contacts });
+    return NextResponse.json({ query: q, mode, companies, contacts, documents, deals });
   } catch (err) {
     return crmErrorResponse(err);
   }

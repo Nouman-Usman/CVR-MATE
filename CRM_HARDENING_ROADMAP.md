@@ -40,7 +40,7 @@ Findings are referenced by code: `API-n`, `DB-n`, `UX-n`, `LIB-n`. Full traceabi
 | **8** | Information architecture | 5d | ✅ **done + verified** — CrmTab 1098→28 lines; nav regrouped (item count still 19, see note) |
 | **9** | Accessibility & visual polish | 2d | ✅ **done + verified in-browser** — combobox keyboard path, `.row-action`, 0 unnamed CRM controls |
 | **10** | Test harness & CI gates | 4d | ✅ **done, with one scope decision** — `pnpm lint` exits 0 and CI blocks on tsc+lint; tests stay local (see note) |
-| **11** | CRM parity backlog | — | Ongoing |
+| **11** | CRM parity backlog | — | 4 of 8 shipped — omnisearch, audit UI, attachments, CSV import |
 
 **Total to end of Phase 10: ~37.5 dev-days (~7.5 calendar weeks solo, ~4.5 weeks with two engineers).**
 

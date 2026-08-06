@@ -47,6 +47,9 @@ import {
   ScanSearch,
   MessagesSquare,
   BarChart3,
+  History,
+  FileSpreadsheet,
+  Command,
   FileText,
   ShoppingCart,
   Package,
@@ -64,6 +67,7 @@ import {
   PanelLeftOpen,
   ChevronsLeft,
 } from "lucide-react";
+import { CommandPalette, openCommandPalette } from "@/components/crm/CommandPalette";
 
 /** Stable subscriptions for useSyncExternalStore (identity must not change). */
 function subscribeToStorage(onChange: () => void): () => void {
@@ -77,7 +81,7 @@ function subscribeNever(): () => void {
 
 // ── Nav structure with grouped sections ──────────────────────────────
 
-type NavKey = "dashboard" | "matches" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "records" | "interactions" | "pipeline" | "reports" | "quotes" | "orders" | "products" | "exports" | "settings";
+type NavKey = "dashboard" | "matches" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "records" | "interactions" | "pipeline" | "reports" | "history" | "import" | "quotes" | "orders" | "products" | "exports" | "settings";
 
 interface NavItem {
   key: NavKey;
@@ -129,12 +133,14 @@ const navSections: NavSection[] = [
     labelDa: "CRM",
     items: [
       { key: "records", icon: ScanSearch, href: "/records" },
+      { key: "import", icon: FileSpreadsheet, href: "/import" },
       { key: "pipeline", icon: KanbanSquare, href: "/pipeline" },
       { key: "interactions", icon: MessagesSquare, href: "/interactions" },
       { key: "quotes", icon: FileText, href: "/quotes" },
       { key: "orders", icon: ShoppingCart, href: "/orders" },
       { key: "products", icon: Package, href: "/products" },
       { key: "reports", icon: BarChart3, href: "/reports" },
+      { key: "history", icon: History, href: "/history" },
     ],
   },
   {
@@ -495,6 +501,9 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex bg-background">
+      {/* Mounted once for every protected page — ⌘K works from anywhere. */}
+      <CommandPalette />
+
       {/* Mobile sidebar via Sheet */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="w-[280px] p-0 bg-[#0f172a] border-r-0" showCloseButton={false}>
@@ -550,6 +559,19 @@ export default function DashboardLayout({
             <div className="md:hidden">
               <LogoFull size="small" />
             </div>
+
+            {/* A keyboard shortcut nobody can see is a shortcut nobody uses —
+                this is the discoverable entry point to the same palette. */}
+            <button
+              onClick={openCommandPalette}
+              className="hidden md:inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 pl-3 pr-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            >
+              <Search className="size-3.5" />
+              <span>{locale === "da" ? "Søg…" : "Search…"}</span>
+              <kbd className="ml-4 inline-flex items-center gap-0.5 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium">
+                <Command className="size-2.5" />K
+              </kbd>
+            </button>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             {/* Notification bell + dropdown */}

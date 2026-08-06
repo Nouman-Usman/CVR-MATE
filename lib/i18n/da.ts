@@ -553,6 +553,8 @@ const da = {
       interactions: "Interaktioner",
       pipeline: "Pipeline",
       reports: "Rapporter",
+      history: "Historik",
+      import: "Importér",
       quotes: "Tilbud",
       orders: "Ordrer",
       products: "Produkter",

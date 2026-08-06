@@ -553,6 +553,8 @@ const en = {
       interactions: "Interactions",
       pipeline: "Pipeline",
       reports: "Reports",
+      history: "History",
+      import: "Import",
       quotes: "Quotes",
       orders: "Orders",
       products: "Products",

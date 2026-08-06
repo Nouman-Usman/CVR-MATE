@@ -13,34 +13,16 @@ import { activity } from "@/db/schema";
  * to a company. Feed queries then use `metadata->>'companyId'`.
  */
 
-export type ActivityEntityType =
-  | "company"
-  | "todo"
-  | "note"
-  | "contact"
-  | "interaction"
-  | "contract"
-  | "segment"
-  | "product"
-  | "quote"
-  | "order"
-  | "deal"
-  | "pipeline"
-  | "stage"
-  | "trigger"
-  | "crm_sync";
-
-export type ActivityAction =
-  | "created"
-  | "updated"
-  | "deleted"
-  | "synced"
-  | "exported"
-  | "saved"
-  | "unsaved"
-  | "stage_changed"
-  | "won"
-  | "lost";
+// The vocabularies live in a client-safe module (this one is `server-only`, so
+// the audit page's filter controls could not import from here) and are
+// re-exported so existing `@/lib/activity/log` importers keep working.
+export {
+  ACTIVITY_ENTITY_TYPES,
+  ACTIVITY_ACTIONS,
+  type ActivityEntityType,
+  type ActivityAction,
+} from "./vocabulary";
+import type { ActivityEntityType, ActivityAction } from "./vocabulary";
 
 export interface LogActivityParams {
   userId: string;
