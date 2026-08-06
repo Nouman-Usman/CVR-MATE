@@ -288,6 +288,13 @@
       "when": 1786037690021,
       "tag": "0040_solid_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786039061407,
+      "tag": "0041_unusual_serpent_society",
+      "breakpoints": true
     }
   ]
 }

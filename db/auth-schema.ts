@@ -13,7 +13,7 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}).enableRLS();
 
 export const session = pgTable(
   "session",
@@ -34,7 +34,7 @@ export const session = pgTable(
     activeOrganizationId: text("active_organization_id"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
-);
+).enableRLS();
 
 export const account = pgTable(
   "account",
@@ -58,7 +58,7 @@ export const account = pgTable(
       .notNull(),
   },
   (table) => [index("account_userId_idx").on(table.userId)],
-);
+).enableRLS();
 
 export const verification = pgTable(
   "verification",
@@ -74,7 +74,7 @@ export const verification = pgTable(
       .notNull(),
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
-);
+).enableRLS();
 
 // ─── ORGANIZATION (better-auth organization plugin) ─────────────────────────
 
@@ -92,7 +92,7 @@ export const organization = pgTable(
     metadata: text("metadata"),
   },
   (table) => [uniqueIndex("organization_slug_idx").on(table.slug)]
-);
+).enableRLS();
 
 export const member = pgTable(
   "member",
@@ -111,7 +111,7 @@ export const member = pgTable(
     index("member_org_idx").on(table.organizationId),
     index("member_user_idx").on(table.userId),
   ]
-);
+).enableRLS();
 
 export const invitation = pgTable(
   "invitation",
@@ -133,7 +133,7 @@ export const invitation = pgTable(
     index("invitation_org_idx").on(table.organizationId),
     index("invitation_email_idx").on(table.email),
   ]
-);
+).enableRLS();
 
 // userRelations defined in app-schema.ts to avoid circular imports
 

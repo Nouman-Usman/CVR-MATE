@@ -62,7 +62,7 @@ export const company = pgTable(
     index("company_name_idx").on(table.name),
     index("company_type_idx").on(table.companyType),
   ]
-);
+).enableRLS();
 
 // ─── COMPANY METRICS (employee / financial history for growth tracking) ─────
 
@@ -85,7 +85,7 @@ export const companyMetrics = pgTable(
     index("company_metrics_company_idx").on(table.companyId),
     index("company_metrics_recorded_idx").on(table.companyId, table.recordedAt),
   ]
-);
+).enableRLS();
 
 // ─── SAVED COMPANY (user bookmarks) ─────────────────────────────────────────
 
@@ -114,7 +114,7 @@ export const savedCompany = pgTable(
     index("saved_company_cvr_idx").on(table.cvr),
     index("saved_company_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── SAVED SEARCH ───────────────────────────────────────────────────────────
 
@@ -140,7 +140,7 @@ export const savedSearch = pgTable(
     index("saved_search_user_idx").on(table.userId),
     index("saved_search_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── LEAD TRIGGER ───────────────────────────────────────────────────────────
 
@@ -186,7 +186,7 @@ export const leadTrigger = pgTable(
     index("lead_trigger_org_idx").on(table.organizationId),
     index("lead_trigger_industry_idx").on(table.industryCode),
   ]
-);
+).enableRLS();
 
 // ─── TRIGGER RESULT ─────────────────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ export const triggerResult = pgTable(
     index("trigger_result_user_idx").on(table.userId),
     index("trigger_result_created_idx").on(table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── NOTIFICATION ───────────────────────────────────────────────────────────
 
@@ -235,7 +235,7 @@ export const notification = pgTable(
     index("notification_created_idx").on(table.createdAt),
     index("notification_type_idx").on(table.userId, table.type),
   ]
-);
+).enableRLS();
 
 // ─── TODO ───────────────────────────────────────────────────────────────────
 
@@ -286,7 +286,7 @@ export const todo = pgTable(
       .on(table.interactionId)
       .where(sql`${table.interactionId} is not null and ${table.deletedAt} is null`),
   ]
-);
+).enableRLS();
 
 // ─── COMPANY NOTE ───────────────────────────────────────────────────────────
 
@@ -316,7 +316,7 @@ export const companyNote = pgTable(
     index("company_note_user_idx").on(table.userId),
     index("company_note_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── ORG AUDIT LOG (team management audit trail) ───────────────────────────
 
@@ -346,7 +346,7 @@ export const orgAuditLog = pgTable(
     index("audit_created_idx").on(t.createdAt),
     index("audit_action_idx").on(t.organizationId, t.action),
   ]
-);
+).enableRLS();
 
 // ─── ADMIN AUDIT LOG (super-admin action trail) ─────────────────────────────
 // Records every mutating action taken from the super-admin console. The actor
@@ -374,7 +374,7 @@ export const adminAuditLog = pgTable(
     index("admin_audit_created_idx").on(t.createdAt),
     index("admin_audit_target_idx").on(t.targetType, t.targetId),
   ]
-);
+).enableRLS();
 
 // ─── ENTERPRISE INQUIRY ─────────────────────────────────────────────────────
 
@@ -389,7 +389,7 @@ export const enterpriseInquiry = pgTable("enterprise_inquiry", {
   handledAt: timestamp("handled_at", { withTimezone: true }),
   handledBy: text("handled_by"), // super-admin email
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}).enableRLS();
 
 // ─── USER BRAND (onboarding company profile for AI personalization) ─────────
 
@@ -428,7 +428,7 @@ export const userBrand = pgTable(
   (table) => [
     uniqueIndex("user_brand_user_idx").on(table.userId),
   ]
-);
+).enableRLS();
 
 // ─── EMAIL LOG (outbound email audit trail) ──────────────────────────────────
 
@@ -458,7 +458,7 @@ export const emailLog = pgTable(
     index("email_log_created_idx").on(t.createdAt),
     index("email_log_template_idx").on(t.templateId),
   ]
-);
+).enableRLS();
 
 // ─── COMPANY BRIEFING (persisted AI-generated briefings) ─────────────────────
 
@@ -481,7 +481,7 @@ export const companyBriefing = pgTable(
     index("company_briefing_user_vat_idx").on(table.userId, table.companyVat),
     index("company_briefing_created_idx").on(table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── OUTREACH MESSAGE (persisted AI-generated outreach drafts) ───────────────
 
@@ -506,7 +506,7 @@ export const outreachMessage = pgTable(
     index("outreach_message_user_vat_idx").on(table.userId, table.companyVat),
     index("outreach_message_created_idx").on(table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── PROFILE ENRICHMENT (AI-generated intelligence for companies & people) ──
 
@@ -528,7 +528,7 @@ export const profileEnrichment = pgTable(
     index("profile_enrichment_entity_idx").on(table.userId, table.entityType, table.entityId),
     index("profile_enrichment_created_idx").on(table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── ACTIVITY TIMELINE (unified audit trail) ────────────────────────────────
 
@@ -560,7 +560,7 @@ export const activity = pgTable(
     index("activity_org_created_idx").on(table.organizationId, table.createdAt.desc()),
     index("activity_user_type_idx").on(table.userId, table.entityType),
   ]
-);
+).enableRLS();
 
 // ─── COMPANY WORKSPACE (org-level company ownership + tags) ──────────────────
 
@@ -592,7 +592,7 @@ export const companyWorkspace = pgTable(
     index("company_workspace_assigned_idx").on(table.assignedUserId),
     index("company_workspace_company_idx").on(table.companyId),
   ]
-);
+).enableRLS();
 
 // ─── CONTACT (native CRM sales contact — PII encrypted at rest) ──────────────
 // Org-scoped (Enterprise/team-only). Distinct from the read-only CVR "people"
@@ -655,7 +655,7 @@ export const contact = pgTable(
     ),
     check("contact_source_check", sql`${table.source} in ('manual','cvr','import')`),
   ]
-);
+).enableRLS();
 
 // ─── INTERACTION (typed CRM touchpoint — meeting/visit/call/email/note) ──────
 // Org-scoped, and DISTINCT from the append-only `activity` audit log: an
@@ -714,7 +714,7 @@ export const interaction = pgTable(
     ),
     check("interaction_source_check", sql`${table.source} in ('manual','email','import')`),
   ]
-);
+).enableRLS();
 
 // ─── INTERACTION ATTACHMENT (the "materials provided" deferred in P3) ─────────
 // Files live in a PRIVATE Supabase bucket; this table is the metadata + the
@@ -751,7 +751,7 @@ export const interactionAttachment = pgTable(
     index("interaction_attachment_uploaded_by_idx").on(table.uploadedBy),
     check("interaction_attachment_size_check", sql`${table.sizeBytes} > 0`),
   ]
-);
+).enableRLS();
 
 // ─── CONTRACT (agreement with a company; drives renewal reminders + reporting) ─
 // Org-scoped. `value` is WHOLE DKK (kroner) to match deal.amount + formatDKK —
@@ -805,7 +805,7 @@ export const contract = pgTable(
       sql`${table.status} in ('draft','active','expired','cancelled','renewed')`
     ),
   ]
-);
+).enableRLS();
 
 // ─── SEGMENT (normalized partner grouping — a reporting axis) ─────────────────
 // Distinct from freeform `companyWorkspace.tags`: a segment is a first-class,
@@ -833,7 +833,7 @@ export const segment = pgTable(
     uniqueIndex("segment_org_name_idx").on(table.organizationId, table.name),
     index("segment_created_by_idx").on(table.createdBy),
   ]
-);
+).enableRLS();
 
 export const companySegment = pgTable(
   "company_segment",
@@ -856,7 +856,7 @@ export const companySegment = pgTable(
     index("company_segment_company_idx").on(table.companyId),
     index("company_segment_segment_idx").on(table.segmentId),
   ]
-);
+).enableRLS();
 
 // ─── QUOTATION / ORDER ENGINE (built-in commercial documents) ────────────────
 // MONEY UNIT — the whole CRM stores money as INTEGER ØRE (1 DKK = 100 øre):
@@ -896,7 +896,7 @@ export const product = pgTable(
     index("product_org_active_idx").on(table.organizationId, table.active),
     index("product_created_by_idx").on(table.createdBy),
   ]
-);
+).enableRLS();
 
 // Atomic monotonic counter per (org, docType). Assigned via INSERT .. ON
 // CONFLICT DO UPDATE nextNumber+1 RETURNING nextNumber — race-safe.
@@ -917,7 +917,7 @@ export const documentSequence = pgTable(
   (table) => [
     uniqueIndex("document_sequence_org_type_idx").on(table.organizationId, table.docType),
   ]
-);
+).enableRLS();
 
 export const quote = pgTable(
   "quote",
@@ -990,7 +990,7 @@ export const quote = pgTable(
       sql`${table.status} in ('draft','sent','accepted','rejected','expired','converted')`
     ),
   ]
-);
+).enableRLS();
 
 export const quoteLine = pgTable(
   "quote_line",
@@ -1021,7 +1021,7 @@ export const quoteLine = pgTable(
     // Deleting a product fires SET NULL against every line table.
     index("quote_line_product_idx").on(table.productId),
   ]
-);
+).enableRLS();
 
 export const salesOrder = pgTable(
   "sales_order",
@@ -1069,7 +1069,7 @@ export const salesOrder = pgTable(
       sql`${table.status} in ('open','confirmed','fulfilled','cancelled')`
     ),
   ]
-);
+).enableRLS();
 
 export const salesOrderLine = pgTable(
   "sales_order_line",
@@ -1099,7 +1099,7 @@ export const salesOrderLine = pgTable(
     index("sales_order_line_org_idx").on(table.organizationId),
     index("sales_order_line_product_idx").on(table.productId),
   ]
-);
+).enableRLS();
 
 // ─── PIPELINE (custom deal pipeline, one per org can be default) ─────────────
 
@@ -1126,7 +1126,7 @@ export const pipeline = pgTable(
       .on(table.organizationId)
       .where(sql`${table.isDefault}`),
   ]
-);
+).enableRLS();
 
 // ─── PIPELINE STAGE (ordered columns of a pipeline) ─────────────────────────
 // `position` is application-managed (rewritten in a transaction on reorder) and
@@ -1158,7 +1158,7 @@ export const pipelineStage = pgTable(
     index("pipeline_stage_org_idx").on(table.organizationId),
     index("pipeline_stage_position_idx").on(table.pipelineId, table.position),
   ]
-);
+).enableRLS();
 
 // ─── DEAL (an opportunity; a company may have several) ──────────────────────
 
@@ -1216,7 +1216,7 @@ export const deal = pgTable(
     index("deal_primary_contact_idx").on(table.primaryContactId),
     check("deal_status_check", sql`${table.status} in ('open','won','lost')`),
   ]
-);
+).enableRLS();
 
 // ─── FOLLOWED PERSON (user follows a CVR participant for change tracking) ───
 
@@ -1244,7 +1244,7 @@ export const followedPerson = pgTable(
     index("followed_person_participant_idx").on(table.participantNumber),
     index("followed_person_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── PERSON ↔ COMPANY INDEX (reverse index for change feed filtering) ───────
 // Self-healing: cron worker inserts new rows when a followed participant appears in a new company.
@@ -1267,7 +1267,7 @@ export const personCompanyIndex = pgTable(
     index("person_company_participant_idx").on(table.participantNumber),
     index("person_company_vat_idx").on(table.companyVat),
   ]
-);
+).enableRLS();
 
 // ─── PERSON ROLE SNAPSHOT (last-known state for change diffing) ─────────────
 // Shared across users — keyed on (participantNumber, companyVat), NOT per-user.
@@ -1293,7 +1293,7 @@ export const personRoleSnapshot = pgTable(
     uniqueIndex("person_role_snapshot_unique_idx").on(table.participantNumber, table.companyVat),
     index("person_role_snapshot_participant_idx").on(table.participantNumber),
   ]
-);
+).enableRLS();
 
 // ─── PERSON ROLE EVENT (immutable change log — audit trail + notifications) ──
 // Events are GLOBAL (not per-user). Resolve per-user at query time via followedPerson join.
@@ -1324,7 +1324,7 @@ export const personRoleEvent = pgTable(
     index("person_role_event_type_idx").on(table.eventType),
     index("person_role_event_category_idx").on(table.eventCategory),
   ]
-);
+).enableRLS();
 
 // ─── CHANGE FEED CURSOR (global cursor for CVR company change feed) ─────────
 // isProcessing + processingStartedAt provide a simple distributed lock.
@@ -1343,7 +1343,7 @@ export const changeFeedCursor = pgTable(
   (table) => [
     uniqueIndex("change_feed_cursor_type_idx").on(table.feedType),
   ]
-);
+).enableRLS();
 
 // ─── CRM CONNECTION ─────────────────────────────────────────────────────────
 
@@ -1377,7 +1377,7 @@ export const crmConnection = pgTable(
     index("crm_connection_user_idx").on(table.userId),
     index("crm_connection_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── CRM SYNC MAPPING ───────────────────────────────────────────────────────
 
@@ -1412,7 +1412,7 @@ export const crmSyncMapping = pgTable(
     index("crm_sync_mapping_local_idx").on(table.localEntityType, table.localEntityId),
     index("crm_sync_mapping_status_idx").on(table.connectionId, table.syncStatus),
   ]
-);
+).enableRLS();
 
 // ─── CRM SYNC LOG ────────────────────────────────────────────────────────────
 
@@ -1440,7 +1440,7 @@ export const crmSyncLog = pgTable(
     index("crm_sync_log_user_idx").on(table.userId),
     index("crm_sync_log_created_idx").on(table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── SUBSCRIPTION (Stripe billing) ──────────────────────────────────────────
 
@@ -1475,7 +1475,7 @@ export const subscription = pgTable(
     index("subscription_plan_idx").on(table.plan),
     index("subscription_status_idx").on(table.status),
   ]
-);
+).enableRLS();
 
 // ─── CHAT LANDING SESSION (start.cvr-mate.dk ad-traffic chat) ──────────────
 
@@ -1505,7 +1505,7 @@ export const chatLandingSession = pgTable(
     index("chat_landing_session_signup_user_idx").on(table.signupUserId),
     index("chat_landing_session_created_idx").on(table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── AGENT SESSIONS (conversational search agent — /agent) ──────────────────
 
@@ -1535,7 +1535,7 @@ export const agentSession = pgTable(
     index("agent_session_user_created_idx").on(table.userId, table.createdAt),
     index("agent_session_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── AGENT MESSAGES (agent transcript — Anthropic content blocks, verbatim) ──
 
@@ -1555,7 +1555,7 @@ export const agentMessage = pgTable(
   (table) => [
     index("agent_message_session_created_idx").on(table.sessionId, table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── USAGE RECORDS (monthly quota tracking) ─────────────────────────────────
 
@@ -1572,7 +1572,7 @@ export const usageRecord = pgTable(
   (table) => [
     index("usage_record_user_feature_created_idx").on(table.userId, table.feature, table.createdAt),
   ]
-);
+).enableRLS();
 
 // ─── FEATURES (video explainer registry) ────────────────────────────────────
 
@@ -1587,7 +1587,7 @@ export const features = pgTable(
   (table) => [
     index("features_route_idx").on(table.route),
   ]
-);
+).enableRLS();
 
 // ─── FEATURE VIDEO (versioned video metadata) ──────────────────────────────
 
@@ -1635,7 +1635,7 @@ export const featureVideo = pgTable(
       sql`(${table.status} = 'published' AND ${table.isCurrent} = true) OR (${table.isCurrent} = false)`
     ),
   ]
-);
+).enableRLS();
 
 // ─── USER VIDEO VIEW (engagement tracking) ─────────────────────────────────
 
@@ -1661,7 +1661,7 @@ export const userVideoView = pgTable(
     uniqueIndex("user_video_view_user_feature_idx").on(table.userId, table.featureKey),
     index("user_video_view_user_idx").on(table.userId),
   ]
-);
+).enableRLS();
 
 // ─── MATCH FEED ITEM (daily matched leads: feed + exclusion set + feedback log) ─
 export const matchFeedItem = pgTable(
@@ -1697,7 +1697,7 @@ export const matchFeedItem = pgTable(
     index("match_feed_item_user_status_idx").on(table.userId, table.status),
     index("match_feed_item_org_idx").on(table.organizationId),
   ]
-);
+).enableRLS();
 
 // ─── MATCH PROFILE (per-user cached filters + learned preferences) ─────────────
 export const matchProfile = pgTable(
@@ -1721,7 +1721,7 @@ export const matchProfile = pgTable(
       .notNull(),
   },
   (table) => [uniqueIndex("match_profile_user_idx").on(table.userId)]
-);
+).enableRLS();
 
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
