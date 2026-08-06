@@ -37,7 +37,7 @@ Findings are referenced by code: `API-n`, `DB-n`, `UX-n`, `LIB-n`. Full traceabi
 | **5** | Money unification | 2d | ✅ **done + verified** — migration 0036 applied, conversion proved exact |
 | **6** | Lifecycle & background jobs | 3d | ✅ **code done + verified** — QStash schedules await manual registration |
 | **7** | Scale, performance, security | 4d | ✅ **done + verified** — migration 0038, 0 unindexed FKs, rate limits fail closed in prod |
-| **8** | Information architecture | 5d | Navigation reflects a CRM, not a changelog |
+| **8** | Information architecture | 5d | ✅ **done + verified** — CrmTab 1098→28 lines; nav regrouped (item count still 19, see note) |
 | **9** | Accessibility & visual polish | 2d | Keyboard- and dark-mode-complete |
 | **10** | Test harness & CI gates | 4d | Regressions caught by CI, not by audit |
 | **11** | CRM parity backlog | — | Ongoing |
