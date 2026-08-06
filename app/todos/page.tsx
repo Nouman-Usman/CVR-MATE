@@ -760,7 +760,7 @@ export default function TodosPage() {
                 className="w-full border border-input rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-ring bg-background cursor-pointer"
               >
                 <option value="">{locale === "da" ? "Ikke tildelt" : "Unassigned"}</option>
-                {activeOrgMembers.map((member: any) => (
+                {activeOrgMembers.map((member) => (
                   <option key={member.userId} value={member.userId}>
                     {member.user?.name || member.userId} ({member.role})
                   </option>
@@ -784,7 +784,7 @@ export default function TodosPage() {
                         setSelectedMemberId("");
                         showToast(locale === "da" ? "Opgave tildelt" : "Task assigned");
                       },
-                      onError: (err: any) => {
+                      onError: (err: Error) => {
                         showToast(err?.message || d.updateError);
                       },
                     }

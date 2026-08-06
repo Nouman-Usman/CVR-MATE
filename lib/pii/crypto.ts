@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac } from "crypto";
 import { encryptWithKey, decryptWithKey } from "@/lib/crm/encryption";
 
 /**
@@ -54,8 +54,13 @@ export function decryptField(encoded: string | null | undefined): string | null 
   }
 }
 
-/** Normalize a value for blind-index hashing (lowercase + trim). */
-export function normalizeForIndex(value: string): string {
+/**
+ * Normalize a value for blind-index hashing (lowercase + trim).
+ *
+ * Deliberately not exported: callers must go through `blindIndex`, because a
+ * normalized-but-unhashed value is plaintext PII and looks safe enough to store.
+ */
+function normalizeForIndex(value: string): string {
   return value.trim().toLowerCase();
 }
 
@@ -116,11 +121,8 @@ export function blindIndexPhone(value: string | null | undefined): string | null
   return createHmac("sha256", getBlindIndexKey()).update(normalized).digest("hex");
 }
 
-/** Constant-time comparison of two blind-index hashes. */
-export function blindIndexEquals(a: string | null, b: string | null): boolean {
-  if (a == null || b == null) return a === b;
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
+// `blindIndexEquals` (constant-time comparison of two hashes) was removed here:
+// it had no callers anywhere in the repo. Blind-index matching happens in
+// Postgres via an indexed equality lookup, not in JS, so a timing-safe compare
+// had nothing to protect and only implied a comparison path that does not exist.
+// Restore it from git history if an in-process comparison is ever needed.

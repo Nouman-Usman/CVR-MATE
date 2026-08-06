@@ -38,8 +38,8 @@ Findings are referenced by code: `API-n`, `DB-n`, `UX-n`, `LIB-n`. Full traceabi
 | **6** | Lifecycle & background jobs | 3d | ✅ **code done + verified** — QStash schedules await manual registration |
 | **7** | Scale, performance, security | 4d | ✅ **done + verified** — migration 0038, 0 unindexed FKs, rate limits fail closed in prod |
 | **8** | Information architecture | 5d | ✅ **done + verified** — CrmTab 1098→28 lines; nav regrouped (item count still 19, see note) |
-| **9** | Accessibility & visual polish | 2d | Keyboard- and dark-mode-complete |
-| **10** | Test harness & CI gates | 4d | Regressions caught by CI, not by audit |
+| **9** | Accessibility & visual polish | 2d | ✅ **done + verified in-browser** — combobox keyboard path, `.row-action`, 0 unnamed CRM controls |
+| **10** | Test harness & CI gates | 4d | ✅ **done, with one scope decision** — `pnpm lint` exits 0 and CI blocks on tsc+lint; tests stay local (see note) |
 | **11** | CRM parity backlog | — | Ongoing |
 
 **Total to end of Phase 10: ~37.5 dev-days (~7.5 calendar weeks solo, ~4.5 weeks with two engineers).**
@@ -457,13 +457,30 @@ P0 ──> P1 ──> P2 ──┬──> P3 ──> P4 ──> P6
 
 ---
 
-# Phase 9 — Accessibility & polish
+# Phase 9 — Accessibility & polish ✅
 
 **Objective:** the CRM is operable without a mouse and on a phone.
 
 **Dependencies:** Phase 8.
 
 **Effort: 2 days.**
+
+> **Status note (as shipped).** Two of this phase's four findings were already
+> closed by earlier work and needed no change: the quote line editor was made
+> responsive in Phase 3 (`grid-cols-2 sm:grid-cols-4`, labelled inputs), and the
+> products list's hover controls already carried a `focus-visible` reveal.
+>
+> **Deviation from the plan:** the roadmap called for shadcn Command/Combobox.
+> The repo has neither `cmdk` nor Radix, so pulling one in for a single control
+> was the wrong trade. Instead `components/crm/CompanyCombobox.tsx` implements
+> the ARIA 1.2 combobox-with-listbox pattern directly and is shared by the quote
+> builder and the prospect form — which also removed a duplicated
+> debounce-plus-suggest block from both.
+>
+> The hover-reveal fix is `.row-action` in `globals.css`, gated on
+> `@media (hover: hover) and (pointer: fine)` rather than a `sm:` breakpoint: a
+> 1024px tablet is wide *and* touch, so a width gate leaves the control
+> permanently invisible there.
 
 ### FG-9.1 — Controls and labels *(UX-15, UX-17, UX-24)*
 
@@ -479,9 +496,32 @@ P0 ──> P1 ──> P2 ──┬──> P3 ──> P4 ──> P6
 
 ---
 
-# Phase 10 — Test harness & CI gates
+# Phase 10 — Test harness & CI gates ✅
 
 **Objective:** the next audit finds fewer things because CI found them first.
+
+> **Status note (as shipped).** Three scope decisions were taken with the owner:
+>
+> 1. **`__tests__` stays gitignored.** CI therefore runs `tsc` and `lint` only.
+>    The 274 unit tests exist on developer machines and must be run with
+>    `pnpm test:run` before pushing. **FG-10.2's acceptance criterion — "a
+>    rounding regression fails the build" — is consequently NOT met**; the tests
+>    exist and pass, but nothing in CI can enforce them. Un-ignoring
+>    `.gitignore:50` and uncommenting the test step in `.github/workflows/ci.yml`
+>    is the entire remaining change.
+> 2. **No database-backed integration harness** (FG-10.1 was scoped to the logic
+>    layer). Cross-org isolation is covered by unit-testing the authorization
+>    functions with the membership lookup stubbed — a missing member row *is*
+>    the cross-org case — rather than by seeding a test Postgres.
+> 3. **All 64 lint errors fixed**, so lint is a real gate. 52 were unescaped
+>    quotes in Danish legal copy, escaped surgically from ESLint's own reported
+>    positions (`&quot;`/`&apos;`, no visual change). The remaining 12 were
+>    genuine React Compiler violations.
+>
+> Tests were mutation-checked rather than assumed: inverting the role-rank
+> comparison, deleting the creator-or-admin check, flipping the quote-expiry
+> boundary to `<=`, and reducing `roundOre` to `Math.round` each produced
+> failures. A suite that cannot fail is not a gate.
 
 **Why this position:** begins during Phase 1 and runs continuously — listed last because its full value lands at the end.
 

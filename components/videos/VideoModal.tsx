@@ -34,7 +34,9 @@ export function VideoModal({
 }: VideoModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState(false);
-  const startTimeRef = useRef<number>(Date.now());
+  // Date.now() during render is impure. The value is only ever read after the
+  // open-effect stamps it, so 0 is a safe placeholder rather than a real time.
+  const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!open) return;

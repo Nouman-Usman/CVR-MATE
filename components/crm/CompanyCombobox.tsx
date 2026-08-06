@@ -193,7 +193,12 @@ export function CompanyCombobox({
                     e.preventDefault();
                     choose(o);
                   }}
-                  onMouseEnter={() => setActive(i)}
+                  // mousemove, not mouseenter: arrowing through the list
+                  // scrolls it under a stationary cursor, which fires
+                  // mouseenter on whatever slides beneath and yanks the
+                  // highlight back. A parked mouse emits no mousemove, so the
+                  // keyboard keeps control until the pointer actually moves.
+                  onMouseMove={() => setActive(i)}
                   className={
                     "cursor-pointer px-3 py-2 border-b border-border last:border-b-0 " +
                     (i === active ? "bg-muted" : "")

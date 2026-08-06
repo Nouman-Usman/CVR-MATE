@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useState, useEffect } from "react";
+import { useRef, useMemo, useSyncExternalStore } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, MeshDistortMaterial } from "@react-three/drei";
 import * as THREE from "three";
@@ -71,24 +71,32 @@ function GradientRing({ position, scale }: {
 
 /* ─── Particle Field ────────────────────────────────────────────── */
 
+/**
+ * Deterministic noise in [0, 1) from an integer seed (xorshift-multiply finaliser).
+ *
+ * Replaces `Math.random()`, which is impure during render — the old code also
+ * wrote a ref mid-render and carried a misplaced eslint-disable that covered the
+ * `if`, not the three `Math.random()` calls below it. A decorative field only
+ * needs to *look* scattered, and a fixed scatter renders identically every time.
+ */
+function hashNoise(seed: number): number {
+  let x = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+}
+
 function Particles({ count = 200 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null);
-  const posRef = useRef<Float32Array | null>(null);
 
-  // Initialize positions once — Math.random is only called during initialization
-  // This is intentional: we generate random particle positions on first render and never change them
-  // eslint-disable-next-line react-hooks/purity
-  if (posRef.current === null) {
+  const positions = useMemo(() => {
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 18;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 8 - 2;
+      pos[i * 3] = (hashNoise(i * 3) - 0.5) * 18;
+      pos[i * 3 + 1] = (hashNoise(i * 3 + 1) - 0.5) * 10;
+      pos[i * 3 + 2] = (hashNoise(i * 3 + 2) - 0.5) * 8 - 2;
     }
-    posRef.current = pos;
-  }
-
-  const positions = posRef.current;
+    return pos;
+  }, [count]);
 
   useFrame(({ clock }) => {
     if (!ref.current) return;
@@ -136,18 +144,52 @@ function Scene() {
 
 /* ─── Exported Canvas with WebGL fallback ───────────────────────── */
 
-export default function HeroScene() {
-  const [webglOk, setWebglOk] = useState(true);
+/**
+ * WebGL support is a fixed capability of the browser, so it is read as an
+ * external store rather than probed in an effect that calls setState. The probe
+ * result is cached at module scope because getSnapshot must be cheap and must
+ * return the same value every call — creating a canvas per render would violate
+ * both.
+ */
+let webglSupport: boolean | null = null;
+const webglListeners = new Set<() => void>();
 
-  useEffect(() => {
+function readWebglOk(): boolean {
+  if (webglSupport === null) {
     try {
       const c = document.createElement("canvas");
-      const gl = c.getContext("webgl2") || c.getContext("webgl");
-      if (!gl) setWebglOk(false);
+      webglSupport = !!(c.getContext("webgl2") || c.getContext("webgl"));
     } catch {
-      setWebglOk(false);
+      webglSupport = false;
     }
-  }, []);
+  }
+  return webglSupport;
+}
+
+/**
+ * The initial probe is a one-shot capability check, but losing the WebGL
+ * context later is a real runtime event — so this is a genuine subscription,
+ * not a no-op one.
+ */
+function subscribeToWebgl(onChange: () => void) {
+  webglListeners.add(onChange);
+  return () => {
+    webglListeners.delete(onChange);
+  };
+}
+
+/** Latches off for the rest of the session, as the previous setState did. */
+function markWebglLost() {
+  if (webglSupport === false) return;
+  webglSupport = false;
+  for (const listener of webglListeners) listener();
+}
+
+/** Matches the previous optimistic initial state; the client corrects it. */
+const webglOkOnServer = () => true;
+
+export default function HeroScene() {
+  const webglOk = useSyncExternalStore(subscribeToWebgl, readWebglOk, webglOkOnServer);
 
   if (!webglOk) return null;
 
@@ -161,7 +203,7 @@ export default function HeroScene() {
         onCreated={({ gl }) => {
           gl.getContext().canvas.addEventListener("webglcontextlost", (e) => {
             e.preventDefault();
-            setWebglOk(false);
+            markWebglLost();
           });
         }}
       >

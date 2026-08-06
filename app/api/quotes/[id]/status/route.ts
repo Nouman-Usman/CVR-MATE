@@ -8,28 +8,13 @@ import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
 import { assertCanMutateResource } from "@/lib/team/permissions";
 import { companyVatById } from "@/lib/crm/company-resolver";
+import { evaluateQuoteTransition, isoDate } from "@/lib/quotes/transitions";
 
 async function loadOwnedQuote(id: string, organizationId: string) {
   const row = await db.query.quote.findFirst({ where: eq(quote.id, id) });
   if (!row || row.organizationId !== organizationId || row.deletedAt) return null;
   return row;
 }
-
-/** The legal transitions, and the timestamp each one stamps. */
-const TRANSITIONS = {
-  accept: {
-    from: "sent",
-    to: "accepted",
-    stamp: "acceptedAt",
-    error: "Only a sent quote can be accepted.",
-  },
-  reject: {
-    from: "sent",
-    to: "rejected",
-    stamp: "rejectedAt",
-    error: "Only a sent quote can be rejected.",
-  },
-} as const;
 
 /**
  * POST /api/quotes/[id]/status  { action: "accept" | "reject" }
@@ -73,22 +58,19 @@ export async function POST(
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const { action } = parsed.data;
 
-    const transition = TRANSITIONS[action];
     const now = new Date();
 
     // `validUntil` was stored and never enforced, so a quote could be accepted
     // a year past its own expiry date and roll that amount into the deal. The
     // sweep cron marks stale quotes 'expired', but this is the guard that
     // actually binds — a quote can be accepted the instant before the sweep runs.
-    if (
-      action === "accept" &&
-      existing.validUntil &&
-      existing.validUntil < now.toISOString().slice(0, 10)
-    ) {
-      throw new CrmConflictError(
-        "This quote expired on " + existing.validUntil + ". Extend its validity or duplicate it."
-      );
-    }
+    //
+    // The wrong-status branch is advisory only; the conditional write below is
+    // what actually enforces `from`, because only the database can do that
+    // without a check-then-act race.
+    const decision = evaluateQuoteTransition(action, existing, isoDate(now));
+    if (!decision.ok) throw new CrmConflictError(decision.message);
+    const { transition } = decision;
 
     const updated = await db.transaction(async (tx) => {
       const [row] = await tx

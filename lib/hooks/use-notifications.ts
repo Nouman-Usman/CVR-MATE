@@ -137,6 +137,7 @@ export function useNotificationStream() {
   const qc = useQueryClient();
   const retryRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -236,9 +237,17 @@ export function useNotificationStream() {
       // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
       const delay = Math.min(1000 * 2 ** retryRef.current, 30_000);
       retryRef.current++;
-      setTimeout(connect, delay);
+      // Reconnect through a ref: `connect` cannot reference itself inside its
+      // own initialiser, and the timer fires long after the ref is populated.
+      setTimeout(() => connectRef.current(), delay);
     };
   }, [qc]);
+
+  // Assigned before the connecting effect below so the first reconnect after a
+  // drop always finds a current callback.
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();

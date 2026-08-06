@@ -171,6 +171,39 @@ const optionalDate = z.preprocess(
     .optional()
 );
 
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+// A time must carry an explicit zone. Without one, `new Date("2026-08-06T14:30")`
+// is parsed in the *server's* zone, so the same payload would land at a
+// different instant depending on where it was processed.
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * A calendar date *or* a full ISO-8601 instant.
+ *
+ * `interaction.occurredAt` is a `timestamptz`, but validation used to accept
+ * only `YYYY-MM-DD` — so every call, meeting and email logged on the same day
+ * was stored at 00:00Z and the timeline could not order them. Accepting an
+ * instant keeps every existing date payload valid while letting a client that
+ * knows the time record it.
+ */
+const optionalDateTime = z.preprocess(
+  emptyToUndefined,
+  z
+    .string()
+    .refine(
+      (s) => ISO_DATE_ONLY.test(s) || ISO_INSTANT.test(s),
+      "Expected YYYY-MM-DD or an ISO-8601 instant with a timezone"
+    )
+    .refine((s) => {
+      const d = new Date(ISO_DATE_ONLY.test(s) ? `${s}T00:00:00Z` : s);
+      if (Number.isNaN(d.getTime())) return false;
+      // Round-trip the date part so impossible calendar dates ("2026-02-30",
+      // which Date silently rolls forward) are rejected rather than shifted.
+      return !ISO_DATE_ONLY.test(s) || d.toISOString().slice(0, 10) === s;
+    }, "Not a valid calendar date")
+    .optional()
+);
+
 export const dealCreateSchema = z.object({
   title: z.string().trim().min(1, "Deal title is required").max(200),
   companyId: z.string().uuid().optional(),
@@ -209,7 +242,9 @@ const interactionDirection = z.enum(["inbound", "outbound", "internal"]);
 export const interactionCreateSchema = z.object({
   type: interactionType,
   direction: interactionDirection.optional(),
-  occurredAt: optionalDate, // YYYY-MM-DD; defaults to now() when absent
+  // Date or full instant; defaults to now() when absent. The column is
+  // timestamptz, so a time is preserved when the client sends one.
+  occurredAt: optionalDateTime,
   subject: optionalShortText,
   body: optionalLongText,
   topics: z.array(z.string().trim().min(1).max(60)).max(30).optional(),

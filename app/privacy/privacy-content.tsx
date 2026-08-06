@@ -236,7 +236,7 @@ const sections: LegalSection[] = [
         </>
       ) : (
         <>
-          <p>CVR-MATE's AI features (company briefings and outreach drafts) use the Google Gemini API. The following data may be sent to Google:</p>
+          <p>CVR-MATE&apos;s AI features (company briefings and outreach drafts) use the Google Gemini API. The following data may be sent to Google:</p>
           <ul className="list-disc pl-6 space-y-1.5 mt-3">
             <li>Public company data from the CVR register (name, industry, financial key figures, etc.)</li>
             <li>User input and context provided when generating content</li>
@@ -244,7 +244,7 @@ const sections: LegalSection[] = [
           </ul>
           <p className="mt-3">The following is <strong>not</strong> sent to Google Gemini: passwords, payment data, session tokens or other user account credentials.</p>
           <p className="mt-3">All AI-generated text is a <strong>draft/suggestion only</strong>. It does not constitute legal, financial or commercial advice and must not be used uncritically. You are responsible for reviewing and validating any AI output before sending it or using it in decision-making.</p>
-          <p className="mt-3">Google processes data sent to the Gemini API pursuant to Google's <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and Google's Cloud Data Processing Addendum.</p>
+          <p className="mt-3">Google processes data sent to the Gemini API pursuant to Google&apos;s <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and Google&apos;s Cloud Data Processing Addendum.</p>
         </>
       ),
   },
@@ -355,7 +355,7 @@ const sections: LegalSection[] = [
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs">SCCs = EU's standardkontraktbestemmelser jf. GDPR artikel 46(2)(c). DPF = EU-U.S. Data Privacy Framework, jf. Europa-Kommissionens adequacy-afgørelse af 10. juli 2023. Disse sikrer et passende beskyttelsesniveau ved overførsler til tredjelande.</p>
+          <p className="mt-3 text-xs">SCCs = EU&apos;s standardkontraktbestemmelser jf. GDPR artikel 46(2)(c). DPF = EU-U.S. Data Privacy Framework, jf. Europa-Kommissionens adequacy-afgørelse af 10. juli 2023. Disse sikrer et passende beskyttelsesniveau ved overførsler til tredjelande.</p>
           <p className="mt-3">Vi sælger aldrig dine personoplysninger til tredjeparter til markedsføringsformål.</p>
         </>
       ) : (
@@ -401,7 +401,7 @@ const sections: LegalSection[] = [
     content: (l) =>
       l === "da" ? (
         <p>
-          Visse underleverandører (Stripe, Google, Sentry, Vercel, Resend) behandler data i USA. Overførsler sker i henhold til EU's standardkontraktbestemmelser (SCCs), jf. GDPR artikel 46(2)(c), og/eller EU-U.S. Data Privacy Framework (DPF), jf. Europa-Kommissionens adequacy-afgørelse af 10. juli 2023. Disse mekanismer sikrer et passende beskyttelsesniveau. Alle overførsler er dokumenteret i vores Register over behandlingsaktiviteter. Du kan anmode om en kopi ved henvendelse til <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          Visse underleverandører (Stripe, Google, Sentry, Vercel, Resend) behandler data i USA. Overførsler sker i henhold til EU&apos;s standardkontraktbestemmelser (SCCs), jf. GDPR artikel 46(2)(c), og/eller EU-U.S. Data Privacy Framework (DPF), jf. Europa-Kommissionens adequacy-afgørelse af 10. juli 2023. Disse mekanismer sikrer et passende beskyttelsesniveau. Alle overførsler er dokumenteret i vores Register over behandlingsaktiviteter. Du kan anmode om en kopi ved henvendelse til <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
         </p>
       ) : (
         <p>
@@ -586,7 +586,7 @@ const sections: LegalSection[] = [
         </p>
       ) : (
         <p>
-          We may update this Privacy Policy with 30 days' notice via email and a visible notice on the platform. The effective date at the top of the page indicates when the latest version took effect. Previous versions are available on request.
+          We may update this Privacy Policy with 30 days&apos; notice via email and a visible notice on the platform. The effective date at the top of the page indicates when the latest version took effect. Previous versions are available on request.
         </p>
       ),
   },
@@ -620,7 +620,7 @@ const sections: LegalSection[] = [
             <p className="text-muted-foreground text-xs mt-1">Response time: normally within 2 business days.</p>
           </div>
           <p className="mt-4">
-            To request a <strong>Data Processing Agreement (DPA)</strong> — for example because you use CVR-MATE to process your contacts' personal data via CRM sync — it is available to all B2B customers. Contact us at: <a href={`mailto:${DPA_EMAIL}`} className="font-medium">{DPA_EMAIL}</a> with the subject &quot;DPA request&quot;.
+            To request a <strong>Data Processing Agreement (DPA)</strong> — for example because you use CVR-MATE to process your contacts&apos; personal data via CRM sync — it is available to all B2B customers. Contact us at: <a href={`mailto:${DPA_EMAIL}`} className="font-medium">{DPA_EMAIL}</a> with the subject &quot;DPA request&quot;.
           </p>
         </>
       ),

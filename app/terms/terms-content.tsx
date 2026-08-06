@@ -19,25 +19,25 @@ const sections: LegalSection[] = [
       l === "da" ? (
         <>
           <p>
-            Disse vilkår og betingelser (<strong>"Vilkårene"</strong>) regulerer dit brug af CVR-MATE platformen (<strong>"Tjenesten"</strong>). Tjenesten drives af <strong>{LEGAL_ENTITY_DA}</strong> (<strong>"Fourmates ApS"</strong>, <strong>"vi"</strong>, <strong>"os"</strong>). CVR-MATE er produktnavnet; den juridiske aftalepartner er Fourmates ApS.
+            Disse vilkår og betingelser (<strong>&quot;Vilkårene&quot;</strong>) regulerer dit brug af CVR-MATE platformen (<strong>&quot;Tjenesten&quot;</strong>). Tjenesten drives af <strong>{LEGAL_ENTITY_DA}</strong> (<strong>&quot;Fourmates ApS&quot;</strong>, <strong>&quot;vi&quot;</strong>, <strong>&quot;os&quot;</strong>). CVR-MATE er produktnavnet; den juridiske aftalepartner er Fourmates ApS.
           </p>
           <p>
-            <strong>"Du"</strong> eller <strong>"Brugeren"</strong> refererer til den fysiske person eller juridiske enhed, der opretter en konto og bruger Tjenesten. Opretter du en konto på vegne af en virksomhed, indestår du for at have den nødvendige fuldmagt til at binde denne virksomhed.
+            <strong>&quot;Du&quot;</strong> eller <strong>&quot;Brugeren&quot;</strong> refererer til den fysiske person eller juridiske enhed, der opretter en konto og bruger Tjenesten. Opretter du en konto på vegne af en virksomhed, indestår du for at have den nødvendige fuldmagt til at binde denne virksomhed.
           </p>
           <p>
-            Ved at klikke "Opret konto" eller tilgå Tjenesten bekræfter du, at du har læst, forstået og accepterer disse Vilkår.
+            Ved at klikke &quot;Opret konto&quot; eller tilgå Tjenesten bekræfter du, at du har læst, forstået og accepterer disse Vilkår.
           </p>
         </>
       ) : (
         <>
           <p>
-            These Terms and Conditions (<strong>"Terms"</strong>) govern your use of the CVR-MATE platform (<strong>"Service"</strong>). The Service is operated by <strong>{LEGAL_ENTITY_EN}</strong> (<strong>"Fourmates ApS"</strong>, <strong>"we"</strong>, <strong>"us"</strong>). CVR-MATE is the product name; the legal contracting party is Fourmates ApS.
+            These Terms and Conditions (<strong>&quot;Terms&quot;</strong>) govern your use of the CVR-MATE platform (<strong>&quot;Service&quot;</strong>). The Service is operated by <strong>{LEGAL_ENTITY_EN}</strong> (<strong>&quot;Fourmates ApS&quot;</strong>, <strong>&quot;we&quot;</strong>, <strong>&quot;us&quot;</strong>). CVR-MATE is the product name; the legal contracting party is Fourmates ApS.
           </p>
           <p>
-            <strong>"You"</strong> or <strong>"User"</strong> refers to the individual or legal entity that creates an account and uses the Service. If you create an account on behalf of a company, you warrant that you have the authority to bind that company to these Terms.
+            <strong>&quot;You&quot;</strong> or <strong>&quot;User&quot;</strong> refers to the individual or legal entity that creates an account and uses the Service. If you create an account on behalf of a company, you warrant that you have the authority to bind that company to these Terms.
           </p>
           <p>
-            By clicking "Create account" or accessing the Service, you confirm that you have read, understood and accept these Terms.
+            By clicking &quot;Create account&quot; or accessing the Service, you confirm that you have read, understood and accept these Terms.
           </p>
         </>
       ),
@@ -220,7 +220,7 @@ const sections: LegalSection[] = [
           <h3>6.1 CVR data and personal data</h3>
           <p>CVR-MATE fetches company data from the Danish Central Business Register via cvrapi.dk. This data is publicly available; however, it may include personal data about individuals connected to companies — such as owners, directors, founders and authorised signatories. Fourmates ApS is not responsible for errors, omissions or delays originating from the register. You are responsible for using any such personal data lawfully.</p>
           <h3>6.2 AI-generated content (Google Gemini)</h3>
-          <p>CVR-MATE's AI features use Google Gemini to generate briefings and outreach drafts. For this purpose, company data from CVR, user content such as notes and context, and user input may be sent to Google's API. See our <Link href="/privacy">Privacy Policy</Link> and Section 9 on third-party integrations for details.</p>
+          <p>CVR-MATE&apos;s AI features use Google Gemini to generate briefings and outreach drafts. For this purpose, company data from CVR, user content such as notes and context, and user input may be sent to Google&apos;s API. See our <Link href="/privacy">Privacy Policy</Link> and Section 9 on third-party integrations for details.</p>
           <p className="mt-2">All AI-generated text is a <strong>draft/suggestion only</strong> and does not constitute legal, financial or commercial advice. You are required to review and validate any AI output before using it in communications or decision-making.</p>
           <h3>6.3 Third-party data</h3>
           <p>Fourmates ApS accepts no responsibility for data availability, accuracy or use by third parties (HubSpot, Pipedrive, LeadConnector, Stripe, etc.).</p>
@@ -234,7 +234,7 @@ const sections: LegalSection[] = [
     content: (l) =>
       l === "da" ? (
         <>
-          <h3>7.1 Fourmates ApS' rettigheder</h3>
+          <h3>7.1 Fourmates ApS&apos; rettigheder</h3>
           <p>Fourmates ApS og dets licensgivere ejer alle rettigheder til platformen CVR-MATE, herunder software, design, databaser og varemærker. Du modtager en begrænset, ikke-eksklusiv licens til at bruge Tjenesten inden for dit abonnements rammer.</p>
           <h3>7.2 Brugerindhold</h3>
           <p>Indhold du uploader (noter, søgninger, tags) forbliver dit. Du giver Fourmates ApS en begrænset licens til at behandle det med henblik på levering af Tjenesten.</p>
@@ -319,10 +319,10 @@ const sections: LegalSection[] = [
         </>
       ) : (
         <>
-          <p>The Service enables integrations with HubSpot, Pipedrive and LeadConnector. These are subject to the respective parties' own terms. Fourmates ApS accepts no responsibility for third-party actions or failures.</p>
+          <p>The Service enables integrations with HubSpot, Pipedrive and LeadConnector. These are subject to the respective parties&apos; own terms. Fourmates ApS accepts no responsibility for third-party actions or failures.</p>
           <p className="mt-3">OAuth access tokens for CRM integrations are stored encrypted. You can disconnect an integration via Settings → Integrations.</p>
           <p className="mt-3">Payments are processed exclusively by Stripe, Inc. Fourmates ApS never stores payment card details directly.</p>
-          <p className="mt-3">AI features use the Google Gemini API. Data sent to Google may include company data, user input and notes. See Google's <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> for details on Google's data processing.</p>
+          <p className="mt-3">AI features use the Google Gemini API. Data sent to Google may include company data, user input and notes. See Google&apos;s <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> for details on Google&apos;s data processing.</p>
         </>
       ),
   },
@@ -336,16 +336,16 @@ const sections: LegalSection[] = [
           <h3>10.1 Tilgængelighed</h3>
           <p>Fourmates ApS bestræber sig på at levere en stabil og tilgængelig tjeneste, men garanterer ingen bestemt oppetid eller tilgængelighed. Planlagt vedligeholdelse varsles i videst muligt omfang.</p>
           <h3>10.2 Ansvarsloft</h3>
-          <p>Fourmates ApS' samlede ansvar er begrænset til det beløb, du har betalt de seneste 3 måneder, dog maksimalt 5.000 DKK. Fourmates ApS er ikke ansvarlig for indirekte tab, tabt omsætning eller følgeskader.</p>
+          <p>Fourmates ApS&apos; samlede ansvar er begrænset til det beløb, du har betalt de seneste 3 måneder, dog maksimalt 5.000 DKK. Fourmates ApS er ikke ansvarlig for indirekte tab, tabt omsætning eller følgeskader.</p>
           <h3>10.3 Force majeure</h3>
-          <p>Fourmates ApS er ikke ansvarlig ved nedbrud hos tredjeparts-API'er (CVR, Google, Stripe), naturkatastrofer, cyberangreb eller andre forhold uden for vores kontrol.</p>
+          <p>Fourmates ApS er ikke ansvarlig ved nedbrud hos tredjeparts-API&apos;er (CVR, Google, Stripe), naturkatastrofer, cyberangreb eller andre forhold uden for vores kontrol.</p>
         </>
       ) : (
         <>
           <h3>10.1 Availability</h3>
           <p>Fourmates ApS endeavours to provide a stable and available service but does not guarantee any specific uptime or availability. Planned maintenance will be communicated where reasonably practicable.</p>
           <h3>10.2 Liability cap</h3>
-          <p>Fourmates ApS's total liability is limited to the amount you have paid in the preceding 3 months, with a maximum of DKK 5,000. Fourmates ApS is not liable for indirect loss, lost revenue or consequential damages.</p>
+          <p>Fourmates ApS&apos;s total liability is limited to the amount you have paid in the preceding 3 months, with a maximum of DKK 5,000. Fourmates ApS is not liable for indirect loss, lost revenue or consequential damages.</p>
           <h3>10.3 Force majeure</h3>
           <p>Fourmates ApS is not liable for failures of third-party APIs (CVR, Google, Stripe), natural disasters, cyberattacks or other events outside our control.</p>
         </>
@@ -370,7 +370,7 @@ const sections: LegalSection[] = [
           <h3>11.1 Termination by you</h3>
           <p>You may cancel your subscription at any time via Settings → Subscription. Cancellation takes effect at the end of the current billing period.</p>
           <h3>11.2 Termination by Fourmates ApS</h3>
-          <p>Fourmates ApS may terminate your account with immediate effect for material breach of Section 5. For other terminations, 30 days' notice applies. If the Service is discontinued entirely: minimum 60 days' notice and pro-rata refund.</p>
+          <p>Fourmates ApS may terminate your account with immediate effect for material breach of Section 5. For other terminations, 30 days&apos; notice applies. If the Service is discontinued entirely: minimum 60 days&apos; notice and pro-rata refund.</p>
           <h3>11.3 Effect of termination</h3>
           <p>Access is revoked. Data is retained for 30 days before permanent deletion.</p>
         </>
@@ -384,7 +384,7 @@ const sections: LegalSection[] = [
       l === "da" ? (
         <p>Fourmates ApS kan ændre disse Vilkår med 30 dages varsel via e-mail og en synlig besked på platformen. Fortsætter du med at bruge Tjenesten efter ikrafttrædelse, accepterer du de ændrede Vilkår. Tidligere versioner kan rekvireres ved henvendelse.</p>
       ) : (
-        <p>Fourmates ApS may amend these Terms with 30 days' notice via email and a visible notice on the platform. Continued use after the effective date constitutes acceptance. Previous versions are available on request.</p>
+        <p>Fourmates ApS may amend these Terms with 30 days&apos; notice via email and a visible notice on the platform. Continued use after the effective date constitutes acceptance. Previous versions are available on request.</p>
       ),
   },
   {
@@ -400,7 +400,7 @@ const sections: LegalSection[] = [
       ) : (
         <>
           <p>These Terms are governed by Danish law. Disputes shall be resolved by negotiation where possible; otherwise by the ordinary Danish courts in Vejle.</p>
-          <p className="mt-3">EU consumers may also submit complaints to the European Commission's ODR platform: <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener noreferrer">ec.europa.eu/consumers/odr</a>.</p>
+          <p className="mt-3">EU consumers may also submit complaints to the European Commission&apos;s ODR platform: <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener noreferrer">ec.europa.eu/consumers/odr</a>.</p>
         </>
       ),
   },

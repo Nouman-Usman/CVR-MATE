@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck & lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile fails the build if package.json and the lockfile have
+      # drifted, rather than silently resolving something nobody has run.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      # Blocking as of Phase 10: the repo is at 0 lint errors, so any new one
+      # fails the build. Warnings are still reported but do not fail — raise the
+      # bar with `--max-warnings 0` once the remaining 59 are cleared.
+      - name: Lint
+        run: pnpm lint
+
+      # NOTE: there is deliberately no test step. `__tests__` is gitignored
+      # repo-wide (.gitignore:50), so the 208 unit tests exist only on
+      # developer machines and CI has nothing to run. Un-ignoring that
+      # directory is the one change needed to add:
+      #
+      #     - name: Test
+      #       run: pnpm test:run
+      #
+      # Until then, run `pnpm test:run` locally before pushing.
+      #
+      # `pnpm build` is also omitted: static generation touches the database and
+      # third-party APIs, so it needs the full production secret set to be a
+      # meaningful gate rather than a flaky one.

@@ -70,7 +70,10 @@ export default function CrmIntegrationsSection() {
   const bulkLimit = sub?.limits?.bulkPushPerMonth ?? 0;
 
   const handleConnect = (provider: string) => {
-    window.location.href = `/api/integrations/${provider}/connect`;
+    // assign() rather than `location.href = …`: the compiler treats the
+    // location object as immutable, and this is a method call with identical
+    // navigation semantics.
+    window.location.assign(`/api/integrations/${provider}/connect`);
   };
 
   const handleDisconnect = (provider: string) => {

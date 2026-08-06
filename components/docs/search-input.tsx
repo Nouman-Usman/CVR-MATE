@@ -104,7 +104,21 @@ export function DocsSearchInput() {
   const { locale, t } = useLanguage();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [focusIndex, setFocusIndex] = useState(-1);
+  // The highlighted result is scoped to the query that produced it. Storing the
+  // query alongside the index lets a new query reset the highlight by
+  // derivation, instead of an effect that fires a second render to do it.
+  const [focus, setFocus] = useState<{ query: string; index: number }>({
+    query: "",
+    index: -1,
+  });
+  const focusIndex = focus.query === query ? focus.index : -1;
+  // Plain function, not useCallback: it closes over `query`, and memoising it
+  // would silently go stale — its only callers are re-created each render anyway.
+  const setFocusIndex = (next: number | ((prev: number) => number)) =>
+    setFocus((prev) => ({
+      query,
+      index: typeof next === "function" ? next(prev.query === query ? prev.index : -1) : next,
+    }));
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -112,10 +126,6 @@ export function DocsSearchInput() {
   const index = buildLocalizedIndex(locale);
   const results = searchIndex(index, query);
   const hasQuery = query.trim().length > 1;
-
-  useEffect(() => {
-    setFocusIndex(-1);
-  }, [query]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -131,8 +141,9 @@ export function DocsSearchInput() {
     (href: string) => {
       router.push(href);
       setOpen(false);
+      // Clearing the query is enough — the highlight is derived from it, so it
+      // resets to -1 on its own.
       setQuery("");
-      setFocusIndex(-1);
     },
     [router]
   );
