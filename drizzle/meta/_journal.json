@@ -267,6 +267,13 @@
       "when": 1786013213845,
       "tag": "0037_dizzy_marrow",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786015088038,
+      "tag": "0038_fantastic_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

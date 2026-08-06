@@ -12,8 +12,17 @@ function createReceiver(): Receiver | null {
 const receiver = createReceiver();
 
 /**
- * Verify that a request was sent by QStash.
- * Returns true if the signature is valid, false otherwise.
+ * Verify that a request was sent by QStash, for this specific endpoint.
+ *
+ * The `url` claim is the part that matters and was previously omitted. QStash
+ * signs the destination URL along with the body, but a verify call that does not
+ * pass the URL never checks it — so a signature captured from any scheduled job
+ * under the same signing keys could be replayed against any other cron route.
+ * With several jobs sharing one QStash project, that let a captured
+ * `/api/cron/triggers` delivery drive `/api/cron/contract-renewals`.
+ *
+ * The forwarded host is preferred over `req.url`, which behind Vercel's proxy
+ * reports the internal origin rather than the public URL QStash actually signed.
  */
 export async function verifyQStashRequest(req: Request): Promise<boolean> {
   if (!receiver) return false;
@@ -23,9 +32,23 @@ export async function verifyQStashRequest(req: Request): Promise<boolean> {
 
   try {
     const body = await req.clone().text();
-    await receiver.verify({ signature, body });
+    const url = publicUrlOf(req);
+    await receiver.verify(url ? { signature, body, url } : { signature, body });
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Reconstruct the externally visible URL from proxy headers. */
+function publicUrlOf(req: Request): string | null {
+  try {
+    const parsed = new URL(req.url);
+    const forwardedHost = req.headers.get("x-forwarded-host");
+    if (!forwardedHost) return null;
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    return `${proto}://${forwardedHost}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return null;
   }
 }

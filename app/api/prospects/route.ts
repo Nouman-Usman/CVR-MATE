@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contact, companyWorkspace, savedCompany } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
@@ -39,112 +39,119 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
 
-    // Distinguish create-vs-update for the activity log (the upsert below always
-    // returns a row, so it can't tell us on its own).
-    const existingWs = await db.query.companyWorkspace.findFirst({
-      where: and(
-        eq(companyWorkspace.organizationId, organizationId),
-        eq(companyWorkspace.companyId, companyId)
-      ),
-      columns: { id: true },
-    });
-    const workspaceCreated = !existingWs;
+    // One unit of work: a half-applied prospect (workspace claimed, some contacts
+    // written) is worse than none, and the caller has no way to detect it.
+    const result = await db.transaction(async (tx) => {
+      // Distinguish create-vs-update for the activity log (the upsert below always
+      // returns a row, so it can't tell us on its own).
+      const existingWs = await tx.query.companyWorkspace.findFirst({
+        where: and(
+          eq(companyWorkspace.organizationId, organizationId),
+          eq(companyWorkspace.companyId, companyId)
+        ),
+        columns: { id: true },
+      });
+      const workspaceCreated = !existingWs;
 
-    // Upsert the org workspace. On conflict we only overwrite what the caller
-    // explicitly sent — never silently downgrade an existing `customer` back to
-    // `prospect`, and never wipe existing tags with a default empty array.
-    const [workspace] = await db
-      .insert(companyWorkspace)
-      .values({
-        organizationId,
-        companyId,
-        status: input.status ?? "prospect",
-        tags: input.tags ?? [],
-      })
-      .onConflictDoUpdate({
-        target: [companyWorkspace.organizationId, companyWorkspace.companyId],
-        set: {
-          ...(input.status ? { status: input.status } : {}),
-          ...(input.tags ? { tags: input.tags } : {}),
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-
-    // Optional personal save (scoped per user+cvr, distinct from the org workspace).
-    let saved = false;
-    if (input.save) {
-      await db
-        .insert(savedCompany)
+      // Upsert the org workspace. On conflict we only overwrite what the caller
+      // explicitly sent — never silently downgrade an existing `customer` back to
+      // `prospect`, and never wipe existing tags with a default empty array.
+      const [workspace] = await tx
+        .insert(companyWorkspace)
         .values({
-          userId,
           organizationId,
           companyId,
-          cvr: input.vat,
-          note: input.note ?? null,
+          status: input.status ?? "prospect",
           tags: input.tags ?? [],
         })
-        .onConflictDoNothing({ target: [savedCompany.userId, savedCompany.cvr] });
-      saved = true;
-    }
+        .onConflictDoUpdate({
+          target: [companyWorkspace.organizationId, companyWorkspace.companyId],
+          set: {
+            ...(input.status ? { status: input.status } : {}),
+            ...(input.tags ? { tags: input.tags } : {}),
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
 
-    // Initial contacts. Sequential so each dedup check sees prior inserts in this
-    // same batch (two identical emails in one payload → second is skipped).
-    const createdContacts: ReturnType<typeof serializeContact>[] = [];
-    const skippedContacts: string[] = [];
-    for (const c of input.contacts ?? []) {
-      const emailHash = blindIndex(c.email);
-      if (emailHash) {
-        const dup = await db.query.contact.findFirst({
-          where: and(
-            eq(contact.organizationId, organizationId),
-            eq(contact.companyId, companyId),
-            eq(contact.emailHash, emailHash),
-            isNull(contact.deletedAt)
-          ),
-          columns: { id: true },
-        });
-        if (dup) {
+      // Optional personal save (scoped per user+cvr, distinct from the org workspace).
+      let saved = false;
+      if (input.save) {
+        await tx
+          .insert(savedCompany)
+          .values({
+            userId,
+            organizationId,
+            companyId,
+            cvr: input.vat,
+            note: input.note ?? null,
+            tags: input.tags ?? [],
+          })
+          .onConflictDoNothing({ target: [savedCompany.userId, savedCompany.cvr] });
+        saved = true;
+      }
+
+      // Initial contacts. Dedup is delegated to `contact_org_company_email_uq`
+      // rather than a preceding SELECT: check-then-insert lets two concurrent
+      // requests for the same email both pass and the loser die on a 23505.
+      // Sequential inserts still collapse duplicates *within* one payload, since
+      // each conflicts against the row the previous iteration wrote in this tx.
+      const createdContacts: ReturnType<typeof serializeContact>[] = [];
+      const skippedContacts: string[] = [];
+      for (const c of input.contacts ?? []) {
+        const [row] = await tx
+          .insert(contact)
+          .values({
+            companyId,
+            organizationId,
+            createdBy: userId,
+            name: c.name,
+            title: c.title ?? null,
+            emailEnc: encryptField(c.email),
+            phoneEnc: encryptField(c.phone),
+            linkedinEnc: encryptField(c.linkedinUrl),
+            notesEnc: encryptField(c.notes),
+            emailHash: blindIndex(c.email),
+            phoneHash: blindIndexPhone(c.phone),
+            isPrimary: c.isPrimary ?? false,
+            lawfulBasis: c.lawfulBasis ?? "legitimate_interest",
+            source: c.source ?? "cvr",
+            consentAt: c.lawfulBasis === "consent" ? new Date() : null,
+          })
+          // Unqualified column names: this is an index predicate, and it must
+          // match `contact_org_company_email_uq` verbatim for Postgres to infer
+          // the partial index as the arbiter.
+          .onConflictDoNothing({
+            target: [contact.organizationId, contact.companyId, contact.emailHash],
+            where: sql`deleted_at is null and email_hash is not null`,
+          })
+          .returning();
+
+        // No row back means the arbiter fired — an equal live contact already exists.
+        if (!row) {
           skippedContacts.push(c.name);
           continue;
         }
+        createdContacts.push(serializeContact(row));
       }
 
-      const [row] = await db
-        .insert(contact)
-        .values({
-          companyId,
-          organizationId,
-          createdBy: userId,
-          name: c.name,
-          title: c.title ?? null,
-          emailEnc: encryptField(c.email),
-          phoneEnc: encryptField(c.phone),
-          linkedinEnc: encryptField(c.linkedinUrl),
-          notesEnc: encryptField(c.notes),
-          emailHash,
-          phoneHash: blindIndexPhone(c.phone),
-          isPrimary: c.isPrimary ?? false,
-          lawfulBasis: c.lawfulBasis ?? "legitimate_interest",
-          source: c.source ?? "cvr",
-          consentAt: c.lawfulBasis === "consent" ? new Date() : null,
-        })
-        .returning();
-      createdContacts.push(serializeContact(row));
-    }
+      return { workspace, workspaceCreated, saved, createdContacts, skippedContacts };
+    });
 
+    // Deliberately after the commit: an audit entry for writes that rolled back
+    // would be a lie.
     await logActivity({
       userId,
       organizationId,
       entityType: "company",
       entityId: companyId,
-      action: workspaceCreated ? "created" : "updated",
+      action: result.workspaceCreated ? "created" : "updated",
       metadata: {
         companyId,
         vat: input.vat,
         status: input.status ?? "prospect",
-        contactsCreated: createdContacts.length,
-        saved,
+        contactsCreated: result.createdContacts.length,
+        saved: result.saved,
       },
     });
 
@@ -152,13 +159,13 @@ export async function POST(req: NextRequest) {
       {
         companyId,
         vat: input.vat,
-        workspaceId: workspace.id,
-        workspaceCreated,
-        saved,
-        contacts: createdContacts,
-        skippedContacts,
+        workspaceId: result.workspace.id,
+        workspaceCreated: result.workspaceCreated,
+        saved: result.saved,
+        contacts: result.createdContacts,
+        skippedContacts: result.skippedContacts,
       },
-      { status: workspaceCreated ? 201 : 200 }
+      { status: result.workspaceCreated ? 201 : 200 }
     );
   } catch (err) {
     return crmErrorResponse(err);

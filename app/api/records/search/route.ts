@@ -112,6 +112,9 @@ export async function GET(req: NextRequest) {
         .where(
           and(
             eq(savedCompany.userId, userId),
+            // Org-scoped as well as user-scoped: a user who belongs to two orgs
+            // was seeing companies saved while acting in the other one.
+            eq(savedCompany.organizationId, organizationId),
             isNull(savedCompany.deletedAt),
             eq(company.vat, vat)
           )
@@ -126,6 +129,9 @@ export async function GET(req: NextRequest) {
         .where(
           and(
             eq(savedCompany.userId, userId),
+            // Org-scoped as well as user-scoped: a user who belongs to two orgs
+            // was seeing companies saved while acting in the other one.
+            eq(savedCompany.organizationId, organizationId),
             isNull(savedCompany.deletedAt),
             ilike(company.name, like)
           )

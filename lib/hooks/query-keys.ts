@@ -34,6 +34,7 @@ export const qk = {
   companyInteractions: (vat: string) => ["company-interactions", vat] as const,
   companyContracts: (vat: string) => ["company-contracts", vat] as const,
   companySegments: (vat: string) => ["company-segments", vat] as const,
+  companyDocuments: (vat: string) => ["company-documents", vat] as const,
 
   // Pipeline (owned by use-pipeline.ts — mirrored here so CRM mutations that
   // move deal money can invalidate them without importing that module).
@@ -69,12 +70,12 @@ export function invalidate(qc: QueryClientLike, keys: readonly (readonly unknown
  * correct (nothing company-scoped is cached for a company we cannot name).
  */
 export const crmInvalidations = {
-  quoteCreated: (vat?: string) => [qk.quotes(), ...(vat ? [qk.companyActivity(vat)] : [])],
+  quoteCreated: (vat?: string) => [qk.quotes(), ...(vat ? [qk.companyActivity(vat), qk.companyDocuments(vat)] : [])],
 
   quoteUpdated: (id: string, vat?: string) => [
     qk.quote(id),
     qk.quotes(),
-    ...(vat ? [qk.companyActivity(vat)] : []),
+    ...(vat ? [qk.companyActivity(vat), qk.companyDocuments(vat)] : []),
   ],
 
   // Accepting rolls the quote total into deal.amount server-side, so the board
@@ -82,7 +83,7 @@ export const crmInvalidations = {
   quoteStatusChanged: (id: string, vat?: string, dealId?: string | null) => [
     qk.quote(id),
     qk.quotes(),
-    ...(vat ? [qk.companyActivity(vat)] : []),
+    ...(vat ? [qk.companyActivity(vat), qk.companyDocuments(vat)] : []),
     ...(dealId ? [qk.deal(dealId)] : []),
     qk.boards(),
   ],
@@ -92,10 +93,14 @@ export const crmInvalidations = {
     qk.quote(id),
     qk.quotes(),
     qk.orders(),
-    ...(vat ? [qk.companyActivity(vat)] : []),
+    ...(vat ? [qk.companyActivity(vat), qk.companyDocuments(vat)] : []),
   ],
 
-  orderUpdated: (id: string) => [qk.order(id), qk.orders()],
+  orderUpdated: (id: string, vat?: string) => [
+    qk.order(id),
+    qk.orders(),
+    ...(vat ? [qk.companyDocuments(vat)] : []),
+  ],
 
   interactionChanged: (vat: string) => [
     qk.companyInteractions(vat),

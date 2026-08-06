@@ -16,32 +16,8 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
 import { formatDate } from "@/lib/format";
+import { TYPE_ICON, typeLabel } from "@/components/company/crm/shared";
 import { useInteractionsFeed } from "@/lib/hooks/use-interactions-feed";
-
-const TYPE_ICON: Record<string, typeof Users> = {
-  meeting: Users,
-  visit: MapPin,
-  call: Phone,
-  email: Mail,
-  note: StickyNote,
-};
-
-function typeLabel(type: string, tr: (da: string, en: string) => string): string {
-  switch (type) {
-    case "meeting":
-      return tr("Møde", "Meeting");
-    case "visit":
-      return tr("Besøg", "Visit");
-    case "call":
-      return tr("Opkald", "Call");
-    case "email":
-      return tr("E-mail", "Email");
-    case "note":
-      return tr("Notat", "Note");
-    default:
-      return type;
-  }
-}
 
 export default function InteractionsFeedPage() {
   const { locale } = useLanguage();

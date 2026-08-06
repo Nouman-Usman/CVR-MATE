@@ -82,9 +82,25 @@ export function normalizePhone(value: string | null | undefined): string | null 
   if (value == null) return null;
   const trimmed = value.trim();
   if (trimmed.length === 0) return null;
-  const intl = trimmed.startsWith("+") || trimmed.startsWith("00");
-  const digits = trimmed.replace(/\D/g, "").replace(/^00/, "");
+
+  // An extension is not part of the subscriber number. Left in, "+45 12345678
+  // ext 2" hashed differently from the same number without it, so the two never
+  // matched in a lookup or deduplicated.
+  const withoutExtension = trimmed.split(
+    /\s*(?:\bext\.?|\bx\.?|\blokal\.?|,|;)\s*\d+\s*$/i
+  )[0];
+
+  const intl = withoutExtension.startsWith("+") || withoutExtension.startsWith("00");
+  // Loop, not a single replace: "00045..." only had one pair stripped, leaving a
+  // leading zero that produced a different hash than "+45...".
+  let digits = withoutExtension.replace(/\D/g, "");
+  while (digits.startsWith("00")) digits = digits.slice(2);
+
   if (digits.length < 6) return null;
+  // E.164 caps a full international number at 15 digits; anything longer is a
+  // pasted reference or a run-together pair, not a phone number.
+  if (digits.length > 15) return null;
+
   if (!intl && digits.length === 8) return `45${digits}`; // bare Danish local number
   return digits;
 }

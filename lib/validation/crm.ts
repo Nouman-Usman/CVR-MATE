@@ -13,6 +13,24 @@ const optionalEmail = z.preprocess(emptyToUndefined, z.string().email().max(320)
 const optionalShortText = z.preprocess(emptyToUndefined, z.string().max(500).optional());
 const optionalLongText = z.preprocess(emptyToUndefined, z.string().max(10_000).optional());
 
+/**
+ * For fields a user must be able to *erase*, an empty string means null (clear),
+ * not undefined (leave alone).
+ *
+ * With `emptyToUndefined`, clearing an input and saving was indistinguishable
+ * from not touching it, so a contact's email or phone could never be removed
+ * through the product at all — a real problem for a module built around GDPR
+ * field encryption, where erasure is a request you have to be able to honour.
+ */
+const emptyToNull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
+
+const clearableEmail = z.preprocess(
+  emptyToNull,
+  z.string().email().max(320).nullable().optional()
+);
+const clearableShortText = z.preprocess(emptyToNull, z.string().max(500).nullable().optional());
+const clearableLongText = z.preprocess(emptyToNull, z.string().max(10_000).nullable().optional());
+
 // One CVR shape for every optional cvr field — deals and quotes used to accept
 // any 500-char string here while prospects required 8 digits.
 const optionalCvr = z.preprocess(
@@ -31,11 +49,13 @@ const contactSource = z.enum(["manual", "cvr", "import"]);
 
 export const contactCreateSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(200),
-  title: optionalShortText,
-  email: optionalEmail,
-  phone: optionalShortText,
-  linkedinUrl: optionalShortText,
-  notes: optionalLongText,
+  // Clearable: every one of these is personal data the subject can ask us to
+  // erase, so an explicit null has to be expressible.
+  title: clearableShortText,
+  email: clearableEmail,
+  phone: clearableShortText,
+  linkedinUrl: clearableShortText,
+  notes: clearableLongText,
   isPrimary: z.boolean().optional(),
   lawfulBasis: lawfulBasis.optional(),
   source: contactSource.optional(),

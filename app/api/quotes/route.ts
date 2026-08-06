@@ -83,7 +83,20 @@ export async function POST(req: NextRequest) {
     const input = parsed.data;
 
     let companyId = input.companyId ?? null;
-    if (!companyId && input.cvr) companyId = await resolveCompanyIdByVat(input.cvr);
+    if (companyId) {
+      // The `cvr` path is validated by resolveCompanyIdByVat; a client-supplied
+      // id is not, so an unknown-but-well-formed UUID would only surface as an
+      // FK violation inside the transaction — a 500 for a caller error.
+      const exists = await db.query.company.findFirst({
+        where: eq(company.id, companyId),
+        columns: { id: true },
+      });
+      if (!exists) {
+        return NextResponse.json({ error: "Company not found" }, { status: 404 });
+      }
+    } else if (input.cvr) {
+      companyId = await resolveCompanyIdByVat(input.cvr);
+    }
     if (!companyId) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     if (input.dealId) {

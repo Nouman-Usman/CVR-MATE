@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
@@ -44,7 +44,6 @@ import {
   KanbanSquare,
   Download,
   UserCheck,
-  UserPlus,
   ScanSearch,
   MessagesSquare,
   BarChart3,
@@ -66,9 +65,19 @@ import {
   ChevronsLeft,
 } from "lucide-react";
 
+/** Stable subscriptions for useSyncExternalStore (identity must not change). */
+function subscribeToStorage(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+/** Hydration never changes after it happens, so nothing to subscribe to. */
+function subscribeNever(): () => void {
+  return () => {};
+}
+
 // ── Nav structure with grouped sections ──────────────────────────────
 
-type NavKey = "dashboard" | "matches" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "prospects" | "records" | "interactions" | "pipeline" | "reports" | "quotes" | "orders" | "products" | "exports" | "settings";
+type NavKey = "dashboard" | "matches" | "agent" | "search" | "recentCompanies" | "triggers" | "saved" | "savedSearches" | "todos" | "followedPeople" | "records" | "interactions" | "pipeline" | "reports" | "quotes" | "orders" | "products" | "exports" | "settings";
 
 interface NavItem {
   key: NavKey;
@@ -82,48 +91,60 @@ interface NavSection {
   items: NavItem[];
 }
 
+/**
+ * Grouped by what the user is trying to *do*, not by which release built it.
+ *
+ * The previous shape had the CRM split across a "Tools" section (records,
+ * interactions, pipeline, reports) and a separate "Sales" section (quotes,
+ * orders, products) — one domain, two homes, with lead-discovery features mixed
+ * into both. It also listed "Prospects" as a nav destination pointing at a
+ * *creation form*: a verb sitting between nouns, with no list page behind it, so
+ * a prospect you created yesterday was unreachable from the nav at all. Creating
+ * a prospect is now a button on /records, which is the list it belongs to.
+ */
 const navSections: NavSection[] = [
   {
-    label: "Main",
+    label: "Overview",
     labelDa: "Oversigt",
     items: [
       { key: "dashboard", icon: Home, href: "/dashboard" },
       { key: "matches", icon: Flame, href: "/matches" },
       { key: "agent", icon: Sparkles, href: "/agent" },
+    ],
+  },
+  {
+    // Finding companies you do not know yet.
+    label: "Discover",
+    labelDa: "Find virksomheder",
+    items: [
       { key: "search", icon: Search, href: "/search" },
       { key: "recentCompanies", icon: Building2, href: "/recent-companies" },
-    ],
-  },
-  {
-    label: "Leads",
-    labelDa: "Leads",
-    items: [
-      { key: "triggers", icon: Zap, href: "/triggers" },
-      { key: "saved", icon: Bookmark, href: "/saved" },
       { key: "savedSearches", icon: SearchCheck, href: "/saved-searches" },
-      { key: "followedPeople", icon: UserCheck, href: "/followed-people" },
+      { key: "triggers", icon: Zap, href: "/triggers" },
     ],
   },
   {
-    label: "Tools",
-    labelDa: "Værktøjer",
+    // Working the companies you already have a relationship with.
+    label: "CRM",
+    labelDa: "CRM",
     items: [
-      { key: "todos", icon: ListTodo, href: "/todos" },
-      { key: "prospects", icon: UserPlus, href: "/prospects/new" },
       { key: "records", icon: ScanSearch, href: "/records" },
-      { key: "interactions", icon: MessagesSquare, href: "/interactions" },
       { key: "pipeline", icon: KanbanSquare, href: "/pipeline" },
-      { key: "reports", icon: BarChart3, href: "/reports" },
-      { key: "exports", icon: Download, href: "/exports" },
-    ],
-  },
-  {
-    label: "Sales",
-    labelDa: "Salg",
-    items: [
+      { key: "interactions", icon: MessagesSquare, href: "/interactions" },
       { key: "quotes", icon: FileText, href: "/quotes" },
       { key: "orders", icon: ShoppingCart, href: "/orders" },
       { key: "products", icon: Package, href: "/products" },
+      { key: "reports", icon: BarChart3, href: "/reports" },
+    ],
+  },
+  {
+    label: "My work",
+    labelDa: "Mit arbejde",
+    items: [
+      { key: "todos", icon: ListTodo, href: "/todos" },
+      { key: "saved", icon: Bookmark, href: "/saved" },
+      { key: "followedPeople", icon: UserCheck, href: "/followed-people" },
+      { key: "exports", icon: Download, href: "/exports" },
     ],
   },
 ];
@@ -357,13 +378,23 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-
-  // Persist collapsed state
-  useEffect(() => {
-    const stored = localStorage.getItem("sidebar-collapsed");
-    if (stored === "true") setCollapsed(true);
-  }, []);
+  // "x minutes ago" needs a clock, but `Date.now()` in render is impure — it
+  // makes the output depend on when React happens to render, which breaks under
+  // concurrent rendering and never refreshed anyway. Sampled when the dropdown
+  // opens, which is the only moment the labels are actually read.
+  const [notificationsNow, setNotificationsNow] = useState(() => Date.now());
+  // localStorage is an external store, so it is read through
+  // useSyncExternalStore rather than an effect that calls setState: the server
+  // snapshot (false) and the first client render agree, so there is no
+  // hydration mismatch and no post-mount flash of the wrong sidebar width.
+  const storedCollapsed = useSyncExternalStore(
+    subscribeToStorage,
+    () => window.localStorage.getItem("sidebar-collapsed") === "true",
+    () => false
+  );
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(null);
+  const collapsed = collapsedOverride ?? storedCollapsed;
+  const setCollapsed = setCollapsedOverride;
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
@@ -384,13 +415,16 @@ export default function DashboardLayout({
   const cachedSession = getCachedSession();
   const activeSession = session || (isPending ? cachedSession : null);
 
-  const [mounted, setMounted] = useState(false);
+  // "Has the client hydrated yet?" is an environment fact, not component state.
+  // useSyncExternalStore expresses it directly: false on the server, true on the
+  // client, with no effect and no setState.
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false
+  );
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Sync authenticated user identity to Sentry so errors are linked to accounts
   useEffect(() => {
@@ -519,7 +553,7 @@ export default function DashboardLayout({
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             {/* Notification bell + dropdown */}
-            <DropdownMenu>
+            <DropdownMenu onOpenChange={(open) => open && setNotificationsNow(Date.now())}>
               <DropdownMenuTrigger className="relative inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer">
                 <Bell className="size-5" />
                 {unreadCount > 0 && (
@@ -549,7 +583,7 @@ export default function DashboardLayout({
                   ) : (
                     <div className="divide-y divide-slate-50">
                       {notifications.map((n) => {
-                        const age = Date.now() - new Date(n.createdAt).getTime();
+                        const age = notificationsNow - new Date(n.createdAt).getTime();
                         const mins = Math.floor(age / 60000);
                         const hours = Math.floor(age / 3600000);
                         const days = Math.floor(age / 86400000);

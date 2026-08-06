@@ -9,6 +9,7 @@ import {
   Loader2,
   SearchX,
   ArrowRight,
+  UserPlus,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Input } from "@/components/ui/input";
@@ -39,17 +40,27 @@ export default function RecordsPage() {
   return (
     <DashboardLayout>
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-5">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold text-foreground">
-            {tr("Mine records", "My records")}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {tr(
-              "Søg i dine egne virksomheder og kontakter — på navn, CVR, e-mail eller telefon.",
-              "Search your own companies and contacts — by name, CVR, email, or phone."
-            )}
-          </p>
+        {/* Header — creating a prospect lives here, on the list it lands in,
+            rather than as its own nav destination pointing at a bare form. */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              {tr("Mine records", "My records")}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {tr(
+                "Søg i dine egne virksomheder og kontakter — på navn, CVR, e-mail eller telefon.",
+                "Search your own companies and contacts — by name, CVR, email, or phone."
+              )}
+            </p>
+          </div>
+          <Link
+            href="/prospects/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 shrink-0"
+          >
+            <UserPlus className="size-4" />
+            {tr("Nyt emne", "New prospect")}
+          </Link>
         </div>
 
         {/* Search box */}

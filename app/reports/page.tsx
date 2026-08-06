@@ -17,14 +17,62 @@ import { QueryError } from "@/components/crm/QueryState";
 import { formatOre, formatNumber } from "@/lib/format";
 import { useContractExpiryReport, useSegmentsReport } from "@/lib/hooks/use-reports";
 
+/**
+ * Urgency ramp for the expiry buckets — deliberately fixed hexes, not theme
+ * tokens, because "expired is red" must not flip with the colour scheme.
+ *
+ * Every value is held inside the luminance window where it clears WCAG 1.4.11's
+ * 3:1 non-text contrast against BOTH card backgrounds (#ffffff light,
+ * #1e293b dark). Four of the original picks were the -400/-500 Tailwind shades
+ * and washed out on the white card (yellow-500 measured 1.92:1); they are one
+ * step darker here. Anything lighter than roughly relative luminance 0.30
+ * disappears on white, anything darker than 0.17 disappears on the dark card.
+ */
 const BUCKET_COLOR: Record<string, string> = {
-  expired: "#e11d48",
-  d30: "#f59e0b",
-  d60: "#eab308",
-  d90: "#3b82f6",
-  later: "#10b981",
-  none: "#94a3b8",
+  expired: "#e11d48", // rose-600  — 4.70:1 light / 3.11:1 dark
+  d30: "#ea580c", // orange-600 — 3.56:1 / 4.11:1
+  d60: "#d97706", // amber-600  — 3.19:1 / 4.59:1
+  d90: "#3b82f6", // blue-500   — 3.68:1 / 3.98:1
+  later: "#059669", // emerald-600 — 3.77:1 / 3.88:1
+  none: "#64748b", // slate-500  — 4.76:1 / 3.07:1
 };
+
+/**
+ * The luminance at which contrast against black and against white are equal
+ * ((L + 0.05)² = 0.05 × 1.05). Picking the far side of it is always the
+ * higher-contrast label, worst case 4.58:1 — enough for the 10px bar labels.
+ */
+const LABEL_LUMINANCE_PIVOT = 0.179;
+
+/** WCAG relative luminance of a `#rgb` / `#rrggbb` string; null if unparseable. */
+function hexLuminance(hex: string): number | null {
+  const raw = hex.trim().replace(/^#/, "");
+  const full = raw.length === 3 ? raw.replace(/./g, (c) => c + c) : raw;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return null;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const channel = parseInt(full.slice(i, i + 2), 16) / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Segment colours are picked by the user, so stamping white text on them was a
+ * guaranteed contrast failure for any pale choice — white on #fbbf24 is 1.7:1.
+ * Derive the label colour from the swatch instead, and fall back to the theme
+ * pair when the stored colour is missing or malformed so the row still renders.
+ *
+ * Pure #000/#fff rather than the theme's near-black/near-white: softening
+ * either end drops the worst case from 4.58:1 to about 4.1:1, under AA.
+ */
+const FALLBACK_SWATCH = { bg: "var(--primary)", fg: "var(--primary-foreground)" };
+
+function segmentSwatch(color: string | null | undefined): { bg: string; fg: string } {
+  if (typeof color !== "string") return FALLBACK_SWATCH;
+  const luminance = hexLuminance(color);
+  if (luminance == null) return FALLBACK_SWATCH;
+  return { bg: color, fg: luminance > LABEL_LUMINANCE_PIVOT ? "#000000" : "#ffffff" };
+}
 
 function bucketLabel(key: string, tr: (da: string, en: string) => string): string {
   switch (key) {
@@ -94,25 +142,25 @@ export default function ReportsPage() {
             icon={FileText}
             label={tr("Kontrakter", "Contracts")}
             value={formatNumber(totals?.count ?? 0, locale)}
-            tint="bg-blue-50 text-blue-600"
+            tint="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
           />
           <Kpi
             icon={ShieldCheck}
             label={tr("Aktive", "Active")}
             value={formatNumber(totals?.active ?? 0, locale)}
-            tint="bg-emerald-50 text-emerald-600"
+            tint="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
           />
           <Kpi
             icon={AlarmClock}
             label={tr("Udløber ≤ 30 dage", "Expiring ≤ 30 days")}
             value={formatNumber(totals?.expiringSoon ?? 0, locale)}
-            tint="bg-amber-50 text-amber-600"
+            tint="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
           />
           <Kpi
             icon={Coins}
             label={tr("Samlet værdi", "Total value")}
             value={formatOre(totals?.value ?? 0, locale)}
-            tint="bg-violet-50 text-violet-600"
+            tint="bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
           />
         </div>
 
@@ -136,26 +184,52 @@ export default function ReportsPage() {
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  {/*
+                    Axis ticks and the hover cursor are themed with Tailwind
+                    classes, not `fill` values. Recharts spreads `tick` onto the
+                    SVG <text> as a presentation attribute, and `var()` inside a
+                    presentation attribute is still only partially implemented
+                    (Chromium); a class produces a real CSS declaration, which
+                    resolves everywhere and re-resolves on theme switch with no
+                    listener. The tooltip, by contrast, is a plain <div> styled
+                    inline, so `var()` works there directly.
+                  */}
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    tick={{ fontSize: 11, className: "fill-muted-foreground" }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "#64748b" }}
+                    tick={{ fontSize: 11, className: "fill-muted-foreground" }}
                     axisLine={false}
                     tickLine={false}
                     allowDecimals={false}
                     width={36}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(100,116,139,0.08)" }}
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                    cursor={{ className: "fill-muted-foreground/10", stroke: "none" }}
+                    contentStyle={{
+                      fontSize: 12,
+                      borderRadius: 8,
+                      // Recharts hardcodes a white background and #ccc border,
+                      // so both have to be overridden, not merely supplemented.
+                      backgroundColor: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      color: "var(--popover-foreground)",
+                    }}
+                    // The bar takes its fill from <Cell>, so the tooltip entry
+                    // has no colour of its own and recharts defaults it to #000.
+                    itemStyle={{ color: "var(--popover-foreground)" }}
                   />
-                  <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={56}>
+                  <Bar
+                    dataKey="count"
+                    name={tr("Kontrakter", "Contracts")}
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={56}
+                  >
                     {chartData.map((d) => (
-                      <Cell key={d.key} fill={BUCKET_COLOR[d.key] ?? "#94a3b8"} />
+                      <Cell key={d.key} fill={BUCKET_COLOR[d.key] ?? BUCKET_COLOR.none} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -184,36 +258,42 @@ export default function ReportsPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {segments.map((s) => (
-                  <div key={s.id} className="flex items-center gap-3">
-                    <div className="w-32 shrink-0 flex items-center gap-2 min-w-0">
-                      <span
-                        className="w-3 h-3 rounded-full shrink-0"
-                        style={{ backgroundColor: s.color }}
-                      />
-                      <span className="text-sm font-medium text-foreground truncate">
-                        {s.name}
-                      </span>
-                    </div>
-                    <div className="flex-1 h-6 rounded-md bg-muted/40 overflow-hidden">
-                      <div
-                        className="h-full rounded-md flex items-center justify-end px-2"
-                        style={{
-                          width: `${Math.max(6, (s.contractValue / maxSegValue) * 100)}%`,
-                          backgroundColor: s.color,
-                        }}
-                      >
-                        <span className="text-[10px] font-semibold text-white whitespace-nowrap">
-                          {formatOre(s.contractValue, locale)}
+                {segments.map((s) => {
+                  const swatch = segmentSwatch(s.color);
+                  return (
+                    <div key={s.id} className="flex items-center gap-3">
+                      <div className="w-32 shrink-0 flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: swatch.bg }}
+                        />
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {s.name}
                         </span>
                       </div>
+                      <div className="flex-1 h-6 rounded-md bg-muted/40 overflow-hidden">
+                        <div
+                          className="h-full rounded-md flex items-center justify-end px-2"
+                          style={{
+                            width: `${Math.max(6, (s.contractValue / maxSegValue) * 100)}%`,
+                            backgroundColor: swatch.bg,
+                          }}
+                        >
+                          <span
+                            className="text-[10px] font-semibold whitespace-nowrap"
+                            style={{ color: swatch.fg }}
+                          >
+                            {formatOre(s.contractValue, locale)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
+                        {formatNumber(s.companyCount, locale)}{" "}
+                        {tr("virks.", "cos.")}
+                      </span>
                     </div>
-                    <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
-                      {formatNumber(s.companyCount, locale)}{" "}
-                      {tr("virks.", "cos.")}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

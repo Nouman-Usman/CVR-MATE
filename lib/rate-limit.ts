@@ -12,6 +12,20 @@ function createRedisClient(): Redis | null {
 
 const redis = createRedisClient();
 
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+// Loud, once, at module load. Rate limiting is a security control, not a cache:
+// running production without Redis is a misconfiguration, not a degraded mode.
+// This logs rather than throwing because a throw here takes down every route in
+// the deployment — a self-inflicted outage is worse than the thing it prevents.
+// The actual protection is the fail-closed default below.
+if (IS_PRODUCTION && !redis) {
+  console.error(
+    "[rate-limit] FATAL CONFIG: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set. " +
+      "Rate-limited endpoints will REJECT all requests until Redis is configured."
+  );
+}
+
 export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
@@ -22,10 +36,18 @@ export interface RateLimitResult {
 /**
  * Fixed-window rate limiter backed by Upstash Redis.
  *
- * Key: `rl:{feature}:{userId}:{window_bucket}`
- * Window bucket = Math.floor(Date.now() / windowMs) — increments each period.
+ * Key: `rl:{feature}:{userId}:{window_bucket}` — the first segment is any opaque
+ * identity string, so IP-keyed limits pass e.g. `quote-ip:1.2.3.4`.
  *
- * Fails open when Redis is unavailable (no env vars configured).
+ * **Failure posture depends on the environment.** In production, an unavailable
+ * Redis fails CLOSED: previously it failed open everywhere, which meant a
+ * deployment missing two env vars silently had *no* rate limiting at all on any
+ * CRM mutation or on the public quote endpoints — the control looked present and
+ * enforced nothing. In development it still fails open so nobody needs Redis
+ * running to work on the app.
+ *
+ * `failClosed: true` forces closed in every environment; `failClosed: false`
+ * forces open (use only where availability genuinely outranks the limit).
  */
 export async function checkRateLimit(
   userId: string,
@@ -34,11 +56,12 @@ export async function checkRateLimit(
   windowSeconds: number,
   options?: { failClosed?: boolean }
 ): Promise<RateLimitResult> {
+  const failClosed = options?.failClosed ?? IS_PRODUCTION;
+
   if (!redis) {
-    if (options?.failClosed) {
+    if (failClosed) {
       return { allowed: false, remaining: 0, resetAt: 0 };
     }
-    // Redis not configured — allow all requests (fail open)
     return { allowed: true, remaining: maxRequests, resetAt: 0 };
   }
 
@@ -62,8 +85,11 @@ export async function checkRateLimit(
       resetAt,
     };
   } catch (err) {
-    console.warn("[rate-limit] Redis error, failing open:", err);
-    if (options?.failClosed) {
+    console.warn(
+      `[rate-limit] Redis error, failing ${failClosed ? "closed" : "open"}:`,
+      err
+    );
+    if (failClosed) {
       return { allowed: false, remaining: 0, resetAt };
     }
     return { allowed: true, remaining: maxRequests, resetAt };

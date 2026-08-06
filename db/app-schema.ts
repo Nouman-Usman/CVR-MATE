@@ -277,6 +277,7 @@ export const todo = pgTable(
     index("todo_company_idx").on(table.companyId),
     index("todo_org_idx").on(table.organizationId),
     index("todo_priority_idx").on(table.userId, table.priority),
+    index("todo_assigned_idx").on(table.assignedUserId),
     index("todo_interaction_idx").on(table.interactionId),
     // At most one live follow-up per interaction. syncFollowUpTodo used to
     // find-then-insert, so two concurrent PATCHes of the same interaction could
@@ -584,6 +585,7 @@ export const companyWorkspace = pgTable(
     index("company_workspace_org_idx").on(table.organizationId),
     index("company_workspace_status_idx").on(table.organizationId, table.status),
     index("company_workspace_assigned_idx").on(table.assignedUserId),
+    index("company_workspace_company_idx").on(table.companyId),
   ]
 );
 
@@ -634,7 +636,9 @@ export const contact = pgTable(
     index("contact_org_idx").on(table.organizationId),
     index("contact_created_by_idx").on(table.createdBy),
     index("contact_email_hash_idx").on(table.organizationId, table.emailHash),
-    index("contact_phone_hash_idx").on(table.organizationId, table.phoneHash),
+    index("contact_phone_hash_idx")
+      .on(table.organizationId, table.phoneHash)
+      .where(sql`${table.phoneHash} is not null`),
     // One live contact per (org, company, email). Partial: ignores soft-deleted
     // rows and contacts without an email.
     uniqueIndex("contact_org_company_email_uq")
@@ -689,7 +693,11 @@ export const interaction = pgTable(
     index("interaction_org_idx").on(table.organizationId),
     index("interaction_company_idx").on(table.companyId),
     index("interaction_org_company_idx").on(table.organizationId, table.companyId),
-    index("interaction_occurred_idx").on(table.occurredAt),
+    // Was a bare global (occurred_at) index, which no org-scoped query could
+    // use — pure write overhead. The timeline always filters by org first.
+    index("interaction_org_occurred_idx").on(table.organizationId, table.occurredAt),
+    index("interaction_deal_idx").on(table.dealId),
+    index("interaction_created_by_idx").on(table.createdBy),
     index("interaction_contact_idx").on(table.contactId),
     check(
       "interaction_type_check",
@@ -748,6 +756,8 @@ export const contract = pgTable(
     index("contract_company_idx").on(table.companyId),
     index("contract_org_expiry_idx").on(table.organizationId, table.expiryDate),
     index("contract_org_status_idx").on(table.organizationId, table.status),
+    index("contract_deal_idx").on(table.dealId),
+    index("contract_created_by_idx").on(table.createdBy),
     check(
       "contract_status_check",
       sql`${table.status} in ('draft','active','expired','cancelled','renewed')`
@@ -779,6 +789,7 @@ export const segment = pgTable(
   (table) => [
     index("segment_org_idx").on(table.organizationId),
     uniqueIndex("segment_org_name_idx").on(table.organizationId, table.name),
+    index("segment_created_by_idx").on(table.createdBy),
   ]
 );
 
@@ -841,6 +852,7 @@ export const product = pgTable(
   (table) => [
     index("product_org_idx").on(table.organizationId),
     index("product_org_active_idx").on(table.organizationId, table.active),
+    index("product_created_by_idx").on(table.createdBy),
   ]
 );
 
@@ -919,6 +931,11 @@ export const quote = pgTable(
     index("quote_org_idx").on(table.organizationId),
     index("quote_company_idx").on(table.companyId),
     index("quote_org_status_idx").on(table.organizationId, table.status),
+    index("quote_deal_idx").on(table.dealId),
+    index("quote_created_by_idx").on(table.createdBy),
+    // The list page sorts createdAt DESC under an org filter; without the
+    // composite that is an index scan followed by a sort.
+    index("quote_org_created_idx").on(table.organizationId, table.createdAt),
     uniqueIndex("quote_org_number_idx").on(table.organizationId, table.number),
     // Unique so a collision can never silently point one customer's link at
     // another org's quote; partial so the many un-sent drafts (all NULL) do not
@@ -959,6 +976,8 @@ export const quoteLine = pgTable(
   (table) => [
     index("quote_line_quote_idx").on(table.quoteId),
     index("quote_line_org_idx").on(table.organizationId),
+    // Deleting a product fires SET NULL against every line table.
+    index("quote_line_product_idx").on(table.productId),
   ]
 );
 
@@ -998,6 +1017,10 @@ export const salesOrder = pgTable(
     index("sales_order_org_idx").on(table.organizationId),
     index("sales_order_company_idx").on(table.companyId),
     index("sales_order_org_status_idx").on(table.organizationId, table.status),
+    index("sales_order_quote_idx").on(table.quoteId),
+    index("sales_order_deal_idx").on(table.dealId),
+    index("sales_order_created_by_idx").on(table.createdBy),
+    index("sales_order_org_created_idx").on(table.organizationId, table.createdAt),
     uniqueIndex("sales_order_org_number_idx").on(table.organizationId, table.number),
     check(
       "sales_order_status_check",
@@ -1032,6 +1055,7 @@ export const salesOrderLine = pgTable(
   (table) => [
     index("sales_order_line_order_idx").on(table.orderId),
     index("sales_order_line_org_idx").on(table.organizationId),
+    index("sales_order_line_product_idx").on(table.productId),
   ]
 );
 
@@ -1146,6 +1170,8 @@ export const deal = pgTable(
     index("deal_stage_idx").on(table.stageId),
     index("deal_assigned_idx").on(table.assignedUserId),
     index("deal_org_status_idx").on(table.organizationId, table.status),
+    index("deal_created_by_idx").on(table.createdBy),
+    index("deal_primary_contact_idx").on(table.primaryContactId),
     check("deal_status_check", sql`${table.status} in ('open','won','lost')`),
   ]
 );

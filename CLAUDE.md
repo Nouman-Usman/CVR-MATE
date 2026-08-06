@@ -115,7 +115,7 @@ Copy `.env.example` to `.env` and fill in:
 - `GEMINI_API_KEY`
 - `STRIPE_SECRET_KEY` + `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` + `STRIPE_WEBHOOK_SECRET` + price IDs
 - `CRM_TOKEN_ENCRYPTION_KEY` — 32-byte hex, encrypts stored CRM OAuth tokens
-- Upstash Redis + QStash keys (optional — app runs without Redis cache)
+- Upstash Redis + QStash keys — **required in production**. Redis backs rate limiting, which is a security control, not a cache: with `NODE_ENV=production` and no Redis, rate-limited endpoints fail *closed* and reject every request. Optional in development, where they fail open.
 - CRM OAuth app credentials (HubSpot, LeadConnector, Pipedrive) — only needed if testing integrations
 - SMTP credentials — fallback email provider
 

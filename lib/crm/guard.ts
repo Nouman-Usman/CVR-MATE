@@ -22,6 +22,20 @@ import {
  *      `[id]` routes, re-load the row and assert `row.organizationId === ctx
  *      .organizationId` before acting (IDOR defense).
  */
+/**
+ * Status-code convention for CRM routes, so the apparent inconsistency between
+ * "Quote not found" (404) and "Deal not found" (400) is a rule rather than an
+ * accident:
+ *
+ *   404 — the resource addressed by the URL does not exist, or is not this
+ *         org's. Deliberately identical for both, so a 404 never confirms that
+ *         some other org owns the id.
+ *   400 — a resource *referenced in the request body* does not exist or is not
+ *         this org's. The addressed resource is fine; the payload is wrong.
+ *   403 — authenticated, but not permitted (plan gate or role).
+ *   409 — the request is well-formed but conflicts with current state
+ *         (see CrmConflictError).
+ */
 export interface CrmOrgContext {
   userId: string;
   organizationId: string;
