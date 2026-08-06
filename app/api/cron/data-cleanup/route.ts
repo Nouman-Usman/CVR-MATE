@@ -10,7 +10,7 @@ import {
   companyNote,
   deal,
 } from "@/db/schema";
-import { verifyQStashRequest } from "@/lib/qstash";
+import { verifyCronRequest } from "@/lib/cron/verify";
 
 export const runtime = "nodejs";
 
@@ -36,12 +36,9 @@ function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
-async function verifyAuth(req: NextRequest): Promise<boolean> {
-  if (await verifyQStashRequest(req)) return true;
-  const cronSecret = process.env.CRON_SECRET;
-  const auth = req.headers.get("authorization");
-  return !!cronSecret && auth === `Bearer ${cronSecret}`;
-}
+// Shared with every other cron: QStash signature, else a constant-time
+// Bearer comparison. See lib/cron/verify.ts.
+const verifyAuth = verifyCronRequest;
 
 /**
  * POST /api/cron/data-cleanup

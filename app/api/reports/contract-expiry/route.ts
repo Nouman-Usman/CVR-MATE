@@ -37,8 +37,12 @@ export async function GET(req: NextRequest) {
     let activeCount = 0;
     let expiringSoon = 0; // active + expiring within 30 days
 
+    // Cancelled contracts are history, not portfolio — counting their value in
+    // "total value" overstated what the org actually holds.
+    const LIVE = new Set(["active", "renewed"]);
+
     for (const r of rows) {
-      const val = r.value ?? 0;
+      const val = LIVE.has(r.status) ? (r.value ?? 0) : 0;
       totalCount++;
       totalValue += val;
       if (r.status === "active") activeCount++;

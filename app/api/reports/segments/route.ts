@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, countDistinct, eq, isNull, sum } from "drizzle-orm";
+import { and, asc, countDistinct, eq, inArray, isNull, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { segment, companySegment, contract } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
@@ -30,7 +30,11 @@ export async function GET(req: NextRequest) {
         and(
           eq(contract.companyId, companySegment.companyId),
           eq(contract.organizationId, organizationId),
-          isNull(contract.deletedAt)
+          isNull(contract.deletedAt),
+          // Only live contracts count toward a segment's value. Summing
+          // cancelled and draft ones inflated every segment's figure, which is
+          // the kind of error that quietly informs a pricing decision.
+          inArray(contract.status, ["active", "renewed"])
         )
       )
       .where(eq(segment.organizationId, organizationId))

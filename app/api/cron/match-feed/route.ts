@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyQStashRequest } from "@/lib/qstash";
+import { verifyCronRequest } from "@/lib/cron/verify";
 import { runMatchFeed } from "@/lib/match-feed/run";
 
 // Cron endpoint: generates the daily match feed for every paid user, at most once
@@ -14,14 +14,9 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 // verbatim from app/api/cron/triggers/route.ts
-async function verifyAuth(req: NextRequest): Promise<boolean> {
-  // Try QStash signature first (production)
-  if (await verifyQStashRequest(req)) return true;
-  // Fall back to Bearer token (manual/local testing)
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get("authorization");
-  return !!cronSecret && authHeader === `Bearer ${cronSecret}`;
-}
+// Shared with every other cron: QStash signature, else a constant-time
+// Bearer comparison. See lib/cron/verify.ts.
+const verifyAuth = verifyCronRequest;
 
 // POST: Called by QStash in production
 export async function POST(req: NextRequest) {

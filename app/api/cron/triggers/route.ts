@@ -6,21 +6,16 @@ import { searchCompaniesElasticsearch, type ParsedCompany } from "@/lib/cvr-api-
 import { buildEsFilters } from "@/lib/triggers/build-es-filters";
 import { createNotification } from "@/lib/notifications";
 import { computeNextRun } from "@/lib/cron";
-import { verifyQStashRequest } from "@/lib/qstash";
+import { verifyCronRequest } from "@/lib/cron/verify";
 import { dispatchNotificationEmail } from "@/lib/email/dispatch";
 
 // Cron endpoint: processes all active triggers that are due.
 // Secured via QStash signature (production) or CRON_SECRET Bearer token (local/manual).
 // Scheduled via Upstash QStash (POST) — GET kept for manual testing.
 
-async function verifyAuth(req: NextRequest): Promise<boolean> {
-  // Try QStash signature first (production)
-  if (await verifyQStashRequest(req)) return true;
-  // Fall back to Bearer token (manual/local testing)
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get("authorization");
-  return !!cronSecret && authHeader === `Bearer ${cronSecret}`;
-}
+// Shared with every other cron: QStash signature, else a constant-time
+// Bearer comparison. See lib/cron/verify.ts.
+const verifyAuth = verifyCronRequest;
 
 /**
  * Rolling recency window (in days) for a trigger, from its cadence. Bounds each

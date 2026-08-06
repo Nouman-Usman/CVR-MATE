@@ -76,6 +76,20 @@ export async function POST(
     const transition = TRANSITIONS[action];
     const now = new Date();
 
+    // `validUntil` was stored and never enforced, so a quote could be accepted
+    // a year past its own expiry date and roll that amount into the deal. The
+    // sweep cron marks stale quotes 'expired', but this is the guard that
+    // actually binds — a quote can be accepted the instant before the sweep runs.
+    if (
+      action === "accept" &&
+      existing.validUntil &&
+      existing.validUntil < now.toISOString().slice(0, 10)
+    ) {
+      throw new CrmConflictError(
+        "This quote expired on " + existing.validUntil + ". Extend its validity or duplicate it."
+      );
+    }
+
     const updated = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(quote)

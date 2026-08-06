@@ -10,7 +10,7 @@ import {
 import { db } from "@/db";
 import { getChangedCompanies, getCompanyByVatFresh } from "@/lib/cvr-api";
 import { createNotification } from "@/lib/notifications";
-import { verifyQStashRequest } from "@/lib/qstash";
+import { verifyCronRequest } from "@/lib/cron/verify";
 import {
   diffRoles,
   diffCompanyStatus,
@@ -24,12 +24,9 @@ const BATCH_SIZE = 5;
 const MAX_CHANGES_PER_RUN = 5000;
 const STALE_LOCK_MS = 30 * 60 * 1000;
 
-async function verifyAuth(req: NextRequest): Promise<boolean> {
-  if (await verifyQStashRequest(req)) return true;
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get("authorization");
-  return !!cronSecret && authHeader === `Bearer ${cronSecret}`;
-}
+// Shared with every other cron: QStash signature, else a constant-time
+// Bearer comparison. See lib/cron/verify.ts.
+const verifyAuth = verifyCronRequest;
 
 async function acquireLock(): Promise<{
   acquired: boolean;
