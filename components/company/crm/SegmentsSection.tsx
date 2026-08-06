@@ -124,6 +124,7 @@ export function SegmentsSection({ vat }: { vat: string }) {
             <div className="flex items-center gap-2">
               <input
                 className={inputCls}
+                aria-label={tr("Navn på nyt segment", "New segment name")}
                 placeholder={tr("Navn", "Name")}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -136,17 +137,21 @@ export function SegmentsSection({ vat }: { vat: string }) {
                 {tr("Opret", "Create")}
               </button>
             </div>
-            <div className="flex gap-1.5 mt-2">
-              {SWATCHES.map((c) => (
+            {/* A raw hex string was the accessible name here, which tells a
+                screen-reader user nothing and never announced which one was
+                chosen. Ordinal name + pressed state does both. */}
+            <div className="flex gap-1.5 mt-2" role="group" aria-label={tr("Farve", "Colour")}>
+              {SWATCHES.map((c, i) => (
                 <button
                   key={c}
                   onClick={() => setNewColor(c)}
+                  aria-pressed={newColor === c}
+                  aria-label={tr(`Farve ${i + 1}`, `Colour ${i + 1}`)}
                   className={
                     "w-5 h-5 rounded-full cursor-pointer " +
                     (newColor === c ? "ring-2 ring-offset-1 ring-ring ring-offset-background" : "")
                   }
                   style={{ backgroundColor: c }}
-                  aria-label={c}
                 />
               ))}
             </div>

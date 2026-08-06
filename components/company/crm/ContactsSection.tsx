@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Users } from "lucide-react";
 import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
@@ -12,7 +12,7 @@ import {
   useDeleteContact,
   type Contact,
 } from "@/lib/hooks/use-contacts";
-import { card, inputCls, primaryBtn, subtleBtn, SectionHeader } from "./shared";
+import { card, Field, inputCls, primaryBtn, subtleBtn, SectionHeader } from "./shared";
 import { ContactRow } from "./ContactRow";
 
 const EMPTY_FORM = {
@@ -38,8 +38,17 @@ export function ContactsSection({ vat }: { vat: string }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const contacts = data?.contacts ?? [];
+
+  // The form renders above the list, so pressing "edit" on the fifth contact
+  // opened a panel off-screen and left focus on the pencil. Re-runs on the
+  // contact id too, so switching rows while the form is already open moves
+  // focus again rather than silently swapping the values underneath you.
+  useEffect(() => {
+    if (showForm) nameRef.current?.focus();
+  }, [showForm, editing?.id]);
 
   function openCreate() {
     setEditing(null);
@@ -111,44 +120,51 @@ export function ContactsSection({ vat }: { vat: string }) {
       {showForm && (
         <div className="mb-5 p-4 rounded-xl border border-border bg-muted/50 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input
-              className={inputCls}
-              placeholder={tr("Navn *", "Name *")}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              placeholder={tr("Titel", "Title")}
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              type="email"
-              placeholder={tr("E-mail", "Email")}
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              placeholder={tr("Telefon", "Phone")}
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-            <input
-              className={inputCls + " sm:col-span-2"}
-              placeholder="LinkedIn URL"
-              value={form.linkedinUrl}
-              onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
-            />
-            <textarea
-              className={inputCls + " sm:col-span-2 resize-none"}
-              rows={2}
-              placeholder={tr("Noter", "Notes")}
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            />
+            <Field label={tr("Navn", "Name")} hint="*">
+              <input
+                ref={nameRef}
+                className={inputCls}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Titel", "Title")}>
+              <input
+                className={inputCls}
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("E-mail", "Email")}>
+              <input
+                className={inputCls}
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Telefon", "Phone")}>
+              <input
+                className={inputCls}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </Field>
+            <Field label="LinkedIn URL" className="sm:col-span-2">
+              <input
+                className={inputCls}
+                value={form.linkedinUrl}
+                onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Noter", "Notes")} className="sm:col-span-2">
+              <textarea
+                className={inputCls + " resize-none"}
+                rows={2}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </Field>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground cursor-pointer">

@@ -13,7 +13,15 @@ import {
   useCreateContract,
   useDeleteContract,
 } from "@/lib/hooks/use-company-contracts";
-import { card, inputCls, panelCls, primaryBtn, rowDeleteBtn, SectionHeader } from "./shared";
+import {
+  card,
+  Field,
+  inputCls,
+  panelCls,
+  primaryBtn,
+  rowDeleteBtn,
+  SectionHeader,
+} from "./shared";
 
 const EMPTY_CONTRACT = {
   title: "",
@@ -99,62 +107,63 @@ export function ContractsSection({ vat }: { vat: string }) {
 
       {showForm && (
         <div className={"mb-4 space-y-2.5 " + panelCls}>
-          <input
-            className={inputCls}
-            placeholder={tr("Titel", "Title")}
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <select
-              className={inputCls}
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-            >
-              <option value="draft">{tr("Kladde", "Draft")}</option>
-              <option value="active">{tr("Aktiv", "Active")}</option>
-              <option value="renewed">{tr("Fornyet", "Renewed")}</option>
-              <option value="expired">{tr("Udløbet", "Expired")}</option>
-              <option value="cancelled">{tr("Annulleret", "Cancelled")}</option>
-            </select>
+          <Field label={tr("Titel", "Title")} hint="*">
             <input
               className={inputCls}
-              inputMode="decimal"
-              placeholder={tr("Værdi (DKK)", "Value (DKK)")}
-              value={form.value}
-              onChange={(e) => setForm({ ...form, value: e.target.value })}
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <Field label={tr("Status", "Status")}>
+              <select
+                className={inputCls}
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                <option value="draft">{tr("Kladde", "Draft")}</option>
+                <option value="active">{tr("Aktiv", "Active")}</option>
+                <option value="renewed">{tr("Fornyet", "Renewed")}</option>
+                <option value="expired">{tr("Udløbet", "Expired")}</option>
+                <option value="cancelled">{tr("Annulleret", "Cancelled")}</option>
+              </select>
+            </Field>
+            <Field label={tr("Værdi", "Value")} hint="(DKK)">
+              <input
+                className={inputCls}
+                inputMode="decimal"
+                value={form.value}
+                onChange={(e) => setForm({ ...form, value: e.target.value })}
+              />
+            </Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <label className="text-[11px] text-muted-foreground block">
-              {tr("Start", "Start")}
+            <Field label={tr("Start", "Start")}>
               <input
                 className={inputCls}
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm({ ...form, startDate: e.target.value })}
               />
-            </label>
-            <label className="text-[11px] text-muted-foreground block">
-              {tr("Udløb", "Expiry")}
+            </Field>
+            <Field label={tr("Udløb", "Expiry")}>
               <input
                 className={inputCls}
                 type="date"
                 value={form.expiryDate}
                 onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
               />
-            </label>
+            </Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
-            <label className="text-[11px] text-muted-foreground block">
-              {tr("Varsel (dage)", "Notice (days)")}
+            <Field label={tr("Varsel", "Notice")} hint={tr("(dage)", "(days)")}>
               <input
                 className={inputCls}
                 type="number"
                 value={form.renewalNoticeDays}
                 onChange={(e) => setForm({ ...form, renewalNoticeDays: e.target.value })}
               />
-            </label>
+            </Field>
             <label className="flex items-center gap-2 text-xs text-muted-foreground pb-2">
               <input
                 type="checkbox"
@@ -165,13 +174,14 @@ export function ContractsSection({ vat }: { vat: string }) {
               {tr("Auto-forny", "Auto-renew")}
             </label>
           </div>
-          <textarea
-            className={inputCls + " resize-none"}
-            rows={2}
-            placeholder={tr("Noter", "Notes")}
-            value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
+          <Field label={tr("Noter", "Notes")}>
+            <textarea
+              className={inputCls + " resize-none"}
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </Field>
           <div className="flex justify-end">
             <button onClick={submit} disabled={createContract.isPending} className={primaryBtn}>
               {tr("Gem", "Save")}

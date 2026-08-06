@@ -53,7 +53,7 @@ export function ThreadSidebar({
                 type="button"
                 aria-label={a.deleteConversation}
                 onClick={() => del.mutate(s.id)}
-                className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                className="row-action shrink-0 text-muted-foreground hover:text-red-600"
               >
                 <Trash2 className="size-3.5" />
               </button>

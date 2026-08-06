@@ -3,19 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Search,
-  X,
-  Plus,
-  Trash2,
-  Loader2,
-  Building2,
-  UserPlus,
-  ArrowRight,
-} from "lucide-react";
+import { X, Plus, Trash2, Loader2, UserPlus } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, inputClass } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLanguage } from "@/lib/i18n/language-context";
-import { useSuggestions } from "@/lib/hooks/use-suggestions";
+import { CompanyCombobox } from "@/components/crm/CompanyCombobox";
 import { useCompany } from "@/lib/hooks/use-company";
 import { flattenCompany } from "@/lib/cvr-client";
 import {
@@ -41,6 +32,9 @@ interface PickedCompany {
   name: string;
   city?: string | null;
 }
+
+/** A bare 8-digit query is a CVR number, not a company-name search. */
+const isCvrNumber = (q: string) => /^\d{8}$/.test(q);
 
 interface ContactDraft {
   name: string;
@@ -65,17 +59,7 @@ export default function NewProspectPage() {
   const createProspect = useCreateProspect();
 
   // ─── Company picker ────────────────────────────────────────────────────────
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [picked, setPicked] = useState<PickedCompany | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  const { data: suggestions, isFetching: searching } = useSuggestions(debouncedQuery);
-  const isCvr = /^\d{8}$/.test(debouncedQuery);
 
   // Full CVR detail for the preview card once a company is picked.
   const { data: companyData, isFetching: loadingCompany } = useCompany(picked?.vat);
@@ -93,8 +77,6 @@ export default function NewProspectPage() {
 
   function pick(company: PickedCompany) {
     setPicked(company);
-    setQuery("");
-    setDebouncedQuery("");
   }
 
   function updateContact(i: number, patch: Partial<ContactDraft>) {
@@ -255,72 +237,31 @@ export default function NewProspectPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-1.5">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-                <Input
-                  autoFocus
-                  className="pl-8"
-                  placeholder={tr(
-                    "Søg navn eller indsæt 8-cifret CVR…",
-                    "Search name or paste 8-digit CVR…"
-                  )}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </div>
-              {(isCvr || debouncedQuery.length >= 2) && (
-                <div className="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border">
-                  {isCvr && (
-                    <button
-                      onClick={() => pick({ vat: debouncedQuery, name: `CVR ${debouncedQuery}` })}
-                      className="w-full flex items-center gap-2 text-left px-3 py-2.5 hover:bg-muted transition-colors"
-                    >
-                      <Building2 className="size-4 text-primary shrink-0" />
-                      <span className="text-sm font-medium text-foreground">
-                        {tr(`Brug CVR ${debouncedQuery}`, `Use CVR ${debouncedQuery}`)}
-                      </span>
-                      <ArrowRight className="size-3.5 text-muted-foreground ml-auto" />
-                    </button>
-                  )}
-                  {!isCvr && searching && (
-                    <p className="text-xs text-muted-foreground text-center py-3">
-                      {tr("Søger…", "Searching…")}
-                    </p>
-                  )}
-                  {!isCvr &&
-                    !searching &&
-                    debouncedQuery.length >= 2 &&
-                    suggestions?.results.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-3">
-                        {tr("Ingen resultater", "No results")}
-                      </p>
-                    )}
-                  {!isCvr &&
-                    suggestions?.results.map((r) => (
-                      <button
-                        key={r.vat}
-                        onClick={() =>
-                          pick({
-                            vat: String(r.vat),
-                            name: r.life?.name || `CVR ${r.vat}`,
-                            city: r.address?.cityname,
-                          })
-                        }
-                        className="w-full text-left px-3 py-2 hover:bg-muted transition-colors"
-                      >
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {r.life?.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          CVR {r.vat}
-                          {r.address?.cityname ? ` · ${r.address.cityname}` : ""}
-                        </p>
-                      </button>
-                    ))}
-                </div>
+            <CompanyCombobox
+              autoFocus
+              label={tr("Søg virksomhed", "Search company")}
+              placeholder={tr(
+                "Søg navn eller indsæt 8-cifret CVR…",
+                "Search name or paste 8-digit CVR…"
               )}
-            </div>
+              inputClassName={inputClass}
+              loadingLabel={tr("Søger…", "Searching…")}
+              emptyLabel={tr("Ingen resultater", "No results")}
+              countLabel={(n) => tr(`${n} virksomheder fundet`, `${n} companies found`)}
+              // A pasted CVR number is not a name search — offer it directly
+              // and skip the remote lookup that would return nothing.
+              skipRemote={isCvrNumber}
+              buildExtraOption={(q) =>
+                isCvrNumber(q)
+                  ? {
+                      vat: q,
+                      name: `CVR ${q}`,
+                      display: tr(`Brug CVR ${q}`, `Use CVR ${q}`),
+                    }
+                  : null
+              }
+              onSelect={(c) => pick({ vat: c.vat, name: c.name, city: c.city })}
+            />
           )}
         </section>
 

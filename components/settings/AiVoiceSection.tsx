@@ -89,7 +89,7 @@ const ChipInput = forwardRef<
             ) : (
               <span className="flex-1 text-sm">{chip}</span>
             )}
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+            <div className="row-action flex gap-1">
               {editingIndex !== i && (
                 <button
                   type="button"

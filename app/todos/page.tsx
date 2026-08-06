@@ -1293,7 +1293,7 @@ export default function TodosPage() {
 
                       {/* Actions */}
                       <TableCell className="py-3.5 pr-4">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="row-action flex items-center justify-end gap-0.5">
                           <Button
                             variant="ghost"
                             size="icon-sm"

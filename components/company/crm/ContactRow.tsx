@@ -57,19 +57,30 @@ export function ContactRow({
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {/* Named per-contact, not just "Edit": a list of identical "Edit"
+            buttons gives a screen-reader user nothing to choose between.
+            `title` alone is not a reliable accessible name and is invisible
+            on touch, so each control carries an explicit aria-label. */}
         <a
           href={`/api/contacts/${c.id}/export`}
           title={tr("Eksportér (GDPR)", "Export (GDPR)")}
+          aria-label={tr(`Eksportér ${c.name} (GDPR)`, `Export ${c.name} (GDPR)`)}
           className={iconBtn}
         >
           <Download className="size-4" />
         </a>
-        <button onClick={onEdit} title={tr("Rediger", "Edit")} className={iconBtn}>
+        <button
+          onClick={onEdit}
+          title={tr("Rediger", "Edit")}
+          aria-label={tr(`Rediger ${c.name}`, `Edit ${c.name}`)}
+          className={iconBtn}
+        >
           <Pencil className="size-4" />
         </button>
         <button
           onClick={onDelete}
           title={tr("Slet", "Delete")}
+          aria-label={tr(`Slet ${c.name}`, `Delete ${c.name}`)}
           className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
         >
           <Trash2 className="size-4" />

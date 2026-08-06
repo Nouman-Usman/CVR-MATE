@@ -14,6 +14,7 @@ import {
 } from "@/lib/hooks/use-company-crm";
 import {
   card,
+  Field,
   inputCls,
   panelCls,
   primaryBtn,
@@ -95,65 +96,83 @@ export function InteractionsSection({ vat }: { vat: string }) {
       {showForm && (
         <div className={"mb-4 space-y-2.5 " + panelCls}>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <select
-              className={inputCls}
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-            >
-              <option value="meeting">{tr("Møde", "Meeting")}</option>
-              <option value="visit">{tr("Besøg", "Visit")}</option>
-              <option value="call">{tr("Opkald", "Call")}</option>
-              <option value="email">{tr("E-mail", "Email")}</option>
-              <option value="note">{tr("Notat", "Note")}</option>
-            </select>
-            <select
-              className={inputCls}
-              value={form.direction}
-              onChange={(e) => setForm({ ...form, direction: e.target.value })}
-            >
-              <option value="outbound">{tr("Udgående", "Outbound")}</option>
-              <option value="inbound">{tr("Indgående", "Inbound")}</option>
-              <option value="internal">{tr("Intern", "Internal")}</option>
-            </select>
-            <input
-              type="date"
-              className={inputCls}
-              value={form.occurredAt}
-              onChange={(e) => setForm({ ...form, occurredAt: e.target.value })}
-            />
+            <Field label={tr("Type", "Type")}>
+              <select
+                className={inputCls}
+                value={form.type}
+                onChange={(e) => setForm({ ...form, type: e.target.value })}
+              >
+                <option value="meeting">{tr("Møde", "Meeting")}</option>
+                <option value="visit">{tr("Besøg", "Visit")}</option>
+                <option value="call">{tr("Opkald", "Call")}</option>
+                <option value="email">{tr("E-mail", "Email")}</option>
+                <option value="note">{tr("Notat", "Note")}</option>
+              </select>
+            </Field>
+            <Field label={tr("Retning", "Direction")}>
+              <select
+                className={inputCls}
+                value={form.direction}
+                onChange={(e) => setForm({ ...form, direction: e.target.value })}
+              >
+                <option value="outbound">{tr("Udgående", "Outbound")}</option>
+                <option value="inbound">{tr("Indgående", "Inbound")}</option>
+                <option value="internal">{tr("Intern", "Internal")}</option>
+              </select>
+            </Field>
+            {/* Labelled explicitly: this form has a second date field, and
+                "date input" alone does not say which one you are on. */}
+            <Field label={tr("Fandt sted", "Occurred on")}>
+              <input
+                type="date"
+                className={inputCls}
+                value={form.occurredAt}
+                onChange={(e) => setForm({ ...form, occurredAt: e.target.value })}
+              />
+            </Field>
           </div>
-          <input
-            className={inputCls}
-            placeholder={tr("Emne", "Subject")}
-            value={form.subject}
-            onChange={(e) => setForm({ ...form, subject: e.target.value })}
-          />
-          <textarea
-            className={inputCls + " resize-none"}
-            rows={2}
-            placeholder={tr("Hvad blev drøftet…", "What was discussed…")}
-            value={form.body}
-            onChange={(e) => setForm({ ...form, body: e.target.value })}
-          />
-          <input
-            className={inputCls}
-            placeholder={tr("Emner (komma-adskilt)", "Topics (comma-separated)")}
-            value={form.topics}
-            onChange={(e) => setForm({ ...form, topics: e.target.value })}
-          />
+          <Field label={tr("Emne", "Subject")}>
+            <input
+              className={inputCls}
+              placeholder={tr("Emne", "Subject")}
+              value={form.subject}
+              onChange={(e) => setForm({ ...form, subject: e.target.value })}
+            />
+          </Field>
+          <Field label={tr("Referat", "Summary")}>
+            <textarea
+              className={inputCls + " resize-none"}
+              rows={2}
+              placeholder={tr("Hvad blev drøftet…", "What was discussed…")}
+              value={form.body}
+              onChange={(e) => setForm({ ...form, body: e.target.value })}
+            />
+          </Field>
+          <Field label={tr("Emner", "Topics")} hint={tr("(komma-adskilt)", "(comma-separated)")}>
+            <input
+              className={inputCls}
+              placeholder={tr("Pris, levering", "Pricing, delivery")}
+              value={form.topics}
+              onChange={(e) => setForm({ ...form, topics: e.target.value })}
+            />
+          </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <input
-              className={inputCls}
-              placeholder={tr("Næste skridt", "Next step")}
-              value={form.nextStep}
-              onChange={(e) => setForm({ ...form, nextStep: e.target.value })}
-            />
-            <input
-              type="date"
-              className={inputCls}
-              value={form.nextStepAt}
-              onChange={(e) => setForm({ ...form, nextStepAt: e.target.value })}
-            />
+            <Field label={tr("Næste skridt", "Next step")}>
+              <input
+                className={inputCls}
+                placeholder={tr("Send tilbud", "Send a quote")}
+                value={form.nextStep}
+                onChange={(e) => setForm({ ...form, nextStep: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Næste skridt senest", "Next step due")}>
+              <input
+                type="date"
+                className={inputCls}
+                value={form.nextStepAt}
+                onChange={(e) => setForm({ ...form, nextStepAt: e.target.value })}
+              />
+            </Field>
           </div>
           <p className="text-[11px] text-muted-foreground">
             {tr(

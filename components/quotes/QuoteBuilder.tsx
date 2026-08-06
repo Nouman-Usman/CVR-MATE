@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Search, X, Plus, Trash2, FileText, Loader2 } from "lucide-react";
+import { X, Plus, Trash2, FileText, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTr } from "@/lib/i18n/tr";
 import { formatOre } from "@/lib/format";
@@ -12,8 +12,8 @@ import {
   parsePercent,
   oreToInputString,
 } from "@/lib/money/parse";
-import { useSuggestions } from "@/lib/hooks/use-suggestions";
 import { useProducts } from "@/lib/hooks/use-products";
+import { CompanyCombobox } from "@/components/crm/CompanyCombobox";
 import type { QuoteLineInput } from "@/lib/hooks/use-quotes";
 
 /**
@@ -140,8 +140,6 @@ export function QuoteBuilder({
   const products = productData?.products ?? [];
 
   const [value, setValue] = useState<QuoteBuilderValue>(initial);
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
   const [showErrors, setShowErrors] = useState(false);
   const [restoreDismissed, setRestoreDismissed] = useState(false);
 
@@ -151,12 +149,6 @@ export function QuoteBuilder({
   const [pristine] = useState(() => JSON.stringify(initial));
   const dirty = JSON.stringify(value) !== pristine;
   const submitted = useRef(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-  const { data: suggestions, isFetching } = useSuggestions(debounced);
 
   // ── Draft recovery ────────────────────────────────────────────────────────
   // A half-built quote is many minutes of typing; losing it to a stray back
@@ -356,44 +348,23 @@ export function QuoteBuilder({
           </div>
         ) : (
           <div className="space-y-1.5">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-              <input
-                autoFocus
-                aria-label={tr("Søg virksomhed", "Search company")}
-                className={(showErrors ? inputErrCls : inputCls) + " pl-8"}
-                placeholder={tr("Søg virksomhedsnavn…", "Search company name…")}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+            <CompanyCombobox
+              autoFocus
+              invalid={showErrors}
+              label={tr("Søg virksomhed", "Search company")}
+              placeholder={tr("Søg virksomhedsnavn…", "Search company name…")}
+              inputClassName={showErrors ? inputErrCls : inputCls}
+              loadingLabel={tr("Søger…", "Searching…")}
+              emptyLabel={tr("Ingen resultater", "No results")}
+              countLabel={(n) =>
+                tr(`${n} virksomheder fundet`, `${n} companies found`)
+              }
+              onSelect={(c) => patch({ company: { vat: c.vat, name: c.name } })}
+            />
             {showErrors && (
               <p className="text-xs text-destructive">
                 {tr("Vælg en virksomhed.", "Select a company.")}
               </p>
-            )}
-            {debounced.length >= 2 && (
-              <div className="max-h-48 overflow-y-auto rounded-lg border border-border divide-y divide-border">
-                {isFetching && (
-                  <p className="text-xs text-muted-foreground text-center py-3">
-                    {tr("Søger…", "Searching…")}
-                  </p>
-                )}
-                {suggestions?.results.map((r) => (
-                  <button
-                    key={r.vat}
-                    onClick={() =>
-                      patch({
-                        company: { vat: String(r.vat), name: r.life?.name || `CVR ${r.vat}` },
-                      })
-                    }
-                    className="w-full text-left px-3 py-2 hover:bg-muted"
-                  >
-                    <p className="text-sm font-medium text-foreground truncate">{r.life?.name}</p>
-                    <p className="text-xs text-muted-foreground">CVR {r.vat}</p>
-                  </button>
-                ))}
-              </div>
             )}
           </div>
         )}

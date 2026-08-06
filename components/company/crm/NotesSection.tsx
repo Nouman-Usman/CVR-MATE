@@ -36,6 +36,9 @@ export function NotesSection({ vat }: { vat: string }) {
         <textarea
           className={inputCls + " resize-none"}
           rows={2}
+          // Single field under a visible section heading — a repeated visible
+          // label would be noise, but the field still needs a name.
+          aria-label={tr("Ny note", "New note")}
           placeholder={tr("Tilføj en note…", "Add a note…")}
           value={content}
           onChange={(e) => setContent(e.target.value)}

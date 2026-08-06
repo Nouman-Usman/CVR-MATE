@@ -327,3 +327,44 @@ body {
     animation-duration: 1ms;
   }
 }
+
+/*
+ * Row-level edit/delete affordances.
+ *
+ * These used to be `opacity-0 group-hover:opacity-100`, which broke two input
+ * modalities at once: keyboard users tabbed onto a fully invisible destructive
+ * control, and touch users could never reveal it because `:hover` does not fire
+ * on a touchscreen. A `sm:` breakpoint is the wrong gate — a 1024px tablet is
+ * wide *and* touch — so the reveal is keyed off the pointer itself. On a coarse
+ * pointer the control is simply always visible.
+ */
+.row-action {
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row-action {
+    opacity: 0;
+  }
+
+  /* Focus anywhere in the row reveals it, so tabbing never lands on a ghost. */
+  .group:hover .row-action,
+  .group:focus-within .row-action,
+  .row-action:hover,
+  .row-action:focus-visible {
+    opacity: 1;
+  }
+}
+
+.row-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-action {
+    transition: none;
+  }
+}

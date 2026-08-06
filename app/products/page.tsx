@@ -7,6 +7,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
 import { useConfirm } from "@/components/crm/ConfirmDialog";
+import { Field } from "@/components/crm/Field";
 import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
 import { formatOre } from "@/lib/format";
 import {
@@ -35,6 +36,7 @@ export default function ProductsPage() {
   const [form, setForm] = useState(EMPTY);
   const [filter, setFilter] = useState("");
   const formRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   const allProducts = useMemo(() => data?.products ?? [], [data]);
   const products = useMemo(() => {
@@ -58,8 +60,11 @@ export default function ProductsPage() {
       active: p.active,
     });
     // The edit form lives at the top of the page; without this, clicking the
-    // pencil on a long list looks like nothing happened.
+    // pencil on a long list looks like nothing happened. Focus has to move too
+    // — scrolling alone leaves a keyboard user's focus on a pencil button that
+    // is now off-screen, with no indication that a form opened.
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    nameRef.current?.focus();
   }
   function reset() {
     setEditingId(null);
@@ -138,38 +143,44 @@ export default function ProductsPage() {
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <input
-              className={inputCls}
-              placeholder={tr("Navn", "Name")}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              placeholder={tr("SKU (valgfri)", "SKU (optional)")}
-              value={form.sku}
-              onChange={(e) => setForm({ ...form, sku: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              placeholder={tr("Enhedspris (DKK)", "Unit price (DKK)")}
-              inputMode="decimal"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              placeholder={tr("Moms %", "VAT %")}
-              inputMode="decimal"
-              value={form.vatRate}
-              onChange={(e) => setForm({ ...form, vatRate: e.target.value })}
-            />
-            <input
-              className={inputCls}
-              placeholder={tr("Enhed (stk, time…)", "Unit (pcs, hour…)")}
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            />
+            <Field label={tr("Navn", "Name")}>
+              <input
+                ref={nameRef}
+                className={inputCls}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </Field>
+            <Field label="SKU" hint={tr("(valgfri)", "(optional)")}>
+              <input
+                className={inputCls}
+                value={form.sku}
+                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Enhedspris", "Unit price")} hint="(DKK)">
+              <input
+                className={inputCls}
+                inputMode="decimal"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Moms", "VAT")} hint="%">
+              <input
+                className={inputCls}
+                inputMode="decimal"
+                value={form.vatRate}
+                onChange={(e) => setForm({ ...form, vatRate: e.target.value })}
+              />
+            </Field>
+            <Field label={tr("Enhed", "Unit")} hint={tr("(stk, time…)", "(pcs, hour…)")}>
+              <input
+                className={inputCls}
+                value={form.unit}
+                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              />
+            </Field>
             <label className="flex items-center gap-2 text-sm text-foreground px-1">
               <input
                 type="checkbox"
@@ -250,7 +261,7 @@ export default function ProductsPage() {
                     leave a destructive button that a Tab user cannot see. */}
                 <button
                   onClick={() => startEdit(p)}
-                  className="text-muted-foreground hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                  className="row-action text-muted-foreground hover:text-foreground"
                   aria-label={tr("Redigér", "Edit")}
                 >
                   <Pencil className="size-4" />
@@ -270,7 +281,7 @@ export default function ProductsPage() {
                         }),
                     })
                   }
-                  className="text-muted-foreground hover:text-rose-500 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                  className="row-action text-muted-foreground hover:text-rose-500"
                   aria-label={tr("Slet", "Delete")}
                 >
                   <Trash2 className="size-4" />

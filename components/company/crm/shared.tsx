@@ -31,9 +31,16 @@ export const subtleBtn =
 export const iconBtn =
   "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer";
 
-/** Delete affordance that only appears while its row is hovered. */
+/**
+ * Delete affordance for a list row. The reveal-on-hover behaviour lives in
+ * `.row-action` (globals.css) so it can be gated on pointer type rather than
+ * viewport width — on touch it stays visible, and focus always reveals it.
+ */
 export const rowDeleteBtn =
-  "opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer shrink-0";
+  "row-action text-muted-foreground hover:text-destructive cursor-pointer shrink-0";
+
+/** Re-exported so the sections keep a single `./shared` import. */
+export { Field } from "@/components/crm/Field";
 
 export function SectionHeader({
   icon: Icon,
