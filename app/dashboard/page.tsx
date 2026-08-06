@@ -14,12 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
-  SearchCheck,
   Zap,
   Bookmark,
-  ListTodo,
   ArrowRight,
-  ArrowUpRight,
   PlusCircle,
   Download,
   ChevronRight,
@@ -29,6 +26,10 @@ import {
   Sparkles,
   Calendar,
 } from "lucide-react";
+import { METRICS, METRICS_BY_ID, type MetricDef } from "@/lib/dashboard/metrics";
+import { useDashboardMetrics } from "@/components/dashboard/use-dashboard-metrics";
+import { MetricPicker } from "@/components/dashboard/MetricPicker";
+import { StatCard } from "@/components/dashboard/StatCard";
 
 export default function DashboardPage() {
   const { t, locale } = useLanguage();
@@ -36,7 +37,6 @@ export default function DashboardPage() {
   const d = t.dashboard;
 
   const { data, isLoading } = useDashboard();
-  const stats = data?.stats;
   const weeklyActivity = data?.weeklyActivity ?? [0, 0, 0, 0, 0, 0, 0];
   const recentCompanies = data?.recentCompanies ?? [];
 
@@ -45,44 +45,27 @@ export default function DashboardPage() {
 
   const firstName = session?.user?.name?.split(" ")[0] || session?.user?.email?.split("@")[0] || "";
 
-  const statCards = [
-    {
-      label: d.savedSearches,
-      value: stats?.savedSearches ?? 0,
-      icon: SearchCheck,
-      gradient: "from-blue-500 to-blue-600",
-      iconBg: "bg-blue-500/10",
-      iconColor: "text-blue-500",
-      href: "/saved-searches",
-    },
-    {
-      label: d.activeTriggers,
-      value: stats?.activeTriggers ?? 0,
-      icon: Zap,
-      gradient: "from-amber-500 to-orange-500",
-      iconBg: "bg-amber-500/10",
-      iconColor: "text-amber-500",
-      href: "/triggers",
-    },
-    {
-      label: t.saved.title,
-      value: stats?.savedCompanies ?? 0,
-      icon: Bookmark,
-      gradient: "from-emerald-500 to-teal-500",
-      iconBg: "bg-emerald-500/10",
-      iconColor: "text-emerald-500",
-      href: "/saved",
-    },
-    {
-      label: t.todos.activeTasks,
-      value: stats?.activeTasks ?? 0,
-      icon: ListTodo,
-      gradient: "from-violet-500 to-purple-500",
-      iconBg: "bg-violet-500/10",
-      iconColor: "text-violet-500",
-      href: "/todos",
-    },
-  ];
+  // ── Selectable metrics ──────────────────────────────────────────────────
+  // Personal stats and org-scoped CRM stats are merged into one flat lookup
+  // keyed by metric id, so a card does not need to know which half of the
+  // payload it came from.
+  const { selected, setSelected, reset } = useDashboardMetrics();
+  const values: Record<string, number | undefined> = {
+    ...(data?.stats ?? {}),
+    ...(data?.crm ?? {}),
+  };
+
+  // With no active organisation the API omits `crm` entirely. Those metrics are
+  // marked unavailable rather than rendered as a confident zero — "0 open
+  // quotes" and "quotes are not available to you" are different statements.
+  const hasCrm = !!data?.crm;
+  const unavailable = new Set(
+    isLoading || hasCrm ? [] : METRICS.filter((m) => m.scope === "crm").map((m) => m.id)
+  );
+
+  const visibleMetrics = selected
+    .map((id) => METRICS_BY_ID.get(id))
+    .filter((m): m is MetricDef => !!m && !unavailable.has(m.id));
 
   const quickAccessItems = [
     {
@@ -142,46 +125,50 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Stat cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
-        {statCards.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Link key={stat.label} href={stat.href}>
-              <Card className={cn(
-                "relative overflow-hidden group py-0 border-0 shadow-sm hover:shadow-lg transition-all duration-300",
-                "before:absolute before:inset-0 before:opacity-0 before:transition-opacity before:duration-300",
-                "hover:before:opacity-100",
-                "hover:-translate-y-0.5"
-              )}>
-                {/* Subtle gradient glow on hover */}
-                <div className={cn(
-                  "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300",
-                  stat.gradient
-                )} />
-                <CardContent className="relative p-4 sm:p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", stat.iconBg)}>
-                      <Icon className={cn("size-5", stat.iconColor)} />
-                    </div>
-                    <ArrowUpRight className="size-4 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </div>
-                  {isLoading ? (
-                    <Skeleton className="h-9 w-14 mb-1" />
-                  ) : (
-                    <p className="text-3xl font-black text-foreground tabular-nums font-[family-name:var(--font-manrope)] tracking-tight">
-                      {stat.value}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground font-medium mt-1">
-                    {stat.label}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
+      {/* ── Selectable stat cards ────────────────────────────────── */}
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          {locale === "da" ? "Nøgletal" : "Key metrics"}
+        </h2>
+        <MetricPicker
+          selected={selected}
+          onSave={setSelected}
+          onReset={reset}
+          unavailable={unavailable}
+          locale={locale}
+        />
       </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+        {visibleMetrics.map((metric) => (
+          <StatCard
+            key={metric.id}
+            metric={metric}
+            value={values[metric.id]}
+            previous={metric.compareWith ? values[metric.compareWith] : undefined}
+            isLoading={isLoading}
+            locale={locale}
+          />
+        ))}
+      </div>
+
+      {/* Every chosen metric can be filtered out — e.g. an all-CRM selection on
+          an account that later loses its organisation. Say so, rather than
+          rendering an unexplained gap where the cards were. */}
+      {!isLoading && visibleMetrics.length === 0 && (
+        <Card className="mb-8 border-dashed shadow-none">
+          <CardContent className="py-10 text-center">
+            <p className="text-sm font-semibold text-foreground">
+              {locale === "da" ? "Ingen nøgletal valgt" : "No metrics selected"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {locale === "da"
+                ? "Brug Tilpas for at vælge, hvad der skal vises her."
+                : "Use Customise to choose what appears here."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Activity chart + Quick actions ────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5 mb-8">
@@ -201,7 +188,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               {!isLoading && totalWeekly > 0 && (
-                <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-0 font-semibold gap-1">
+                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-0 font-semibold gap-1">
                   <TrendingUp className="size-3" />
                   {locale === "da" ? "Aktiv" : "Active"}
                 </Badge>
@@ -233,7 +220,7 @@ export default function DashboardPage() {
                           className={cn(
                             "w-full max-w-[44px] rounded-xl transition-all duration-500 relative",
                             "group-hover:shadow-[0_4px_20px_rgba(37,99,235,0.3)]",
-                            val === 0 && "bg-slate-100"
+                            val === 0 && "bg-muted"
                           )}
                           style={{
                             height: `${heightPercent}%`,
@@ -377,7 +364,7 @@ export default function DashboardPage() {
                       className="flex items-center gap-4 px-5 sm:px-6 py-4 hover:bg-muted/40 transition-colors group"
                     >
                       {/* Avatar */}
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white shadow-sm", color.bg)}>
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 ring-2 ring-background shadow-sm", color.bg)}>
                         <span className={cn("text-xs font-bold", color.text)}>
                           {initials}
                         </span>
@@ -397,7 +384,7 @@ export default function DashboardPage() {
 
                       {/* Trigger name badge */}
                       {c.triggerName && (
-                        <Badge variant="secondary" className="hidden sm:flex text-[10px] bg-blue-50 text-blue-600 border-0 gap-1 shrink-0">
+                        <Badge variant="secondary" className="hidden sm:flex text-[10px] bg-primary/10 text-primary border-0 gap-1 shrink-0">
                           <Zap className="size-2.5" />
                           {c.triggerName}
                         </Badge>
