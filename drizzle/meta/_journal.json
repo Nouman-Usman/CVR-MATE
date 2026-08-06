@@ -302,6 +302,20 @@
       "when": 1786039597205,
       "tag": "0042_revoke_postgrest_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786040683924,
+      "tag": "0043_accent_insensitive_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786040766741,
+      "tag": "0044_fix_search_key_folding",
+      "breakpoints": true
     }
   ]
 }

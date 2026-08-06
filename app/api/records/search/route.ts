@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   company,
@@ -32,6 +33,19 @@ import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const RESULT_LIMIT = 8;
 const MAX_Q = 200;
+
+/**
+ * Accent- and case-insensitive substring match.
+ *
+ * `ILIKE` folded case but not characters, so "Norresundby" never found
+ * "Nørresundby" — the spelling users reach for when their keyboard makes æ/ø/å
+ * awkward. `search_key()` (migration 0044) collapses every variant to one form,
+ * and the GIN trigram index is built on the same expression, so this stays
+ * index-backed rather than degrading to a sequential scan.
+ */
+function foldedMatch(column: AnyPgColumn, term: string) {
+  return sql`public.search_key(${column}) LIKE '%' || public.search_key(${term}) || '%'`;
+}
 
 type Mode = "email" | "phone" | "cvr" | "name" | "empty";
 
@@ -126,7 +140,7 @@ export async function GET(req: NextRequest) {
         })
         .from(companyWorkspace)
         .innerJoin(company, eq(companyWorkspace.companyId, company.id))
-        .where(and(eq(companyWorkspace.organizationId, organizationId), ilike(company.name, like)))
+        .where(and(eq(companyWorkspace.organizationId, organizationId), foldedMatch(company.name, like)))
         .limit(RESULT_LIMIT);
 
     const savedByCvr = (vat: string) =>
@@ -158,7 +172,7 @@ export async function GET(req: NextRequest) {
             // was seeing companies saved while acting in the other one.
             eq(savedCompany.organizationId, organizationId),
             isNull(savedCompany.deletedAt),
-            ilike(company.name, like)
+            foldedMatch(company.name, like)
           )
         )
         .limit(RESULT_LIMIT);
@@ -202,7 +216,7 @@ export async function GET(req: NextRequest) {
           and(
             eq(contact.organizationId, organizationId),
             isNull(contact.deletedAt),
-            ilike(contact.name, like)
+            foldedMatch(contact.name, like)
           )
         )
         .limit(RESULT_LIMIT);
@@ -221,9 +235,9 @@ export async function GET(req: NextRequest) {
       by: { number: string } | { vat: string }
     ): Promise<DocumentHit[]> => {
       const quotePredicate =
-        "number" in by ? ilike(quote.number, by.number) : eq(company.vat, by.vat);
+        "number" in by ? foldedMatch(quote.number, by.number) : eq(company.vat, by.vat);
       const orderPredicate =
-        "number" in by ? ilike(salesOrder.number, by.number) : eq(company.vat, by.vat);
+        "number" in by ? foldedMatch(salesOrder.number, by.number) : eq(company.vat, by.vat);
 
       const [quotes, orders] = await Promise.all([
         db
@@ -284,7 +298,7 @@ export async function GET(req: NextRequest) {
           and(
             eq(deal.organizationId, organizationId),
             isNull(deal.deletedAt),
-            ilike(deal.title, like)
+            foldedMatch(deal.title, like)
           )
         )
         .orderBy(desc(deal.createdAt))
@@ -322,8 +336,10 @@ export async function GET(req: NextRequest) {
       }
     } else {
       mode = "name";
-      // Escape LIKE wildcards so user input is a literal substring.
-      const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+      // Escape LIKE wildcards so user input stays a literal substring. The `%`
+      // wrapping is added in SQL, after folding, so the wildcards are never fed
+      // through search_key().
+      const like = q.replace(/[\\%_]/g, "\\$&");
       const [ws, sv, ct, docs, dl] = await Promise.all([
         workspaceByName(like),
         savedByName(like),

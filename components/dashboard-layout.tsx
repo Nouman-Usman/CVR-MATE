@@ -206,6 +206,42 @@ function SidebarNav({
         )}
       </div>
 
+      {/* Search — sits above the nav because it is the fastest route to any
+          record, and a shortcut nobody can see is a shortcut nobody uses. */}
+      <div className={cn("pt-3", collapsed ? "px-2" : "px-3")}>
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={openCommandPalette}
+                  aria-label={locale === "da" ? "Søg" : "Search"}
+                  className="flex w-full items-center justify-center rounded-lg py-2.5 text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white cursor-pointer"
+                />
+              }
+            >
+              <Search className="size-[18px]" />
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {locale === "da" ? "Søg" : "Search"} (⌘K)
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <button
+            onClick={openCommandPalette}
+            className="flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-slate-400 transition-colors hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-slate-200 cursor-pointer"
+          >
+            <Search className="size-4 shrink-0" />
+            <span className="flex-1 text-left">
+              {locale === "da" ? "Søg…" : "Search…"}
+            </span>
+            <kbd className="inline-flex shrink-0 items-center gap-0.5 rounded border border-white/[0.12] bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+              <Command className="size-2.5" />K
+            </kbd>
+          </button>
+        )}
+      </div>
+
       {/* Nav sections */}
       <nav className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-3")}>
         {navSections.map((section, sIdx) => (
@@ -560,17 +596,15 @@ export default function DashboardLayout({
               <LogoFull size="small" />
             </div>
 
-            {/* A keyboard shortcut nobody can see is a shortcut nobody uses —
-                this is the discoverable entry point to the same palette. */}
+            {/* On mobile the sidebar is behind a drawer, so the search entry
+                point has to live in the header too — the desktop copy moved
+                into the sidebar. */}
             <button
               onClick={openCommandPalette}
-              className="hidden md:inline-flex items-center gap-2 rounded-lg border border-border bg-muted/40 pl-3 pr-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              aria-label={locale === "da" ? "Søg" : "Search"}
+              className="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
             >
-              <Search className="size-3.5" />
-              <span>{locale === "da" ? "Søg…" : "Search…"}</span>
-              <kbd className="ml-4 inline-flex items-center gap-0.5 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium">
-                <Command className="size-2.5" />K
-              </kbd>
+              <Search className="size-5" />
             </button>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
