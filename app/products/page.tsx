@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Package, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, X, Search } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
@@ -33,8 +33,19 @@ export default function ProductsPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
+  const [filter, setFilter] = useState("");
+  const formRef = useRef<HTMLDivElement>(null);
 
-  const products = data?.products ?? [];
+  const allProducts = useMemo(() => data?.products ?? [], [data]);
+  const products = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return allProducts;
+    return allProducts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku ?? "").toLowerCase().includes(q)
+    );
+  }, [allProducts, filter]);
 
   function startEdit(p: Product) {
     setEditingId(p.id);
@@ -46,6 +57,9 @@ export default function ProductsPage() {
       vatRate: p.vatRate,
       active: p.active,
     });
+    // The edit form lives at the top of the page; without this, clicking the
+    // pencil on a long list looks like nothing happened.
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   function reset() {
     setEditingId(null);
@@ -108,7 +122,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Create / edit form */}
-        <div className="rounded-xl border border-border p-4 space-y-3">
+        <div ref={formRef} className="rounded-xl border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-foreground">
               {editingId ? tr("Redigér produkt", "Edit product") : tr("Nyt produkt", "New product")}
@@ -176,6 +190,28 @@ export default function ProductsPage() {
             </button>
           </div>
         </div>
+
+        {typeof data?.total === "number" && data.total > allProducts.length && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {tr(
+              `Viser ${allProducts.length} af ${data.total} produkter.`,
+              `Showing ${allProducts.length} of ${data.total} products.`
+            )}
+          </p>
+        )}
+
+        {allProducts.length > 5 && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              aria-label={tr("Filtrér produkter", "Filter products")}
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-border text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+              placeholder={tr("Filtrér på navn eller varenummer…", "Filter by name or SKU…")}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
+        )}
 
         {/* List */}
         {isLoading ? (

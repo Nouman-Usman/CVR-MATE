@@ -3,33 +3,48 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { segment, companySegment } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
+import { parsePagination } from "@/lib/crm/serialize";
 import { parseBody, segmentCreateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
 
-/** GET /api/segments — org's segments, each with its assigned-company count. */
+/** GET /api/segments?limit=&offset= — org's segments, each with its assigned-company count. */
 export async function GET(req: NextRequest) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
   const { organizationId } = guard.ctx;
 
   try {
-    const segments = await db
-      .select({
-        id: segment.id,
-        name: segment.name,
-        color: segment.color,
-        description: segment.description,
-        createdAt: segment.createdAt,
-        companyCount: count(companySegment.id),
-      })
-      .from(segment)
-      .leftJoin(companySegment, eq(companySegment.segmentId, segment.id))
-      .where(eq(segment.organizationId, organizationId))
-      .groupBy(segment.id)
-      .orderBy(asc(segment.name));
+    // Reference data loaded whole by the segment pickers — see the note in
+    // app/api/products/route.ts.
+    const { limit, offset } = parsePagination(req.nextUrl.searchParams, {
+      defaultLimit: 200,
+      maxLimit: 500,
+    });
+    const where = eq(segment.organizationId, organizationId);
 
-    return NextResponse.json({ segments });
+    const [segments, [{ value: total }]] = await Promise.all([
+      db
+        .select({
+          id: segment.id,
+          name: segment.name,
+          color: segment.color,
+          description: segment.description,
+          createdAt: segment.createdAt,
+          companyCount: count(companySegment.id),
+        })
+        .from(segment)
+        .leftJoin(companySegment, eq(companySegment.segmentId, segment.id))
+        .where(where)
+        .groupBy(segment.id)
+        .orderBy(asc(segment.name))
+        .limit(limit)
+        .offset(offset),
+      // Counts segments, not the grouped join rows.
+      db.select({ value: count() }).from(segment).where(where),
+    ]);
+
+    return NextResponse.json({ segments, total });
   } catch (err) {
     return crmErrorResponse(err);
   }

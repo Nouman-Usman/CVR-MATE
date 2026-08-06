@@ -1,24 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { product } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
+import { parsePagination } from "@/lib/crm/serialize";
 import { parseBody, productCreateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
 
-/** GET /api/products — the org's product catalog (active first, by name). */
+/** GET /api/products?limit=&offset= — the org's product catalog (active first, by name). */
 export async function GET(req: NextRequest) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
   const { organizationId } = guard.ctx;
 
   try {
-    const products = await db.query.product.findMany({
-      where: and(eq(product.organizationId, organizationId), isNull(product.deletedAt)),
-      orderBy: [asc(product.name)],
+    // A price list is a reference catalog, not a feed: the quote builder loads
+    // it whole to populate its product picker, so the default 50 would silently
+    // hide products from the picker. Still bounded — just at catalog scale.
+    const { limit, offset } = parsePagination(req.nextUrl.searchParams, {
+      defaultLimit: 200,
+      maxLimit: 500,
     });
-    return NextResponse.json({ products });
+    const where = and(eq(product.organizationId, organizationId), isNull(product.deletedAt));
+
+    const [products, [{ value: total }]] = await Promise.all([
+      db.query.product.findMany({
+        where,
+        orderBy: [asc(product.name)],
+        limit,
+        offset,
+      }),
+      db.select({ value: count() }).from(product).where(where),
+    ]);
+
+    return NextResponse.json({ products, total });
   } catch (err) {
     return crmErrorResponse(err);
   }

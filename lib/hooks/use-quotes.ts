@@ -73,7 +73,9 @@ export interface CreateQuoteInput {
 }
 
 export function useQuotes(status?: string) {
-  return useQuery<{ quotes: QuoteListItem[] }>({
+  // `total` is the org's full count for the current filter; the page is capped,
+  // so the UI must say so rather than presenting a truncated list as complete.
+  return useQuery<{ quotes: QuoteListItem[]; total: number }>({
     queryKey: [...qk.quotes(), status ?? "all"],
     queryFn: () => fetchJson(`/api/quotes${status ? `?status=${status}` : ""}`),
     staleTime: 30_000,
@@ -134,6 +136,18 @@ export function useConvertQuote(id: string) {
         jsonRequest("POST")
       ),
     onSettled: (data) => invalidate(qc, crmInvalidations.quoteConverted(id, data?.companyVat)),
+  });
+}
+
+export function useDuplicateQuote(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetchJson<{ quote: Quote; companyVat?: string }>(
+        `/api/quotes/${id}/duplicate`,
+        jsonRequest("POST")
+      ),
+    onSettled: (data) => invalidate(qc, crmInvalidations.quoteCreated(data?.companyVat)),
   });
 }
 

@@ -13,6 +13,8 @@ import {
   Trash2,
   ShoppingCart,
   Loader2,
+  Pencil,
+  Copy,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -23,6 +25,7 @@ import {
   useQuoteStatus,
   useConvertQuote,
   useDeleteQuote,
+  useDuplicateQuote,
 } from "@/lib/hooks/use-quotes";
 import { generateQuotePdf } from "@/lib/quotes/pdf";
 import { StatusBadge } from "@/components/crm/StatusBadge";
@@ -41,12 +44,13 @@ export default function QuoteDetailPage() {
   const status = useQuoteStatus(id);
   const convert = useConvertQuote(id);
   const del = useDeleteQuote();
+  const duplicate = useDuplicateQuote(id);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const quote = data?.quote;
   const lines = data?.lines ?? [];
   const company = data?.company ?? null;
-  const busy = status.isPending || convert.isPending || del.isPending;
+  const busy = status.isPending || convert.isPending || del.isPending || duplicate.isPending;
   const onError = (e: unknown) => toast.error(errorMessage(e));
 
   async function downloadPdf() {
@@ -130,8 +134,31 @@ export default function QuoteDetailPage() {
                 {tr("PDF", "PDF")}
               </button>
               {quote.status === "draft" && (
-                <ActionBtn onClick={() => status.mutate("send", { onError })} busy={busy} icon={Send} label={tr("Send", "Send")} primary />
+                <>
+                  <Link
+                    href={`/quotes/${id}/edit`}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted"
+                  >
+                    <Pencil className="size-4" />
+                    {tr("Redigér", "Edit")}
+                  </Link>
+                  <ActionBtn onClick={() => status.mutate("send", { onError })} busy={busy} icon={Send} label={tr("Send", "Send")} primary />
+                </>
               )}
+              <ActionBtn
+                onClick={() =>
+                  duplicate.mutate(undefined, {
+                    onSuccess: (res) => {
+                      toast.success(tr("Tilbud dubleret", "Quote duplicated"));
+                      router.push(`/quotes/${res.quote.id}/edit`);
+                    },
+                    onError,
+                  })
+                }
+                busy={busy}
+                icon={Copy}
+                label={tr("Dublér", "Duplicate")}
+              />
               {quote.status === "sent" && (
                 <>
                   <ActionBtn onClick={() => status.mutate("accept", { onError })} busy={busy} icon={Check} label={tr("Accepter", "Accept")} primary />

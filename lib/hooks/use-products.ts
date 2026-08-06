@@ -27,7 +27,10 @@ export interface ProductInput {
 }
 
 export function useProducts() {
-  return useQuery<{ products: Product[] }>({
+  // `total` is the org's full product count; compare against products.length to
+  // detect that the page was capped rather than showing a truncated list as if
+  // it were complete.
+  return useQuery<{ products: Product[]; total: number }>({
     queryKey: qk.products(),
     queryFn: () => fetchJson("/api/products"),
     staleTime: 60_000,

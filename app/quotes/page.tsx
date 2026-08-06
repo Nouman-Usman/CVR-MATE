@@ -93,7 +93,16 @@ export default function QuotesPage() {
             }
           />
         ) : (
-          <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
+          <div className="space-y-2">
+            {typeof data?.total === "number" && data.total > quotes.length && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {tr(
+                  `Viser ${quotes.length} af ${data.total} tilbud.`,
+                  `Showing ${quotes.length} of ${data.total} quotes.`
+                )}
+              </p>
+            )}
+            <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
             {quotes.map((q) => (
               <Link
                 key={q.id}
@@ -116,6 +125,7 @@ export default function QuotesPage() {
                 <ArrowRight className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
             ))}
+            </div>
           </div>
         )}
       </div>

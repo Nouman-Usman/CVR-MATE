@@ -38,7 +38,9 @@ export interface Order {
 }
 
 export function useOrders(status?: string) {
-  return useQuery<{ orders: OrderListItem[] }>({
+  // See the note on useQuotes: the page is capped, so `total` lets the UI
+  // disclose truncation instead of hiding it.
+  return useQuery<{ orders: OrderListItem[]; total: number }>({
     queryKey: [...qk.orders(), status ?? "all"],
     queryFn: () => fetchJson(`/api/orders${status ? `?status=${status}` : ""}`),
     staleTime: 30_000,

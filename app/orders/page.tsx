@@ -83,7 +83,16 @@ export default function OrdersPage() {
             }
           />
         ) : (
-          <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
+          <div className="space-y-2">
+            {typeof data?.total === "number" && data.total > orders.length && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {tr(
+                  `Viser ${orders.length} af ${data.total} ordrer.`,
+                  `Showing ${orders.length} of ${data.total} orders.`
+                )}
+              </p>
+            )}
+            <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
             {orders.map((o) => (
               <Link
                 key={o.id}
@@ -106,6 +115,7 @@ export default function OrdersPage() {
                 <ArrowRight className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
             ))}
+            </div>
           </div>
         )}
       </div>

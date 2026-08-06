@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { quote, quoteLine, company, deal } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { resolveCompanyIdByVat, companyVatById } from "@/lib/crm/company-resolver";
+import { parsePagination } from "@/lib/crm/serialize";
+import { statusValues } from "@/lib/crm/status";
 import { parseBody, quoteCreateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
 import { nextDocumentNumber } from "@/lib/quotes/numbering";
 import { buildDocument } from "@/lib/quotes/persist";
 
-/** GET /api/quotes?status= — org's quotes (newest first), tagged with company. */
+const QUOTE_STATUSES = new Set(statusValues("quote"));
+
+/** GET /api/quotes?status=&limit=&offset= — org's quotes (newest first), tagged with company. */
 export async function GET(req: NextRequest) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
@@ -18,33 +22,47 @@ export async function GET(req: NextRequest) {
 
   try {
     const status = req.nextUrl.searchParams.get("status");
-    const quotes = await db
-      .select({
-        id: quote.id,
-        number: quote.number,
-        status: quote.status,
-        companyId: quote.companyId,
-        companyVat: company.vat,
-        companyName: company.name,
-        currency: quote.currency,
-        issueDate: quote.issueDate,
-        validUntil: quote.validUntil,
-        total: quote.total,
-        createdAt: quote.createdAt,
-      })
-      .from(quote)
-      .innerJoin(company, eq(quote.companyId, company.id))
-      .where(
-        and(
-          eq(quote.organizationId, organizationId),
-          isNull(quote.deletedAt),
-          status ? eq(quote.status, status) : undefined
-        )
-      )
-      .orderBy(desc(quote.createdAt))
-      .limit(100);
+    if (status && !QUOTE_STATUSES.has(status)) {
+      return NextResponse.json({ error: "Invalid status filter" }, { status: 400 });
+    }
 
-    return NextResponse.json({ quotes });
+    const { limit, offset } = parsePagination(req.nextUrl.searchParams);
+    const where = and(
+      eq(quote.organizationId, organizationId),
+      isNull(quote.deletedAt),
+      status ? eq(quote.status, status) : undefined
+    );
+
+    const [quotes, [{ value: total }]] = await Promise.all([
+      db
+        .select({
+          id: quote.id,
+          number: quote.number,
+          status: quote.status,
+          companyId: quote.companyId,
+          companyVat: company.vat,
+          companyName: company.name,
+          currency: quote.currency,
+          issueDate: quote.issueDate,
+          validUntil: quote.validUntil,
+          total: quote.total,
+          createdAt: quote.createdAt,
+        })
+        .from(quote)
+        .innerJoin(company, eq(quote.companyId, company.id))
+        .where(where)
+        .orderBy(desc(quote.createdAt))
+        .limit(limit)
+        .offset(offset),
+      // Same join as the page query, so `total` can't disagree with what paging returns.
+      db
+        .select({ value: count() })
+        .from(quote)
+        .innerJoin(company, eq(quote.companyId, company.id))
+        .where(where),
+    ]);
+
+    return NextResponse.json({ quotes, total });
   } catch (err) {
     return crmErrorResponse(err);
   }

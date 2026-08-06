@@ -13,6 +13,17 @@ const optionalEmail = z.preprocess(emptyToUndefined, z.string().email().max(320)
 const optionalShortText = z.preprocess(emptyToUndefined, z.string().max(500).optional());
 const optionalLongText = z.preprocess(emptyToUndefined, z.string().max(10_000).optional());
 
+// One CVR shape for every optional cvr field — deals and quotes used to accept
+// any 500-char string here while prospects required 8 digits.
+const optionalCvr = z.preprocess(
+  emptyToUndefined,
+  z.string().trim().regex(/^\d{8}$/, "Valid 8-digit CVR number is required").optional()
+);
+
+/** YYYY-MM-DD strings order chronologically under plain string comparison. */
+const notBefore = (start?: string | null, end?: string | null) =>
+  !start || !end || end >= start;
+
 const lawfulBasis = z.enum(["legitimate_interest", "consent", "contract"]);
 const contactSource = z.enum(["manual", "cvr", "import"]);
 
@@ -108,19 +119,34 @@ export const stageReorderSchema = z.object({
 
 // ─── Deals ──────────────────────────────────────────────────────────────────
 
+// The deal dialogs post `amount` as the raw input string, so convert numeric
+// strings here — but only those. `z.coerce.number()` also turned null, true,
+// "" and [] into 0 and waved them through as valid amounts.
+const numericStringToNumber = (v: unknown) =>
+  typeof v === "string" && v.trim() !== "" ? Number(v) : emptyToUndefined(v);
+
 const optionalAmount = z.preprocess(
-  emptyToUndefined,
-  z.coerce.number().min(0).max(1e15).nullish()
+  numericStringToNumber,
+  z.number().min(0).max(1e15).nullish()
 );
 const optionalDate = z.preprocess(
   emptyToUndefined,
-  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD").optional()
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+    // The shape check alone admits impossible dates ("2026-13-99", "2026-02-30")
+    // that reach Postgres as an error or become an Invalid Date downstream.
+    .refine((s) => {
+      const d = new Date(`${s}T00:00:00Z`);
+      return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+    }, "Not a valid calendar date")
+    .optional()
 );
 
 export const dealCreateSchema = z.object({
   title: z.string().trim().min(1, "Deal title is required").max(200),
   companyId: z.string().uuid().optional(),
-  cvr: optionalShortText,
+  cvr: optionalCvr,
   pipelineId: z.string().uuid().optional(),
   stageId: z.string().uuid().optional(),
   amount: optionalAmount,
@@ -177,10 +203,17 @@ const contractStatus = z.enum(["draft", "active", "expired", "cancelled", "renew
 // Whole DKK (kroner), integer — matches contract.value semantics + formatDKK.
 const optionalWholeAmount = z.preprocess(
   emptyToUndefined,
-  z.coerce.number().int().min(0).max(1e15).nullish()
+  z.number().int().min(0).max(1e15).nullish()
 );
 
-export const contractCreateSchema = z.object({
+const expiryAfterStart = {
+  message: "Expiry date cannot be before the start date",
+  path: ["expiryDate"],
+};
+
+// Kept unrefined: Zod rejects `.partial()` on an object that carries checks, and
+// contractUpdateSchema derives from this shape.
+const contractFields = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   status: contractStatus.optional(),
   startDate: optionalDate,
@@ -189,18 +222,24 @@ export const contractCreateSchema = z.object({
   currency: z.string().trim().length(3).optional(),
   renewalNoticeDays: z.preprocess(
     emptyToUndefined,
-    z.coerce.number().int().min(0).max(365).optional()
+    z.number().int().min(0).max(365).optional()
   ),
   autoRenew: z.boolean().optional(),
   externalRef: optionalShortText,
   notes: optionalLongText,
   dealId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
 });
+
+export const contractCreateSchema = contractFields.refine(
+  (o) => notBefore(o.startDate, o.expiryDate),
+  expiryAfterStart
+);
 export type ContractCreateInput = z.infer<typeof contractCreateSchema>;
 
-export const contractUpdateSchema = contractCreateSchema
+export const contractUpdateSchema = contractFields
   .partial()
-  .refine((o) => Object.keys(o).length > 0, { message: "No fields to update" });
+  .refine((o) => Object.keys(o).length > 0, { message: "No fields to update" })
+  .refine((o) => notBefore(o.startDate, o.expiryDate), expiryAfterStart);
 export type ContractUpdateInput = z.infer<typeof contractUpdateSchema>;
 
 // ─── Segments ────────────────────────────────────────────────────────────────
@@ -227,8 +266,8 @@ export type CompanySegmentAssignInput = z.infer<typeof companySegmentAssignSchem
 // ─── Products ────────────────────────────────────────────────────────────────
 
 // Money in ØRE (integer minor units); vat/discount as percent.
-const oreAmount = z.coerce.number().int().min(0).max(1e15);
-const percent = z.coerce.number().min(0).max(100);
+const oreAmount = z.number().int().min(0).max(1e15);
+const percent = z.number().min(0).max(100);
 
 export const productCreateSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(200),
@@ -271,7 +310,7 @@ const documentLineInput = z
     description: z.string().trim().min(1, "Line description is required").max(500),
     // A zero-quantity line is never intentional; it is what a failed client-side
     // parse used to produce.
-    quantity: z.coerce.number().gt(0).max(1e9),
+    quantity: z.number().gt(0).max(1e9),
     unitPrice: oreAmount, // øre
     discountPct: percent.optional(),
     vatRate: percent.optional(),
@@ -282,10 +321,15 @@ const documentLineInput = z
   });
 export type DocumentLineInput = z.infer<typeof documentLineInput>;
 
+const validUntilAfterIssue = {
+  message: "Valid-until date cannot be before the issue date",
+  path: ["validUntil"],
+};
+
 export const quoteCreateSchema = z
   .object({
     companyId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
-    cvr: optionalShortText,
+    cvr: optionalCvr,
     dealId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
     issueDate: optionalDate,
     validUntil: optionalDate,
@@ -295,7 +339,8 @@ export const quoteCreateSchema = z
   })
   .refine((o) => o.companyId || o.cvr, {
     message: "Either companyId or cvr is required",
-  });
+  })
+  .refine((o) => notBefore(o.issueDate, o.validUntil), validUntilAfterIssue);
 export type QuoteCreateInput = z.infer<typeof quoteCreateSchema>;
 
 // Only draft quotes are editable; lines replace wholesale when provided.
@@ -308,7 +353,8 @@ export const quoteUpdateSchema = z
     dealId: z.preprocess(emptyToUndefined, z.string().uuid().nullable().optional()),
     lines: z.array(documentLineInput).min(1).max(200).optional(),
   })
-  .refine((o) => Object.keys(o).length > 0, { message: "No fields to update" });
+  .refine((o) => Object.keys(o).length > 0, { message: "No fields to update" })
+  .refine((o) => notBefore(o.issueDate, o.validUntil), validUntilAfterIssue);
 export type QuoteUpdateInput = z.infer<typeof quoteUpdateSchema>;
 
 export const quoteStatusSchema = z.object({
