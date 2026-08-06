@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
         pipelineId: pipe.id,
         stageId: stage.id,
         title: input.title,
-        amount: input.amount != null ? String(input.amount) : null,
+        amount: input.amount ?? null,
         currency: input.currency ?? "DKK",
         closeDate: input.closeDate ?? null,
         assignedUserId: input.assignedUserId ?? null,

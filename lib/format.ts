@@ -19,7 +19,14 @@ function toNumber(value: number | string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Format a DKK amount. Returns "–" for null/invalid. */
+/**
+ * Format a WHOLE-KRONER amount (no decimals). Returns "–" for null/invalid.
+ *
+ * NOT for CRM money. Every CRM figure — quotes, orders, contracts, deals — is
+ * stored in integer øre and must use `formatOre`; passing øre here renders a
+ * number 100x too large. This exists for externally-sourced whole-kroner data
+ * such as CVR registry accounting figures.
+ */
 export function formatDKK(
   value: number | string | null | undefined,
   locale: string

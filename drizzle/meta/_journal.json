@@ -253,6 +253,20 @@
       "when": 1786010100930,
       "tag": "0035_smart_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786012784889,
+      "tag": "0036_abandoned_polaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786013213845,
+      "tag": "0037_dizzy_marrow",
+      "breakpoints": true
     }
   ]
 }

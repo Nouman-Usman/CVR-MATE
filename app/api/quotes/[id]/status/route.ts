@@ -44,8 +44,8 @@ const TRANSITIONS = {
  * accept+reject cannot both land — the loser gets a 409 rather than producing a
  * quote that is rejected but carries an acceptedAt and has already rolled up.
  *
- * On accept the quote total (øre) rolls up to its linked deal's amount (whole
- * DKK). The rollup shares the transaction: an accepted quote whose deal was
+ * On accept the quote total rolls up to its linked deal's amount (both integer
+ * øre). The rollup shares the transaction: an accepted quote whose deal was
  * never updated is a silent reporting error with no retry path.
  */
 export async function POST(
@@ -94,14 +94,13 @@ export async function POST(
 
       if (!row) throw new CrmConflictError(transition.error);
 
-      // Deal rollup: accepted quote total (øre) → deal.amount (whole DKK).
-      // Math.round, not raw division: deal.amount is whole kroner by convention
-      // and the numeric column would silently accept fractions. The deletedAt
+      // Deal rollup: accepted quote total → deal.amount. Both are integer øre,
+      // so this is a straight copy — no conversion to get wrong. The deletedAt
       // guard stops an accept from writing into an already-deleted deal.
       if (action === "accept" && row.dealId) {
         await tx
           .update(deal)
-          .set({ amount: String(Math.round(row.total / 100)) })
+          .set({ amount: row.total })
           .where(
             and(
               eq(deal.id, row.dealId),

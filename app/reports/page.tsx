@@ -14,7 +14,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { QueryError } from "@/components/crm/QueryState";
-import { formatDKK, formatNumber } from "@/lib/format";
+import { formatOre, formatNumber } from "@/lib/format";
 import { useContractExpiryReport, useSegmentsReport } from "@/lib/hooks/use-reports";
 
 const BUCKET_COLOR: Record<string, string> = {
@@ -111,7 +111,7 @@ export default function ReportsPage() {
           <Kpi
             icon={Coins}
             label={tr("Samlet værdi", "Total value")}
-            value={formatDKK(totals?.value ?? 0, locale)}
+            value={formatOre(totals?.value ?? 0, locale)}
             tint="bg-violet-50 text-violet-600"
           />
         </div>
@@ -204,7 +204,7 @@ export default function ReportsPage() {
                         }}
                       >
                         <span className="text-[10px] font-semibold text-white whitespace-nowrap">
-                          {formatDKK(s.contractValue, locale)}
+                          {formatOre(s.contractValue, locale)}
                         </span>
                       </div>
                     </div>

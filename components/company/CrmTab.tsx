@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n/language-context";
-import { formatDate, formatDKK } from "@/lib/format";
+import { formatDate, formatOre } from "@/lib/format";
+import { parseKronerToOre } from "@/lib/money/parse";
 import {
   useCompanyContracts,
   useCreateContract,
@@ -926,11 +927,21 @@ function ContractsSection({
       toast.error(tr("Titel kræves", "Title is required"));
       return;
     }
+    // Contract value is stored in øre; the field takes kroner as typed.
+    let valueOre: number | undefined;
+    if (form.value.trim()) {
+      const parsed = parseKronerToOre(form.value);
+      if (parsed === null) {
+        toast.error(tr("Ugyldig værdi", "Invalid value"));
+        return;
+      }
+      valueOre = parsed;
+    }
     createContract.mutate(
       {
         title,
         status: form.status,
-        value: form.value ? Number(form.value) : undefined,
+        value: valueOre,
         startDate: form.startDate || undefined,
         expiryDate: form.expiryDate || undefined,
         renewalNoticeDays: form.renewalNoticeDays ? Number(form.renewalNoticeDays) : undefined,
@@ -984,7 +995,7 @@ function ContractsSection({
             </select>
             <input
               className={inputCls}
-              type="number"
+              inputMode="decimal"
               placeholder={tr("Værdi (DKK)", "Value (DKK)")}
               value={form.value}
               onChange={(e) => setForm({ ...form, value: e.target.value })}
@@ -1074,7 +1085,7 @@ function ContractsSection({
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {c.value != null ? formatDKK(c.value, locale) : "—"}
+                  {c.value != null ? formatOre(c.value, locale) : "—"}
                   {c.expiryDate ? ` · ${tr("udløber", "expires")} ${formatDate(c.expiryDate, locale)}` : ""}
                   {c.autoRenew ? ` · ${tr("auto-forny", "auto-renew")}` : ""}
                 </p>

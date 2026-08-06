@@ -125,9 +125,17 @@ export const stageReorderSchema = z.object({
 const numericStringToNumber = (v: unknown) =>
   typeof v === "string" && v.trim() !== "" ? Number(v) : emptyToUndefined(v);
 
+// The app is DKK-only and honest about it: formatOre/formatDKK hardcode the
+// currency, so accepting "EUR" here would store a value that renders as kroner
+// everywhere. Real multi-currency is an epic (FX rates, per-currency rounding
+// and VAT rules), not a column — until then this rejects rather than pretends.
+const currencySchema = z.literal("DKK").optional();
+
+// Deal value in INTEGER ØRE — the single CRM money unit. Clients must convert
+// typed kroner with parseKronerToOre before sending.
 const optionalAmount = z.preprocess(
   numericStringToNumber,
-  z.number().min(0).max(1e15).nullish()
+  z.number().int().min(0).max(1e17).nullish()
 );
 const optionalDate = z.preprocess(
   emptyToUndefined,
@@ -150,7 +158,7 @@ export const dealCreateSchema = z.object({
   pipelineId: z.string().uuid().optional(),
   stageId: z.string().uuid().optional(),
   amount: optionalAmount,
-  currency: z.string().trim().length(3).optional(),
+  currency: currencySchema,
   closeDate: optionalDate,
   assignedUserId: z.preprocess(emptyToUndefined, z.string().optional()),
   primaryContactId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
@@ -164,7 +172,7 @@ export const dealUpdateSchema = z
     title: z.string().trim().min(1).max(200).optional(),
     stageId: z.string().uuid().optional(),
     amount: optionalAmount,
-    currency: z.string().trim().length(3).optional(),
+    currency: currencySchema,
     closeDate: optionalDate,
     assignedUserId: z.preprocess(emptyToUndefined, z.string().nullable().optional()),
     primaryContactId: z.preprocess(emptyToUndefined, z.string().uuid().nullable().optional()),
@@ -200,10 +208,10 @@ export type InteractionUpdateInput = z.infer<typeof interactionUpdateSchema>;
 // ─── Contracts ───────────────────────────────────────────────────────────────
 
 const contractStatus = z.enum(["draft", "active", "expired", "cancelled", "renewed"]);
-// Whole DKK (kroner), integer — matches contract.value semantics + formatDKK.
+// Contract value in INTEGER ØRE — same unit as deals, quotes and orders.
 const optionalWholeAmount = z.preprocess(
-  emptyToUndefined,
-  z.number().int().min(0).max(1e15).nullish()
+  numericStringToNumber,
+  z.number().int().min(0).max(1e17).nullish()
 );
 
 const expiryAfterStart = {
@@ -219,7 +227,7 @@ const contractFields = z.object({
   startDate: optionalDate,
   expiryDate: optionalDate,
   value: optionalWholeAmount,
-  currency: z.string().trim().length(3).optional(),
+  currency: currencySchema,
   renewalNoticeDays: z.preprocess(
     emptyToUndefined,
     z.number().int().min(0).max(365).optional()

@@ -48,7 +48,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSubscription } from "@/lib/hooks/use-subscription";
-import { formatDKK, daysSince } from "@/lib/format";
+import { formatOre, daysSince } from "@/lib/format";
+import { parseKronerToOre, oreToInputString } from "@/lib/money/parse";
 import { useSuggestions } from "@/lib/hooks/use-suggestions";
 import { useSavedCompanies } from "@/lib/hooks/use-saved-companies";
 import {
@@ -395,7 +396,7 @@ function Column({
   onOpenDeal: (dealId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.stage.id });
-  const total = column.deals.reduce((sum, d) => sum + (d.amount ? Number(d.amount) : 0), 0);
+  const total = column.deals.reduce((sum, d) => sum + (d.amount ?? 0), 0);
 
   return (
     <div className="w-[82vw] max-w-[300px] sm:w-72 shrink-0 snap-start">
@@ -413,7 +414,7 @@ function Column({
           </Badge>
         </div>
         <span className="text-[11px] font-mono tabular-nums font-semibold text-muted-foreground shrink-0">
-          {formatDKK(total, locale)}
+          {formatOre(total, locale)}
         </span>
       </div>
       <div
@@ -477,7 +478,7 @@ function DealCard({
       )}
       <div className="mt-2.5 flex items-center justify-between">
         <span className="text-xs font-mono tabular-nums font-bold text-foreground">
-          {formatDKK(deal.amount, locale)}
+          {formatOre(deal.amount, locale)}
         </span>
         <div className="flex items-center gap-1.5">
           {days != null && (
@@ -551,6 +552,11 @@ function AddDealButton({
     if (!title.trim()) setTitle(company.name);
   }
 
+  // Deal amounts are stored in øre; the field accepts kroner as typed
+  // ("1.234,56"), so an unreadable value must block the save rather than
+  // silently becoming 0.
+  const parsedAmount = amount.trim() ? parseKronerToOre(amount) : null;
+
   function submit() {
     if (!picked) {
       toast.error(tr("Vælg en virksomhed", "Select a company"));
@@ -560,8 +566,12 @@ function AddDealButton({
       toast.error(tr("Titel kræves", "Title is required"));
       return;
     }
+    if (amount.trim() && parsedAmount === null) {
+      toast.error(tr("Ugyldigt beløb", "Invalid amount"));
+      return;
+    }
     createDeal.mutate(
-      { title: title.trim(), cvr: picked.vat, amount: amount.trim() || undefined },
+      { title: title.trim(), cvr: picked.vat, amount: parsedAmount ?? undefined },
       {
         onSuccess: () => {
           setOpen(false);
@@ -700,7 +710,7 @@ function AddDealButton({
         </div>
         <div className="space-y-1.5">
           <Label>{tr("Beløb (DKK)", "Amount (DKK)")}</Label>
-          <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
 
         <DialogFooter>
@@ -789,22 +799,30 @@ function DealForm({
   // Initialized once from `deal` at mount — this component is remounted via
   // `key={deal.id}` whenever a different deal opens, so no sync effect needed.
   const [title, setTitle] = useState(deal.title);
-  const [amount, setAmount] = useState(deal.amount ?? "");
+  const [amount, setAmount] = useState(
+    deal.amount != null ? oreToInputString(deal.amount, locale === "da" ? "da" : "en") : ""
+  );
   const [closeDate, setCloseDate] = useState(deal.closeDate ?? "");
   const [assignedUserId, setAssignedUserId] = useState(deal.assignedUser?.id ?? "");
   const [primaryContactId, setPrimaryContactId] = useState(deal.primaryContact?.id ?? "");
   const [lostReason, setLostReason] = useState(deal.lostReason ?? "");
+
+  const parsedAmount = amount.trim() ? parseKronerToOre(amount) : null;
 
   function save() {
     if (!title.trim()) {
       toast.error(tr("Titel kræves", "Title is required"));
       return;
     }
+    if (amount.trim() && parsedAmount === null) {
+      toast.error(tr("Ugyldigt beløb", "Invalid amount"));
+      return;
+    }
     updateDeal.mutate(
       {
         id: deal.id,
         title: title.trim(),
-        amount: amount.trim() ? amount.trim() : null,
+        amount: amount.trim() ? parsedAmount : null,
         // closeDate/lostReason only accept a value or absence (undefined) server-side,
         // not an explicit null — the empty string is preprocessed to undefined there.
         closeDate,
@@ -878,7 +896,7 @@ function DealForm({
 
       <div className="space-y-1.5">
         <Label>{tr("Beløb (DKK)", "Amount (DKK)")}</Label>
-        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
       </div>
 
       <div className="space-y-1.5">

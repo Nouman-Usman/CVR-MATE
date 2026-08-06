@@ -14,7 +14,7 @@ export interface BoardStage {
 export interface BoardDeal {
   id: string;
   title: string;
-  amount: string | null;
+  amount: number | null; // INTEGER ØRE — render with formatOre
   currency: string;
   stageId: string;
   status: string;

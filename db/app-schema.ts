@@ -729,7 +729,7 @@ export const contract = pgTable(
     status: text("status").default("active").notNull(), // 'draft' | 'active' | 'expired' | 'cancelled' | 'renewed'
     startDate: date("start_date"),
     expiryDate: date("expiry_date"),
-    value: bigint("value", { mode: "number" }), // whole DKK (kroner), nullable
+    value: bigint("value", { mode: "number" }), // INTEGER ØRE, nullable
     currency: text("currency").default("DKK").notNull(),
     renewalNoticeDays: integer("renewal_notice_days").default(30).notNull(),
     autoRenew: boolean("auto_renew").default(false).notNull(),
@@ -806,10 +806,13 @@ export const companySegment = pgTable(
 );
 
 // ─── QUOTATION / ORDER ENGINE (built-in commercial documents) ────────────────
-// All money is INTEGER ØRE (1 DKK = 100 øre) for exact per-line VAT rounding —
-// distinct from contract.value / deal.amount which are whole DKK. quantity /
-// vatRate / discountPct are numeric (read back as string → Number() at the
-// boundary). Server ALWAYS recomputes stored totals from line inputs via
+// MONEY UNIT — the whole CRM stores money as INTEGER ØRE (1 DKK = 100 øre):
+// quote/sales_order totals and lines, contract.value, and deal.amount. Exact
+// per-line VAT rounding needs sub-krone precision, and a single unit is what
+// keeps a report that joins contract value against order revenue from being
+// silently 100x wrong on one side. Render with formatOre, never formatDKK.
+// quantity / vatRate / discountPct stay numeric (read back as string →
+// Number() at the boundary). Server ALWAYS recomputes stored totals via
 // lib/quotes/totals.ts; client-sent totals are never trusted. Document numbers
 // are assigned atomically per org via `document_sequence`.
 
@@ -890,6 +893,20 @@ export const quote = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    // ── Customer-facing delivery ────────────────────────────────────────────
+    // Frozen copy of the document as the customer received it: seller identity,
+    // customer details, every line, and the totals. A quote's legal meaning is
+    // the version that was sent, so the public page and the PDF both render
+    // from this — never from live rows, which drift as the price list changes.
+    // Written once when the quote is sent; never updated afterwards.
+    snapshot: jsonb("snapshot"),
+    // High-entropy capability token for the public accept page. Deliberately
+    // NOT the quote id: the id appears in internal URLs and logs, and a
+    // guessable token would expose one org's pricing to anyone.
+    publicToken: text("public_token"),
+    // Evidence of who acted on the public link, for a document with commercial
+    // standing. Best-effort — a proxy header, not an identity.
+    respondedIp: text("responded_ip"),
     convertedOrderId: uuid("converted_order_id"), // plain uuid — no FK, avoids quote↔order cycle
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -903,6 +920,12 @@ export const quote = pgTable(
     index("quote_company_idx").on(table.companyId),
     index("quote_org_status_idx").on(table.organizationId, table.status),
     uniqueIndex("quote_org_number_idx").on(table.organizationId, table.number),
+    // Unique so a collision can never silently point one customer's link at
+    // another org's quote; partial so the many un-sent drafts (all NULL) do not
+    // occupy the index.
+    uniqueIndex("quote_public_token_idx")
+      .on(table.publicToken)
+      .where(sql`${table.publicToken} is not null`),
     check(
       "quote_status_check",
       sql`${table.status} in ('draft','sent','accepted','rejected','expired','converted')`
@@ -1091,7 +1114,10 @@ export const deal = pgTable(
       .notNull()
       .references(() => pipelineStage.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
-    amount: numeric("amount"),
+    // INTEGER ØRE — one money unit across the whole CRM (see the money note on
+    // the quote table). Was numeric whole-kroner, which meant any report joining
+    // deal value against quote/order totals was silently 100x wrong on one side.
+    amount: bigint("amount", { mode: "number" }),
     currency: text("currency").default("DKK").notNull(),
     closeDate: date("close_date"),
     assignedUserId: text("assigned_user_id").references(() => user.id, {

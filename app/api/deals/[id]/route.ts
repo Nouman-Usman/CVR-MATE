@@ -65,7 +65,7 @@ export async function PATCH(
     let terminalAction: ActivityAction | null = null;
 
     if (input.title !== undefined) patch.title = input.title;
-    if (input.amount !== undefined) patch.amount = input.amount != null ? String(input.amount) : null;
+    if (input.amount !== undefined) patch.amount = input.amount ?? null;
     if (input.currency !== undefined) patch.currency = input.currency;
     if (input.closeDate !== undefined) patch.closeDate = input.closeDate ?? null;
     if (input.lostReason !== undefined) patch.lostReason = input.lostReason ?? null;

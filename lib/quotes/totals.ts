@@ -33,6 +33,19 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(Math.max(n, min), max);
 }
 
+/**
+ * Round to whole øre, correcting for binary floating-point drift first.
+ *
+ * `0.35 * 10` is 3.4999999999999996 in IEEE754, which `Math.round` sends to 3
+ * where decimal arithmetic gives 4 — a one-øre error on a document with legal
+ * standing. Collapsing to 9 decimal places absorbs the representation error
+ * without disturbing any value a quote can legitimately hold.
+ */
+export function roundOre(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Number(n.toFixed(9)));
+}
+
 /** Compute one line's øre totals. Gross → discount → net → VAT → total. */
 export function computeLine(input: LineInput): LineTotals {
   const qty = Number.isFinite(input.quantity) ? input.quantity : 0;
@@ -43,10 +56,10 @@ export function computeLine(input: LineInput): LineTotals {
   const discountPct = clamp(input.discountPct, 0, 100);
   const vatRate = clamp(input.vatRate, 0, 100);
 
-  const gross = Math.round(qty * unit);
-  const lineDiscount = Math.round(gross * (discountPct / 100));
+  const gross = roundOre(qty * unit);
+  const lineDiscount = roundOre(gross * (discountPct / 100));
   const lineSubtotal = gross - lineDiscount;
-  const lineVat = Math.round(lineSubtotal * (vatRate / 100));
+  const lineVat = roundOre(lineSubtotal * (vatRate / 100));
   const lineTotal = lineSubtotal + lineVat;
 
   return { lineSubtotal, lineDiscount, lineVat, lineTotal };
