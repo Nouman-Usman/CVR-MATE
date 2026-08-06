@@ -6,17 +6,20 @@ import { toast } from "sonner";
 import { ArrowLeft, Check, Truck, X, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
 import { formatOre, formatDate } from "@/lib/format";
 import { useOrder, useUpdateOrder } from "@/lib/hooks/use-orders";
-import { ORDER_STATUS_STYLE } from "../page";
+import { StatusBadge } from "@/components/crm/StatusBadge";
+import { ListSkeleton, QueryError, NotFoundState } from "@/components/crm/QueryState";
 
 export default function OrderDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { locale } = useLanguage();
-  const tr = (da: string, en: string) => (locale === "da" ? da : en);
+  const { tr } = useTr();
+  const errorMessage = useApiErrorMessage();
 
-  const { data, isLoading } = useOrder(id);
+  const { data, isLoading, isError, error, refetch } = useOrder(id);
   const update = useUpdateOrder(id);
 
   const order = data?.order;
@@ -24,7 +27,7 @@ export default function OrderDetailPage() {
   const company = data?.company ?? null;
 
   function setStatus(status: string) {
-    update.mutate({ status }, { onError: (e) => toast.error((e as Error).message) });
+    update.mutate({ status }, { onError: (e) => toast.error(errorMessage(e)) });
   }
 
   return (
@@ -35,21 +38,25 @@ export default function OrderDetailPage() {
           {tr("Ordrer", "Orders")}
         </Link>
 
-        {isLoading || !order ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">{tr("Indlæser…", "Loading…")}</p>
+        {isLoading ? (
+          <ListSkeleton rows={4} />
+        ) : isError ? (
+          <QueryError error={error} onRetry={() => refetch()} />
+        ) : !order ? (
+          <NotFoundState
+            title={tr("Ordren findes ikke.", "This order does not exist.")}
+            action={
+              <Link href="/orders" className="text-sm font-semibold text-primary hover:underline">
+                {tr("Tilbage til ordrer", "Back to orders")}
+              </Link>
+            }
+          />
         ) : (
           <>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-foreground">{order.number}</h1>
-                <span
-                  className={
-                    "text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full " +
-                    (ORDER_STATUS_STYLE[order.status] ?? ORDER_STATUS_STYLE.open)
-                  }
-                >
-                  {order.status}
-                </span>
+                <StatusBadge kind="order" status={order.status} />
               </div>
               {company && (
                 <Link href={`/company/${company.vat}`} className="text-sm text-muted-foreground hover:text-primary">

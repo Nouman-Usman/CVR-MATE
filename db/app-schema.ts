@@ -278,6 +278,12 @@ export const todo = pgTable(
     index("todo_org_idx").on(table.organizationId),
     index("todo_priority_idx").on(table.userId, table.priority),
     index("todo_interaction_idx").on(table.interactionId),
+    // At most one live follow-up per interaction. syncFollowUpTodo used to
+    // find-then-insert, so two concurrent PATCHes of the same interaction could
+    // each create a todo; this makes the database the arbiter.
+    uniqueIndex("todo_interaction_live_uq")
+      .on(table.interactionId)
+      .where(sql`${table.interactionId} is not null and ${table.deletedAt} is null`),
   ]
 );
 
@@ -710,9 +716,13 @@ export const contract = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    // RESTRICT, not CASCADE: `company` is the shared, org-agnostic CVR cache
+    // (see the company table) — it is not org-owned data, and a cache-cleanup or
+    // dedupe job against it must never be able to delete another org's
+    // commercial records, which carry bookkeeping-retention obligations.
     companyId: uuid("company_id")
       .notNull()
-      .references(() => company.id, { onDelete: "cascade" }),
+      .references(() => company.id, { onDelete: "restrict" }),
     dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     title: text("title").notNull(),
@@ -859,9 +869,11 @@ export const quote = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    // RESTRICT — see the note on contract.companyId. A quote is a commercial
+    // document; the shared company cache must not be able to delete it.
     companyId: uuid("company_id")
       .notNull()
-      .references(() => company.id, { onDelete: "cascade" }),
+      .references(() => company.id, { onDelete: "restrict" }),
     dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     number: text("number").notNull(),
@@ -934,9 +946,10 @@ export const salesOrder = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    // RESTRICT — see the note on contract.companyId.
     companyId: uuid("company_id")
       .notNull()
-      .references(() => company.id, { onDelete: "cascade" }),
+      .references(() => company.id, { onDelete: "restrict" }),
     dealId: uuid("deal_id").references(() => deal.id, { onDelete: "set null" }),
     quoteId: uuid("quote_id").references(() => quote.id, { onDelete: "set null" }),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),

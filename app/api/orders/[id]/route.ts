@@ -6,6 +6,7 @@ import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { parseBody, orderUpdateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
+import { assertCanMutateResource } from "@/lib/team/permissions";
 
 async function loadOwnedOrder(id: string, organizationId: string) {
   const row = await db.query.salesOrder.findFirst({ where: eq(salesOrder.id, id) });
@@ -58,6 +59,11 @@ export async function PATCH(
     const { id } = await params;
     const existing = await loadOwnedOrder(id, organizationId);
     if (!existing) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    await assertCanMutateResource(userId, {
+      userId: existing.createdBy ?? "",
+      organizationId: existing.organizationId,
+    });
 
     const parsed = parseBody(orderUpdateSchema, await req.json().catch(() => ({})));
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });

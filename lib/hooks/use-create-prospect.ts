@@ -1,6 +1,8 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, jsonRequest } from "@/lib/api/fetch-json";
+import { invalidate, crmInvalidations } from "@/lib/hooks/query-keys";
 
 /** A contact as entered in the prospect flow (matches contactCreateSchema). */
 export interface ProspectContactInput {
@@ -42,27 +44,14 @@ export interface CreateProspectResult {
 
 /**
  * Create (or refresh) a prospect from a CVR number, optionally saving the
- * company and seeding contacts. On success we invalidate the destination
- * company's contact + activity caches (so /company/[vat] renders fresh) plus the
- * saved-companies list.
+ * company and seeding contacts. On success `crmInvalidations.prospectCreated`
+ * refreshes the destination company's caches (so /company/[vat] renders fresh)
+ * along with the lists the new prospect now belongs to.
  */
 export function useCreateProspect() {
   const qc = useQueryClient();
   return useMutation<CreateProspectResult, Error, CreateProspectInput>({
-    mutationFn: async (body) => {
-      const res = await fetch("/api/prospects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create prospect");
-      return data as CreateProspectResult;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["contacts", data.vat] });
-      qc.invalidateQueries({ queryKey: ["company-activity", data.vat] });
-      qc.invalidateQueries({ queryKey: ["saved-companies"] });
-    },
+    mutationFn: (body) => fetchJson<CreateProspectResult>("/api/prospects", jsonRequest("POST", body)),
+    onSuccess: (data) => invalidate(qc, crmInvalidations.prospectCreated(data.vat)),
   });
 }

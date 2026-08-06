@@ -7,6 +7,7 @@ import { parseBody, quoteUpdateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
 import { buildDocument } from "@/lib/quotes/persist";
+import { companyVatById } from "@/lib/crm/company-resolver";
 import {
   assertCanMutateResource,
   TeamPermissionError,
@@ -138,7 +139,10 @@ export async function PATCH(
       metadata: { companyId: updated.companyId, number: updated.number },
     });
 
-    return NextResponse.json({ quote: updated });
+    return NextResponse.json({
+      quote: updated,
+      companyVat: await companyVatById(updated.companyId),
+    });
   } catch (err) {
     return crmErrorResponse(err);
   }
@@ -187,7 +191,10 @@ export async function DELETE(
       metadata: { companyId: existing.companyId, number: existing.number },
     });
 
-    return NextResponse.json({ message: "Quote deleted" });
+    return NextResponse.json({
+      message: "Quote deleted",
+      companyVat: await companyVatById(existing.companyId),
+    });
   } catch (err) {
     return crmErrorResponse(err);
   }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, jsonRequest } from "@/lib/api/fetch-json";
+import { qk, invalidate, crmInvalidations } from "@/lib/hooks/query-keys";
 
 export interface QuoteListItem {
   id: string;
@@ -72,116 +74,77 @@ export interface CreateQuoteInput {
 
 export function useQuotes(status?: string) {
   return useQuery<{ quotes: QuoteListItem[] }>({
-    queryKey: ["quotes", status ?? "all"],
-    queryFn: async () => {
-      const res = await fetch(`/api/quotes${status ? `?status=${status}` : ""}`);
-      if (!res.ok) throw new Error("Failed to fetch quotes");
-      return res.json();
-    },
+    queryKey: [...qk.quotes(), status ?? "all"],
+    queryFn: () => fetchJson(`/api/quotes${status ? `?status=${status}` : ""}`),
     staleTime: 30_000,
   });
 }
 
 export function useQuote(id: string | undefined) {
   return useQuery<{ quote: Quote; lines: QuoteLine[]; company: { vat: string; name: string } | null }>({
-    queryKey: ["quote", id],
+    queryKey: qk.quote(id ?? ""),
     enabled: !!id,
-    queryFn: async () => {
-      const res = await fetch(`/api/quotes/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch quote");
-      return res.json();
-    },
+    queryFn: () => fetchJson(`/api/quotes/${id}`),
     staleTime: 15_000,
   });
-}
-
-function invalidateQuotes(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: ["quotes"] });
-  qc.invalidateQueries({ queryKey: ["orders"] });
 }
 
 export function useCreateQuote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CreateQuoteInput) => {
-      const res = await fetch("/api/quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create quote");
-      return data as { quote: Quote };
-    },
-    onSettled: () => invalidateQuotes(qc),
+    mutationFn: (body: CreateQuoteInput) =>
+      fetchJson<{ quote: Quote; companyVat?: string }>("/api/quotes", jsonRequest("POST", body)),
+    onSettled: (data) => invalidate(qc, crmInvalidations.quoteCreated(data?.companyVat)),
   });
 }
 
 export function useUpdateQuote(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<CreateQuoteInput>) => {
-      const res = await fetch(`/api/quotes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to update quote");
-      return data as { quote: Quote };
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["quote", id] });
-      invalidateQuotes(qc);
-    },
+    mutationFn: (body: Partial<CreateQuoteInput>) =>
+      fetchJson<{ quote: Quote; companyVat?: string }>(
+        `/api/quotes/${id}`,
+        jsonRequest("PATCH", body)
+      ),
+    onSettled: (data) => invalidate(qc, crmInvalidations.quoteUpdated(id, data?.companyVat)),
   });
 }
 
 export function useQuoteStatus(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (action: "send" | "accept" | "reject") => {
-      const res = await fetch(`/api/quotes/${id}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to update status");
-      return data;
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["quote", id] });
-      invalidateQuotes(qc);
-    },
+    mutationFn: (action: "send" | "accept" | "reject") =>
+      fetchJson<{ quote: Quote; dealId: string | null; companyVat?: string }>(
+        `/api/quotes/${id}/status`,
+        jsonRequest("POST", { action })
+      ),
+    // Accepting rolls the quote total into deal.amount server-side, so the board
+    // and deal drawer are stale until crmInvalidations refreshes them.
+    onSettled: (data) =>
+      invalidate(qc, crmInvalidations.quoteStatusChanged(id, data?.companyVat, data?.dealId)),
   });
 }
 
 export function useConvertQuote(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/quotes/${id}/convert`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to convert quote");
-      return data as { order: { id: string; number: string } };
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["quote", id] });
-      invalidateQuotes(qc);
-    },
+    mutationFn: () =>
+      fetchJson<{ order: { id: string; number: string }; companyVat?: string }>(
+        `/api/quotes/${id}/convert`,
+        jsonRequest("POST")
+      ),
+    onSettled: (data) => invalidate(qc, crmInvalidations.quoteConverted(id, data?.companyVat)),
   });
 }
 
 export function useDeleteQuote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/quotes/${id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to delete quote");
-      return data;
-    },
-    onSettled: () => invalidateQuotes(qc),
+    mutationFn: (id: string) =>
+      fetchJson<{ message: string; companyVat?: string }>(
+        `/api/quotes/${id}`,
+        jsonRequest("DELETE")
+      ),
+    onSettled: (data) => invalidate(qc, crmInvalidations.quoteCreated(data?.companyVat)),
   });
 }

@@ -256,14 +256,30 @@ export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 
 // ─── Quotes + Orders ─────────────────────────────────────────────────────────
 
-const documentLineInput = z.object({
-  productId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
-  description: z.string().trim().min(1, "Line description is required").max(500),
-  quantity: z.coerce.number().min(0).max(1e9),
-  unitPrice: oreAmount, // øre
-  discountPct: percent.optional(),
-  vatRate: percent.optional(),
-});
+/**
+ * Per-line value ceiling, in øre (1e13 øre = 100bn DKK). `quantity` and
+ * `unitPrice` are each individually plausible at their own maximums, but their
+ * *product* reaches 1e24 — far past Number.MAX_SAFE_INTEGER (9.007e15), where
+ * the arithmetic silently loses precision before Postgres bigint would reject
+ * it. Bound the product, not just the factors.
+ */
+const MAX_LINE_ORE = 1e13;
+
+const documentLineInput = z
+  .object({
+    productId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+    description: z.string().trim().min(1, "Line description is required").max(500),
+    // A zero-quantity line is never intentional; it is what a failed client-side
+    // parse used to produce.
+    quantity: z.coerce.number().gt(0).max(1e9),
+    unitPrice: oreAmount, // øre
+    discountPct: percent.optional(),
+    vatRate: percent.optional(),
+  })
+  .refine((l) => l.quantity * l.unitPrice <= MAX_LINE_ORE, {
+    message: "Line value is too large",
+    path: ["unitPrice"],
+  });
 export type DocumentLineInput = z.infer<typeof documentLineInput>;
 
 export const quoteCreateSchema = z

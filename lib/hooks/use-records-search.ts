@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { fetchJson } from "@/lib/api/fetch-json";
+import { qk } from "@/lib/hooks/query-keys";
 
 export type RecordsSearchMode = "email" | "phone" | "cvr" | "name" | "empty";
 
@@ -32,17 +34,13 @@ export interface RecordsSearchResult {
  * for queries of 2+ chars; email/phone match exactly, names match as substrings.
  */
 export function useRecordsSearch(q: string) {
+  // Key on the trimmed term, not the raw one: the request already trims, so
+  // keying on the raw value cached "foo" and "foo " as two entries for one call.
+  const term = q.trim();
   return useQuery<RecordsSearchResult>({
-    queryKey: ["records-search", q],
-    enabled: q.trim().length >= 2,
-    queryFn: async () => {
-      const res = await fetch(`/api/records/search?q=${encodeURIComponent(q.trim())}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Search failed");
-      }
-      return res.json() as Promise<RecordsSearchResult>;
-    },
+    queryKey: qk.recordsSearch(term),
+    enabled: term.length >= 2,
+    queryFn: () => fetchJson<RecordsSearchResult>(`/api/records/search?q=${encodeURIComponent(term)}`),
     staleTime: 30_000,
   });
 }

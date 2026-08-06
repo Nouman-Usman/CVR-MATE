@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, jsonRequest } from "@/lib/api/fetch-json";
+import { qk, invalidate, crmInvalidations } from "@/lib/hooks/query-keys";
 
 export interface Product {
   id: string;
@@ -26,12 +28,8 @@ export interface ProductInput {
 
 export function useProducts() {
   return useQuery<{ products: Product[] }>({
-    queryKey: ["products"],
-    queryFn: async () => {
-      const res = await fetch("/api/products");
-      if (!res.ok) throw new Error("Failed to fetch products");
-      return res.json();
-    },
+    queryKey: qk.products(),
+    queryFn: () => fetchJson("/api/products"),
     staleTime: 60_000,
   });
 }
@@ -39,46 +37,26 @@ export function useProducts() {
 export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: ProductInput) => {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create product");
-      return data;
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    mutationFn: (body: ProductInput) =>
+      fetchJson<{ product: Product }>("/api/products", jsonRequest("POST", body)),
+    onSettled: () => invalidate(qc, crmInvalidations.productChanged()),
   });
 }
 
 export function useUpdateProduct() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...body }: { id: string } & Partial<ProductInput>) => {
-      const res = await fetch(`/api/products/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to update product");
-      return data;
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    mutationFn: ({ id, ...body }: { id: string } & Partial<ProductInput>) =>
+      fetchJson<{ product: Product }>(`/api/products/${id}`, jsonRequest("PATCH", body)),
+    onSettled: () => invalidate(qc, crmInvalidations.productChanged()),
   });
 }
 
 export function useDeleteProduct() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to delete product");
-      return data;
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    mutationFn: (id: string) =>
+      fetchJson<{ message: string }>(`/api/products/${id}`, jsonRequest("DELETE")),
+    onSettled: () => invalidate(qc, crmInvalidations.productChanged()),
   });
 }

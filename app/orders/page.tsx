@@ -1,23 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { ShoppingCart, ArrowRight, Inbox } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useTr } from "@/lib/i18n/tr";
 import { formatOre, formatDate } from "@/lib/format";
 import { useOrders } from "@/lib/hooks/use-orders";
-
-export const ORDER_STATUS_STYLE: Record<string, string> = {
-  open: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  confirmed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  fulfilled: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-  cancelled: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-};
+import { StatusBadge } from "@/components/crm/StatusBadge";
+import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
+import { statusLabel, statusValues } from "@/lib/crm/status";
 
 export default function OrdersPage() {
   const { locale } = useLanguage();
-  const tr = (da: string, en: string) => (locale === "da" ? da : en);
-  const { data, isLoading } = useOrders();
+  const { tr } = useTr();
+  const [status, setStatus] = useState<string | undefined>(undefined);
+  const { data, isLoading, isError, error, refetch } = useOrders(status);
   const orders = data?.orders ?? [];
 
   return (
@@ -35,15 +34,54 @@ export default function OrdersPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setStatus(undefined)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              status === undefined
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            {tr("Alle", "All")}
+          </button>
+          {statusValues("order").map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(s)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                status === s
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+              }`}
+            >
+              {statusLabel("order", s, locale)}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">{tr("Indlæser…", "Loading…")}</p>
+          <ListSkeleton rows={5} />
+        ) : isError ? (
+          <QueryError error={error} onRetry={() => refetch()} />
         ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
-            <Inbox className="size-8 opacity-40" />
-            <p className="text-sm">
-              {tr("Ingen ordrer endnu. Konvertér et accepteret tilbud.", "No orders yet. Convert an accepted quote.")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Inbox className="size-6 text-muted-foreground" />}
+            title={
+              status
+                ? tr("Ingen ordrer med denne status.", "No orders with this status.")
+                : tr("Ingen ordrer endnu.", "No orders yet.")
+            }
+            description={tr(
+              "Ordrer oprettes ved at konvertere et accepteret tilbud.",
+              "Orders are created by converting an accepted quote."
+            )}
+            action={
+              <Link href="/quotes" className="text-sm font-semibold text-primary hover:underline">
+                {tr("Gå til tilbud", "Go to quotes")}
+              </Link>
+            }
+          />
         ) : (
           <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
             {orders.map((o) => (
@@ -55,14 +93,7 @@ export default function OrdersPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-foreground">{o.number}</span>
-                    <span
-                      className={
-                        "text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full " +
-                        (ORDER_STATUS_STYLE[o.status] ?? ORDER_STATUS_STYLE.open)
-                      }
-                    >
-                      {o.status}
-                    </span>
+                    <StatusBadge kind="order" status={o.status} />
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {o.companyName || `CVR ${o.companyVat}`}

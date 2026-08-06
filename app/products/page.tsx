@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Package, X } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
+import { useConfirm } from "@/components/crm/ConfirmDialog";
+import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
 import { formatOre } from "@/lib/format";
 import {
   useProducts,
@@ -14,20 +17,16 @@ import {
   type Product,
 } from "@/lib/hooks/use-products";
 
-function dkkToOre(s: string): number {
-  const n = parseFloat(s.replace(/\s/g, "").replace(",", "."));
-  return Number.isFinite(n) ? Math.round(n * 100) : 0;
-}
-function oreToDkk(ore: number): string {
-  return (ore / 100).toString();
-}
+import { parseKronerToOre, parsePercent, oreToInputString } from "@/lib/money/parse";
 
 const EMPTY = { name: "", sku: "", unit: "", price: "", vatRate: "25", active: true };
 
 export default function ProductsPage() {
   const { locale } = useLanguage();
-  const tr = (da: string, en: string) => (locale === "da" ? da : en);
-  const { data, isLoading } = useProducts();
+  const { tr } = useTr();
+  const errorMessage = useApiErrorMessage();
+  const confirm = useConfirm();
+  const { data, isLoading, isError, error, refetch } = useProducts();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
@@ -43,7 +42,7 @@ export default function ProductsPage() {
       name: p.name,
       sku: p.sku ?? "",
       unit: p.unit ?? "",
-      price: oreToDkk(p.unitPrice),
+      price: oreToInputString(p.unitPrice, locale === "da" ? "da" : "en"),
       vatRate: p.vatRate,
       active: p.active,
     });
@@ -58,12 +57,25 @@ export default function ProductsPage() {
       toast.error(tr("Navn kræves", "Name is required"));
       return;
     }
+    // Reject unreadable input instead of coercing it to 0 — a 0,00 kr catalog
+    // price propagates into every quote line that picks the product.
+    const unitPrice = parseKronerToOre(form.price);
+    if (unitPrice === null || unitPrice < 0) {
+      toast.error(tr("Ugyldig pris", "Invalid price"));
+      return;
+    }
+    const vatRate = parsePercent(form.vatRate);
+    if (vatRate === null || vatRate < 0 || vatRate > 100) {
+      toast.error(tr("Ugyldig momssats", "Invalid VAT rate"));
+      return;
+    }
+
     const body = {
       name: form.name.trim(),
       sku: form.sku.trim() || undefined,
       unit: form.unit.trim() || undefined,
-      unitPrice: dkkToOre(form.price),
-      vatRate: Number(form.vatRate) || 0,
+      unitPrice,
+      vatRate,
       active: form.active,
     };
     const onDone = {
@@ -167,13 +179,18 @@ export default function ProductsPage() {
 
         {/* List */}
         {isLoading ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">
-            {tr("Indlæser…", "Loading…")}
-          </p>
+          <ListSkeleton rows={4} />
+        ) : isError ? (
+          <QueryError error={error} onRetry={() => refetch()} />
         ) : products.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">
-            {tr("Ingen produkter endnu.", "No products yet.")}
-          </p>
+          <EmptyState
+            icon={<Package className="size-6 text-muted-foreground" />}
+            title={tr("Ingen produkter endnu.", "No products yet.")}
+            description={tr(
+              "Produkter udfylder tilbudslinjer automatisk med pris og moms.",
+              "Products autofill quote lines with price and VAT."
+            )}
+          />
         ) : (
           <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
             {products.map((p) => (
@@ -193,20 +210,31 @@ export default function ProductsPage() {
                     {p.unit ? ` / ${p.unit}` : ""} · {tr("moms", "VAT")} {p.vatRate}%
                   </p>
                 </div>
+                {/* Visible on touch and on keyboard focus — hover-only controls
+                    leave a destructive button that a Tab user cannot see. */}
                 <button
                   onClick={() => startEdit(p)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                   aria-label={tr("Redigér", "Edit")}
                 >
                   <Pencil className="size-4" />
                 </button>
                 <button
                   onClick={() =>
-                    deleteProduct.mutate(p.id, {
-                      onError: (e) => toast.error((e as Error).message),
+                    confirm.ask({
+                      title: tr("Slet produkt?", "Delete product?"),
+                      name: p.name,
+                      description: tr(
+                        "Eksisterende tilbudslinjer beholder deres pris.",
+                        "Existing quote lines keep their price."
+                      ),
+                      onConfirm: () =>
+                        deleteProduct.mutate(p.id, {
+                          onError: (e) => toast.error(errorMessage(e)),
+                        }),
                     })
                   }
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-500"
+                  className="text-muted-foreground hover:text-rose-500 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                   aria-label={tr("Slet", "Delete")}
                 >
                   <Trash2 className="size-4" />
@@ -215,6 +243,7 @@ export default function ProductsPage() {
             ))}
           </div>
         )}
+        {confirm.dialog}
       </div>
     </DashboardLayout>
   );

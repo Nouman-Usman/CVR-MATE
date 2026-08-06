@@ -68,8 +68,26 @@ export async function requireCrmOrg(req: NextRequest): Promise<CrmGuardResult> {
 }
 
 /**
+ * A state transition lost a race (or was never legal). Thrown from inside a
+ * transaction so the whole unit of work rolls back, then mapped to 409 by
+ * `crmErrorResponse`.
+ *
+ * Every state change on a CRM document must be a *conditional* write —
+ * `UPDATE ... WHERE id = $id AND status = $expected RETURNING id` — and treat
+ * zero returned rows as this error. Loading the row, checking its status in JS,
+ * and then updating by id alone is a race: two concurrent requests both read the
+ * old status, both pass the check, and both write.
+ */
+export class CrmConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CrmConflictError";
+  }
+}
+
+/**
  * Map an error thrown inside a CRM handler to a response. TeamPermissionError
- * maps via its code; everything else is a logged 500.
+ * maps via its code, CrmConflictError to 409; everything else is a logged 500.
  */
 export function crmErrorResponse(err: unknown): NextResponse {
   if (err instanceof TeamPermissionError) {
@@ -77,6 +95,9 @@ export function crmErrorResponse(err: unknown): NextResponse {
       { error: err.message, upgrade: err.code === "PLAN_NOT_ALLOWED" },
       { status: teamErrorToStatus(err) }
     );
+  }
+  if (err instanceof CrmConflictError) {
+    return NextResponse.json({ error: err.message, conflict: true }, { status: 409 });
   }
   console.error("[crm] Unhandled route error:", err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });

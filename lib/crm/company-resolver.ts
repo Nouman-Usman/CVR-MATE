@@ -13,6 +13,22 @@ import { getCompanyByVat } from "@/lib/cvr-api";
  * Mirrors the inline resolution in the todos routes, centralized so CRM routes
  * (contacts, notes, deals) share one implementation.
  */
+/**
+ * The CVR number for a local company id.
+ *
+ * Company-scoped React Query caches are keyed by VAT, not by the internal
+ * company uuid, so a mutation response has to carry the VAT for the client to
+ * invalidate the right timeline. Without it, quote mutations silently left the
+ * company activity feed stale.
+ */
+export async function companyVatById(companyId: string): Promise<string | null> {
+  const row = await db.query.company.findFirst({
+    where: eq(company.id, companyId),
+    columns: { vat: true },
+  });
+  return row?.vat ?? null;
+}
+
 export async function resolveCompanyIdByVat(vat: string): Promise<string | null> {
   const trimmed = vat?.trim();
   if (!trimmed) return null;

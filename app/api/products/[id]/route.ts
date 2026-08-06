@@ -6,6 +6,7 @@ import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { parseBody, productUpdateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
+import { assertCanMutateResource } from "@/lib/team/permissions";
 
 async function loadOwnedProduct(id: string, organizationId: string) {
   const row = await db.query.product.findFirst({ where: eq(product.id, id) });
@@ -28,6 +29,14 @@ export async function PATCH(
     const { id } = await params;
     const existing = await loadOwnedProduct(id, organizationId);
     if (!existing) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+
+    // Creator-or-admin, matching every other CRM mutation. (Open question for a
+    // later phase: a shared price list is arguably org property, so this could
+    // tighten to admin-only.)
+    await assertCanMutateResource(userId, {
+      userId: existing.createdBy ?? "",
+      organizationId: existing.organizationId,
+    });
 
     const parsed = parseBody(productUpdateSchema, await req.json().catch(() => ({})));
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -75,6 +84,11 @@ export async function DELETE(
     const { id } = await params;
     const existing = await loadOwnedProduct(id, organizationId);
     if (!existing) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+
+    await assertCanMutateResource(userId, {
+      userId: existing.createdBy ?? "",
+      organizationId: existing.organizationId,
+    });
 
     // Soft delete — existing quote/order lines keep their snapshot (productId set null).
     await db

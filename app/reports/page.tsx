@@ -13,6 +13,7 @@ import { FileText, ShieldCheck, AlarmClock, Coins, Layers } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { QueryError } from "@/components/crm/QueryState";
 import { formatDKK, formatNumber } from "@/lib/format";
 import { useContractExpiryReport, useSegmentsReport } from "@/lib/hooks/use-reports";
 
@@ -48,8 +49,20 @@ export default function ReportsPage() {
   const { locale } = useLanguage();
   const tr = (da: string, en: string) => (locale === "da" ? da : en);
 
-  const { data: expiry, isLoading: loadingExpiry } = useContractExpiryReport();
-  const { data: segData, isLoading: loadingSeg } = useSegmentsReport();
+  const {
+    data: expiry,
+    isLoading: loadingExpiry,
+    isError: expiryError,
+    error: expiryErr,
+    refetch: refetchExpiry,
+  } = useContractExpiryReport();
+  const {
+    data: segData,
+    isLoading: loadingSeg,
+    isError: segError,
+    error: segErr,
+    refetch: refetchSeg,
+  } = useSegmentsReport();
 
   const totals = expiry?.totals;
   const chartData = (expiry?.buckets ?? []).map((b) => ({
@@ -112,6 +125,10 @@ export default function ReportsPage() {
             </h2>
             {loadingExpiry ? (
               <div className="h-[240px] animate-pulse bg-muted/50 rounded-lg" />
+            ) : expiryError ? (
+              // Without this branch a failed request fell through to the empty
+              // state and told the user there were no contracts.
+              <QueryError error={expiryErr} onRetry={() => refetchExpiry()} />
             ) : chartData.every((d) => d.count === 0) ? (
               <p className="text-sm text-muted-foreground py-16 text-center">
                 {tr("Ingen kontrakter at vise.", "No contracts to show.")}
@@ -156,6 +173,8 @@ export default function ReportsPage() {
             </h2>
             {loadingSeg ? (
               <div className="h-24 animate-pulse bg-muted/50 rounded-lg" />
+            ) : segError ? (
+              <QueryError error={segErr} onRetry={() => refetchSeg()} />
             ) : segments.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">
                 {tr(

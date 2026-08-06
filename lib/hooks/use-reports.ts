@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { fetchJson } from "@/lib/api/fetch-json";
+import { qk } from "@/lib/hooks/query-keys";
 
 export interface ExpiryBucket {
   key: string;
@@ -23,24 +25,16 @@ export interface SegmentReportRow {
 
 export function useContractExpiryReport() {
   return useQuery<ContractExpiryReport>({
-    queryKey: ["report-contract-expiry"],
-    queryFn: async () => {
-      const res = await fetch("/api/reports/contract-expiry");
-      if (!res.ok) throw new Error("Failed to load contract report");
-      return res.json();
-    },
+    queryKey: qk.reportContractExpiry(),
+    queryFn: () => fetchJson("/api/reports/contract-expiry"),
     staleTime: 60_000,
   });
 }
 
 export function useSegmentsReport() {
   return useQuery<{ segments: SegmentReportRow[] }>({
-    queryKey: ["report-segments"],
-    queryFn: async () => {
-      const res = await fetch("/api/reports/segments");
-      if (!res.ok) throw new Error("Failed to load segment report");
-      return res.json();
-    },
+    queryKey: qk.reportSegments(),
+    queryFn: () => fetchJson("/api/reports/segments"),
     staleTime: 60_000,
   });
 }

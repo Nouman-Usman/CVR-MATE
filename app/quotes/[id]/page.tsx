@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
 import { formatOre, formatDate } from "@/lib/format";
 import {
   useQuote,
@@ -23,24 +25,29 @@ import {
   useDeleteQuote,
 } from "@/lib/hooks/use-quotes";
 import { generateQuotePdf } from "@/lib/quotes/pdf";
-import { QUOTE_STATUS_STYLE } from "../page";
+import { StatusBadge } from "@/components/crm/StatusBadge";
+import { ConfirmDialog } from "@/components/crm/ConfirmDialog";
+import { ListSkeleton, QueryError, NotFoundState } from "@/components/crm/QueryState";
 
 export default function QuoteDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
   const { locale } = useLanguage();
-  const tr = (da: string, en: string) => (locale === "da" ? da : en);
+  const { tr } = useTr();
+  const errorMessage = useApiErrorMessage();
 
-  const { data, isLoading } = useQuote(id);
+  const { data, isLoading, isError, error, refetch } = useQuote(id);
   const status = useQuoteStatus(id);
   const convert = useConvertQuote(id);
   const del = useDeleteQuote();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const quote = data?.quote;
   const lines = data?.lines ?? [];
   const company = data?.company ?? null;
   const busy = status.isPending || convert.isPending || del.isPending;
+  const onError = (e: unknown) => toast.error(errorMessage(e));
 
   async function downloadPdf() {
     if (!quote) return;
@@ -81,8 +88,20 @@ export default function QuoteDetailPage() {
           {tr("Tilbud", "Quotes")}
         </Link>
 
-        {isLoading || !quote ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">{tr("Indlæser…", "Loading…")}</p>
+        {isLoading ? (
+          <ListSkeleton rows={4} />
+        ) : isError ? (
+          <QueryError error={error} onRetry={() => refetch()} />
+        ) : !quote ? (
+          // Previously `isLoading || !quote` showed a spinner forever on a 404.
+          <NotFoundState
+            title={tr("Tilbuddet findes ikke.", "This quote does not exist.")}
+            action={
+              <Link href="/quotes" className="text-sm font-semibold text-primary hover:underline">
+                {tr("Tilbage til tilbud", "Back to quotes")}
+              </Link>
+            }
+          />
         ) : (
           <>
             {/* Header */}
@@ -90,14 +109,7 @@ export default function QuoteDetailPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-bold text-foreground">{quote.number}</h1>
-                  <span
-                    className={
-                      "text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full " +
-                      (QUOTE_STATUS_STYLE[quote.status] ?? QUOTE_STATUS_STYLE.draft)
-                    }
-                  >
-                    {quote.status}
-                  </span>
+                  <StatusBadge kind="quote" status={quote.status} />
                 </div>
                 {company && (
                   <Link href={`/company/${company.vat}`} className="text-sm text-muted-foreground hover:text-primary">
@@ -118,12 +130,12 @@ export default function QuoteDetailPage() {
                 {tr("PDF", "PDF")}
               </button>
               {quote.status === "draft" && (
-                <ActionBtn onClick={() => status.mutate("send", { onError: (e) => toast.error((e as Error).message) })} busy={busy} icon={Send} label={tr("Send", "Send")} primary />
+                <ActionBtn onClick={() => status.mutate("send", { onError })} busy={busy} icon={Send} label={tr("Send", "Send")} primary />
               )}
               {quote.status === "sent" && (
                 <>
-                  <ActionBtn onClick={() => status.mutate("accept", { onError: (e) => toast.error((e as Error).message) })} busy={busy} icon={Check} label={tr("Accepter", "Accept")} primary />
-                  <ActionBtn onClick={() => status.mutate("reject", { onError: (e) => toast.error((e as Error).message) })} busy={busy} icon={X} label={tr("Afvis", "Reject")} />
+                  <ActionBtn onClick={() => status.mutate("accept", { onError })} busy={busy} icon={Check} label={tr("Accepter", "Accept")} primary />
+                  <ActionBtn onClick={() => status.mutate("reject", { onError })} busy={busy} icon={X} label={tr("Afvis", "Reject")} />
                 </>
               )}
               {quote.status === "accepted" && (
@@ -134,7 +146,7 @@ export default function QuoteDetailPage() {
                         toast.success(tr("Ordre oprettet", "Order created"));
                         router.push(`/orders/${res.order.id}`);
                       },
-                      onError: (e) => toast.error((e as Error).message),
+                      onError,
                     })
                   }
                   busy={busy}
@@ -151,23 +163,33 @@ export default function QuoteDetailPage() {
               )}
               {quote.status !== "converted" && (
                 <button
-                  onClick={() =>
-                    del.mutate(quote.id, {
-                      onSuccess: () => {
-                        toast.success(tr("Slettet", "Deleted"));
-                        router.push("/quotes");
-                      },
-                      onError: (e) => toast.error((e as Error).message),
-                    })
-                  }
+                  onClick={() => setConfirmDelete(true)}
                   disabled={busy}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-50 ml-auto"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-50 ml-auto"
                 >
                   <Trash2 className="size-4" />
                   {tr("Slet", "Delete")}
                 </button>
               )}
             </div>
+
+            <ConfirmDialog
+              open={confirmDelete}
+              onOpenChange={setConfirmDelete}
+              title={tr("Slet tilbud?", "Delete quote?")}
+              name={`${quote.number}${company ? ` · ${company.name}` : ""}`}
+              description={tr("Dette kan ikke fortrydes.", "This cannot be undone.")}
+              isPending={del.isPending}
+              onConfirm={() =>
+                del.mutate(quote.id, {
+                  onSuccess: () => {
+                    toast.success(tr("Slettet", "Deleted"));
+                    router.push("/quotes");
+                  },
+                  onError,
+                })
+              }
+            />
 
             {/* Lines */}
             <div className="rounded-xl border border-border overflow-hidden">

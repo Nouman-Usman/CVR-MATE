@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, jsonRequest } from "@/lib/api/fetch-json";
+import { qk, invalidate, crmInvalidations } from "@/lib/hooks/query-keys";
 
 export interface Contract {
   id: string;
@@ -33,17 +35,11 @@ export interface CreateContractInput {
   notes?: string;
 }
 
-const key = (vat: string) => ["company-contracts", vat] as const;
-
 export function useCompanyContracts(vat: string) {
   return useQuery<{ contracts: Contract[]; total: number }>({
-    queryKey: key(vat),
+    queryKey: qk.companyContracts(vat),
     enabled: !!vat,
-    queryFn: async () => {
-      const res = await fetch(`/api/companies/${vat}/contracts`);
-      if (!res.ok) throw new Error("Failed to fetch contracts");
-      return res.json();
-    },
+    queryFn: () => fetchJson(`/api/companies/${vat}/contracts`),
     staleTime: 60_000,
   });
 }
@@ -51,37 +47,20 @@ export function useCompanyContracts(vat: string) {
 export function useCreateContract(vat: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CreateContractInput) => {
-      const res = await fetch(`/api/companies/${vat}/contracts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create contract");
-      return data;
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: key(vat) });
-      qc.invalidateQueries({ queryKey: ["company-activity", vat] });
-      qc.invalidateQueries({ queryKey: ["report-contract-expiry"] });
-    },
+    mutationFn: (body: CreateContractInput) =>
+      fetchJson<{ contract: Contract }>(
+        `/api/companies/${vat}/contracts`,
+        jsonRequest("POST", body)
+      ),
+    onSettled: () => invalidate(qc, crmInvalidations.contractChanged(vat)),
   });
 }
 
 export function useDeleteContract(vat: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/contracts/${id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to delete contract");
-      return data;
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: key(vat) });
-      qc.invalidateQueries({ queryKey: ["company-activity", vat] });
-      qc.invalidateQueries({ queryKey: ["report-contract-expiry"] });
-    },
+    mutationFn: (id: string) =>
+      fetchJson<{ message: string }>(`/api/contracts/${id}`, jsonRequest("DELETE")),
+    onSettled: () => invalidate(qc, crmInvalidations.contractChanged(vat)),
   });
 }

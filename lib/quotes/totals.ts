@@ -37,8 +37,11 @@ function clamp(n: number, min: number, max: number): number {
 export function computeLine(input: LineInput): LineTotals {
   const qty = Number.isFinite(input.quantity) ? input.quantity : 0;
   const unit = Math.round(input.unitPrice) || 0;
+  // Both bounds must match `percent` in lib/validation/crm.ts. When the preview
+  // clamps wider than the schema, the builder renders a total the server then
+  // rejects with a 400.
   const discountPct = clamp(input.discountPct, 0, 100);
-  const vatRate = Math.max(0, Number.isFinite(input.vatRate) ? input.vatRate : 0);
+  const vatRate = clamp(input.vatRate, 0, 100);
 
   const gross = Math.round(qty * unit);
   const lineDiscount = Math.round(gross * (discountPct / 100));

@@ -9,12 +9,12 @@ import {
   StickyNote,
   MessagesSquare,
   Flag,
-  Loader2,
   Inbox,
   ArrowRight,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
 import { formatDate } from "@/lib/format";
 import { useInteractionsFeed } from "@/lib/hooks/use-interactions-feed";
 
@@ -46,7 +46,7 @@ function typeLabel(type: string, tr: (da: string, en: string) => string): string
 export default function InteractionsFeedPage() {
   const { locale } = useLanguage();
   const tr = (da: string, en: string) => (locale === "da" ? da : en);
-  const { data, isLoading, error } = useInteractionsFeed();
+  const { data, isLoading, isError, error, refetch } = useInteractionsFeed();
 
   const items = data?.interactions ?? [];
 
@@ -70,22 +70,24 @@ export default function InteractionsFeedPage() {
           </div>
         </div>
 
-        {error && <p className="text-sm text-rose-600">{(error as Error).message}</p>}
-
         {isLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" />
-          </div>
+          <ListSkeleton rows={5} />
+        ) : isError ? (
+          <QueryError error={error} onRetry={() => refetch()} />
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
-            <Inbox className="size-8 opacity-40" />
-            <p className="text-sm">
-              {tr(
-                "Ingen interaktioner endnu. Log den første fra en virksomhedsprofil.",
-                "No interactions yet. Log your first from a company profile."
-              )}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Inbox className="size-6 text-muted-foreground" />}
+            title={tr("Ingen interaktioner endnu.", "No interactions yet.")}
+            description={tr(
+              "Log møder, opkald og noter fra en virksomhedsprofil — næste skridt bliver til en opgave.",
+              "Log meetings, calls and notes from a company profile — next steps become tasks."
+            )}
+            action={
+              <Link href="/records" className="text-sm font-semibold text-primary hover:underline">
+                {tr("Find en virksomhed", "Find a company")}
+              </Link>
+            }
+          />
         ) : (
           <div className="space-y-3">
             {items.map((i) => {
@@ -141,7 +143,7 @@ export default function InteractionsFeedPage() {
                     <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 rounded-md px-2 py-1 mt-2 inline-flex items-center gap-1">
                       <Flag className="size-3" />
                       {tr("Næste", "Next")}: {i.nextStep}
-                      {i.nextStepAt ? ` · ${i.nextStepAt}` : ""}
+                      {i.nextStepAt ? ` · ${formatDate(i.nextStepAt, locale)}` : ""}
                     </p>
                   )}
                 </div>

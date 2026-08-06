@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, jsonRequest } from "@/lib/api/fetch-json";
+import { qk, invalidate, crmInvalidations } from "@/lib/hooks/query-keys";
 
 export interface Segment {
   id: string;
@@ -17,16 +19,10 @@ export interface CompanySegment {
   color: string;
 }
 
-const REPORT_KEYS = [["segments"], ["report-segments"]] as const;
-
 export function useSegments() {
   return useQuery<{ segments: Segment[] }>({
-    queryKey: ["segments"],
-    queryFn: async () => {
-      const res = await fetch("/api/segments");
-      if (!res.ok) throw new Error("Failed to fetch segments");
-      return res.json();
-    },
+    queryKey: qk.segments(),
+    queryFn: () => fetchJson("/api/segments"),
     staleTime: 60_000,
   });
 }
@@ -34,42 +30,26 @@ export function useSegments() {
 export function useCreateSegment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { name: string; color?: string; description?: string }) => {
-      const res = await fetch("/api/segments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create segment");
-      return data;
-    },
-    onSettled: () => REPORT_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k })),
+    mutationFn: (body: { name: string; color?: string; description?: string }) =>
+      fetchJson<{ segment: Segment }>("/api/segments", jsonRequest("POST", body)),
+    onSettled: () => invalidate(qc, crmInvalidations.segmentChanged()),
   });
 }
 
 export function useDeleteSegment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/segments/${id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to delete segment");
-      return data;
-    },
-    onSettled: () => REPORT_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k })),
+    mutationFn: (id: string) =>
+      fetchJson<{ message: string }>(`/api/segments/${id}`, jsonRequest("DELETE")),
+    onSettled: () => invalidate(qc, crmInvalidations.segmentChanged()),
   });
 }
 
 export function useCompanySegments(vat: string) {
   return useQuery<{ segments: CompanySegment[] }>({
-    queryKey: ["company-segments", vat],
+    queryKey: qk.companySegments(vat),
     enabled: !!vat,
-    queryFn: async () => {
-      const res = await fetch(`/api/companies/${vat}/segments`);
-      if (!res.ok) throw new Error("Failed to fetch company segments");
-      return res.json();
-    },
+    queryFn: () => fetchJson(`/api/companies/${vat}/segments`),
     staleTime: 60_000,
   });
 }
@@ -77,37 +57,23 @@ export function useCompanySegments(vat: string) {
 export function useAssignSegment(vat: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (segmentId: string) => {
-      const res = await fetch(`/api/companies/${vat}/segments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ segmentId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to assign segment");
-      return data;
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["company-segments", vat] });
-      REPORT_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k }));
-    },
+    mutationFn: (segmentId: string) =>
+      fetchJson<{ ok: true }>(
+        `/api/companies/${vat}/segments`,
+        jsonRequest("POST", { segmentId })
+      ),
+    onSettled: () => invalidate(qc, crmInvalidations.segmentChanged(vat)),
   });
 }
 
 export function useUnassignSegment(vat: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (segmentId: string) => {
-      const res = await fetch(`/api/companies/${vat}/segments?segmentId=${segmentId}`, {
-        method: "DELETE",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to remove segment");
-      return data;
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["company-segments", vat] });
-      REPORT_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k }));
-    },
+    mutationFn: (segmentId: string) =>
+      fetchJson<{ ok: true }>(
+        `/api/companies/${vat}/segments?segmentId=${segmentId}`,
+        jsonRequest("DELETE")
+      ),
+    onSettled: () => invalidate(qc, crmInvalidations.segmentChanged(vat)),
   });
 }

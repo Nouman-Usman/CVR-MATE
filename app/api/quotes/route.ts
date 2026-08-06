@@ -3,7 +3,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { quote, quoteLine, company, deal } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
-import { resolveCompanyIdByVat } from "@/lib/crm/company-resolver";
+import { resolveCompanyIdByVat, companyVatById } from "@/lib/crm/company-resolver";
 import { parseBody, quoteCreateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity/log";
@@ -80,10 +80,13 @@ export async function POST(req: NextRequest) {
       if (!ok) return NextResponse.json({ error: "Deal not found" }, { status: 400 });
     }
 
-    const number = await nextDocumentNumber(organizationId, "quote");
     const { lineRows, totals } = buildDocument(input.lines);
 
     const created = await db.transaction(async (tx) => {
+      // Allocated inside the transaction: a failed insert must not burn a
+      // document number and leave a permanent gap in the Q- sequence.
+      const number = await nextDocumentNumber(organizationId, "quote", tx);
+
       const [q] = await tx
         .insert(quote)
         .values({
@@ -116,10 +119,13 @@ export async function POST(req: NextRequest) {
       entityType: "quote",
       entityId: created.id,
       action: "created",
-      metadata: { companyId, number, total: created.total },
+      metadata: { companyId, number: created.number, total: created.total },
     });
 
-    return NextResponse.json({ quote: created }, { status: 201 });
+    return NextResponse.json(
+      { quote: created, companyVat: await companyVatById(created.companyId) },
+      { status: 201 }
+    );
   } catch (err) {
     return crmErrorResponse(err);
   }

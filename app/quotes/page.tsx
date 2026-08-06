@@ -1,25 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { FileText, Plus, ArrowRight, Inbox } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useTr } from "@/lib/i18n/tr";
 import { formatOre, formatDate } from "@/lib/format";
 import { useQuotes } from "@/lib/hooks/use-quotes";
-
-export const QUOTE_STATUS_STYLE: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  sent: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  accepted: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  rejected: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-  expired: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  converted: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-};
+import { StatusBadge } from "@/components/crm/StatusBadge";
+import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
+import { statusLabel, statusValues } from "@/lib/crm/status";
 
 export default function QuotesPage() {
   const { locale } = useLanguage();
-  const tr = (da: string, en: string) => (locale === "da" ? da : en);
-  const { data, isLoading } = useQuotes();
+  const { tr } = useTr();
+  const [status, setStatus] = useState<string | undefined>(undefined);
+  // useQuotes has always accepted a status filter; nothing ever passed one.
+  const { data, isLoading, isError, error, refetch } = useQuotes(status);
   const quotes = data?.quotes ?? [];
 
   return (
@@ -46,13 +44,54 @@ export default function QuotesPage() {
           </Link>
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setStatus(undefined)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              status === undefined
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            {tr("Alle", "All")}
+          </button>
+          {statusValues("quote").map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatus(s)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                status === s
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+              }`}
+            >
+              {statusLabel("quote", s, locale)}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">{tr("Indlæser…", "Loading…")}</p>
+          <ListSkeleton rows={5} />
+        ) : isError ? (
+          <QueryError error={error} onRetry={() => refetch()} />
         ) : quotes.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
-            <Inbox className="size-8 opacity-40" />
-            <p className="text-sm">{tr("Ingen tilbud endnu.", "No quotes yet.")}</p>
-          </div>
+          <EmptyState
+            icon={<Inbox className="size-6 text-muted-foreground" />}
+            title={status ? tr("Ingen tilbud med denne status.", "No quotes with this status.") : tr("Ingen tilbud endnu.", "No quotes yet.")}
+            description={tr(
+              "Opret et tilbud med linjer, rabat og moms — og send det til kunden.",
+              "Build a quote with line items, discounts and VAT — then send it to the customer."
+            )}
+            action={
+              <Link
+                href="/quotes/new"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90"
+              >
+                <Plus className="size-4" />
+                {tr("Nyt tilbud", "New quote")}
+              </Link>
+            }
+          />
         ) : (
           <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
             {quotes.map((q) => (
@@ -64,14 +103,7 @@ export default function QuotesPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-foreground">{q.number}</span>
-                    <span
-                      className={
-                        "text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full " +
-                        (QUOTE_STATUS_STYLE[q.status] ?? QUOTE_STATUS_STYLE.draft)
-                      }
-                    >
-                      {q.status}
-                    </span>
+                    <StatusBadge kind="quote" status={q.status} />
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {q.companyName || `CVR ${q.companyVat}`}

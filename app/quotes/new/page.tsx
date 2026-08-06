@@ -8,6 +8,12 @@ import DashboardLayout from "@/components/dashboard-layout";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { formatOre } from "@/lib/format";
 import { computeDoc } from "@/lib/quotes/totals";
+import {
+  parseKronerToOre,
+  parseQuantity,
+  parsePercent,
+  oreToInputString,
+} from "@/lib/money/parse";
 import { useSuggestions } from "@/lib/hooks/use-suggestions";
 import { useProducts } from "@/lib/hooks/use-products";
 import { useCreateQuote } from "@/lib/hooks/use-quotes";
@@ -30,9 +36,33 @@ const emptyRow = (): Row => ({
   vatRate: "25",
 });
 
-function dkkToOre(s: string): number {
-  const n = parseFloat(s.replace(/\s/g, "").replace(",", "."));
-  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+interface ParsedRow {
+  quantity: number | null;
+  unitPrice: number | null;
+  discountPct: number | null;
+  vatRate: number | null;
+}
+
+/**
+ * Every numeric field parsed, with `null` meaning "the user typed something we
+ * cannot read". Nulls must block the save — coercing them to 0 produces a
+ * zero-priced line that looks deliberate and reaches the customer.
+ */
+function parseRow(r: Row): ParsedRow {
+  return {
+    quantity: parseQuantity(r.qty),
+    unitPrice: parseKronerToOre(r.price),
+    discountPct: parsePercent(r.discountPct),
+    vatRate: parsePercent(r.vatRate),
+  };
+}
+
+function firstInvalidField(p: ParsedRow): string | null {
+  if (p.quantity === null || p.quantity <= 0) return "qty";
+  if (p.unitPrice === null) return "price";
+  if (p.discountPct === null) return "discount";
+  if (p.vatRate === null) return "vat";
+  return null;
 }
 
 const inputCls =
@@ -60,16 +90,25 @@ export default function NewQuotePage() {
   }, [query]);
   const { data: suggestions, isFetching } = useSuggestions(debounced);
 
+  // Preview only sums the lines that currently parse, so a half-typed price
+  // never silently contributes 0 to a total the user is reading.
   const totals = useMemo(() => {
-    return computeDoc(
-      rows.map((r) => ({
-        quantity: Number(r.qty) || 0,
-        unitPrice: dkkToOre(r.price),
-        discountPct: Number(r.discountPct) || 0,
-        vatRate: Number(r.vatRate) || 0,
-      }))
-    ).totals;
+    const valid = rows
+      .map(parseRow)
+      .filter(
+        (p): p is { quantity: number; unitPrice: number; discountPct: number; vatRate: number } =>
+          firstInvalidField(p) === null
+      );
+    return computeDoc(valid).totals;
   }, [rows]);
+
+  const invalidRows = useMemo(
+    () =>
+      rows
+        .map((r, i) => ({ i, r, field: firstInvalidField(parseRow(r)) }))
+        .filter((x) => x.r.description.trim() && x.field),
+    [rows]
+  );
 
   function setRow(i: number, patch: Partial<Row>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -83,7 +122,7 @@ export default function NewQuotePage() {
     setRow(i, {
       productId,
       description: p.name,
-      price: (p.unitPrice / 100).toString(),
+      price: oreToInputString(p.unitPrice, locale === "da" ? "da" : "en"),
       vatRate: p.vatRate,
     });
   }
@@ -93,16 +132,37 @@ export default function NewQuotePage() {
       toast.error(tr("Vælg en virksomhed", "Select a company"));
       return;
     }
+
+    const FIELD_LABELS: Record<string, string> = {
+      qty: tr("antal", "quantity"),
+      price: tr("pris", "price"),
+      discount: tr("rabat", "discount"),
+      vat: tr("moms", "VAT"),
+    };
+    if (invalidRows.length > 0) {
+      const { i, field } = invalidRows[0];
+      toast.error(
+        tr(
+          `Linje ${i + 1}: ugyldig ${FIELD_LABELS[field!]}`,
+          `Line ${i + 1}: invalid ${FIELD_LABELS[field!]}`
+        )
+      );
+      return;
+    }
+
     const lines = rows
       .filter((r) => r.description.trim())
-      .map((r) => ({
-        productId: r.productId || undefined,
-        description: r.description.trim(),
-        quantity: Number(r.qty) || 0,
-        unitPrice: dkkToOre(r.price),
-        discountPct: Number(r.discountPct) || 0,
-        vatRate: Number(r.vatRate) || 25,
-      }));
+      .map((r) => {
+        const p = parseRow(r);
+        return {
+          productId: r.productId || undefined,
+          description: r.description.trim(),
+          quantity: p.quantity as number,
+          unitPrice: p.unitPrice as number,
+          discountPct: p.discountPct as number,
+          vatRate: p.vatRate as number,
+        };
+      });
     if (lines.length === 0) {
       toast.error(tr("Tilføj mindst én linje", "Add at least one line"));
       return;

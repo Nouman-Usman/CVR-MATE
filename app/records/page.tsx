@@ -12,23 +12,16 @@ import {
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Input } from "@/components/ui/input";
-import { useLanguage } from "@/lib/i18n/language-context";
+import { useTr } from "@/lib/i18n/tr";
+import { StatusBadge } from "@/components/crm/StatusBadge";
+import { QueryError, EmptyState } from "@/components/crm/QueryState";
 import {
   useRecordsSearch,
   type RecordsSearchMode,
 } from "@/lib/hooks/use-records-search";
 
-const STATUS_STYLES: Record<string, string> = {
-  prospect: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  lead: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  qualified: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-  customer: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  churned: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-};
-
 export default function RecordsPage() {
-  const { locale } = useLanguage();
-  const tr = (da: string, en: string) => (locale === "da" ? da : en);
+  const { tr } = useTr();
 
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -38,7 +31,7 @@ export default function RecordsPage() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data, isFetching, error } = useRecordsSearch(debounced);
+  const { data, isFetching, isError, error, refetch } = useRecordsSearch(debounced);
 
   const hasResults = !!(data && (data.companies.length || data.contacts.length));
   const active = debounced.length >= 2;
@@ -85,27 +78,34 @@ export default function RecordsPage() {
           </p>
         )}
 
-        {error && (
-          <p className="text-sm text-rose-600">{(error as Error).message}</p>
-        )}
+        {isError && <QueryError error={error} onRetry={() => refetch()} />}
 
         {/* Empty state */}
         {!active && (
-          <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
-            <Search className="size-8 opacity-40" />
-            <p className="text-sm">
-              {tr("Skriv mindst 2 tegn for at søge.", "Type at least 2 characters to search.")}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Search className="size-6 text-muted-foreground" />}
+            title={tr("Skriv mindst 2 tegn for at søge.", "Type at least 2 characters to search.")}
+            description={tr(
+              "Søg i dine egne records: navn, CVR, e-mail eller telefon.",
+              "Search your own records: name, CVR, email or phone."
+            )}
+          />
         )}
 
-        {active && data && !hasResults && !isFetching && (
-          <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
-            <SearchX className="size-8 opacity-40" />
-            <p className="text-sm">
-              {tr("Ingen resultater i dine records.", "No results in your records.")}
-            </p>
-          </div>
+        {active && data && !hasResults && !isFetching && !isError && (
+          <EmptyState
+            icon={<SearchX className="size-6 text-muted-foreground" />}
+            title={tr("Ingen resultater i dine records.", "No results in your records.")}
+            description={tr(
+              "Prøv virksomhedssøgningen for at finde nye virksomheder.",
+              "Try company search to find new companies."
+            )}
+            action={
+              <Link href="/search" className="text-sm font-semibold text-primary hover:underline">
+                {tr("Søg i CVR-registret", "Search the CVR registry")}
+              </Link>
+            }
+          />
         )}
 
         {/* Companies */}
@@ -132,13 +132,7 @@ export default function RecordsPage() {
                     </p>
                   </div>
                   {c.status ? (
-                    <span
-                      className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                        STATUS_STYLES[c.status] ?? STATUS_STYLES.prospect
-                      }`}
-                    >
-                      {c.status}
-                    </span>
+                    <StatusBadge kind="workspace" status={c.status} />
                   ) : c.saved ? (
                     <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                       {tr("Gemt", "Saved")}
