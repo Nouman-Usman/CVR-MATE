@@ -49,6 +49,13 @@ export interface Quote {
   terms: string | null;
   notes: string | null;
   convertedOrderId: string | null;
+  /** Frozen document as sent; null until the quote is sent. */
+  snapshot: unknown;
+  /** Capability token for the public customer page; null until sent. */
+  publicToken: string | null;
+  sentAt: string | null;
+  acceptedAt: string | null;
+  rejectedAt: string | null;
   createdAt: string;
 }
 
@@ -136,6 +143,24 @@ export function useConvertQuote(id: string) {
         jsonRequest("POST")
       ),
     onSettled: (data) => invalidate(qc, crmInvalidations.quoteConverted(id, data?.companyVat)),
+  });
+}
+
+export interface SendQuoteResult {
+  quote: Quote;
+  quoteUrl: string;
+  /** False when the document was sent but delivery failed — surface it. */
+  emailed: boolean;
+  emailError: string | null;
+  companyVat?: string;
+}
+
+export function useSendQuote(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { to: string; message?: string }) =>
+      fetchJson<SendQuoteResult>(`/api/quotes/${id}/send`, jsonRequest("POST", body)),
+    onSettled: (data) => invalidate(qc, crmInvalidations.quoteUpdated(id, data?.companyVat)),
   });
 }
 

@@ -365,8 +365,11 @@ export const quoteUpdateSchema = z
   .refine((o) => notBefore(o.issueDate, o.validUntil), validUntilAfterIssue);
 export type QuoteUpdateInput = z.infer<typeof quoteUpdateSchema>;
 
+// "send" deliberately absent: sending must go through POST /api/quotes/[id]/send,
+// which also freezes the snapshot and mints the public token. Setting status to
+// 'sent' here would leave a quote the customer's link cannot resolve.
 export const quoteStatusSchema = z.object({
-  action: z.enum(["send", "accept", "reject"]),
+  action: z.enum(["accept", "reject"]),
 });
 export type QuoteStatusInput = z.infer<typeof quoteStatusSchema>;
 

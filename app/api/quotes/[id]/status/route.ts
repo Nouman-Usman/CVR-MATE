@@ -17,12 +17,6 @@ async function loadOwnedQuote(id: string, organizationId: string) {
 
 /** The legal transitions, and the timestamp each one stamps. */
 const TRANSITIONS = {
-  send: {
-    from: "draft",
-    to: "sent",
-    stamp: "sentAt",
-    error: "Only a draft quote can be sent.",
-  },
   accept: {
     from: "sent",
     to: "accepted",
@@ -38,7 +32,11 @@ const TRANSITIONS = {
 } as const;
 
 /**
- * POST /api/quotes/[id]/status  { action: "send" | "accept" | "reject" }
+ * POST /api/quotes/[id]/status  { action: "accept" | "reject" }
+ *
+ * The seller's manual override, for when a customer answers by phone or email
+ * instead of using their link. Sending lives in the dedicated /send route
+ * because it must also freeze the snapshot and mint the public token.
  *
  * Transitions are conditional writes (`WHERE status = $from`), so concurrent
  * accept+reject cannot both land — the loser gets a 409 rather than producing a

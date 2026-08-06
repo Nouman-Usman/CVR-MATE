@@ -1,60 +1,91 @@
 "use client";
 
 import { formatOre } from "@/lib/format";
-
-export interface QuotePdfLine {
-  description: string;
-  quantity: string | number;
-  unitPrice: number; // øre
-  discountPct: string | number;
-  vatRate: string | number;
-  lineSubtotal: number; // øre
-}
-
-export interface QuotePdfData {
-  number: string;
-  companyName: string;
-  companyVat: string;
-  issueDate: string | null;
-  validUntil: string | null;
-  subtotal: number;
-  discountTotal: number;
-  vatTotal: number;
-  total: number;
-  terms: string | null;
-  lines: QuotePdfLine[];
-}
+import type { QuoteSnapshot } from "./snapshot";
 
 /**
- * Generate + download a quote PDF entirely in the browser (jsPDF + autotable),
- * mirroring the exports-page pattern. Money is formatted from øre via formatOre.
+ * Render a quote PDF in the browser (jsPDF + autotable) from a snapshot.
+ *
+ * Taking the snapshot rather than live rows is the point: a sent quote's PDF
+ * must keep showing what the customer was sent, even after the price list or
+ * the seller's own details change. Drafts have no snapshot yet, so the caller
+ * builds a provisional one — same shape, same renderer, no second code path.
  */
-export async function generateQuotePdf(data: QuotePdfData, locale: string) {
+
+const MARGIN = 14;
+const BOTTOM_LIMIT_MM = 275; // A4 is 297mm tall; leave a footer margin.
+
+export async function generateQuotePdf(snap: QuoteSnapshot, locale: string) {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const money = (ore: number) => formatOre(ore, locale);
   const da = locale === "da";
+  const rightX = doc.internal.pageSize.getWidth() - MARGIN;
+
+  /** Move down, starting a new page when the content would run off it. */
+  function advance(y: number, delta: number): number {
+    if (y + delta > BOTTOM_LIMIT_MM) {
+      doc.addPage();
+      return 20;
+    }
+    return y + delta;
+  }
 
   doc.setFontSize(20);
-  doc.text(da ? "Tilbud" : "Quote", 14, 20);
+  doc.text(da ? "Tilbud" : "Quote", MARGIN, 20);
   doc.setFontSize(11);
-  doc.text(data.number, 14, 27);
+  doc.text(snap.number, MARGIN, 27);
 
+  // ── Seller (issuer) — right column ────────────────────────────────────────
+  // A commercial quote that does not name its issuer is not a valid offer; the
+  // previous version printed only the customer.
   doc.setFontSize(9);
-  doc.text(`${data.companyName} · CVR ${data.companyVat}`, 14, 36);
-  let y = 41;
-  if (data.issueDate) {
-    doc.text(`${da ? "Dato" : "Date"}: ${data.issueDate}`, 14, y);
+  let sy = 20;
+  const sellerLines = [
+    snap.seller.name,
+    snap.seller.cvr ? `CVR ${snap.seller.cvr}` : null,
+    snap.seller.address,
+    snap.seller.zipCity,
+    snap.seller.email,
+    snap.seller.phone,
+    snap.seller.website,
+  ].filter(Boolean) as string[];
+  for (const line of sellerLines) {
+    doc.text(line, rightX, sy, { align: "right" });
+    sy += 4.5;
+  }
+
+  // ── Customer — left column ────────────────────────────────────────────────
+  let y = 38;
+  doc.setFontSize(8);
+  doc.text(da ? "Til" : "To", MARGIN, y);
+  y += 4.5;
+  doc.setFontSize(9);
+  const customerLines = [
+    snap.customer.name,
+    snap.customer.cvr ? `CVR ${snap.customer.cvr}` : null,
+    snap.customer.address,
+    snap.customer.zipCity,
+    snap.customer.contactName,
+  ].filter(Boolean) as string[];
+  for (const line of customerLines) {
+    doc.text(line, MARGIN, y);
+    y += 4.5;
+  }
+
+  y += 3;
+  if (snap.issueDate) {
+    doc.text(`${da ? "Dato" : "Date"}: ${snap.issueDate}`, MARGIN, y);
     y += 5;
   }
-  if (data.validUntil) {
-    doc.text(`${da ? "Gyldig til" : "Valid until"}: ${data.validUntil}`, 14, y);
+  if (snap.validUntil) {
+    doc.text(`${da ? "Gyldig til" : "Valid until"}: ${snap.validUntil}`, MARGIN, y);
     y += 5;
   }
 
   autoTable(doc, {
-    startY: y + 3,
+    startY: Math.max(y + 3, sy + 3),
     head: [
       [
         da ? "Beskrivelse" : "Description",
@@ -65,7 +96,7 @@ export async function generateQuotePdf(data: QuotePdfData, locale: string) {
         da ? "Beløb" : "Amount",
       ],
     ],
-    body: data.lines.map((l) => [
+    body: snap.lines.map((l) => [
       l.description,
       String(l.quantity),
       money(l.unitPrice),
@@ -80,27 +111,36 @@ export async function generateQuotePdf(data: QuotePdfData, locale: string) {
       2: { halign: "right" },
       5: { halign: "right" },
     },
+    margin: { left: MARGIN, right: MARGIN },
   });
 
   const finalY =
     (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y + 20;
-  const rightX = doc.internal.pageSize.getWidth() - 14;
-  let ty = finalY + 8;
+
+  // Totals and terms used to be drawn with no page-height check, so on a long
+  // quote they were emitted below the bottom of the last page — invisible.
+  let ty = advance(finalY, 8);
   doc.setFontSize(9);
   const row = (label: string, value: string) => {
     doc.text(`${label}: ${value}`, rightX, ty, { align: "right" });
-    ty += 5;
+    ty = advance(ty, 5);
   };
-  row(da ? "Subtotal" : "Subtotal", money(data.subtotal));
-  if (data.discountTotal > 0) row(da ? "Rabat" : "Discount", money(data.discountTotal));
-  row(da ? "Moms" : "VAT", money(data.vatTotal));
+  row(da ? "Subtotal" : "Subtotal", money(snap.subtotal));
+  if (snap.discountTotal > 0) row(da ? "Rabat" : "Discount", money(snap.discountTotal));
+  row(da ? "Moms" : "VAT", money(snap.vatTotal));
+  ty = advance(ty, 2);
   doc.setFontSize(12);
-  doc.text(`${da ? "Total" : "Total"}: ${money(data.total)}`, rightX, ty + 2, { align: "right" });
+  doc.text(`${da ? "Total" : "Total"}: ${money(snap.total)}`, rightX, ty, { align: "right" });
 
-  if (data.terms) {
+  if (snap.terms) {
+    ty = advance(ty, 12);
     doc.setFontSize(8);
-    doc.text(doc.splitTextToSize(data.terms, 180), 14, ty + 14);
+    const wrapped: string[] = doc.splitTextToSize(snap.terms, 180);
+    for (const line of wrapped) {
+      doc.text(line, MARGIN, ty);
+      ty = advance(ty, 4);
+    }
   }
 
-  doc.save(`${data.number}.pdf`);
+  doc.save(`${snap.number}.pdf`);
 }

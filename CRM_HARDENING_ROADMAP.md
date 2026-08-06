@@ -33,7 +33,7 @@ Findings are referenced by code: `API-n`, `DB-n`, `UX-n`, `LIB-n`. Full traceabi
 | **1** | Correctness & authorization (P0) | 3d | ✅ **code done + verified** — migration 0035 pending apply |
 | **2** | Shared client primitives | 4d | ✅ **done + verified** — CrmTab conversion deferred to Phase 8 |
 | **3** | Quote authoring completeness | 4d | ✅ **done + verified** — interactions type/date filter deferred |
-| **4** | Close the customer loop | 6d | A customer can receive and accept a quote |
+| **4** | Close the customer loop | 6d | ✅ **done + verified** — snapshot-in-DB instead of PDF-in-bucket (see FG-4.1 note) |
 | **5** | Money unification | 2d | ✅ **done + verified** — migration 0036 applied, conversion proved exact |
 | **6** | Lifecycle & background jobs | 3d | Documents change state without a human |
 | **7** | Scale, performance, security | 4d | Survives 10k documents and a missing Redis |

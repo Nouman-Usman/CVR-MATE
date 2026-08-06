@@ -15,7 +15,9 @@ export type EmailTemplateId =
   | "card_expiring"
   | "payment_action_required"
   | "invoice_upcoming"
-  | "dispute";
+  | "dispute"
+  // Sent to an external customer, not a platform user — logs with userId null.
+  | "quote_sent";
 
 export interface SendEmailOptions {
   to: string | string[];

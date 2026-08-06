@@ -28,8 +28,10 @@ import {
   useDuplicateQuote,
 } from "@/lib/hooks/use-quotes";
 import { generateQuotePdf } from "@/lib/quotes/pdf";
+import { isRenderableSnapshot, type QuoteSnapshot } from "@/lib/quotes/snapshot";
 import { StatusBadge } from "@/components/crm/StatusBadge";
 import { ConfirmDialog } from "@/components/crm/ConfirmDialog";
+import { SendQuoteDialog } from "@/components/quotes/SendQuoteDialog";
 import { ListSkeleton, QueryError, NotFoundState } from "@/components/crm/QueryState";
 
 export default function QuoteDetailPage() {
@@ -46,6 +48,7 @@ export default function QuoteDetailPage() {
   const del = useDeleteQuote();
   const duplicate = useDuplicateQuote(id);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
 
   const quote = data?.quote;
   const lines = data?.lines ?? [];
@@ -56,29 +59,55 @@ export default function QuoteDetailPage() {
   async function downloadPdf() {
     if (!quote) return;
     try {
-      await generateQuotePdf(
-        {
-          number: quote.number,
-          companyName: company?.name ?? "",
-          companyVat: company?.vat ?? "",
-          issueDate: quote.issueDate,
-          validUntil: quote.validUntil,
-          subtotal: quote.subtotal,
-          discountTotal: quote.discountTotal,
-          vatTotal: quote.vatTotal,
-          total: quote.total,
-          terms: quote.terms,
-          lines: lines.map((l) => ({
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            discountPct: l.discountPct,
-            vatRate: l.vatRate,
-            lineSubtotal: l.lineSubtotal,
-          })),
-        },
-        locale
-      );
+      // A sent quote renders from its frozen snapshot, so the PDF always matches
+      // what the customer received. A draft has none yet, so build a provisional
+      // one of the same shape — the renderer never needs to know the difference.
+      const snap: QuoteSnapshot = isRenderableSnapshot(quote.snapshot)
+        ? quote.snapshot
+        : {
+            version: 1,
+            number: quote.number,
+            currency: quote.currency,
+            issueDate: quote.issueDate,
+            validUntil: quote.validUntil,
+            terms: quote.terms,
+            notes: quote.notes,
+            seller: {
+              name: "",
+              cvr: null,
+              address: null,
+              zipCity: null,
+              email: null,
+              phone: null,
+              website: null,
+              color: null,
+            },
+            customer: {
+              name: company?.name ?? "",
+              cvr: company?.vat ?? null,
+              address: null,
+              zipCity: null,
+              contactName: null,
+              contactEmail: null,
+            },
+            lines: lines.map((l) => ({
+              description: l.description,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              discountPct: l.discountPct,
+              vatRate: l.vatRate,
+              lineSubtotal: l.lineSubtotal,
+              lineDiscount: l.lineDiscount,
+              lineVat: l.lineVat,
+              lineTotal: l.lineTotal,
+            })),
+            subtotal: quote.subtotal,
+            discountTotal: quote.discountTotal,
+            vatTotal: quote.vatTotal,
+            total: quote.total,
+            capturedAt: new Date().toISOString(),
+          };
+      await generateQuotePdf(snap, locale);
     } catch {
       toast.error(tr("PDF fejlede", "PDF failed"));
     }
@@ -142,7 +171,7 @@ export default function QuoteDetailPage() {
                     <Pencil className="size-4" />
                     {tr("Redigér", "Edit")}
                   </Link>
-                  <ActionBtn onClick={() => status.mutate("send", { onError })} busy={busy} icon={Send} label={tr("Send", "Send")} primary />
+                  <ActionBtn onClick={() => setSendOpen(true)} busy={busy} icon={Send} label={tr("Send", "Send")} primary />
                 </>
               )}
               <ActionBtn
@@ -199,6 +228,43 @@ export default function QuoteDetailPage() {
                 </button>
               )}
             </div>
+
+            {/* The link is the customer's only way in, so it must stay
+                retrievable after the send dialog closes. */}
+            {quote.publicToken && (
+              <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-foreground">
+                  {tr("Kundelink", "Customer link")}
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    aria-label={tr("Kundelink", "Customer link")}
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/q/${quote.publicToken}`}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-border text-xs bg-background text-foreground"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(
+                        `${window.location.origin}/q/${quote.publicToken}`
+                      );
+                      toast.success(tr("Kopieret", "Copied"));
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs hover:bg-muted shrink-0"
+                  >
+                    <Copy className="size-3.5" />
+                    {tr("Kopiér", "Copy")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <SendQuoteDialog
+              quoteId={id}
+              open={sendOpen}
+              onOpenChange={setSendOpen}
+              customerName={company?.name ?? null}
+            />
 
             <ConfirmDialog
               open={confirmDelete}
