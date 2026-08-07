@@ -22,7 +22,15 @@ import {
   Sparkles,
   AlertCircle,
   Loader2,
+  BellRing,
 } from "lucide-react";
+import {
+  useFollowUps,
+  attentionByDeal,
+  attentionTone,
+  type FollowUpEntry,
+} from "@/lib/hooks/use-follow-ups";
+import { formatReason } from "@/lib/follow-up/reason";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +97,7 @@ export default function PipelinePage() {
   const { data: board, isLoading } = useBoard(activePipelineId);
   const moveDeal = useMoveDeal(activePipelineId ?? "");
   const [openDealId, setOpenDealId] = useState<string | null>(null);
+  const [onlyAttention, setOnlyAttention] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -105,6 +114,12 @@ export default function PipelinePage() {
   }
 
   const hasCrm = sub?.limits.teamFeatures ?? false;
+
+  // The board has always computed a staleness dot and done nothing with it.
+  // This is the same idea sourced from the server, where it can also account
+  // for unanswered quotes, overdue next steps and expiring contracts.
+  const { data: followUps } = useFollowUps({ enabled: hasCrm });
+  const attention = attentionByDeal(followUps?.items);
 
   return (
     <DashboardLayout>
@@ -127,6 +142,27 @@ export default function PipelinePage() {
                 onSelect={setSelectedId}
                 tr={tr}
               />
+              <Button
+                variant={onlyAttention ? "default" : "outline"}
+                size="sm"
+                onClick={() => setOnlyAttention((on) => !on)}
+                aria-pressed={onlyAttention}
+                title={tr(
+                  "Vis kun aftaler der kræver opfølgning",
+                  "Show only deals that need a follow-up"
+                )}
+              >
+                <BellRing className="size-3.5" />
+                {tr("Kræver opfølgning", "Needs attention")}
+                {attention.size > 0 && (
+                  <Badge
+                    variant={onlyAttention ? "secondary" : "outline"}
+                    className="ml-1 text-[10px] h-4.5"
+                  >
+                    {attention.size}
+                  </Badge>
+                )}
+              </Button>
               {activePipelineId && (
                 <AddDealButton pipelineId={activePipelineId} tr={tr} />
               )}
@@ -145,12 +181,19 @@ export default function PipelinePage() {
         ) : (
           <DndContext sensors={sensors} onDragEnd={onDragEnd}>
             <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 snap-x snap-mandatory sm:snap-none -mx-3 px-3 sm:mx-0 sm:px-0">
-              {board.columns.map((col) => (
+              {(onlyAttention
+                ? board.columns.map((col) => ({
+                    ...col,
+                    deals: col.deals.filter((d) => attention.has(d.id)),
+                  }))
+                : board.columns
+              ).map((col) => (
                 <Column
                   key={col.stage.id}
                   column={col}
                   locale={locale}
                   tr={tr}
+                  attention={attention}
                   onOpenDeal={setOpenDealId}
                 />
               ))}
@@ -388,11 +431,13 @@ function Column({
   column,
   locale,
   tr,
+  attention,
   onOpenDeal,
 }: {
   column: BoardColumn;
   locale: string;
   tr: (da: string, en: string) => string;
+  attention: Map<string, FollowUpEntry>;
   onOpenDeal: (dealId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.stage.id });
@@ -425,7 +470,14 @@ function Column({
         )}
       >
         {column.deals.map((d) => (
-          <DealCard key={d.id} deal={d} locale={locale} tr={tr} onOpen={() => onOpenDeal(d.id)} />
+          <DealCard
+            key={d.id}
+            deal={d}
+            locale={locale}
+            tr={tr}
+            attention={attention.get(d.id)}
+            onOpen={() => onOpenDeal(d.id)}
+          />
         ))}
         {column.deals.length === 0 && (
           <p className="text-xs text-muted-foreground/60 text-center py-6">{tr("Tom", "Empty")}</p>
@@ -439,11 +491,13 @@ function DealCard({
   deal,
   locale,
   tr,
+  attention,
   onOpen,
 }: {
   deal: BoardDeal;
   locale: string;
   tr: (da: string, en: string) => string;
+  attention?: FollowUpEntry;
   onOpen: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -453,9 +507,15 @@ function DealCard({
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
     : undefined;
-  const days = daysSince(deal.stageChangedAt);
-  // Stale-deal nudge: flag deals that haven't moved stage in a while.
-  const staleness = days == null ? null : days > 14 ? "red" : days > 7 ? "amber" : null;
+  // The colour is now decided by the server's follow-up score, which weighs an
+  // unanswered quote or a missed commitment — not just time in stage. It used
+  // to be a threshold on a client-side clock, which meant the card could only
+  // ever say "this has been sitting here", and said it to nobody.
+  const staleness = attention ? attentionTone(attention.score) : null;
+  const days = attention?.daysDelta ?? daysSince(deal.stageChangedAt);
+  const reasonText = attention
+    ? formatReason(attention.reason, locale)
+    : tr("Dage i fase", "Days in stage");
 
   return (
     <div
@@ -488,7 +548,7 @@ function DealCard({
                 "text-[10px] h-4.5",
                 staleness === "amber" && "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
               )}
-              title={tr("Dage i fase", "Days in stage")}
+              title={reasonText}
             >
               {days}d
             </Badge>

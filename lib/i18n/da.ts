@@ -24,6 +24,37 @@ const da = {
       reject: "Afvis",
     },
   },
+  followUps: {
+    title: "Opfølgninger",
+    subtitle: "Aftaler der kræver din opmærksomhed i dag.",
+    needsAttention: "Kræver opfølgning",
+    more: "+{count} mere",
+    // Rækkefølgen og nøglerne skal matche en.ts præcist — Dictionary er typet
+    // efter en.ts, så en manglende nøgle her er en typefejl.
+    reasons: {
+      staleDeal: "Ingen bevægelse i {days} dage",
+      unansweredQuote: "Tilbud {number} sendt for {days} dage siden, intet svar",
+      quoteExpiringSoon: "Tilbud {number} udløber om {days} dage",
+      quoteExpiredUnanswered: "Tilbud {number} udløb for {days} dage siden uden svar",
+      overdueNextStep: "Næste skridt {days} dage forsinket: {step}",
+      contractRenewal: "Kontrakt {title} udløber {date}",
+      contractExpired: "Kontrakt {title} udløb {date}",
+    },
+    actions: {
+      draft: "Skriv opfølgning",
+      snooze: "Udsæt",
+      dismiss: "Afvis",
+      markDone: "Markér som færdig",
+      openDeal: "Åbn aftale",
+      openQuote: "Åbn tilbud",
+      openContract: "Åbn kontrakt",
+      createDeal: "Opret aftale",
+    },
+    empty: {
+      title: "Intet at følge op på",
+      subtitle: "Alle åbne aftaler er på sporet.",
+    },
+  },
   matches: {
     title: "Dagens match",
     subtitle: "Friske leads matchet til din virksomhed – hver morgen.",

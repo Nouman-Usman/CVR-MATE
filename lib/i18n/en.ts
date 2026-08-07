@@ -24,6 +24,38 @@ const en = {
       reject: "Reject",
     },
   },
+  followUps: {
+    title: "Follow-ups",
+    subtitle: "Deals that need you today.",
+    needsAttention: "Needs attention",
+    more: "+{count} more",
+    // Reason strings are rendered from a {key, params} pair the API returns, so
+    // the same queue payload can render here and in the digest email in each
+    // recipient's own language.
+    reasons: {
+      staleDeal: "No movement for {days} days",
+      unansweredQuote: "Quote {number} sent {days} days ago, no reply",
+      quoteExpiringSoon: "Quote {number} expires in {days} days",
+      quoteExpiredUnanswered: "Quote {number} expired {days} days ago without a reply",
+      overdueNextStep: "Next step overdue by {days} days: {step}",
+      contractRenewal: "Contract {title} expires {date}",
+      contractExpired: "Contract {title} expired {date}",
+    },
+    actions: {
+      draft: "Draft follow-up",
+      snooze: "Snooze",
+      dismiss: "Dismiss",
+      markDone: "Mark done",
+      openDeal: "Open deal",
+      openQuote: "Open quote",
+      openContract: "Open contract",
+      createDeal: "Create deal",
+    },
+    empty: {
+      title: "Nothing needs chasing",
+      subtitle: "Every open deal is on track.",
+    },
+  },
   matches: {
     title: "Daily Matches",
     subtitle: "Fresh leads matched to your business, every morning.",
