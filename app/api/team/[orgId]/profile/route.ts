@@ -14,6 +14,7 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validation/crm";
 import { organizationProfileUpdateSchema } from "@/lib/validation/organization";
 
@@ -59,6 +60,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ orgId: st
   const session = await getTeamSession(req);
   if (!session) return unauthorized();
   const { orgId } = await ctx.params;
+
+  const rl = await checkRateLimit(session.user.id, "org_profile_write", 30, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
 
   try {
     await assertPermission(session.user.id, orgId, "rename_org");
@@ -113,6 +117,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ orgId: str
   const session = await getTeamSession(req);
   if (!session) return unauthorized();
   const { orgId } = await ctx.params;
+
+  const rl = await checkRateLimit(session.user.id, "org_profile_write", 30, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
 
   try {
     await assertPermission(session.user.id, orgId, "rename_org");

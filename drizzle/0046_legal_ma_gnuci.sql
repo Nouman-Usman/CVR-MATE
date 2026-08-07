@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "invitation_pending_uq" ON "invitation" USING btree ("organization_id","email") WHERE "invitation"."status" = 'pending';--> statement-breakpoint
+CREATE INDEX "invitation_status_expiry_idx" ON "invitation" USING btree ("status","expires_at");

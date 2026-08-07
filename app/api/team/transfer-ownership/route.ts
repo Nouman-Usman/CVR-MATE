@@ -11,6 +11,9 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validation/crm";
+import { transferOwnershipSchema } from "@/lib/validation/team";
 
 /**
  * POST /api/team/transfer-ownership — Transfer ownership to another member.
@@ -22,14 +25,13 @@ export async function POST(req: NextRequest) {
   const session = await getTeamSession(req);
   if (!session) return unauthorized();
 
-  const body = await req.json().catch(() => ({}));
-  const { organizationId, newOwnerId } = body as {
-    organizationId?: string;
-    newOwnerId?: string;
-  };
+  // Irreversible without the new owner's cooperation, so it is throttled hard.
+  const rl = await checkRateLimit(session.user.id, "team_transfer_ownership", 5, 3600);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
 
-  if (!organizationId) return badRequest("Organization ID is required");
-  if (!newOwnerId) return badRequest("New owner ID is required");
+  const parsed = parseBody(transferOwnershipSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return badRequest(parsed.error);
+  const { organizationId, newOwnerId } = parsed.data;
 
   // Cannot transfer to self
   if (newOwnerId === session.user.id) {

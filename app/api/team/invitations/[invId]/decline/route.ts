@@ -6,6 +6,7 @@ import { invitation } from "@/db/auth-schema";
 import { eq } from "drizzle-orm";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * POST /api/team/invitations/[invId]/decline — Decline an invitation.
@@ -22,6 +23,9 @@ export async function POST(
   if (!session) return unauthorized();
 
   const { invId } = await params;
+
+  const rl = await checkRateLimit(session.user.id, "invite_decline", 20, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
   if (!invId) return badRequest("Invitation ID is required");
 
   const inv = await db.query.invitation.findFirst({

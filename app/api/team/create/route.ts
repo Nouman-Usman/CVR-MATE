@@ -10,6 +10,7 @@ import { getCompanyByVat } from "@/lib/cvr-api";
 import { assertCanCreateOrg, TeamPermissionError, teamErrorToStatus } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validation/crm";
 import { organizationCreateSchema } from "@/lib/validation/organization";
 
@@ -29,6 +30,9 @@ import { organizationCreateSchema } from "@/lib/validation/organization";
 export async function POST(req: NextRequest) {
   const session = await getTeamSession(req);
   if (!session) return unauthorized();
+
+  const rl = await checkRateLimit(session.user.id, "team_create_org", 10, 3600);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
 
   const raw = await req.json().catch(() => ({}));
   const parsed = parseBody(organizationCreateSchema, raw);

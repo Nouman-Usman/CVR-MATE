@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -132,6 +132,17 @@ export const invitation = pgTable(
   (table) => [
     index("invitation_org_idx").on(table.organizationId),
     index("invitation_email_idx").on(table.email),
+    // One live invitation per (org, email). The invite route checks for a
+    // duplicate first, but a SELECT followed by an INSERT is not atomic: two
+    // concurrent invites to the same address both passed the check and both
+    // inserted, so the invitee got two emails and the org burned two seats.
+    // Partial, so the many accepted/expired rows never occupy the index.
+    // `email` is lowercased before insert, which is what makes this reliable.
+    uniqueIndex("invitation_pending_uq")
+      .on(table.organizationId, table.email)
+      .where(sql`${table.status} = 'pending'`),
+    // Supports the expiry sweep in /api/cron/data-cleanup.
+    index("invitation_status_expiry_idx").on(table.status, table.expiresAt),
   ]
 ).enableRLS();
 

@@ -212,6 +212,23 @@ export function useInviteMember() {
   );
 }
 
+/**
+ * Send an existing invitation again and push its expiry out.
+ *
+ * Returns `emailed` so the caller can tell a delivered invitation from one that
+ * only exists as a link — a silent failure here is what produced invitations
+ * nobody could act on.
+ */
+export function useResendInvitation() {
+  return useTeamMutation(async (invitationId: string) => {
+    const res = await fetch(`/api/team/invitations/${invitationId}/resend`, {
+      method: "POST",
+      credentials: "include",
+    });
+    return apiJson<{ ok: boolean; emailed: boolean; emailError?: string; inviteUrl: string }>(res);
+  });
+}
+
 export function useCancelInvitation() {
   return useTeamMutation(async (invId: string) => {
     const res = await fetch(`/api/team/invitations/${invId}`, {

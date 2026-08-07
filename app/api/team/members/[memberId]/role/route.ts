@@ -12,8 +12,9 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
-
-const VALID_ROLES: OrgRole[] = ["admin", "member"];
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validation/crm";
+import { changeRoleSchema } from "@/lib/validation/team";
 
 /**
  * PATCH /api/team/members/[memberId]/role — Change a member's role.
@@ -27,13 +28,14 @@ export async function PATCH(
   if (!session) return unauthorized();
 
   const { memberId } = await params;
-  const body = await req.json().catch(() => ({}));
-  const newRole = (body as { role?: string }).role as OrgRole | undefined;
-
   if (!memberId) return badRequest("Member ID is required");
-  if (!newRole || !VALID_ROLES.includes(newRole)) {
-    return badRequest("Role must be 'admin' or 'member'");
-  }
+
+  const rl = await checkRateLimit(session.user.id, "team_role_change", 30, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
+
+  const parsed = parseBody(changeRoleSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return badRequest(parsed.error);
+  const newRole = parsed.data.role as OrgRole;
 
   // Find target member
   const targetMember = await db.query.member.findFirst({

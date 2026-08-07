@@ -10,6 +10,7 @@ import {
   companyNote,
   deal,
 } from "@/db/schema";
+import { invitation } from "@/db/auth-schema";
 import { verifyCronRequest } from "@/lib/cron/verify";
 
 export const runtime = "nodejs";
@@ -116,6 +117,25 @@ export async function POST(req: NextRequest) {
       .where(and(isNotNull(deal.deletedAt), lt(deal.deletedAt, crmCutoff)))
       .returning({ id: deal.id });
     results.deals = purgedDeals.length;
+
+    /**
+     * Retire invitations nobody acted on.
+     *
+     * Nothing used to move an invitation off `pending`, so the status column
+     * disagreed with `expiresAt` forever. The invite route reconciles the one
+     * address it is about, but only when someone tries to re-invite — this
+     * keeps the whole table honest, so the members screen and the seat count
+     * agree about who is actually outstanding.
+     *
+     * A status change, not a delete: an expired invitation is evidence that
+     * someone was invited, which belongs in the audit story.
+     */
+    const expiredInvites = await db
+      .update(invitation)
+      .set({ status: "expired" })
+      .where(and(eq(invitation.status, "pending"), lt(invitation.expiresAt, new Date())))
+      .returning({ id: invitation.id });
+    results.expiredInvitations = expiredInvites.length;
 
     const total = Object.values(results).reduce((a, b) => a + b, 0);
 

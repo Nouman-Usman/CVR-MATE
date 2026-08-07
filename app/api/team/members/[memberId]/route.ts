@@ -13,6 +13,7 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * DELETE /api/team/members/[memberId] — Remove a member from the org.
@@ -26,6 +27,9 @@ export async function DELETE(
   if (!session) return unauthorized();
 
   const { memberId } = await params;
+
+  const rl = await checkRateLimit(session.user.id, "team_remove_member", 30, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
   if (!memberId) return badRequest("Member ID is required");
 
   // Find the target member

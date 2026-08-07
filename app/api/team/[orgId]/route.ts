@@ -12,6 +12,9 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest, conflict } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validation/crm";
+import { renameOrgSchema } from "@/lib/validation/team";
 
 /**
  * PATCH /api/team/[orgId] — Rename an organization.
@@ -25,10 +28,13 @@ export async function PATCH(
   if (!session) return unauthorized();
 
   const { orgId } = await params;
-  const body = await req.json().catch(() => ({}));
-  const { name } = body as { name?: string };
 
-  if (!name?.trim()) return badRequest("Organization name is required");
+  const rl = await checkRateLimit(session.user.id, "team_rename_org", 30, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
+
+  const parsed = parseBody(renameOrgSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return badRequest(parsed.error);
+  const { name } = parsed.data;
 
   try {
     await assertPermission(session.user.id, orgId, "rename_org");
@@ -78,6 +84,10 @@ export async function DELETE(
   if (!session) return unauthorized();
 
   const { orgId } = await params;
+
+  // Destroys an organization and everything cascading from it.
+  const rl = await checkRateLimit(session.user.id, "team_delete_org", 5, 3600);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
 
   try {
     await assertPermission(session.user.id, orgId, "delete_org");

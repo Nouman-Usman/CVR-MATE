@@ -11,6 +11,7 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * DELETE /api/team/invitations/[invId] — Cancel a pending invitation.
@@ -24,6 +25,9 @@ export async function DELETE(
   if (!session) return unauthorized();
 
   const { invId } = await params;
+
+  const rl = await checkRateLimit(session.user.id, "team_cancel_invite", 30, 60);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
   if (!invId) return badRequest("Invitation ID is required");
 
   const inv = await db.query.invitation.findFirst({

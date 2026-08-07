@@ -12,6 +12,9 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/validation/crm";
+import { leaveOrgSchema } from "@/lib/validation/team";
 
 /**
  * POST /api/team/leave — Leave an organization.
@@ -24,9 +27,12 @@ export async function POST(req: NextRequest) {
   const session = await getTeamSession(req);
   if (!session) return unauthorized();
 
-  const body = await req.json().catch(() => ({}));
-  const { organizationId } = body as { organizationId?: string };
-  if (!organizationId) return badRequest("Organization ID is required");
+  const rl = await checkRateLimit(session.user.id, "team_leave", 10, 3600);
+  if (!rl.allowed) return tooManyRequests(rl.resetAt);
+
+  const parsed = parseBody(leaveOrgSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return badRequest(parsed.error);
+  const { organizationId } = parsed.data;
 
   // Verify membership
   let membership;

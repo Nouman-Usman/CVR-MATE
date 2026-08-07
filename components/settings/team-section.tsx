@@ -13,6 +13,7 @@ import {
   useOrgProfile,
   useInviteMember,
   useCancelInvitation,
+  useResendInvitation,
   useRemoveMember,
   useChangeRole,
   useLeaveOrg,
@@ -146,6 +147,7 @@ export default function TeamSection() {
   // Mutations
   const inviteMember = useInviteMember();
   const cancelInvitation = useCancelInvitation();
+  const resendInvitation = useResendInvitation();
   const removeMember = useRemoveMember();
   const changeRole = useChangeRole();
   const leaveOrg = useLeaveOrg();
@@ -319,7 +321,23 @@ export default function TeamSection() {
                       inviteMember.mutate(
                         { email: inviteEmail.trim(), role: inviteRole, organizationId: org.id },
                         {
-                          onSuccess: () => { showToast(st.sent); setInviteEmail(""); },
+                          onSuccess: (data) => {
+                            // A created invitation whose email bounced is not a
+                            // success worth reporting as one — the admin needs
+                            // to know so they can resend or share the link.
+                            const res = data as { emailed?: boolean };
+                            if (res?.emailed === false) {
+                              showToast(
+                                locale === "da"
+                                  ? "Invitation oprettet, men e-mailen kunne ikke sendes — brug Send igen"
+                                  : "Invitation created, but the email could not be sent — use Resend",
+                                false
+                              );
+                            } else {
+                              showToast(st.sent);
+                            }
+                            setInviteEmail("");
+                          },
                           onError: (err) => showToast(err.message, false),
                         }
                       )
@@ -441,6 +459,37 @@ export default function TeamSection() {
                         <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0">
                           {st.pendingStatus}
                         </span>
+                        {/* Resend. Without it a transient mail failure left an
+                            invitation nobody could act on: the invite endpoint
+                            rejected every retry as a duplicate, so cancelling
+                            and starting over was the only way through. */}
+                        {isAdminOrOwner && !isConfirming && (
+                          <button
+                            onClick={() =>
+                              resendInvitation.mutate(inv.id, {
+                                onSuccess: (data) => {
+                                  const res = data as { emailed?: boolean };
+                                  showToast(
+                                    res?.emailed === false
+                                      ? locale === "da"
+                                        ? "Invitationen blev fornyet, men e-mailen kunne ikke sendes"
+                                        : "Invitation renewed, but the email could not be sent"
+                                      : locale === "da"
+                                        ? "Invitation sendt igen"
+                                        : "Invitation resent",
+                                    res?.emailed !== false
+                                  );
+                                },
+                                onError: (err) => showToast(err.message, false),
+                              })
+                            }
+                            disabled={resendInvitation.isPending}
+                            title={locale === "da" ? "Send igen" : "Resend"}
+                            className="text-slate-300 hover:text-blue-600 transition-colors p-1 cursor-pointer shrink-0 disabled:opacity-50"
+                          >
+                            <span className="material-symbols-outlined text-lg">refresh</span>
+                          </button>
+                        )}
                         {isAdminOrOwner && (
                           isConfirming ? (
                             <InlineConfirm
