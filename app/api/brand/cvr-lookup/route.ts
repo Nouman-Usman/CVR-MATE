@@ -34,6 +34,14 @@ export async function POST(req: NextRequest) {
         : "",
       employees: employees ? Number(employees) : null,
       website: company.contact?.www ?? "",
+      // Registered address and contact details, for the organization profile
+      // that becomes the issuer identity on quotes. Additive — the onboarding
+      // flow reads only the fields above and ignores these.
+      addressLine: company.address?.street ?? "",
+      zipCode: company.address?.zipcode ? String(company.address.zipcode) : "",
+      city: company.address?.cityname ?? "",
+      email: company.contact?.email ?? "",
+      phone: company.contact?.phone ?? "",
     });
   } catch (error) {
     console.error("CVR lookup error:", error);

@@ -2,7 +2,14 @@ import "server-only";
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { quote, quoteLine, company, contact, userBrand } from "@/db/schema";
+import {
+  quote,
+  quoteLine,
+  company,
+  contact,
+  userBrand,
+  organizationProfile,
+} from "@/db/schema";
 import { organization } from "@/db/auth-schema";
 import { decryptField } from "@/lib/pii/crypto";
 import type {
@@ -30,19 +37,22 @@ export async function buildQuoteSnapshot(
     throw new Error("Quote not found for snapshot");
   }
 
-  const [lines, comp, org, brand] = await Promise.all([
+  const [lines, comp, org, orgProfile, brand] = await Promise.all([
     db.query.quoteLine.findMany({
       where: eq(quoteLine.quoteId, q.id),
       orderBy: [asc(quoteLine.sortOrder)],
     }),
     db.query.company.findFirst({ where: eq(company.id, q.companyId) }),
     db.query.organization.findFirst({ where: eq(organization.id, organizationId) }),
-    // KNOWN LIMITATION: seller identity is resolved from the *issuing user's*
-    // brand profile, because `userBrand` is keyed by userId and there is no
-    // organization-level branding table. Two members of the same org can
-    // therefore stamp different seller blocks on quotes from the same company.
-    // Freezing it into the snapshot at least makes each document internally
-    // consistent forever; the real fix is org-level branding.
+    // The seller of record. Org-scoped, so every member of an org issues
+    // documents under the same identity.
+    db.query.organizationProfile.findFirst({
+      where: eq(organizationProfile.organizationId, organizationId),
+    }),
+    // Legacy fallback only, for orgs created before profiles existed. Identity
+    // used to come from here alone — keyed by userId, so two members of one org
+    // stamped different seller blocks on quotes to the same customer, and no
+    // address existed anywhere to stamp. Remove once every org is backfilled.
     db.query.userBrand.findFirst({ where: eq(userBrand.userId, userId) }),
   ]);
 
@@ -56,20 +66,46 @@ export async function buildQuoteSnapshot(
     ),
   });
 
-  const seller: SnapshotSeller = {
-    // Brand profile first, then the org name — never blank, or the document has
-    // no issuer at all.
-    name: brand?.companyName?.trim() || org?.name?.trim() || "",
-    cvr: brand?.cvr?.trim() || null,
-    // No address field exists on userBrand yet; missingSellerFields() surfaces
-    // this to the seller before they send.
-    address: null,
-    zipCity: null,
-    email: null,
-    phone: null,
-    website: brand?.website?.trim() || null,
-    color: null,
-  };
+  /**
+   * The org profile wins as a WHOLE RECORD, not field by field.
+   *
+   * Falling back per field looks harmless and quietly reinstates the bug this
+   * replaced: where the profile happens to leave a field blank, the value would
+   * come from whichever member pressed send, so two colleagues still issued
+   * documents that differed — just in fewer places, which is harder to notice.
+   * A profile that exists is the issuer; a blank field in it means blank.
+   *
+   * `userBrand` is consulted only when an org has no profile at all, i.e. one
+   * created before profiles existed and not yet backfilled. Remove the branch
+   * once `organization_profile` is guaranteed non-empty for every org.
+   */
+  const seller: SnapshotSeller = orgProfile
+    ? {
+        name: orgProfile.legalName?.trim() || org?.name?.trim() || "",
+        cvr: orgProfile.cvr?.trim() || null,
+        address: orgProfile.addressLine?.trim() || null,
+        // Composed, never stored: a display string derived from two columns is
+        // how the two drift apart.
+        zipCity:
+          [orgProfile.zipCode?.trim(), orgProfile.city?.trim()].filter(Boolean).join(" ") ||
+          null,
+        email: orgProfile.email?.trim() || null,
+        phone: orgProfile.phone?.trim() || null,
+        website: orgProfile.website?.trim() || null,
+        color: orgProfile.brandColor?.trim() || null,
+      }
+    : {
+        name: brand?.companyName?.trim() || org?.name?.trim() || "",
+        cvr: brand?.cvr?.trim() || null,
+        // No address has ever existed on userBrand; missingSellerFields()
+        // surfaces the gap to the sender before the customer sees it.
+        address: null,
+        zipCity: null,
+        email: null,
+        phone: null,
+        website: brand?.website?.trim() || null,
+        color: null,
+      };
 
   const customer: SnapshotCustomer = {
     name: comp?.name ?? "",

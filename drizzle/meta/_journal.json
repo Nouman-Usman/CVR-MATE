@@ -316,6 +316,13 @@
       "when": 1786040766741,
       "tag": "0044_fix_search_key_folding",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786102630442,
+      "tag": "0045_red_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

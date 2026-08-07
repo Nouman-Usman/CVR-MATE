@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useSession } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useSubscription } from "@/lib/hooks/use-subscription";
+import CreateOrgForm from "@/components/settings/CreateOrgForm";
+import OrgProfileSection from "@/components/settings/OrgProfileSection";
 import {
   useOrganization,
   useAuditLog,
-  useCreateOrg,
   useInviteMember,
   useCancelInvitation,
   useRemoveMember,
@@ -124,7 +125,6 @@ export default function TeamSection() {
   // Local UI state
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
-  const [newOrgName, setNewOrgName] = useState("");
   const [editingOrgName, setEditingOrgName] = useState(false);
   const [orgNameDraft, setOrgNameDraft] = useState("");
   const [transferTarget, setTransferTarget] = useState<OrgMember | null>(null);
@@ -143,7 +143,6 @@ export default function TeamSection() {
   };
 
   // Mutations
-  const createOrg = useCreateOrg();
   const inviteMember = useInviteMember();
   const cancelInvitation = useCancelInvitation();
   const removeMember = useRemoveMember();
@@ -268,39 +267,13 @@ export default function TeamSection() {
             <Loader2 className="size-6 text-slate-300 animate-spin" />
           </div>
         ) : !org ? (
-          /* ── No org — create one ─────────────────────────────────────── */
-          <div className="bg-slate-50 rounded-xl p-6">
-            <div className="flex items-start gap-3 mb-5">
-              <span className="material-symbols-outlined text-blue-500 text-2xl shrink-0">group_add</span>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{st.createOrg}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{st.createOrgDesc}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <input
-                className={`flex-1 ${inputClass}`}
-                placeholder={st.orgNamePlaceholder}
-                value={newOrgName}
-                onChange={(e) => setNewOrgName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && newOrgName.trim() && createOrg.mutate(newOrgName.trim(), { onSuccess: () => { showToast(st.created); setNewOrgName(""); }, onError: (err) => showToast(err.message, false) })}
-              />
-              <button
-                onClick={() =>
-                  createOrg.mutate(newOrgName.trim(), {
-                    onSuccess: () => { showToast(st.created); setNewOrgName(""); },
-                    onError: (err) => showToast(err.message, false),
-                  })
-                }
-                disabled={createOrg.isPending || !newOrgName.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm rounded-lg hover:scale-[1.02] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-2"
-              >
-                {createOrg.isPending ? (
-                  <><Loader2 className="size-4 animate-spin" />{st.creating}</>
-                ) : st.create}
-              </button>
-            </div>
-          </div>
+          /* ── No org — create one, profile included ───────────────────── */
+          <CreateOrgForm
+            locale={locale}
+            inputClass={inputClass}
+            onCreated={(msg) => showToast(msg)}
+            onError={(msg) => showToast(msg, false)}
+          />
         ) : (
           /* ── Has org ─────────────────────────────────────────────────── */
           <div className="space-y-6">
@@ -722,6 +695,22 @@ export default function TeamSection() {
           </div>
         )}
       </div>
+
+      {/* Company details — the issuer identity on quotes and orders. Its own
+          card because it is a different concern from membership: this is what
+          customers see, not who can log in. */}
+      {org && (
+        <div className="mt-6">
+          <OrgProfileSection
+            orgId={org.id}
+            canEdit={isAdminOrOwner}
+            locale={locale}
+            inputClass={inputClass}
+            cardClass={cardClass}
+            onToast={showToast}
+          />
+        </div>
+      )}
     </>
   );
 }

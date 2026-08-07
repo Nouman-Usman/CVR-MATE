@@ -1723,6 +1723,63 @@ export const matchProfile = pgTable(
   (table) => [uniqueIndex("match_profile_user_idx").on(table.userId)]
 ).enableRLS();
 
+// ─── ORGANIZATION PROFILE (the issuer identity on commercial documents) ──────
+//
+// The legal identity of the org, as it appears on quotes and orders.
+//
+// Deliberately a separate table rather than columns on `organization`: that one
+// belongs to Better Auth, and putting commercial identity in it couples the CRM
+// to a library's schema. Deliberately not `organization.metadata` either — that
+// is an untyped `text` column, and values printed on a document that carries
+// commercial weight need constraints.
+//
+// Replaces `userBrand` as the seller of record. Identity used to be read from
+// the *issuing user's* brand profile, so two members of one org stamped
+// different seller blocks on quotes to the same customer, and no address field
+// existed anywhere — meaning every quote PDF went out without one.
+export const organizationProfile = pgTable(
+  "organization_profile",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    // The registered name, which is not always the name people call the org.
+    // `organization.name` stays the display name shown in the app.
+    legalName: text("legal_name").notNull(),
+    // Nullable: the manual path exists for foreign entities and sole traders
+    // that have no Danish CVR, and for when the registry is unreachable.
+    cvr: text("cvr"),
+    addressLine: text("address_line"),
+    zipCode: text("zip_code"),
+    city: text("city"),
+    countryCode: text("country_code").default("DK").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    website: text("website"),
+    // Hex, feeds SnapshotSeller.color for document accents.
+    brandColor: text("brand_color"),
+    // Provenance. A registry-verified address and a hand-typed one are worth
+    // different amounts in a dispute, and without this the two are
+    // indistinguishable — which makes any later re-verification unsafe, because
+    // stale data cannot be told apart from a deliberate override.
+    source: text("source").default("manual").notNull(), // 'cvr' | 'manual'
+    cvrVerifiedAt: timestamp("cvr_verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    // One profile per org. Unique rather than a plain index so a race during
+    // creation cannot leave an org with two identities.
+    uniqueIndex("organization_profile_org_idx").on(table.organizationId),
+    check("organization_profile_source_check", sql`${table.source} in ('cvr','manual')`),
+    check("organization_profile_country_check", sql`length(${table.countryCode}) = 2`),
+  ]
+).enableRLS();
+
 // ─── RELATIONS ──────────────────────────────────────────────────────────────
 
 export const companyRelations = relations(company, ({ many }) => ({
@@ -1800,6 +1857,13 @@ export const companyNoteRelations = relations(companyNote, ({ one }) => ({
 
 export const userBrandRelations = relations(userBrand, ({ one }) => ({
   user: one(user, { fields: [userBrand.userId], references: [user.id] }),
+}));
+
+export const organizationProfileRelations = relations(organizationProfile, ({ one }) => ({
+  organization: one(organization, {
+    fields: [organizationProfile.organizationId],
+    references: [organization.id],
+  }),
 }));
 
 export const emailLogRelations = relations(emailLog, ({ one }) => ({

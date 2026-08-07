@@ -112,6 +112,40 @@ export function useAuditLog(orgId: string | null, isAdminOrOwner: boolean) {
   });
 }
 
+/**
+ * The organization's issuer identity — what appears as the seller on quotes
+ * and orders. Readable by any member; only owners/admins may change it.
+ */
+export interface OrgProfile {
+  id: string;
+  organizationId: string;
+  legalName: string;
+  cvr: string | null;
+  addressLine: string | null;
+  zipCode: string | null;
+  city: string | null;
+  countryCode: string;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  brandColor: string | null;
+  /** Whether these values came from the CVR registry or were typed by hand. */
+  source: "cvr" | "manual";
+  cvrVerifiedAt: string | null;
+}
+
+export function useOrgProfile(orgId: string | null) {
+  return useQuery<{ profile: OrgProfile | null }>({
+    queryKey: ["organization-profile", orgId],
+    queryFn: async () => {
+      const res = await fetch(`/api/team/${orgId}/profile`, { credentials: "include" });
+      return apiJson(res);
+    },
+    staleTime: 60_000,
+    enabled: !!orgId,
+  });
+}
+
 // ─── Mutation Hooks ───────────────────────────────────────────────────────────
 
 function useTeamMutation<TVariables = void>(
@@ -126,20 +160,42 @@ function useTeamMutation<TVariables = void>(
   });
 }
 
+/**
+ * The company identity an org issues documents under. Required at creation:
+ * it becomes the seller block on every quote and order, and an org without one
+ * sends documents with no address — which is what happened before this existed.
+ */
+export interface OrgProfileInput {
+  legalName: string;
+  cvr?: string;
+  addressLine: string;
+  zipCode?: string;
+  city?: string;
+  countryCode?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  brandColor?: string;
+  /** Claim only; the server re-checks it against the registry before trusting it. */
+  source: "cvr" | "manual";
+}
+
 export function useCreateOrg() {
-  return useTeamMutation(async (name: string) => {
-    const res = await fetch("/api/team/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ name }),
-    });
-    const data = await apiJson<{ id: string }>(res);
-    if (data.id) {
-      authClient.organization.setActive({ organizationId: data.id }).catch(() => {});
+  return useTeamMutation(
+    async (vars: { name: string; slug?: string; profile: OrgProfileInput }) => {
+      const res = await fetch("/api/team/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(vars),
+      });
+      const data = await apiJson<{ id: string }>(res);
+      if (data.id) {
+        authClient.organization.setActive({ organizationId: data.id }).catch(() => {});
+      }
+      return data;
     }
-    return data;
-  });
+  );
 }
 
 export function useInviteMember() {
@@ -228,6 +284,56 @@ export function useRenameOrg() {
       return apiJson(res);
     }
   );
+}
+
+/**
+ * Profile mutations get their own invalidation.
+ *
+ * `useTeamMutation` refreshes the `organization` query, which does not carry
+ * the profile — using it here would leave the form showing the values the user
+ * just replaced.
+ */
+function useOrgProfileMutation<TVariables extends { orgId: string }>(
+  mutationFn: (vars: TVariables) => Promise<unknown>
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["organization-profile", vars.orgId] });
+      queryClient.invalidateQueries({ queryKey: ["organization"] });
+    },
+  });
+}
+
+export function useUpdateOrgProfile() {
+  return useOrgProfileMutation(
+    async ({ orgId, patch }: { orgId: string; patch: Partial<OrgProfile> }) => {
+      const res = await fetch(`/api/team/${orgId}/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(patch),
+      });
+      return apiJson(res);
+    }
+  );
+}
+
+/**
+ * Re-read the profile from the CVR registry, overwriting the registered fields
+ * and restoring `source: "cvr"`. This is how a company that has relocated gets
+ * picked up — a hand-edit deliberately drops the verified flag, and this is how
+ * it is earned back.
+ */
+export function useVerifyOrgProfile() {
+  return useOrgProfileMutation(async ({ orgId }: { orgId: string }) => {
+    const res = await fetch(`/api/team/${orgId}/profile`, {
+      method: "POST",
+      credentials: "include",
+    });
+    return apiJson(res);
+  });
 }
 
 export function useDeleteOrg() {

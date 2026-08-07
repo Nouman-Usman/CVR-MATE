@@ -7,6 +7,10 @@ export type AuditAction =
   | "org_created"
   | "org_renamed"
   | "org_deleted"
+  // The issuer identity printed on quotes and orders. Worth auditing: changing
+  // it changes what customers see on documents that carry commercial weight.
+  | "org_profile_updated"
+  | "org_profile_verified"
   | "member_invited"
   | "invitation_accepted"
   | "invitation_declined"
