@@ -1,3 +1,7 @@
+// tsx does not read .env — without this the script throws on QSTASH_TOKEN even
+// though the value is sitting in the file.
+import "dotenv/config";
+
 import { Client } from "@upstash/qstash";
 
 /**
@@ -35,11 +39,29 @@ const cronSecret = process.env.CRON_SECRET;
 const headers: Record<string, string> = { "Content-Type": "application/json" };
 if (cronSecret) headers.Authorization = `Bearer ${cronSecret}`;
 
+/**
+ * The custom domain currently serves an OLDER build than the Vercel project
+ * URL: cvr-mate.dk 404s on /api/cron/match-feed and /api/cron/expire-documents,
+ * while serving /api/cron/triggers, /api/cron/person-changes and
+ * /api/cron/data-cleanup fine. Verified by unauthenticated probe — these routes
+ * fail closed, so a 401 proves the code is deployed and a 404 proves it is not.
+ *
+ * Routes are therefore pinned per-spec rather than sharing one base URL: a
+ * global override would point expire-documents at a host where it does not
+ * exist, and QStash would retry into a 404 forever without the app ever saying
+ * so. THIS SPLIT IS A DEPLOYMENT BUG TO FIX, not a design choice — once
+ * cvr-mate.dk is redeployed from main, drop the `host` overrides and let
+ * everything share the custom domain.
+ */
+const LEGACY_HOST = "https://cvr-mate.dk";
+
 interface ScheduleSpec {
   path: string;
   cron: string;
   label: string;
   why: string;
+  /** Pin this schedule to a specific host. Defaults to CRM_CRON_BASE_URL. */
+  host?: string;
 }
 
 const SCHEDULES: ScheduleSpec[] = [
@@ -59,6 +81,24 @@ const SCHEDULES: ScheduleSpec[] = [
     label: "crm-expire-documents-daily",
     why: "Marks sent quotes past validUntil as expired and active contracts past expiryDate as expired.",
   },
+  {
+    path: "/api/cron/person-changes",
+    host: LEGACY_HOST,
+    // 05:00 UTC — the CVR change feed is consumed incrementally via a stored
+    // cursor, so a daily run catches up on whatever accumulated rather than
+    // missing anything.
+    cron: "0 5 * * *",
+    label: "crm-person-changes-daily",
+    why: "Pulls the CVR change feed and notifies users about role changes at companies they follow.",
+  },
+  {
+    path: "/api/cron/data-cleanup",
+    host: LEGACY_HOST,
+    // 03:00 UTC — the schedule the route's own docblock specifies.
+    cron: "0 3 * * *",
+    label: "crm-data-cleanup-daily",
+    why: "GDPR retention purge: activity 90d, emailLog 90d, orgAuditLog 365d, read notifications 30d, and hard-deletes soft-deleted CRM personal data after a 30d grace window.",
+  },
 ];
 
 async function main() {
@@ -66,7 +106,7 @@ async function main() {
   const existing = await client.schedules.list();
 
   for (const spec of SCHEDULES) {
-    const destination = `${baseUrl}${spec.path}`;
+    const destination = `${spec.host ?? baseUrl}${spec.path}`;
     const dup = existing.find((s) => s.destination === destination);
 
     if (dup) {
