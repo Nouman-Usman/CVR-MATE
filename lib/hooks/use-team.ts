@@ -57,7 +57,10 @@ async function apiJson<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-async function fetchOrg(userId: string | undefined): Promise<OrganizationData> {
+async function fetchOrg(
+  userId: string | undefined,
+  activeOrganizationId: string | null | undefined
+): Promise<OrganizationData> {
   if (!userId) return { org: null, myRole: null, isOwner: false, isAdminOrOwner: false };
 
   const orgsRes = await fetch("/api/auth/organization/list", {
@@ -71,8 +74,22 @@ async function fetchOrg(userId: string | undefined): Promise<OrganizationData> {
     return { org: null, myRole: null, isOwner: false, isAdminOrOwner: false };
   }
 
+  /**
+   * Show the org the session is actually in, not `orgs[0]`.
+   *
+   * Picking the first one is the client-side twin of the auto-discovery that
+   * was just removed from `validateActiveOrg`: with more than one membership,
+   * this screen managed a different organization than the API was writing to.
+   */
+  const activeOrgId = activeOrganizationId ?? null;
+  const target = orgs.find((o: { id: string }) => o.id === activeOrgId);
+  // No active org means the personal workspace — there is no team to show.
+  if (!target) {
+    return { org: null, myRole: null, isOwner: false, isAdminOrOwner: false };
+  }
+
   const fullRes = await fetch(
-    `/api/auth/organization/get-full-organization?organizationId=${orgs[0].id}`,
+    `/api/auth/organization/get-full-organization?organizationId=${target.id}`,
     { method: "GET", credentials: "include" }
   );
   if (!fullRes.ok) return { org: null, myRole: null, isOwner: false, isAdminOrOwner: false };
@@ -91,10 +108,15 @@ async function fetchOrg(userId: string | undefined): Promise<OrganizationData> {
 
 // ─── Query Hooks ──────────────────────────────────────────────────────────────
 
-export function useOrganization(userId: string | undefined) {
+export function useOrganization(
+  userId: string | undefined,
+  activeOrganizationId?: string | null
+) {
   return useQuery<OrganizationData>({
-    queryKey: ["organization", userId],
-    queryFn: () => fetchOrg(userId),
+    // The active org is part of the key: switching workspaces must not serve
+    // the previous org's members and invitations from cache.
+    queryKey: ["organization", userId, activeOrganizationId ?? "personal"],
+    queryFn: () => fetchOrg(userId, activeOrganizationId),
     staleTime: 30_000,
     enabled: !!userId,
   });

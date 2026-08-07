@@ -8,7 +8,10 @@ import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { cacheKey, CACHE_TTL } from "@/lib/cache";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
-import { validateActiveOrg, getOrgMembership } from "@/lib/team/permissions";
+import { getOrgMembership } from "@/lib/team/permissions";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
+import { workspaceScope } from "@/lib/workspace/scope";
+import { orgIdForWrite, workspaceKey } from "@/lib/workspace/types";
 
 export async function GET() {
   try {
@@ -17,16 +20,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Validate active org
-    const activeOrgId = await validateActiveOrg(
+    const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
 
-    // Cache key includes org context to avoid cross-org leaks
-    const key = activeOrgId
-      ? `${cacheKey.todos(session.user.id)}:org:${activeOrgId}`
-      : cacheKey.todos(session.user.id);
+    // Keyed by workspace so switching cannot serve the previous one's cache.
+    const key = `${cacheKey.todos(session.user.id)}:${workspaceKey(workspace)}`;
 
     // Check Redis cache first
     const cached = await cacheGet<{ todos: unknown[] }>(key);
@@ -34,12 +34,13 @@ export async function GET() {
       return NextResponse.json(cached);
     }
 
-    // Personal todos (userId = me, no org) + team todos (org = activeOrg)
+    // Exactly one workspace. Personal and team tasks used to arrive merged,
+    // so a private reminder and a task a colleague could see sat in one list.
     const todos = await db.query.todo.findMany({
-      where: or(
-        and(eq(todo.userId, session.user.id), isNull(todo.organizationId)),
-        activeOrgId ? eq(todo.organizationId, activeOrgId) : sql`false`
-      ),
+      where: workspaceScope(workspace, {
+        userId: todo.userId,
+        organizationId: todo.organizationId,
+      }),
       with: {
         company: true,
         assignedUser: { columns: { id: true, name: true, image: true } },
@@ -78,12 +79,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { title, description, priority, companyId, cvr, dueDate, scope, assignedUserId } = body;
 
-    // Determine org scope
-    const activeOrgId = await validateActiveOrg(
+    const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
-    const organizationId = scope === "team" && activeOrgId ? activeOrgId : null;
+    // `scope: "personal"` still forces a private task while inside an org —
+    // the workspace decides the default, the caller can opt out of sharing.
+    const organizationId = scope === "personal" ? null : orgIdForWrite(workspace);
 
     // Validate assignment: only admin/owner can assign to other members
     let resolvedAssignedUserId: string | null = null;
@@ -195,11 +197,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Invalidate cache (both personal and org-scoped)
-    await cacheDel(cacheKey.todos(session.user.id));
-    if (activeOrgId) {
-      await cacheDel(`${cacheKey.todos(session.user.id)}:org:${activeOrgId}`);
-    }
+    // Invalidate the workspace the task landed in. A `scope: "personal"` task
+    // created from inside an org belongs to the personal cache, not the org's,
+    // so the key is derived from where it was written rather than from where
+    // the user happens to be standing.
+    await cacheDel(
+      `${cacheKey.todos(session.user.id)}:${
+        organizationId ? `org:${organizationId}` : "personal"
+      }`
+    );
 
     return NextResponse.json({ todo: todoWithCompany }, { status: 201 });
   } catch (error) {

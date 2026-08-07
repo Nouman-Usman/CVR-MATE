@@ -7,6 +7,7 @@ import * as Sentry from "@sentry/nextjs";
 import { useSession, signOut, getCachedSession } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { LogoFull, LogoIcon } from "@/components/logo";
+import WorkspaceSwitcher from "@/components/workspace-switcher";
 import {
   useNotifications,
   useUnreadCount,
@@ -204,6 +205,12 @@ function SidebarNav({
             <ChevronsLeft className="size-4" />
           </Button>
         )}
+      </div>
+
+      {/* Workspace — above everything, because it changes what every list below
+          it contains. Renders nothing for users with no organizations. */}
+      <div className={cn("pt-3", collapsed ? "px-2" : "px-3")}>
+        <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
       {/* Search — sits above the nav because it is the fastest route to any

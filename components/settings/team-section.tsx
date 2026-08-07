@@ -111,7 +111,11 @@ export default function TeamSection() {
   const isEnterprise = subData?.plan === "enterprise";
 
   const userId = session?.user?.id;
-  const { data: teamData, isLoading: orgLoading } = useOrganization(userId);
+  // Managing the org the session is actually in, not whichever came back first.
+  const { data: teamData, isLoading: orgLoading } = useOrganization(
+    userId,
+    session?.session?.activeOrganizationId
+  );
   const org = teamData?.org ?? null;
   const myRole = teamData?.myRole ?? null;
   const isOwner = teamData?.isOwner ?? false;

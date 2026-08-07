@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, count, or, isNull, sql } from "drizzle-orm";
+import { eq, and, count, isNull } from "drizzle-orm";
 import { company, savedCompany } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
-import { validateActiveOrg } from "@/lib/team/permissions";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
+import { workspaceScope } from "@/lib/workspace/scope";
+import { orgIdForWrite } from "@/lib/workspace/types";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import type { CvrCompany } from "@/lib/cvr-api";
 
@@ -17,16 +19,21 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = await validateActiveOrg(
+    const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
 
+    // One workspace, never both. This list used to union personal rows with the
+    // active org's, so a colleague's saved company and a private one sat side by
+    // side with nothing to tell them apart — while /api/records/search had no
+    // personal branch at all, which is why six of this user's saved companies
+    // appeared here and were missing from search.
     const saved = await db.query.savedCompany.findMany({
-      where: or(
-        and(eq(savedCompany.userId, session.user.id), isNull(savedCompany.organizationId)),
-        activeOrgId ? eq(savedCompany.organizationId, activeOrgId) : sql`false`
-      ),
+      where: workspaceScope(workspace, {
+        userId: savedCompany.userId,
+        organizationId: savedCompany.organizationId,
+      }),
       with: { company: true },
       orderBy: (sc, { desc }) => [desc(sc.createdAt)],
     });
@@ -58,7 +65,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const activeOrgId = await validateActiveOrg(
+    const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
@@ -167,7 +174,9 @@ export async function POST(req: NextRequest) {
       where: and(
         eq(savedCompany.userId, session.user.id),
         eq(savedCompany.cvr, String(vat)),
-        activeOrgId ? eq(savedCompany.organizationId, activeOrgId) : isNull(savedCompany.organizationId)
+        workspace.type === "org"
+          ? eq(savedCompany.organizationId, workspace.id)
+          : isNull(savedCompany.organizationId)
       ),
     });
 
@@ -177,7 +186,10 @@ export async function POST(req: NextRequest) {
 
     await db.insert(savedCompany).values({
       userId: session.user.id,
-      organizationId: activeOrgId ?? null,
+      // Follows the workspace the user is looking at. This used to be
+      // `activeOrgId ?? null`, so once you belonged to an org every company you
+      // saved silently became shared and you could never save privately again.
+      organizationId: orgIdForWrite(workspace),
       companyId,
       cvr: String(vat),
       note: sanitizedNote,

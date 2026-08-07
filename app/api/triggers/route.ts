@@ -6,7 +6,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { computeNextRun, buildCronExpression } from "@/lib/cron";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
-import { validateActiveOrg } from "@/lib/team/permissions";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
+import { workspaceScope } from "@/lib/workspace/scope";
+import { orgIdForWrite } from "@/lib/workspace/types";
 
 export async function GET() {
   try {
@@ -15,18 +17,17 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Validate active org from session (DB-verified, never trusted blindly)
-    const activeOrgId = await validateActiveOrg(
+    const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
 
-    // Personal triggers (userId = me, no org) + team triggers (org = activeOrg)
+    // Exactly one workspace, never personal and team merged together.
     const triggers = await db.query.leadTrigger.findMany({
-      where: or(
-        and(eq(leadTrigger.userId, session.user.id), isNull(leadTrigger.organizationId)),
-        activeOrgId ? eq(leadTrigger.organizationId, activeOrgId) : sql`false`
-      ),
+      where: workspaceScope(workspace, {
+        userId: leadTrigger.userId,
+        organizationId: leadTrigger.organizationId,
+      }),
       with: {
         results: {
           orderBy: (r, { desc }) => [desc(r.createdAt)],
@@ -84,12 +85,12 @@ export async function POST(req: NextRequest) {
       scope,
     } = body;
 
-    // Determine org scope
-    const activeOrgId = await validateActiveOrg(
+    const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
-    const organizationId = scope === "team" && activeOrgId ? activeOrgId : null;
+    // `scope: "personal"` still forces a private trigger while inside an org.
+    const organizationId = scope === "personal" ? null : orgIdForWrite(workspace);
 
     // Personal triggers check plan limits; team triggers don't count against personal quota
     if (!organizationId && !allowed) {

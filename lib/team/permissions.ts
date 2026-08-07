@@ -65,30 +65,31 @@ export async function getOrgMembership(
 }
 
 /**
- * Validate or auto-discover the user's active organization.
+ * Validate the user's active organization. Returns the org id, or null for the
+ * personal workspace.
  *
- * If activeOrgId provided, verify membership.
- * If null, auto-discover user's first org from DB (by createdAt).
- * Returns orgId if valid, null if no membership found.
+ * It used to auto-discover — when the session named no organization it took the
+ * user's oldest membership. That is how accepting an invitation moved someone
+ * into org context without choosing it: with no switcher, a user with their own
+ * plan and their own data was silently placed in an org, their personal rows
+ * (organization_id IS NULL) stopped matching org-scoped queries, and everything
+ * they saved afterwards became org property.
+ *
+ * Null now means personal, and personal is somewhere you can deliberately be
+ * rather than a gap the system fills in. See lib/workspace/resolve.ts, which
+ * expresses the same rule as a typed workspace; this remains for the callers
+ * that only need the id.
  */
 export async function validateActiveOrg(
   userId: string,
   activeOrgId: string | null | undefined
 ): Promise<string | null> {
-  // If session has activeOrgId, validate it
-  if (activeOrgId) {
-    const membership = await getOrgMembership(userId, activeOrgId);
-    return membership ? activeOrgId : null;
-  }
+  if (!activeOrgId) return null;
 
-  // Auto-discover: get user's first org (oldest by createdAt)
-  const firstOrg = await db.query.member.findFirst({
-    where: eq(member.userId, userId),
-    orderBy: asc(member.createdAt),
-    columns: { organizationId: true },
-  });
-
-  return firstOrg?.organizationId ?? null;
+  // Never trust the session alone — membership is re-read every request, so a
+  // removal or demotion takes effect immediately.
+  const membership = await getOrgMembership(userId, activeOrgId);
+  return membership ? activeOrgId : null;
 }
 
 /**
