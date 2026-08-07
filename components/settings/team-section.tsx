@@ -6,16 +6,17 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import { useSubscription } from "@/lib/hooks/use-subscription";
 import CreateOrgForm from "@/components/settings/CreateOrgForm";
 import OrgProfileSection from "@/components/settings/OrgProfileSection";
+import EditOrgDialog from "@/components/settings/EditOrgDialog";
 import {
   useOrganization,
   useAuditLog,
+  useOrgProfile,
   useInviteMember,
   useCancelInvitation,
   useRemoveMember,
   useChangeRole,
   useLeaveOrg,
   useTransferOwnership,
-  useRenameOrg,
   useDeleteOrg,
   type OrgMember,
 } from "@/lib/hooks/use-team";
@@ -121,12 +122,12 @@ export default function TeamSection() {
     org?.id ?? null,
     isAdminOrOwner
   );
+  const { data: orgProfileData } = useOrgProfile(org?.id ?? null);
 
   // Local UI state
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
-  const [editingOrgName, setEditingOrgName] = useState(false);
-  const [orgNameDraft, setOrgNameDraft] = useState("");
+  const [editOrgOpen, setEditOrgOpen] = useState(false);
   const [transferTarget, setTransferTarget] = useState<OrgMember | null>(null);
   const [showTransferConfirm, setShowTransferConfirm] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
@@ -149,7 +150,6 @@ export default function TeamSection() {
   const changeRole = useChangeRole();
   const leaveOrg = useLeaveOrg();
   const transferOwnership = useTransferOwnership();
-  const renameOrg = useRenameOrg();
   const deleteOrg = useDeleteOrg();
 
   const memberCount = org?.members?.length ?? 0;
@@ -204,60 +204,24 @@ export default function TeamSection() {
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-center gap-2 mb-2">
           <span className="material-symbols-outlined text-slate-400 text-xl">groups</span>
-          {org && editingOrgName ? (
-            <div className="flex items-center gap-2 flex-1">
-              <input
-                className="text-sm font-bold text-slate-900 uppercase tracking-wider bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500/20"
-                value={orgNameDraft}
-                onChange={(e) => setOrgNameDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    renameOrg.mutate(
-                      { orgId: org.id, name: orgNameDraft.trim() },
-                      {
-                        onSuccess: () => { showToast(locale === "da" ? "Navn opdateret" : "Name updated"); setEditingOrgName(false); },
-                        onError: (err) => showToast(err.message, false),
-                      }
-                    );
-                  }
-                  if (e.key === "Escape") setEditingOrgName(false);
-                }}
-                autoFocus
-              />
+          <div className="flex items-center gap-2 flex-1">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              {org ? org.name : st.title}
+            </h2>
+            {/* Opens the full editor rather than an inline rename box. The
+                name shown here is only the label in the app; the values that
+                reach a customer are in the same dialog, which is why one
+                button now covers both. */}
+            {org && isAdminOrOwner && (
               <button
-                onClick={() =>
-                  renameOrg.mutate(
-                    { orgId: org.id, name: orgNameDraft.trim() },
-                    {
-                      onSuccess: () => { showToast(locale === "da" ? "Navn opdateret" : "Name updated"); setEditingOrgName(false); },
-                      onError: (err) => showToast(err.message, false),
-                    }
-                  )
-                }
-                disabled={renameOrg.isPending}
-                className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
+                onClick={() => setEditOrgOpen(true)}
+                title={locale === "da" ? "Redigér organisation" : "Edit organization"}
+                className="text-slate-300 hover:text-slate-500 cursor-pointer"
               >
-                {renameOrg.isPending ? <Loader2 className="size-3 animate-spin" /> : (locale === "da" ? "Gem" : "Save")}
+                <span className="material-symbols-outlined text-sm">edit</span>
               </button>
-              <button onClick={() => setEditingOrgName(false)} className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer">
-                {locale === "da" ? "Annuller" : "Cancel"}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 flex-1">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                {org ? org.name : st.title}
-              </h2>
-              {org && isAdminOrOwner && (
-                <button
-                  onClick={() => { setOrgNameDraft(org.name); setEditingOrgName(true); }}
-                  className="text-slate-300 hover:text-slate-500 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-sm">edit</span>
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <p className="text-xs text-slate-400 mb-6">{st.subtitle}</p>
 
@@ -277,6 +241,16 @@ export default function TeamSection() {
         ) : (
           /* ── Has org ─────────────────────────────────────────────────── */
           <div className="space-y-6">
+            {/* Company details first: the pencil beside the org name only
+                changes the label shown in the app, while these values are what
+                customers actually see on a quote. Putting them anywhere below
+                the member list made "edit org" look like it meant rename. */}
+            <OrgProfileSection
+              orgId={org.id}
+              canEdit={isAdminOrOwner}
+              locale={locale}
+              onEdit={() => setEditOrgOpen(true)}
+            />
             {/* Downgrade warning */}
             {!isEnterprise && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
@@ -696,20 +670,19 @@ export default function TeamSection() {
         )}
       </div>
 
-      {/* Company details — the issuer identity on quotes and orders. Its own
-          card because it is a different concern from membership: this is what
-          customers see, not who can log in. */}
+      {/* One editor for the whole organization: the display name and the
+          company details that appear on documents. React Query dedupes the
+          profile fetch shared with the summary panel. */}
       {org && (
-        <div className="mt-6">
-          <OrgProfileSection
-            orgId={org.id}
-            canEdit={isAdminOrOwner}
-            locale={locale}
-            inputClass={inputClass}
-            cardClass={cardClass}
-            onToast={showToast}
-          />
-        </div>
+        <EditOrgDialog
+          open={editOrgOpen}
+          onOpenChange={setEditOrgOpen}
+          orgId={org.id}
+          orgName={org.name}
+          profile={orgProfileData?.profile ?? null}
+          locale={locale}
+          onToast={showToast}
+        />
       )}
     </>
   );
