@@ -95,6 +95,8 @@ interface NavSection {
   label: string;
   labelDa: string;
   items: NavItem[];
+  /** Hidden unless an organization is the active workspace. */
+  requiresOrganization?: boolean;
 }
 
 /**
@@ -131,6 +133,9 @@ const navSections: NavSection[] = [
   },
   {
     // Working the companies you already have a relationship with.
+    // Every table behind these pages carries a NOT NULL organization id, so
+    // they simply do not exist in the personal workspace.
+    requiresOrganization: true,
     label: "CRM",
     labelDa: "CRM",
     items: [
@@ -184,6 +189,9 @@ function SidebarNav({
   initials: string;
   showCollapseToggle: boolean;
 }) {
+  // The nav reflects the active workspace, not just the plan.
+  const { isPersonal: isPersonalWorkspace } = useWorkspaces();
+
   return (
     <div className="flex flex-col h-full">
       {/* Logo + collapse toggle */}
@@ -250,9 +258,13 @@ function SidebarNav({
         )}
       </div>
 
-      {/* Nav sections */}
+      {/* Nav sections. Org-only groups are hidden in the personal workspace:
+          offering nine destinations that every one of them fails to load is
+          worse than not offering them, and the failure read as a bug. */}
       <nav className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-3")}>
-        {navSections.map((section, sIdx) => (
+        {navSections
+          .filter((section) => !section.requiresOrganization || !isPersonalWorkspace)
+          .map((section, sIdx) => (
           <div key={section.label} className={sIdx > 0 ? "mt-5" : ""}>
             {/* Section label */}
             {!collapsed && (

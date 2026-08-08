@@ -78,6 +78,8 @@ import {
 } from "@/lib/hooks/use-pipeline";
 import { useSession } from "@/lib/auth-client";
 import { useOrganization } from "@/lib/hooks/use-team";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
+import RequiresOrganization from "@/components/workspace/requires-organization";
 import { useContacts } from "@/lib/hooks/use-contacts";
 
 const NONE = "__none__";
@@ -114,6 +116,9 @@ export default function PipelinePage() {
   }
 
   const hasCrm = sub?.limits.teamFeatures ?? false;
+  // Deals carry a NOT NULL organization id, so the board cannot exist in the
+  // personal workspace. That is a state to explain, not a load failure.
+  const { isPersonal } = useWorkspaces();
 
   // The board has always computed a staleness dot and done nothing with it.
   // This is the same idea sourced from the server, where it can also account
@@ -172,6 +177,8 @@ export default function PipelinePage() {
 
         {subLoading ? (
           <CenteredLoader />
+        ) : isPersonal ? (
+          <RequiresOrganization feature={tr("Pipeline", "The pipeline")} />
         ) : !hasCrm ? (
           <UpgradeNotice tr={tr} />
         ) : pipelinesError ? (
