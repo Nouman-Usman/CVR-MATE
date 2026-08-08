@@ -457,7 +457,7 @@ export default function TodosPage() {
   }, []);
 
   // Team context for role-based UI and assignment
-  const { data: teamData } = useOrganization(session?.user?.id);
+  const { data: teamData } = useOrganization(session?.user?.id, session?.session?.activeOrganizationId);
   const isAdminOrOwner = teamData?.isAdminOrOwner ?? false;
   const activeOrgMembers = teamData?.org?.members ?? [];
   const { data: sub } = useSubscription();

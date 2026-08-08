@@ -165,7 +165,7 @@ function personalWorkspace(userId: string): Workspace {
 }
 
 /** Whose subscription sets the limit for this workspace. */
-async function billingUserFor(workspace: Workspace): Promise<string> {
+export async function billingUserFor(workspace: Workspace): Promise<string> {
   if (workspace.type === "personal") return workspace.userId;
 
   const owner = await db.query.member.findFirst({

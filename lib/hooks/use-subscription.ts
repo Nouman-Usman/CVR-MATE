@@ -12,6 +12,14 @@ export interface UsageQuota {
 export interface SubscriptionData {
   plan: PlanId;
   planName: string;
+  /**
+   * Set when the governing plan belongs to an organization rather than the
+   * viewer — the org's name. Members are shown which plan covers them and by
+   * whom; the billing itself stays with whoever pays for it.
+   */
+  providedByOrganization?: string | null;
+  /** False when the viewer does not own the subscription being described. */
+  canManageBilling?: boolean;
   price: number;
   annualPrice: number;
   currency: string;

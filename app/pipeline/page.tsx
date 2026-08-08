@@ -851,7 +851,7 @@ function DealForm({
   onClose: () => void;
 }) {
   const { data: session } = useSession();
-  const { data: orgData } = useOrganization(session?.user?.id);
+  const { data: orgData } = useOrganization(session?.user?.id, session?.session?.activeOrganizationId);
   const { data: contactsData } = useContacts(deal.company?.vat ?? "");
   const updateDeal = useUpdateDeal(pipelineId);
   const deleteDeal = useDeleteDeal(pipelineId);

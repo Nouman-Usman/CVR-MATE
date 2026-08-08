@@ -1002,7 +1002,7 @@ export default function SettingsPage() {
   };
 
   // Check if user is an org member (non-owner)
-  const { data: teamData } = useOrganization(session?.user?.id);
+  const { data: teamData } = useOrganization(session?.user?.id, session?.session?.activeOrganizationId);
   const isOrgMember = !!teamData?.myRole && !teamData?.isOwner;
   const isOwner = teamData?.isOwner === true;
 

@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getUserPlan, getPlanLimits, getUsageSummary } from "@/lib/stripe/entitlements";
+import {
+  getUserPlan,
+  getPlanLimits,
+  getUsageSummary,
+  billingUserFor,
+} from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
+import { organization } from "@/db/auth-schema";
 import { PLANS } from "@/lib/stripe/plans";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/db";
@@ -16,10 +23,39 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { plan, status, subscription: sub } = await getUserPlan(session.user.id);
+    /**
+     * Report the plan that actually governs what the viewer can do right now.
+     *
+     * This read the viewer's own subscription unconditionally, so a member of an
+     * Enterprise organization with no personal subscription was told they were
+     * on Free — and shown Free's limits — while working under the org's plan.
+     * The page contradicted the product.
+     */
+    const workspace = await resolveWorkspaceForUser(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+    const billingUserId = await billingUserFor(workspace);
+    // Whether the viewer owns the subscription being described. Members see the
+    // plan; only its holder sees or acts on its billing.
+    const viewerOwnsBilling = billingUserId === session.user.id;
+
+    const { plan, status, subscription: sub } = await getUserPlan(billingUserId);
     const limits = getPlanLimits(plan);
     const planDef = PLANS[plan];
-    const usage = await getUsageSummary(session.user.id);
+    // Usage follows the workspace too — these are the limits it is measured
+    // against, so counting the other bucket would make the ratio meaningless.
+    const usage = await getUsageSummary(session.user.id, workspace);
+
+    const providedByOrganization =
+      workspace.type === "org" && !viewerOwnsBilling
+        ? (
+            await db.query.organization.findFirst({
+              where: eq(organization.id, workspace.id),
+              columns: { name: true },
+            })
+          )?.name ?? "your organization"
+        : null;
 
     // Serialize all numeric limits (Infinity → -1 for JSON)
     const serializedLimits: Record<string, unknown> = {};
@@ -45,10 +81,17 @@ export async function GET() {
       annualPrice: planDef.annualPrice,
       currency: planDef.currency,
       status,
-      currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
-      trialEnd: sub?.trialEnd?.toISOString() ?? null,
-      cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
-      stripePriceId: sub?.stripePriceId ?? null,
+      /**
+       * Billing detail belongs to whoever pays. A member is told which plan
+       * governs them and by whom, but renewal dates, cancellation state and the
+       * price id are somebody else's billing — not theirs to see or act on.
+       */
+      providedByOrganization,
+      canManageBilling: viewerOwnsBilling,
+      currentPeriodEnd: viewerOwnsBilling ? sub?.currentPeriodEnd?.toISOString() ?? null : null,
+      trialEnd: viewerOwnsBilling ? sub?.trialEnd?.toISOString() ?? null : null,
+      cancelAtPeriodEnd: viewerOwnsBilling ? sub?.cancelAtPeriodEnd ?? false : false,
+      stripePriceId: viewerOwnsBilling ? sub?.stripePriceId ?? null : null,
       billingInterval,
       limits: serializedLimits,
       usage,
