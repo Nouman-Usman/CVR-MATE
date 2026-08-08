@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { lt, and, eq, isNotNull } from "drizzle-orm";
+import { lt, and, eq, isNotNull, notExists, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activity,
@@ -10,7 +10,7 @@ import {
   companyNote,
   deal,
 } from "@/db/schema";
-import { invitation } from "@/db/auth-schema";
+import { invitation, member, organization } from "@/db/auth-schema";
 import { verifyCronRequest } from "@/lib/cron/verify";
 
 export const runtime = "nodejs";
@@ -31,6 +31,21 @@ const RETENTION = {
   // Grace window before soft-deleted CRM personal data is permanently purged.
   // Short window supports GDPR erasure while allowing accidental-delete recovery.
   crmSoftDeleteGrace: 30,
+  /**
+   * Grace window before an organization with no members is removed.
+   *
+   * `DELETE /api/user` already deletes organizations its caller solely owns, so
+   * the app cannot normally produce one. This is the net for every other path —
+   * a row removed straight from the database, a restore that misses `member`, a
+   * future bug — because `member.user_id` cascades from `user` while
+   * `organization` has no reference back, so the org simply survives its last
+   * member and becomes unreachable: no one can open it, and no one can delete
+   * it through the product either.
+   *
+   * A week, not a day: an organization is only ever memberless by accident, and
+   * a slow sweep is preferable to one that could race a restore in progress.
+   */
+  memberlessOrgGrace: 7,
 } as const;
 
 function daysAgo(days: number): Date {
@@ -136,6 +151,31 @@ export async function POST(req: NextRequest) {
       .where(and(eq(invitation.status, "pending"), lt(invitation.expiresAt, new Date())))
       .returning({ id: invitation.id });
     results.expiredInvitations = expiredInvites.length;
+
+    /**
+     * Organizations nobody can reach any more.
+     *
+     * Deleting cascades the profile, invitations and every org-scoped CRM row —
+     * which is the point: this is data with no controller, which is exactly what
+     * a retention policy exists to remove. The age check is on the organization
+     * itself so a newly created one can never be caught mid-setup.
+     */
+    const orgCutoff = daysAgo(RETENTION.memberlessOrgGrace);
+    const memberless = await db
+      .delete(organization)
+      .where(
+        and(
+          lt(organization.createdAt, orgCutoff),
+          notExists(
+            db
+              .select({ one: sql`1` })
+              .from(member)
+              .where(eq(member.organizationId, organization.id))
+          )
+        )
+      )
+      .returning({ id: organization.id });
+    results.memberlessOrganizations = memberless.length;
 
     const total = Object.values(results).reduce((a, b) => a + b, 0);
 
