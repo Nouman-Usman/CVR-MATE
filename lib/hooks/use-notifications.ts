@@ -6,6 +6,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 export interface Notification {
   id: string;
   userId: string;
+  /** Which workspace this is about. Null = personal. */
+  organizationId: string | null;
+  /** Resolved server-side so the list can label it without a second lookup. */
+  organizationName: string | null;
   type: string;
   title: string;
   message: string | null;

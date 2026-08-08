@@ -2,7 +2,8 @@ import "server-only";
 
 import { db } from "@/db";
 import { notification } from "@/db/schema";
-import { eq, and, desc, count } from "drizzle-orm";
+import { organization } from "@/db/auth-schema";
+import { eq, and, desc, count, inArray } from "drizzle-orm";
 
 // ─── In-process pub/sub for SSE fan-out ──────────────────────────────────────
 // Each user can have multiple SSE connections (tabs). When a notification is
@@ -20,6 +21,10 @@ export interface NotificationEvent {
 export interface NotificationRecord {
   id: string;
   userId: string;
+  /** Which workspace this is about. Null = personal. */
+  organizationId: string | null;
+  /** Resolved for display, so the list can label a notification's workspace. */
+  organizationName: string | null;
   type: string;
   title: string;
   message: string | null;
@@ -68,6 +73,15 @@ export const notificationBus = new NotificationBus();
 
 export async function createNotification(data: {
   userId: string;
+  /**
+   * The workspace the notification is about — omit for personal.
+   *
+   * Required in practice for anything referencing org-only data: a contract
+   * renewal or a quote response links to a page the CRM guard will refuse
+   * unless the reader is in that organization, so the notification has to carry
+   * enough context for the UI to take them there.
+   */
+  organizationId?: string | null;
   type: "trigger" | "system" | "export" | "person_follow" | "matches";
   title: string;
   message?: string;
@@ -77,6 +91,7 @@ export async function createNotification(data: {
     .insert(notification)
     .values({
       userId: data.userId,
+      organizationId: data.organizationId ?? null,
       type: data.type,
       title: data.title,
       message: data.message ?? null,
@@ -84,9 +99,20 @@ export async function createNotification(data: {
     })
     .returning();
 
+  const orgName = row.organizationId
+    ? (
+        await db.query.organization.findFirst({
+          where: eq(organization.id, row.organizationId),
+          columns: { name: true },
+        })
+      )?.name ?? null
+    : null;
+
   const record: NotificationRecord = {
     id: row.id,
     userId: row.userId,
+    organizationId: row.organizationId,
+    organizationName: orgName,
     type: row.type,
     title: row.title,
     message: row.message,
@@ -114,9 +140,27 @@ export async function getUserNotifications(
     limit,
   });
 
+  /**
+   * Every notification the user is entitled to, whichever workspace it belongs
+   * to — deliberately not filtered. A contract expiring tomorrow is worth
+   * knowing about while you happen to be working personally; the list labels
+   * each one and the UI switches workspace when an org notification is opened,
+   * so nothing is hidden and nothing dead-ends.
+   */
+  const orgIds = [...new Set(rows.map((r) => r.organizationId).filter(Boolean))] as string[];
+  const orgs = orgIds.length
+    ? await db
+        .select({ id: organization.id, name: organization.name })
+        .from(organization)
+        .where(inArray(organization.id, orgIds))
+    : [];
+  const nameById = new Map(orgs.map((o) => [o.id, o.name]));
+
   return rows.map((r) => ({
     id: r.id,
     userId: r.userId,
+    organizationId: r.organizationId,
+    organizationName: r.organizationId ? nameById.get(r.organizationId) ?? null : null,
     type: r.type,
     title: r.title,
     message: r.message,

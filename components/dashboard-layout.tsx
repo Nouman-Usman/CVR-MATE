@@ -8,6 +8,7 @@ import { useSession, signOut, getCachedSession } from "@/lib/auth-client";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { LogoFull, LogoIcon } from "@/components/logo";
 import WorkspaceSwitcher from "@/components/workspace-switcher";
+import { switchWorkspaceAndGo, useWorkspaces } from "@/lib/hooks/use-workspace";
 import {
   useNotifications,
   useUnreadCount,
@@ -453,6 +454,9 @@ export default function DashboardLayout({
     });
   };
 
+  // Which workspace the notification list should compare against.
+  const { activeOrgId: activeWorkspaceOrgId } = useWorkspaces();
+
   useNotificationStream();
   const { data: notifData } = useNotifications();
   const unreadCount = useUnreadCount();
@@ -672,7 +676,16 @@ export default function DashboardLayout({
                               className="flex-1 min-w-0 cursor-pointer"
                               onClick={() => {
                                 if (!n.isRead) markRead.mutate(n.id);
-                                if (n.link) {
+                                if (!n.link) return;
+                                // An org notification opened from a different
+                                // workspace would land on a page the CRM guard
+                                // refuses, so switch there first. Same
+                                // workspace: an ordinary client-side push.
+                                if ((n.organizationId ?? null) !== (activeWorkspaceOrgId ?? null)) {
+                                  switchWorkspaceAndGo(n.organizationId ?? null, n.link).catch(
+                                    () => router.push(n.link!)
+                                  );
+                                } else {
                                   router.push(n.link);
                                 }
                               }}
@@ -683,7 +696,24 @@ export default function DashboardLayout({
                               {n.message && (
                                 <p className="text-xs text-muted-foreground truncate mt-0.5">{n.message}</p>
                               )}
-                              <p className="text-[10px] text-muted-foreground mt-1">{timeAgo}</p>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <p className="text-[10px] text-muted-foreground">{timeAgo}</p>
+                                {/* Which workspace this belongs to. Only shown
+                                    when it is not the one you are already in —
+                                    labelling every row "Personal" while in
+                                    Personal is noise. */}
+                                {(n.organizationId ?? null) !== (activeWorkspaceOrgId ?? null) && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    {n.organizationId ? (
+                                      <Building2 className="size-2.5" />
+                                    ) : (
+                                      <UserCheck className="size-2.5" />
+                                    )}
+                                    {n.organizationName ??
+                                      (locale === "da" ? "Personligt" : "Personal")}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <Button
                               variant="ghost"

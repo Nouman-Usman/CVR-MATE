@@ -220,6 +220,18 @@ export const notification = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Which workspace the notification belongs to. NULL = personal.
+     *
+     * `userId` answers *who to tell*; this answers *what it is about*, and those
+     * stopped being the same question once organizations existed. Without it a
+     * contract-renewal alert — a contract being org-only data — appeared while
+     * the user was in their personal workspace and linked to a page the CRM
+     * guard then refused, so the notification could be seen but never acted on.
+     */
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "cascade",
+    }),
     type: text("type").default("system").notNull(), // 'trigger' | 'system' | 'export' | 'crm_sync'
     title: text("title").notNull(),
     message: text("message"),
@@ -234,6 +246,7 @@ export const notification = pgTable(
     index("notification_user_unread_idx").on(table.userId, table.isRead),
     index("notification_created_idx").on(table.createdAt),
     index("notification_type_idx").on(table.userId, table.type),
+    index("notification_org_idx").on(table.organizationId),
   ]
 ).enableRLS();
 

@@ -107,6 +107,7 @@ export async function POST(
       if (channels.includes("in_app")) {
         await createNotification({
           userId: session.user.id,
+          organizationId: trigger.organizationId,
           type: "trigger",
           title: `${trigger.name}: ${unique.length} matches`,
           message:

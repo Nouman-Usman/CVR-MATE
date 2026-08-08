@@ -126,6 +126,9 @@ async function processRenewals(dryRun: boolean): Promise<RenewalRun> {
       for (const userId of recipients) {
         await createNotification({
           userId,
+          // Contracts are org-only data and the link lands on an org-gated
+          // page, so the notification has to say which organization it is for.
+          organizationId: c.organizationId,
           type: "system",
           title: `Contract renewal due: ${c.title}`,
           message:

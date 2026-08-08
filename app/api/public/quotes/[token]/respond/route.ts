@@ -120,6 +120,7 @@ export async function POST(
       if (updated.createdBy) {
         await createNotification({
           userId: updated.createdBy,
+          organizationId: updated.organizationId,
           type: "system",
           title:
             action === "accept"

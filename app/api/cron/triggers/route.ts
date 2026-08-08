@@ -149,6 +149,9 @@ async function processTriggers() {
 
           if (channels.includes("in_app")) {
             await createNotification({
+              // Null for a personal trigger, the org for a team one — the
+              // trigger already knows which it is.
+              organizationId: trigger.organizationId,
               userId: trigger.userId,
               type: "trigger",
               title: `${trigger.name}: ${fresh.length} matches`,

@@ -55,6 +55,31 @@ export function useWorkspaces() {
   };
 }
 
+/**
+ * Set the active workspace and go somewhere in it, in one motion.
+ *
+ * Notifications are shown from every workspace the user belongs to, so opening
+ * an org one from the personal workspace would otherwise land on a page the CRM
+ * guard refuses. Switching first means the link always works.
+ *
+ * A full navigation rather than a client-side push: the switch changes a cookie
+ * that the destination's server render reads, and `router.push` would render it
+ * with the old one.
+ */
+export async function switchWorkspaceAndGo(
+  organizationId: string | null,
+  href: string
+): Promise<void> {
+  const res = await fetch("/api/auth/organization/set-active", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ organizationId }),
+  });
+  if (!res.ok) throw new Error("Could not switch workspace");
+  window.location.href = href;
+}
+
 export function useSwitchWorkspace() {
   const queryClient = useQueryClient();
 
