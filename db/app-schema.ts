@@ -1576,14 +1576,38 @@ export const usageRecord = pgTable(
   "usage_record",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    // Who performed it. Kept for audit — "who did this" stays answerable even
+    // when the cost is charged elsewhere.
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Which workspace the cost belongs to. NULL = personal.
+     *
+     * `userId` answered both *who did it* and *whose quota it spends*, which
+     * were the same question until organizations existed. They are not: a
+     * member drafting a follow-up for their team was drawing down their own
+     * personal allowance, so someone on Pro could exhaust their month doing an
+     * Enterprise org's work.
+     *
+     * Cascade rather than set-null: usage attributed to a deleted organization
+     * has no bucket left to belong to, and keeping it would silently re-charge
+     * the individual months later.
+     */
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "cascade",
+    }),
     feature: text("feature").notNull(), // 'ai_usage' | 'company_search' | 'export'
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("usage_record_user_feature_created_idx").on(table.userId, table.feature, table.createdAt),
+    // The org-scoped count runs the same shape of query as the personal one.
+    index("usage_record_org_feature_created_idx").on(
+      table.organizationId,
+      table.feature,
+      table.createdAt
+    ),
   ]
 ).enableRLS();
 

@@ -68,21 +68,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check task limit (only personal tasks count against quota)
-    const [{ value: taskCount }] = await db
-      .select({ value: count() })
-      .from(todo)
-      .where(and(eq(todo.userId, session.user.id), isNull(todo.organizationId)));
-
-    const { allowed, limit } = await checkUsageEntitlement(session.user.id, "tasks", taskCount);
-
-    const body = await req.json();
-    const { title, description, priority, companyId, cvr, dueDate, scope, assignedUserId } = body;
-
     const workspace = await resolveWorkspaceForUser(
       session.user.id,
       session.session?.activeOrganizationId
     );
+
+    // Counted and limited in the same workspace: personal tasks against your
+    // own plan, team tasks against the organization's.
+    const [{ value: taskCount }] = await db
+      .select({ value: count() })
+      .from(todo)
+      .where(workspaceScope(workspace, { userId: todo.userId, organizationId: todo.organizationId }));
+
+    const { allowed, limit } = await checkUsageEntitlement(
+      session.user.id,
+      "tasks",
+      taskCount,
+      workspace
+    );
+
+    const body = await req.json();
+    const { title, description, priority, companyId, cvr, dueDate, scope, assignedUserId } = body;
+
     // `scope: "personal"` still forces a private task while inside an org —
     // the workspace decides the default, the caller can opt out of sharing.
     const organizationId = scope === "personal" ? null : orgIdForWrite(workspace);
@@ -109,8 +116,11 @@ export async function POST(req: NextRequest) {
       resolvedAssignedUserId = assignedUserId;
     }
 
-    // Personal tasks check plan limits; team tasks don't count against personal quota
-    if (!organizationId && !allowed) {
+    // The workspace's plan governs, so the check applies in both. It used to
+    // be skipped for team tasks because the count was personal-only and would
+    // have measured the wrong thing; now the count and the limit describe the
+    // same workspace, so the guard is simply the guard.
+    if (!allowed) {
       return NextResponse.json(
         { error: `Task limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
         { status: 403 }

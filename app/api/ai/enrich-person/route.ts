@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { generatePersonEnrichment } from "@/lib/ai/enrich-person";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 import { db } from "@/db";
 import { profileEnrichment } from "@/db/schema";
 import { cacheSet } from "@/lib/redis";
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "enrichment");
+    const quota = await checkMonthlyQuota(session.user.id, "enrichment", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     const rKey = cacheKey.enrichment("person", String(participantNumber), session.user.id);
     await cacheSet(rKey, { ...enrichment, id: saved.id, createdAt: saved.createdAt.toISOString() }, CACHE_TTL.enrichment);
 
-    await recordUsage(session.user.id, "enrichment");
+    await recordUsage(session.user.id, "enrichment", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
 
     return NextResponse.json({
       enrichment: { ...enrichment, id: saved.id, createdAt: saved.createdAt.toISOString() },

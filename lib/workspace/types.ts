@@ -25,6 +25,28 @@ export function workspaceKey(workspace: Workspace): string {
 }
 
 /**
+ * Build a workspace from an already-resolved organization id.
+ *
+ * For callers that established membership by another route — the agent tool
+ * context, or a handler that already called `validateActiveOrg` — so they need
+ * not look it up twice. Do NOT hand it a raw value off a request: verifying
+ * membership is the entire job of `resolveWorkspace`, and this skips it.
+ *
+ * `role` defaults to `member` because its only consumers here (quota metering)
+ * never read it. Anything making an authorization decision should resolve the
+ * real role rather than trust this default.
+ */
+export function workspaceFrom(
+  userId: string,
+  organizationId: string | null | undefined,
+  role: OrgRole = "member"
+): Workspace {
+  return organizationId
+    ? { type: "org", id: organizationId, userId, role }
+    : { type: "personal", userId };
+}
+
+/**
  * The organization id to stamp on a new row in a dual-scoped table.
  *
  * NULL means personal. Reading this from the workspace rather than from an

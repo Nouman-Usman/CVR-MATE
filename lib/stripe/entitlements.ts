@@ -2,7 +2,9 @@ import "server-only";
 
 import { db } from "@/db";
 import { subscription, usageRecord, leadTrigger } from "@/db/schema";
-import { eq, and, gte, count, isNull, sql } from "drizzle-orm";
+import { member } from "@/db/auth-schema";
+import { eq, and, gte, count, isNull, sql, type SQL } from "drizzle-orm";
+import { workspaceKey, type Workspace } from "@/lib/workspace/types";
 import { PLAN_LIMITS, priceToPlan, type PlanId, type PlanLimits } from "./plans";
 
 export interface UserPlan {
@@ -125,9 +127,13 @@ export async function checkEntitlement(
 export async function checkUsageEntitlement(
   userId: string,
   feature: "savedCompanies" | "triggers" | "followedPeople" | "tasks" | "crmConnections",
-  currentCount: number
+  currentCount: number,
+  workspace: Workspace = personalWorkspace(userId)
 ): Promise<{ allowed: boolean; plan: PlanId; limit: number; current: number }> {
-  const { plan } = await getUserPlan(userId);
+  // The caller supplies `currentCount`, so it must count the same workspace
+  // whose limit is being applied — a personal count against an org's limit
+  // would silently grant everyone the owner's allowance each.
+  const { plan } = await getUserPlan(await billingUserFor(workspace));
   const limits = getPlanLimits(plan);
   const limit = limits[feature];
   return {
@@ -136,6 +142,50 @@ export async function checkUsageEntitlement(
     limit,
     current: currentCount,
   };
+}
+
+// ─── Workspace attribution ──────────────────────────────────────────────────
+
+/**
+ * Metering follows the workspace the work was done in.
+ *
+ * Two separate questions used to share one column. `usage_record.userId`
+ * answered *who did this*, and was also used as *whose allowance this spends* —
+ * fine until organizations existed. After that, a member drafting a follow-up
+ * for their team drew down their own personal quota, so someone on Pro could
+ * exhaust their month doing an Enterprise org's work while the org's unlimited
+ * plan sat unused.
+ *
+ * Omitting the workspace means personal, which is exactly the previous
+ * behaviour — so a call site that has not been migrated still charges the
+ * individual rather than silently handing out an organization's allowance.
+ */
+function personalWorkspace(userId: string): Workspace {
+  return { type: "personal", userId };
+}
+
+/** Whose subscription sets the limit for this workspace. */
+async function billingUserFor(workspace: Workspace): Promise<string> {
+  if (workspace.type === "personal") return workspace.userId;
+
+  const owner = await db.query.member.findFirst({
+    where: and(eq(member.organizationId, workspace.id), eq(member.role, "owner")),
+    columns: { userId: true },
+  });
+  // An organization with no owner cannot reach a metered route — every one is
+  // behind assertOrgPlanActive, which rejects first. Falling back to the actor
+  // keeps this total rather than throwing from inside a quota check.
+  return owner?.userId ?? workspace.userId;
+}
+
+/** Which rows count toward this workspace's usage. */
+function usageScope(workspace: Workspace): SQL {
+  return workspace.type === "org"
+    ? (eq(usageRecord.organizationId, workspace.id) as SQL)
+    : (and(
+        eq(usageRecord.userId, workspace.userId),
+        isNull(usageRecord.organizationId)
+      ) as SQL);
 }
 
 // ─── Monthly Quota System ───────────────────────────────────────────────────
@@ -152,9 +202,10 @@ function startOfCurrentMonth(): Date {
  */
 export async function checkMonthlyQuota(
   userId: string,
-  feature: MonthlyFeature
+  feature: MonthlyFeature,
+  workspace: Workspace = personalWorkspace(userId)
 ): Promise<{ allowed: boolean; plan: PlanId; limit: number; used: number }> {
-  const { plan, subscription: sub } = await getUserPlan(userId);
+  const { plan, subscription: sub } = await getUserPlan(await billingUserFor(workspace));
   const limits = getPlanLimits(plan);
   const limitKey = FEATURE_TO_LIMIT[feature];
   const limit = limits[limitKey] as number;
@@ -169,7 +220,7 @@ export async function checkMonthlyQuota(
     .from(usageRecord)
     .where(
       and(
-        eq(usageRecord.userId, userId),
+        usageScope(workspace),
         eq(usageRecord.feature, feature),
         gte(usageRecord.createdAt, periodStart)
       )
@@ -187,12 +238,23 @@ export async function checkMonthlyQuota(
  */
 export async function reserveMonthlyQuota(
   userId: string,
-  feature: MonthlyFeature
+  feature: MonthlyFeature,
+  workspace: Workspace = personalWorkspace(userId)
 ): Promise<{ allowed: boolean; plan: PlanId; limit: number; used: number }> {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${userId}:${feature}`}))`);
+    /**
+     * The lock is keyed on the bucket being spent, not on the person spending.
+     *
+     * Keyed by user, two members of the same organization reserving at once
+     * would take different locks, both read the same pre-insert count, and both
+     * pass — which is precisely the race this lock exists to prevent, reappearing
+     * as soon as a quota became shared.
+     */
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`${workspaceKey(workspace)}:${feature}`}))`
+    );
 
-    const { plan, subscription: sub } = await getUserPlan(userId);
+    const { plan, subscription: sub } = await getUserPlan(await billingUserFor(workspace));
     const limits = getPlanLimits(plan);
     const limitKey = FEATURE_TO_LIMIT[feature];
     const limit = limits[limitKey] as number;
@@ -201,8 +263,16 @@ export async function reserveMonthlyQuota(
 
     const periodStart = sub?.currentPeriodStart ?? startOfCurrentMonth();
 
+    // `userId` is always the actor, so the audit answer stays intact even when
+    // the cost lands on an organization.
+    const row = {
+      userId,
+      organizationId: workspace.type === "org" ? workspace.id : null,
+      feature,
+    };
+
     if (!isFinite(limit)) {
-      await tx.insert(usageRecord).values({ userId, feature });
+      await tx.insert(usageRecord).values(row);
       return { allowed: true, plan, limit: -1, used: 0 };
     }
 
@@ -211,7 +281,7 @@ export async function reserveMonthlyQuota(
       .from(usageRecord)
       .where(
         and(
-          eq(usageRecord.userId, userId),
+          usageScope(workspace),
           eq(usageRecord.feature, feature),
           gte(usageRecord.createdAt, periodStart)
         )
@@ -220,7 +290,7 @@ export async function reserveMonthlyQuota(
     const used = rows[0]?.value ?? 0;
     if (used >= limit) return { allowed: false, plan, limit, used };
 
-    await tx.insert(usageRecord).values({ userId, feature });
+    await tx.insert(usageRecord).values(row);
     return { allowed: true, plan, limit, used };
   });
 }
@@ -230,18 +300,24 @@ export async function reserveMonthlyQuota(
  */
 export async function recordUsage(
   userId: string,
-  feature: MonthlyFeature
+  feature: MonthlyFeature,
+  workspace: Workspace = personalWorkspace(userId)
 ): Promise<void> {
-  await db.insert(usageRecord).values({ userId, feature });
+  await db.insert(usageRecord).values({
+    userId,
+    organizationId: workspace.type === "org" ? workspace.id : null,
+    feature,
+  });
 }
 
 /**
  * Get a summary of all monthly quotas for a user (used by the subscription API).
  */
-export async function getUsageSummary(userId: string): Promise<
-  Record<string, { used: number; limit: number }>
-> {
-  const { plan, subscription: sub } = await getUserPlan(userId);
+export async function getUsageSummary(
+  userId: string,
+  workspace: Workspace = personalWorkspace(userId)
+): Promise<Record<string, { used: number; limit: number }>> {
+  const { plan, subscription: sub } = await getUserPlan(await billingUserFor(workspace));
   const limits = getPlanLimits(plan);
   const periodStart = sub?.currentPeriodStart ?? startOfCurrentMonth();
 
@@ -251,12 +327,7 @@ export async function getUsageSummary(userId: string): Promise<
       value: count(),
     })
     .from(usageRecord)
-    .where(
-      and(
-        eq(usageRecord.userId, userId),
-        gte(usageRecord.createdAt, periodStart)
-      )
-    )
+    .where(and(usageScope(workspace), gte(usageRecord.createdAt, periodStart)))
     .groupBy(usageRecord.feature);
 
   const usageMap: Record<string, number> = {};

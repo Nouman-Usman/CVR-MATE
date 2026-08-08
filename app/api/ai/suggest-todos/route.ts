@@ -5,6 +5,7 @@ import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { generateTodoSuggestions } from "@/lib/ai/suggest-todos";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 
 export const maxDuration = 60;
 
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "ai_task_suggest");
+    const quota = await checkMonthlyQuota(session.user.id, "ai_task_suggest", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const result = await generateTodoSuggestions({ company, locale, brand });
 
-    await recordUsage(session.user.id, "ai_task_suggest");
+    await recordUsage(session.user.id, "ai_task_suggest", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     return NextResponse.json(result);
   } catch (error) {
     console.error("AI suggest-todos error:", error);

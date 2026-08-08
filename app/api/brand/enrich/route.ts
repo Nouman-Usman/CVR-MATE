@@ -6,6 +6,7 @@ import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, type BrandAiEnrichment } from "@/lib/get-user-brand";
 import { getCompanyByVat } from "@/lib/cvr-api";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 import { db } from "@/db";
 import { userBrand } from "@/db/schema";
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "enrichment");
+    const quota = await checkMonthlyQuota(session.user.id, "enrichment", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -145,7 +146,7 @@ Use their own words and answers as the primary source. Supplement with CVR data 
       .set({ aiEnrichment: enrichment })
       .where(eq(userBrand.userId, session.user.id));
 
-    await recordUsage(session.user.id, "enrichment");
+    await recordUsage(session.user.id, "enrichment", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
 
     return NextResponse.json({ aiEnrichment: enrichment });
   } catch (error) {

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getCompanyByVat, getParticipantByNumber } from "@/lib/cvr-api";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { reserveMonthlyQuota, type MonthlyFeature } from "@/lib/stripe/entitlements";
+import { workspaceFrom } from "@/lib/workspace/types";
 import { generateCompanyBriefing } from "@/lib/ai/company-briefing";
 import { generateOutreach } from "@/lib/ai/draft-outreach";
 import { generateCompanyEnrichment } from "@/lib/ai/enrich-company";
@@ -15,7 +16,11 @@ import { AgentQuotaError } from "../errors";
 
 /** Reserve a monthly-feature quota unit; throw AgentQuotaError if exhausted. */
 async function reserveOrThrow(ctx: AgentContext, feature: MonthlyFeature, label: string): Promise<void> {
-  const quota = await reserveMonthlyQuota(ctx.userId, feature);
+  const quota = await reserveMonthlyQuota(
+    ctx.userId,
+    feature,
+    workspaceFrom(ctx.userId, ctx.organizationId)
+  );
   if (!quota.allowed) {
     throw new AgentQuotaError(`${label} limit reached (${quota.used}/${quota.limit}). Upgrade your plan for more.`);
   }

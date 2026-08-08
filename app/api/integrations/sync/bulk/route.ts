@@ -8,6 +8,7 @@ import { getCrmClient } from "@/lib/crm";
 import type { CrmProvider, CrmCompanyPayload } from "@/lib/crm/types";
 import { CrmNotFoundError } from "@/lib/crm/errors";
 import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 import { executeRichPush } from "@/lib/crm/rich-push";
 
 // POST /api/integrations/sync/bulk — push multiple companies to CRM
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check monthly bulk push quota
-    const quota = await checkMonthlyQuota(session.user.id, "bulk_push");
+    const quota = await checkMonthlyQuota(session.user.id, "bulk_push", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         {
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
       const failed = results.filter((r) => r.status === "error").length;
 
       for (let i = 0; i < success; i++) {
-        await recordUsage(session.user.id, "bulk_push");
+        await recordUsage(session.user.id, "bulk_push", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
       }
 
       return NextResponse.json({ results, summary: { total: companyIds.length, success, failed } });
@@ -210,7 +211,7 @@ export async function POST(req: NextRequest) {
 
     // Record usage for each successful push (quota tracking)
     for (let i = 0; i < success; i++) {
-      await recordUsage(session.user.id, "bulk_push");
+      await recordUsage(session.user.id, "bulk_push", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     }
 
     return NextResponse.json({ results, summary: { total: companies.length, success, failed } });

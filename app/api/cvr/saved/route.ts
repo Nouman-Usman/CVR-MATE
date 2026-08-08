@@ -70,16 +70,24 @@ export async function POST(req: NextRequest) {
       session.session?.activeOrganizationId
     );
 
-    // Check saved companies limit
+    // Counted within the workspace whose limit is being applied. Counting the
+    // user's saves across every workspace against one workspace's limit made
+    // the two numbers describe different things.
     const [{ value: savedCount }] = await db
       .select({ value: count() })
       .from(savedCompany)
-      .where(eq(savedCompany.userId, session.user.id));
+      .where(
+        workspaceScope(workspace, {
+          userId: savedCompany.userId,
+          organizationId: savedCompany.organizationId,
+        })
+      );
 
     const { allowed, limit } = await checkUsageEntitlement(
       session.user.id,
       "savedCompanies",
-      savedCount
+      savedCount,
+      workspace
     );
     if (!allowed) {
       return NextResponse.json(

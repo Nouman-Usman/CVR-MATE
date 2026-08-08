@@ -54,14 +54,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check active trigger limit (only personal triggers count against user quota)
+    const workspace = await resolveWorkspaceForUser(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+
+    // Active triggers in this workspace, limited by this workspace's plan.
     const [{ value: triggerCount }] = await db
       .select({ value: count() })
       .from(leadTrigger)
       .where(
         and(
-          eq(leadTrigger.userId, session.user.id),
-          isNull(leadTrigger.organizationId),
+          workspaceScope(workspace, {
+            userId: leadTrigger.userId,
+            organizationId: leadTrigger.organizationId,
+          }),
           eq(leadTrigger.isActive, true)
         )
       );
@@ -69,7 +76,8 @@ export async function POST(req: NextRequest) {
     const { allowed, limit } = await checkUsageEntitlement(
       session.user.id,
       "triggers",
-      triggerCount
+      triggerCount,
+      workspace
     );
 
     const body = await req.json();
@@ -85,15 +93,12 @@ export async function POST(req: NextRequest) {
       scope,
     } = body;
 
-    const workspace = await resolveWorkspaceForUser(
-      session.user.id,
-      session.session?.activeOrganizationId
-    );
     // `scope: "personal"` still forces a private trigger while inside an org.
     const organizationId = scope === "personal" ? null : orgIdForWrite(workspace);
 
-    // Personal triggers check plan limits; team triggers don't count against personal quota
-    if (!organizationId && !allowed) {
+    // The workspace's plan governs in both cases now that the count and the
+    // limit describe the same workspace.
+    if (!allowed) {
       return NextResponse.json(
         { error: `Active trigger limit reached (${limit}). Upgrade your plan for more.`, upgrade: true },
         { status: 403 }

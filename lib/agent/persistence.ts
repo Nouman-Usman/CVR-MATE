@@ -1,8 +1,9 @@
 import "server-only";
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
+import { workspaceScope } from "@/lib/workspace/scope";
 import { agentSession, agentMessage } from "@/db/schema";
 import type { AgentLocale, PendingInterrupt, StoredMessage, StoredRole } from "./types";
 
@@ -104,9 +105,14 @@ export async function listSessions(
   userId: string,
   organizationId: string | null
 ): Promise<SessionListItem[]> {
-  const scope = organizationId
-    ? eq(agentSession.organizationId, organizationId)
-    : and(eq(agentSession.userId, userId), isNull(agentSession.organizationId));
+  // Same rule as every other dual-scoped table, stated once. This predates
+  // `workspaceScope` and spelled the logic out by hand; identical semantics.
+  const scope = workspaceScope(
+    organizationId
+      ? { type: "org", id: organizationId, userId, role: "member" }
+      : { type: "personal", userId },
+    { userId: agentSession.userId, organizationId: agentSession.organizationId }
+  );
   const rows = await db.query.agentSession.findMany({
     where: and(scope, ne(agentSession.status, "archived")),
     orderBy: desc(agentSession.updatedAt),

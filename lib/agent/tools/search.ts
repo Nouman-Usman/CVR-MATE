@@ -4,6 +4,7 @@ import { z } from "zod";
 import { searchCompaniesElasticsearch } from "@/lib/cvr-api-elasticsearch";
 import { regionZipcodeMap } from "@/lib/denmark-geodata";
 import { reserveMonthlyQuota } from "@/lib/stripe/entitlements";
+import { workspaceFrom } from "@/lib/workspace/types";
 import type { AgentTool } from "../types";
 import { AgentQuotaError } from "../errors";
 
@@ -114,7 +115,11 @@ const searchCompaniesTool: AgentTool<SearchInput> = {
       };
     }
 
-    const quota = await reserveMonthlyQuota(ctx.userId, "company_search");
+    const quota = await reserveMonthlyQuota(
+      ctx.userId,
+      "company_search",
+      workspaceFrom(ctx.userId, ctx.organizationId)
+    );
     if (!quota.allowed) {
       throw new AgentQuotaError(
         `Company-search limit reached (${quota.used}/${quota.limit}). Upgrade your plan for more searches.`

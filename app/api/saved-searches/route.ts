@@ -4,6 +4,9 @@ import { savedSearch } from "@/db/schema";
 import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
+import { workspaceScope } from "@/lib/workspace/scope";
+import { orgIdForWrite } from "@/lib/workspace/types";
 
 // GET /api/saved-searches — list saved searches for the current user
 export async function GET() {
@@ -13,8 +16,20 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const workspace = await resolveWorkspaceForUser(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+
+    // `createSavedSearch` in lib/saved-searches.ts already accepts an
+    // organizationId, but this list filtered on userId alone — so a search
+    // saved to a team followed its author into every workspace and was never
+    // visible to the teammates it was shared with.
     const searches = await db.query.savedSearch.findMany({
-      where: eq(savedSearch.userId, session.user.id),
+      where: workspaceScope(workspace, {
+        userId: savedSearch.userId,
+        organizationId: savedSearch.organizationId,
+      }),
       orderBy: (ss, { desc }) => [desc(ss.createdAt)],
     });
 
@@ -53,10 +68,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const workspace = await resolveWorkspaceForUser(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+
     const [created] = await db
       .insert(savedSearch)
       .values({
         userId: session.user.id,
+        // Saved in the workspace the user is looking at: private in Personal,
+        // shared with the team inside an organization.
+        organizationId: orgIdForWrite(workspace),
         name: name.trim(),
         filters,
       })
@@ -88,12 +111,31 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Only delete if owned by the user
+    const workspace = await resolveWorkspaceForUser(
+      session.user.id,
+      session.session?.activeOrganizationId
+    );
+
     const existing = await db.query.savedSearch.findFirst({
       where: eq(savedSearch.id, id),
     });
 
-    if (!existing || existing.userId !== session.user.id) {
+    /**
+     * Deletable only from the workspace it lives in.
+     *
+     * A personal search stays the author's alone. A team search belongs to the
+     * organization — a colleague can remove it, for the same reason they can
+     * move a colleague's deal: shared means shared. Anything outside the active
+     * workspace is 404 rather than 403, so the response never confirms that a
+     * search exists in an organization the caller is not currently in.
+     */
+    const deletable =
+      existing &&
+      (workspace.type === "org"
+        ? existing.organizationId === workspace.id
+        : existing.organizationId === null && existing.userId === session.user.id);
+
+    if (!deletable) {
       return NextResponse.json(
         { error: "Search not found" },
         { status: 404 }

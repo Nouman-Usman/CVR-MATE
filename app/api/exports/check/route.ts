@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkEntitlement, checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 
 /**
  * POST /api/exports/check
@@ -23,7 +24,7 @@ export async function POST() {
       );
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "export");
+    const quota = await checkMonthlyQuota(session.user.id, "export", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `Export limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -31,7 +32,7 @@ export async function POST() {
       );
     }
 
-    await recordUsage(session.user.id, "export");
+    await recordUsage(session.user.id, "export", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
 
     return NextResponse.json({
       allowed: true,

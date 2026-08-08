@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { validateActiveOrg } from "@/lib/team/permissions";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { reserveMonthlyQuota } from "@/lib/stripe/entitlements";
+import { workspaceFrom } from "@/lib/workspace/types";
 import { getUserBrand, formatBrandContext } from "@/lib/get-user-brand";
 import { createSession, getSessionRow } from "@/lib/agent/persistence";
 import { runAgentTurn, resumeAfterConfirm } from "@/lib/agent/runtime";
@@ -100,7 +101,11 @@ export async function POST(req: NextRequest) {
   }
 
   // One turn = one ai_usage unit (per-tool features are metered inside the tools).
-  const quota = await reserveMonthlyQuota(userId, "ai_usage");
+  const quota = await reserveMonthlyQuota(
+    userId,
+    "ai_usage",
+    workspaceFrom(userId, organizationId)
+  );
   if (!quota.allowed) {
     return NextResponse.json(
       { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },

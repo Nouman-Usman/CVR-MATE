@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    const quota = await checkMonthlyQuota(session.user.id, "ai_usage", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -165,7 +166,7 @@ Respond with a JSON object:
       explanation: (raw.explanation ?? raw.Explanation ?? raw.summary ?? "") as string,
     };
 
-    await recordUsage(session.user.id, "ai_usage");
+    await recordUsage(session.user.id, "ai_usage", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     return NextResponse.json(result);
   } catch (error) {
     console.error("AI parse-search error:", error);

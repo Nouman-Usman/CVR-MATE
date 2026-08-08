@@ -5,6 +5,7 @@ import { getCompanyByVat, type CvrCompany } from "@/lib/cvr-api";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { generateOutreach } from "@/lib/ai/draft-outreach";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 import { db } from "@/db";
 import { outreachMessage } from "@/db/schema";
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const draftFeature = type === "linkedin" ? "linkedin_draft" : type === "phone_script" ? "phone_draft" : "email_draft";
 
-    const quota = await checkMonthlyQuota(session.user.id, draftFeature as "linkedin_draft" | "phone_draft" | "email_draft");
+    const quota = await checkMonthlyQuota(session.user.id, draftFeature as "linkedin_draft" | "phone_draft" | "email_draft", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade for more.`, upgrade: true },
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    await recordUsage(session.user.id, draftFeature as "linkedin_draft" | "phone_draft" | "email_draft");
+    await recordUsage(session.user.id, draftFeature as "linkedin_draft" | "phone_draft" | "email_draft", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     return NextResponse.json({ ...normalized, id: saved.id });
   } catch (error) {
     console.error("AI outreach error:", error);

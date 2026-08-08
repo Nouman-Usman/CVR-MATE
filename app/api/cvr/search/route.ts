@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { searchCompaniesElasticsearch } from "@/lib/cvr-api-elasticsearch";
 import { reserveMonthlyQuota } from "@/lib/stripe/entitlements";
+import { workspaceFrom } from "@/lib/workspace/types";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
@@ -61,7 +62,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const quota = await reserveMonthlyQuota(session.user.id, "company_search");
+    const quota = await reserveMonthlyQuota(
+      session.user.id,
+      "company_search",
+      workspaceFrom(session.user.id, session.session?.activeOrganizationId)
+    );
     if (!quota.allowed) {
       return NextResponse.json(
         {

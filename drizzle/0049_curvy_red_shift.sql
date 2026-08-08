@@ -1,0 +1,3 @@
+ALTER TABLE "usage_record" ADD COLUMN "organization_id" text;--> statement-breakpoint
+ALTER TABLE "usage_record" ADD CONSTRAINT "usage_record_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "usage_record_org_feature_created_idx" ON "usage_record" USING btree ("organization_id","feature","created_at");

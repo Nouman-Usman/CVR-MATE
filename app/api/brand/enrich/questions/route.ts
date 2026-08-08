@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand } from "@/lib/get-user-brand";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
+import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const quota = await checkMonthlyQuota(session.user.id, "ai_usage");
+    const quota = await checkMonthlyQuota(session.user.id, "ai_usage", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     if (!quota.allowed) {
       return NextResponse.json(
         { error: `AI usage limit reached (${quota.used}/${quota.limit}). Upgrade your plan for more.`, upgrade: true },
@@ -98,7 +99,7 @@ Each question should be:
     const questions = (Array.isArray(data.questions) ? data.questions : Array.isArray(data) ? data : [])
       .filter((q) => q && typeof q === "object");
 
-    await recordUsage(session.user.id, "ai_usage");
+    await recordUsage(session.user.id, "ai_usage", await resolveWorkspaceForUser(session.user.id, session.session?.activeOrganizationId));
     return NextResponse.json({ questions });
   } catch (error) {
     console.error("Brand enrichment questions error:", error);
