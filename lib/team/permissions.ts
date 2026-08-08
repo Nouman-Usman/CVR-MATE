@@ -287,6 +287,26 @@ export async function assertCanCreateOrg(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Whether this user's own subscription could support owning an organization.
+ *
+ * The org's entitlement is read from whoever holds the `owner` role
+ * (`assertOrgPlanActive` → `getOrgOwnerPlanLimit`), so ownership and billing are
+ * the same fact. Handing the role to someone without the plan therefore does not
+ * just change a label — it revokes team features for every member at once.
+ */
+export async function userPlanHasTeamFeatures(userId: string): Promise<boolean> {
+  const sub = await db.query.subscription.findFirst({
+    where: eq(subscription.userId, userId),
+  });
+
+  let plan: PlanId = "free";
+  if (sub && sub.status !== "canceled" && sub.status !== "unpaid" && sub.status !== "incomplete") {
+    plan = sub.stripePriceId ? priceToPlan(sub.stripePriceId) : "free";
+  }
+  return PLAN_LIMITS[plan].teamFeatures;
+}
+
 // ─── Resource-Level Authorization ───────────────────────────────────────────
 
 /**

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, index, uniqueIndex, check } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -110,6 +110,30 @@ export const member = pgTable(
   (table) => [
     index("member_org_idx").on(table.organizationId),
     index("member_user_idx").on(table.userId),
+    /**
+     * One membership per user per organization.
+     *
+     * `getOrgMembership` resolves a user's role with `findFirst` and no
+     * ORDER BY, so two rows would make the effective role whichever one
+     * Postgres happened to return — admin on one request, member on the next.
+     * A `findFirst` is a claim about a constraint; this is the constraint.
+     */
+    uniqueIndex("member_org_user_uq").on(table.organizationId, table.userId),
+    /**
+     * At most one owner per organization.
+     *
+     * `assertOrgPlanActive` picks the owner the same way to decide which
+     * subscription governs the org, so a second owner made billing entitlement
+     * non-deterministic. Partial, because zero owners is a real state — an
+     * organization whose owner deleted their account has none.
+     */
+    uniqueIndex("member_single_owner_uq")
+      .on(table.organizationId)
+      .where(sql`${table.role} = 'owner'`),
+    // Roles are a closed set. Permission checks already fail closed on an
+    // unknown value, but `assertOrgPlanActive` matches role='owner' exactly, so
+    // a stray 'Owner' would report the organization as having no owner at all.
+    check("member_role_check", sql`${table.role} in ('owner','admin','member')`),
   ]
 ).enableRLS();
 

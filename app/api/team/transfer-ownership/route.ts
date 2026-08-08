@@ -6,6 +6,7 @@ import { member } from "@/db/auth-schema";
 import { eq, and } from "drizzle-orm";
 import {
   assertPermission,
+  userPlanHasTeamFeatures,
   TeamPermissionError,
   teamErrorToStatus,
 } from "@/lib/team/permissions";
@@ -70,18 +71,60 @@ export async function POST(req: NextRequest) {
     return badRequest("Owner membership record not found");
   }
 
-  // Atomic swap: old owner → admin, new owner → owner
-  await db.transaction(async (tx) => {
-    await tx
+  /**
+   * The incoming owner must be able to carry the plan.
+   *
+   * An organization's entitlement is read from whoever holds `owner`, so
+   * transferring to someone on Free does not merely relabel a row — it revokes
+   * team features for every member at once, while the previous owner keeps
+   * paying for an organization they no longer control. Refusing is recoverable;
+   * a silently disabled org is not.
+   */
+  if (!(await userPlanHasTeamFeatures(newOwnerId))) {
+    return NextResponse.json(
+      {
+        error:
+          "That member does not have an Enterprise subscription. The organization's plan follows its owner, so transferring would disable team features for everyone.",
+        code: "PLAN_NOT_ALLOWED",
+      },
+      { status: 409 }
+    );
+  }
+
+  /**
+   * Demote first, then promote, both guarded on the roles we read.
+   *
+   * The previous version issued two unconditional updates. Two concurrent
+   * transfers each saw the same current owner, and the second one re-demoted an
+   * already-demoted row and promoted a second person — leaving two owners, at
+   * which point which subscription governed the org depended on which row
+   * Postgres returned first. Zero rows from the demote means someone else
+   * transferred in between.
+   *
+   * The order matters as well: `member_single_owner_uq` would reject a promote
+   * that ran before the demote.
+   */
+  const transferred = await db.transaction(async (tx) => {
+    const demoted = await tx
       .update(member)
       .set({ role: "admin" })
-      .where(eq(member.id, ownerMember.id));
+      .where(and(eq(member.id, ownerMember.id), eq(member.role, "owner")))
+      .returning({ id: member.id });
+    if (demoted.length === 0) return false;
 
     await tx
       .update(member)
       .set({ role: "owner" })
       .where(eq(member.id, targetMember.id));
+    return true;
   });
+
+  if (!transferred) {
+    return NextResponse.json(
+      { error: "Ownership changed while transferring — reload and try again." },
+      { status: 409 }
+    );
+  }
 
   await logOrgEvent({
     organizationId,

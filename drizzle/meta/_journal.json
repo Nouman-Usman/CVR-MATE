@@ -337,6 +337,13 @@
       "when": 1786164471069,
       "tag": "0047_cooing_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786165036600,
+      "tag": "0048_chubby_multiple_man",
+      "breakpoints": true
     }
   ]
 }
