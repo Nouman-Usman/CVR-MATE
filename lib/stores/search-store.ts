@@ -78,6 +78,7 @@ export const useSearchStore = create<SearchUIState>()(
       // Only persist filters and UI position, not transient state
       partialize: (state) => ({
         query: state.query,
+        cvrNumber: state.cvrNumber,
         foundedPeriod: state.foundedPeriod,
         industryCode: state.industryCode,
         industrySecondaryCode: state.industrySecondaryCode,

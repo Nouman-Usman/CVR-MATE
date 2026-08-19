@@ -1,6 +1,7 @@
 export interface SearchFiltersState {
   // Identity
   query: string;
+  cvrNumber: string;
   foundedPeriod: string;
   // Industry
   industryCode: string;
@@ -27,6 +28,7 @@ type SearchParamReader = Pick<URLSearchParams, "get">;
 
 export const DEFAULT_SEARCH_FILTERS: SearchFiltersState = {
   query: "",
+  cvrNumber: "",
   foundedPeriod: "all",
   industryCode: "all",
   industrySecondaryCode: "",
@@ -49,6 +51,23 @@ import { regionZipcodeMap as _regionZipcodeMap } from "@/lib/denmark-geodata";
 export { regionCityZipcodeMap, regionCityMap, regionZipcodeMap, zipcodeToRegionCity } from "@/lib/denmark-geodata";
 export type { DenmarkCity } from "@/lib/denmark-geodata";
 
+// CVR numbers are 8 digits; users paste them with spaces/dots ("12 34 56 78", "12.34.56.78")
+export function normalizeCvr(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+export function isCvrNumber(value: string): boolean {
+  return /^\d{8}$/.test(normalizeCvr(value));
+}
+
+// Explicit CVR field wins; otherwise an 8-digit free-text query is an implicit CVR lookup.
+// Returns "" when the state does not describe a CVR lookup.
+export function resolveCvr(filters: Pick<SearchFiltersState, "cvrNumber" | "query">): string {
+  if (filters.cvrNumber && isCvrNumber(filters.cvrNumber)) return normalizeCvr(filters.cvrNumber);
+  if (isCvrNumber(filters.query)) return normalizeCvr(filters.query);
+  return "";
+}
+
 function foundedToDate(period: string): string | null {
   if (period === "all") return null;
   const map: Record<string, number> = { last30: 30, last90: 90, last365: 365, last3y: 1095 };
@@ -68,6 +87,7 @@ export function mergeSearchFilters(
 export function hasNativeSearchFilter(filters: SearchFiltersState): boolean {
   return !!(
     filters.query ||
+    filters.cvrNumber ||
     filters.industryCode !== "all" ||
     filters.industrySecondaryCode ||
     filters.street ||
@@ -87,6 +107,15 @@ export function hasNativeSearchFilter(filters: SearchFiltersState): boolean {
 
 export function buildSearchParamsFromState(filters: SearchFiltersState): URLSearchParams | null {
   const params = new URLSearchParams();
+
+  // A CVR number is a unique key, so the lookup is exclusive: every other filter can only
+  // exclude the one true match. Short-circuit before any of them are applied.
+  const cvr = resolveCvr(filters);
+  if (cvr) {
+    const cvrParams = new URLSearchParams();
+    cvrParams.set("cvr", cvr);
+    return cvrParams;
+  }
 
   if (filters.query) params.set("name", filters.query);
   if (filters.industryCode !== "all") params.set("industry_code", filters.industryCode);
@@ -130,6 +159,7 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
 export function serializeSearchFilters(filters: SearchFiltersState): Record<string, string> {
   const s: Record<string, string> = {};
   if (filters.query) s.name = filters.query;
+  if (filters.cvrNumber) s.cvr = filters.cvrNumber;
   if (filters.industryCode !== "all") s.industry_code = filters.industryCode;
   if (filters.industrySecondaryCode) s.industry_secondary_code = filters.industrySecondaryCode;
   if (filters.street) s.street = filters.street;
@@ -156,6 +186,7 @@ export function hydrateSearchFiltersFromParams(params: SearchParamReader): {
 
   const stringMappings: Array<[keyof SearchFiltersState, string]> = [
     ["query", "name"],
+    ["cvrNumber", "cvr"],
     ["industryCode", "industry_code"],
     ["industrySecondaryCode", "industry_secondary_code"],
     ["street", "street"],

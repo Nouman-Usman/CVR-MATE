@@ -431,6 +431,7 @@ const da = {
     title: "Søg virksomheder",
     subtitle: "Find og filtrer danske virksomheder efter dine kriterier",
     searchPlaceholder: "Søg efter virksomhedsnavn eller CVR-nummer...",
+    cvrDetectedHint: "CVR-nummer registreret — søger kun på CVR, alle andre filtre ignoreres",
     searchButton: "Søg",
     saveSearch: "Gem søgning",
     noFilter: "Angiv mindst ét søgekriterium.",
@@ -444,6 +445,10 @@ const da = {
     filterScopeBanner: "Filtre søger hele CVR-registret, ikke kun de viste resultater.",
     filters: {
       title: "Filtre & Segmentering",
+      cvrNumber: "CVR-nummer",
+      cvrNumberPlaceholder: "F.eks. 12345678",
+      cvrNumberHelp: "8 cifre, eksakt opslag. Ignorerer alle andre filtre.",
+      cvrExclusiveNotice: "CVR-opslag er aktivt. Alle andre filtre ignoreres — ryd CVR-nummeret for at bruge dem.",
       industry: "Branche (fritekst)",
       industryPlaceholder: "F.eks. IT, restaurant, byggeri...",
       industryCode: "Branchekode",
@@ -511,6 +516,7 @@ const da = {
       contactWwwPlaceholder: "virksomhed.dk",
       skipMarketingOptOut: "Spring virksomheder over der har fravalgt markedsføring",
       skipMarketingOptOutHelp: "Respekterer Markedsføringslovens §10 (anbefales).",
+      sectionDirectLookup: "Direkte opslag",
       sectionIdentity: "Branche & Virksomhed",
       sectionLocation: "Beliggenhed",
       sectionWorkforce: "Medarbejdere & Alder",
@@ -535,6 +541,11 @@ const da = {
         howLabel: "Sådan udfylder du det",
         closeLabel: "Forstået",
         fields: {
+          cvrNumber: {
+            title: "CVR-nummer",
+            why: "Slår én bestemt virksomhed op, når du allerede kender CVR-nummeret, i stedet for at gætte på navnet.",
+            how: "Skriv de 8 cifre, med eller uden mellemrum. Et CVR-nummer identificerer præcis én virksomhed, så opslaget ignorerer alle andre filtre og finder også ophørte og tvangsopløste virksomheder.",
+          },
           industry: {
             title: "Branche (fritekst)",
             why: "Bruges til at finde virksomheder ud fra CVR's branchetekst, når du ikke kender den præcise branchekode.",

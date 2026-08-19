@@ -11,6 +11,8 @@ import {
   buildSearchParamsFromState,
   hasNativeSearchFilter,
   hydrateSearchFiltersFromParams,
+  isCvrNumber,
+  resolveCvr,
   mergeSearchFilters,
   regionCityMap,
   regionCityZipcodeMap,
@@ -60,6 +62,7 @@ import {
   MapPin,
   Users,
   Sparkles,
+  Hash,
 } from "lucide-react";
 
 interface Company {
@@ -343,7 +346,7 @@ function SearchPage() {
 
   const store = useSearchStore();
   const {
-    query, industryCode, industrySecondaryCode,
+    query, cvrNumber, industryCode, industrySecondaryCode,
     street, numberFrom, zipcode, region, city, municipality,
     contactPhone, contactEmail, contactWww,
     foundedPeriod,
@@ -363,6 +366,7 @@ function SearchPage() {
 
   const currentFilters = useMemo<SearchFiltersState>(() => ({
     query,
+    cvrNumber,
     foundedPeriod,
     industryCode,
     industrySecondaryCode,
@@ -378,9 +382,17 @@ function SearchPage() {
     companyformCode,
     companystatusCode,
     skipMarketingOptOut,
-  }), [query, foundedPeriod, industryCode, industrySecondaryCode, street, numberFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, companyformCode, companystatusCode, skipMarketingOptOut]);
+  }), [query, cvrNumber, foundedPeriod, industryCode, industrySecondaryCode, street, numberFrom, zipcode, region, city, municipality, contactPhone, contactEmail, contactWww, companyformCode, companystatusCode, skipMarketingOptOut]);
 
   const hasNativeFilter = useMemo(() => hasNativeSearchFilter(currentFilters), [currentFilters]);
+
+  // Same resolution buildSearchParamsFromState performs, so the UI shows exactly what will be searched
+  const activeCvr = useMemo(() => resolveCvr(currentFilters), [currentFilters]);
+
+  const clearCvr = useCallback(() => {
+    setFilter("cvrNumber", "");
+    if (isCvrNumber(query)) setFilter("query", "");
+  }, [setFilter, query]);
 
   const buildSearchParams = useCallback(() => {
     return buildSearchParamsFromState(currentFilters);
@@ -599,6 +611,9 @@ function SearchPage() {
       if (value) list.push({ key, label, value, clear });
     };
 
+    // Exclusive lookup — no other filter reaches the query, so no other chip is truthful
+    if (activeCvr) return [{ key: "cvr", label: "CVR", value: activeCvr, clear: clearCvr }];
+
     if (query) push("query", locale === "da" ? "Navn" : "Name", query, () => setFilter("query", ""));
     if (industryCode !== "all") {
       const ind = s.industries.find((i) => i.code === industryCode);
@@ -631,9 +646,10 @@ function SearchPage() {
     }
     return list;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, industryCode, industrySecondaryCode, zipcode, region, city, municipality, street, numberFrom, contactPhone, contactEmail, contactWww, companyformCode, companystatusCode, foundedPeriod, locale]);
+  }, [query, activeCvr, clearCvr, industryCode, industrySecondaryCode, zipcode, region, city, municipality, street, numberFrom, contactPhone, contactEmail, contactWww, companyformCode, companystatusCode, foundedPeriod, locale]);
 
   const activeFilterCount = useMemo(() => {
+    if (activeCvr) return 1;
     let count = 0;
     if (industryCode !== "all") count++;
     if (industrySecondaryCode) count++;
@@ -650,7 +666,7 @@ function SearchPage() {
     if (contactWww) count++;
     if (foundedPeriod !== "all") count++;
     return count;
-  }, [industryCode, industrySecondaryCode, companyformCode, companystatusCode, zipcode, region, city, municipality, street, numberFrom, contactPhone, contactEmail, contactWww, foundedPeriod]);
+  }, [activeCvr, industryCode, industrySecondaryCode, companyformCode, companystatusCode, zipcode, region, city, municipality, street, numberFrom, contactPhone, contactEmail, contactWww, foundedPeriod]);
 
   return (
     <VideoTrigger featureKey="search">
@@ -708,6 +724,14 @@ function SearchPage() {
             </Button>
           </div>
 
+          {/* CVR auto-detect hint */}
+          {activeCvr && (
+            <p className="mt-2 flex items-center gap-1.5 text-[11.5px] font-medium text-primary/80">
+              <Hash className="size-3.5" />
+              {s.cvrDetectedHint}
+            </p>
+          )}
+
           {/* Filter toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -755,6 +779,39 @@ function SearchPage() {
                 />
               </div>
 
+              {/* Direct CVR lookup — exclusive, so it sits above and outside the filter stack */}
+              <FilterSection title={s.filters.sectionDirectLookup} icon={Hash}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <FilterField label={s.filters.cvrNumber} help={s.filters.cvrNumberHelp} helpInfo={filterHelp.cvrNumber} helpLabels={filterHelpLabels}>
+                    <Input
+                      className="h-9 font-mono tabular-nums"
+                      inputMode="numeric"
+                      pattern="\d{8}"
+                      maxLength={8}
+                      placeholder={s.filters.cvrNumberPlaceholder}
+                      value={cvrNumber}
+                      onChange={(e) => setFilter("cvrNumber", e.target.value.replace(/\D/g, ""))}
+                    />
+                  </FilterField>
+                </div>
+                {activeCvr && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2">
+                    <Hash className="size-3.5 mt-0.5 shrink-0 text-primary/70" />
+                    <p className="text-[11.5px] leading-relaxed text-foreground/75">
+                      {s.filters.cvrExclusiveNotice}
+                    </p>
+                  </div>
+                )}
+              </FilterSection>
+
+              {/* Everything below is unreachable during a CVR lookup */}
+              <div
+                className={cn(
+                  "transition-opacity",
+                  activeCvr && "opacity-40 pointer-events-none select-none"
+                )}
+                aria-hidden={activeCvr ? true : undefined}
+              >
               {/* Industry & Company */}
               <FilterSection title={s.filters.sectionIdentity} icon={Building2}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1090,6 +1147,7 @@ function SearchPage() {
                   </div>
                 )}
               </section>
+              </div>
             </div>
           )}
         </CardContent>
