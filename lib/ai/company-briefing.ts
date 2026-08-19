@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import type { CvrCompany } from "@/lib/cvr-api";
+import { roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface BriefingResult {
@@ -58,7 +58,7 @@ EMPLOYMENT HISTORY (last 5 years):
 ${employmentHistory.length > 0 ? employmentHistory.map(e => `  ${e.year}: ${e.amount ?? "N/A"} employees (range: ${e.interval_low ?? "?"}-${e.interval_high ?? "?"})`).join("\n") : "No data"}
 
 KEY PEOPLE:
-${participants.length > 0 ? participants.map(p => `  - ${p.life.name} | Role: ${p.roles?.life?.title ?? p.roles?.type ?? "Unknown"} | Profession: ${p.life.profession ?? "N/A"}`).join("\n") : "No participant data"}
+${participants.length > 0 ? participants.map(p => `  - ${p.life.name} | Role: ${roleLabel(p.roles) ?? "Unknown"} | Profession: ${p.life.profession ?? "N/A"}`).join("\n") : "No participant data"}
 
 CONTACT:
 - Email: ${company.contact?.email ?? "N/A"}

@@ -18,6 +18,7 @@ import { useCompanyEnrichment, useSavedEnrichment, type CompanyEnrichment } from
 import { useSubscription } from "@/lib/hooks/use-subscription";
 import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 import CrmTab from "@/components/company/CrmTab";
+import OwnershipTab from "@/components/company/OwnershipTab";
 import { formatMonthDay, formatDateShort } from "@/lib/format";
 
 interface AccountingSummary {
@@ -342,7 +343,7 @@ export default function CompanyDetailPage() {
   const saving = saveMutation.isPending || unsaveMutation.isPending;
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "financials" | "contact" | "people" | "ai-insights" | "crm"
+    "overview" | "financials" | "contact" | "people" | "ownership" | "ai-insights" | "crm"
   >("overview");
 
   // AI features
@@ -428,6 +429,9 @@ export default function CompanyDetailPage() {
     { key: "financials" as const, label: cd.financials, icon: "bar_chart" },
     { key: "contact" as const, label: cd.contact, icon: "call" },
     { key: "people" as const, label: cd.people, icon: "groups" },
+    // Always offered, even unentitled: the tab renders its own upgrade state,
+    // which is the only way a free user learns the feature exists.
+    { key: "ownership" as const, label: cd.ownership.tab, icon: "hub" },
     ...(hasCrm ? [{ key: "crm" as const, label: "CRM", icon: "contacts" }] : []),
     { key: "ai-insights" as const, label: ai.enrichment.tab, icon: "psychology" },
   ];
@@ -1427,6 +1431,8 @@ export default function CompanyDetailPage() {
           )}
 
           {/* CRM Tab (Enterprise/team) */}
+          {activeTab === "ownership" && <OwnershipTab vat={vat} />}
+
           {activeTab === "crm" && <CrmTab vat={vat} />}
 
           {/* AI Insights Tab */}

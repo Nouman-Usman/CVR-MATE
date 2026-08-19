@@ -108,41 +108,122 @@ export interface CvrCompany {
     capital_currency: string | null;
     purpose: string | null;
   };
-  participants?: {
-    participantnumber?: number;
-    vat?: number;
+  participants?: CvrParticipantRole[];
+  /**
+   * Companies this company holds a role in — the downward ownership edge.
+   * Same role shape as `participants`, so `owner_percent` lives in the same
+   * place in both directions.
+   */
+  participations?: CvrParticipation[];
+  /**
+   * PRODUKTIONSENHEDER (P-units), NOT owned companies. Every entry repeats
+   * this company's own `vat` and identifies itself by `subsidiarynumber`
+   * (a P-number). Novo Nordisk has 220. Do not treat these as ownership —
+   * see docs/superpowers/specs/2026-08-19-ownership-diagram-design.md.
+   */
+  subsidiaries?: {
+    subsidiarynumber: number;
+    vat: number;
     slug?: string;
-    address?: {
-      street?: string | null;
-      zipcode?: number | null;
-      cityname?: string | null;
-      countrycode?: string | null;
-      freetext?: string | null;
-      unlisted?: boolean;
-    };
-    life: {
-      name: string;
-      profession?: string | null;
-      deceased?: boolean;
-      adprotected?: boolean;
-    };
-    roles: {
-      type: string;
-      life: {
-        start?: string | null;
-        end?: string | null;
-        title?: string | null;
-        election_format?: string | null;
-        owner_capital_classes?: string | null;
-        owner_percent?: number | null;
-        owner_voting_percent?: number | null;
-        special_ownership?: string | null;
-        special_ownership_description?: string | null;
-        substitute_member_for_id?: number | null;
-        substitute_member_for_name?: string | null;
-      };
-    };
+    life?: { name?: string | null; start?: string | null; end?: string | null };
+    address?: { street?: string | null; zipcode?: number | null; cityname?: string | null; municipalityname?: string | null };
   }[];
+}
+
+/**
+ * One party related to a company: a person (`participantnumber` + `participant`)
+ * or another company (`vat` + `company`). `roles` is an ARRAY — a single party
+ * commonly holds several at once (founder AND owner is the usual pair).
+ */
+export interface CvrParticipantRole {
+  participantnumber?: number;
+  vat?: number;
+  slug?: string;
+  /** True when this party is a company. Mutually exclusive with `participant`. */
+  company?: boolean;
+  /** True when this party is a natural person. */
+  participant?: boolean;
+  companyform?: {
+    code?: number | null;
+    description?: string | null;
+    longdescription?: string | null;
+    holding?: boolean;
+  };
+  companystatus?: { text?: string | null; start?: string | null };
+  address?: {
+    street?: string | null;
+    zipcode?: number | null;
+    cityname?: string | null;
+    countrycode?: string | null;
+    freetext?: string | null;
+    unlisted?: boolean;
+  };
+  life: {
+    name: string;
+    profession?: string | null;
+    deceased?: boolean;
+    adprotected?: boolean;
+  };
+  roles: CvrRole[];
+}
+
+export interface CvrRole {
+  /** accountant | board | branch_manager | daily_management | director | founder
+   *  | fully_responsible_participant | liquidator | owner | real_owner | supervisory_board */
+  type: string;
+  life: {
+    start?: string | null;
+    /** Non-null means the role has ENDED — historical, not current. */
+    end?: string | null;
+    title?: string | null;
+    election_format?: string | null;
+    owner_capital_classes?: string | null;
+    /** A PERCENT (0–100), not a fraction. The CVR distribution's
+     *  EJERANDEL_PROCENT is a fraction — never mix the two sources. */
+    owner_percent?: number | null;
+    owner_voting_percent?: number | null;
+    special_ownership?: string | null;
+    special_ownership_description?: string | null;
+    substitute_member_for_id?: number | null;
+    substitute_member_for_name?: string | null;
+  };
+}
+
+/**
+ * Human-readable label for the roles a party holds at a company, e.g.
+ * "Direktør" or "Stifter, Ejer".
+ *
+ * Exists because `roles` is an ARRAY and every caller used to read it as a
+ * single object (`p.roles?.life?.title`), which evaluates to `undefined` and
+ * silently fell through to "Unknown". Every AI prompt that listed participants
+ * was therefore describing all of them as roleless.
+ *
+ * Prefers the registry's own title; falls back to the raw role type. Ended
+ * roles are dropped unless a party has nothing else — a former director is
+ * still better than no label at all.
+ */
+export function roleLabel(roles: CvrRole[] | null | undefined): string | null {
+  const all = roles ?? [];
+  const active = all.filter((r) => r.life?.end == null);
+  const source = active.length > 0 ? active : all;
+
+  const labels = source
+    .map((r) => r.life?.title?.trim() || r.type?.trim())
+    .filter((v): v is string => Boolean(v));
+
+  return labels.length > 0 ? [...new Set(labels)].join(", ") : null;
+}
+
+/** True when any of a party's roles matches `needle` by title or type. */
+export function hasRoleMatching(
+  roles: CvrRole[] | null | undefined,
+  needle: string
+): boolean {
+  const q = needle.toLowerCase();
+  return (roles ?? []).some(
+    (r) =>
+      r.life?.title?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q)
+  );
 }
 
 export async function getCompanyByVat(vat: number): Promise<CvrCompany> {
@@ -281,22 +362,9 @@ export interface CvrParticipation {
     name: string;
     adprotected?: boolean;
   };
-  roles: {
-    type: string; // accountant | board | branch_manager | daily_management | director | founder | fully_responsible_participant | liquidator | owner | real_owner | supervisory_board
-    life: {
-      start?: string | null;
-      end?: string | null;
-      title?: string | null;
-      election_format?: string | null;
-      owner_capital_classes?: string | null;
-      owner_percent?: number | null;
-      owner_voting_percent?: number | null;
-      special_ownership?: string | null;
-      special_ownership_description?: string | null;
-      substitute_member_for_id?: number | null;
-      substitute_member_for_name?: string | null;
-    };
-  }[];
+  // Structurally identical to the role shape on `participants` — same field in
+  // both directions, so both sides share one type.
+  roles: CvrRole[];
 }
 
 export async function getParticipantByNumber(participantnumber: number): Promise<CvrParticipantRaw> {

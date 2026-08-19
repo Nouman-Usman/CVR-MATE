@@ -67,32 +67,58 @@ const getCompanyPeopleTool: AgentTool<z.infer<typeof getCompanyPeopleSchema>> = 
     try {
       const company = await getCompanyByVat(input.vat);
       const participants = company.participants ?? [];
-      // A person with several roles appears as multiple entries — merge by participant number.
+
+      // `roles` is an array — one party commonly holds several at once (founder
+      // AND owner is the usual pair). Keying by participant number alone also
+      // collapsed every company participant into a single "-1" bucket, since
+      // companies carry `vat` instead, so key on whichever id the party has.
       const byId = new Map<
-        number,
-        { participantNumber: number; name: string; profession: string | null; roles: string[]; title: string | null; ownerPercent: number | null }
-      >();
-      for (const p of participants) {
-        const id = p.participantnumber ?? -1;
-        const role = p.roles;
-        const existing = byId.get(id);
-        if (existing) {
-          if (role?.type) existing.roles.push(role.type);
-          if (!existing.title && role?.life?.title) existing.title = role.life.title;
-          if (existing.ownerPercent == null && role?.life?.owner_percent != null)
-            existing.ownerPercent = role.life.owner_percent;
-        } else {
-          byId.set(id, {
-            participantNumber: id,
-            name: p.life?.name ?? "",
-            profession: p.life?.profession ?? null,
-            roles: role?.type ? [role.type] : [],
-            title: role?.life?.title ?? null,
-            ownerPercent: role?.life?.owner_percent ?? null,
-          });
+        string,
+        {
+          participantNumber: number | null;
+          vat: number | null;
+          name: string;
+          profession: string | null;
+          roles: string[];
+          title: string | null;
+          ownerPercent: number | null;
         }
+      >();
+
+      for (const party of participants) {
+        const key =
+          party.participantnumber != null
+            ? `p${party.participantnumber}`
+            : party.vat != null
+              ? `c${party.vat}`
+              : `n${party.life?.name ?? ""}`;
+
+        const entry = byId.get(key) ?? {
+          participantNumber: party.participantnumber ?? null,
+          vat: party.vat ?? null,
+          name: party.life?.name ?? "",
+          profession: party.life?.profession ?? null,
+          roles: [],
+          title: null,
+          ownerPercent: null,
+        };
+
+        for (const role of party.roles ?? []) {
+          // Historical roles would misrepresent who currently runs the company.
+          if (role.life?.end != null) continue;
+          if (role.type) entry.roles.push(role.type);
+          if (!entry.title && role.life?.title) entry.title = role.life.title;
+          if (entry.ownerPercent == null && role.life?.owner_percent != null) {
+            entry.ownerPercent = role.life.owner_percent;
+          }
+        }
+
+        byId.set(key, entry);
       }
-      const people = [...byId.values()].map((p) => ({ ...p, roles: [...new Set(p.roles)] }));
+
+      const people = [...byId.values()]
+        .map((p) => ({ ...p, roles: [...new Set(p.roles)] }))
+        .filter((p) => p.roles.length > 0);
       return {
         data: { vat: input.vat, count: people.length, people },
         display: { kind: "people", vat: input.vat, people },

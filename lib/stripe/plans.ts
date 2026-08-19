@@ -47,6 +47,7 @@ export interface PlanLimits {
   contextMenus: boolean;
   prioritySupport: boolean;
   matchFeed: boolean; // daily matched-leads feed (Professional + Enterprise)
+  ownershipDiagram: boolean; // ejerdiagram / ownership graph (Professional + Enterprise)
 }
 
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
@@ -72,6 +73,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     contextMenus: true,
     prioritySupport: false,
     matchFeed: false,
+    ownershipDiagram: false,
   },
   starter: {
     savedCompanies: 25,
@@ -95,6 +97,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     contextMenus: true,
     prioritySupport: false,
     matchFeed: false,
+    ownershipDiagram: false,
   },
   professional: {
     savedCompanies: 100,
@@ -118,6 +121,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     contextMenus: true,
     prioritySupport: false,
     matchFeed: true,
+    ownershipDiagram: true,
   },
   enterprise: {
     savedCompanies: Infinity,
@@ -141,6 +145,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     contextMenus: true,
     prioritySupport: true,
     matchFeed: true,
+    ownershipDiagram: true,
   },
 };
 

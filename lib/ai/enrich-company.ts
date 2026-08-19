@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import type { CvrCompany } from "@/lib/cvr-api";
+import { roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface CompanyEnrichmentResult {
@@ -62,7 +62,7 @@ EMPLOYMENT HISTORY:
 ${employmentHistory.length > 0 ? employmentHistory.map(e => `  ${e.year}: ${e.amount ?? "N/A"} employees`).join("\n") : "No data"}
 
 KEY PEOPLE:
-${participants.length > 0 ? participants.map(p => `  - ${p.life.name} | ${p.roles?.life?.title ?? p.roles?.type ?? "Unknown"} | ${p.life.profession ?? "N/A"}`).join("\n") : "No data"}
+${participants.length > 0 ? participants.map(p => `  - ${p.life.name} | ${roleLabel(p.roles) ?? "Unknown"} | ${p.life.profession ?? "N/A"}`).join("\n") : "No data"}
 
 CONTACT: Email: ${company.contact?.email ?? "N/A"} | Phone: ${company.contact?.phone ?? "N/A"} | Web: ${company.contact?.www ?? "N/A"}
 

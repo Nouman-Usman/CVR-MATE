@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import type { CvrCompany } from "@/lib/cvr-api";
+import { roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface TodoSuggestion {
@@ -47,7 +47,7 @@ EMAIL: ${company.contact?.email ?? "N/A"}
 PHONE: ${company.contact?.phone ?? "N/A"}
 
 KEY PEOPLE:
-${participants.slice(0, 5).map(p => `- ${p.life.name}: ${p.roles?.life?.title ?? p.roles?.type ?? "N/A"}`).join("\n") || "No data"}
+${participants.slice(0, 5).map(p => `- ${p.life.name}: ${roleLabel(p.roles) ?? "N/A"}`).join("\n") || "No data"}
 
 Respond with a JSON object:
 {

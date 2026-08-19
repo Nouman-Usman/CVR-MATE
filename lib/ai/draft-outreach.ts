@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import type { CvrCompany } from "@/lib/cvr-api";
+import { hasRoleMatching, roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface OutreachResult {
@@ -35,11 +35,11 @@ export async function generateOutreach(params: {
   if (targetRole && participants.length > 0) {
     const match = participants.find(
       (p) =>
-        p.roles?.life?.title?.toLowerCase().includes(targetRole.toLowerCase()) ||
+        hasRoleMatching(p.roles, targetRole) ||
         p.life.name.toLowerCase().includes(targetRole.toLowerCase())
     );
     if (match) {
-      targetPerson = `Address the message to: ${match.life.name} (${match.roles?.life?.title ?? match.roles?.type ?? "Contact"})`;
+      targetPerson = `Address the message to: ${match.life.name} (${roleLabel(match.roles) ?? "Contact"})`;
     }
   }
 
@@ -64,7 +64,7 @@ PURPOSE: ${company.info?.purpose ?? "Not stated"}
 ${targetPerson}
 
 KEY PEOPLE:
-${participants.slice(0, 5).map(p => `- ${p.life.name}: ${p.roles?.life?.title ?? p.roles?.type ?? "N/A"}`).join("\n") || "Not available"}
+${participants.slice(0, 5).map(p => `- ${p.life.name}: ${roleLabel(p.roles) ?? "N/A"}`).join("\n") || "Not available"}
 
 ${sellingPoint ? `WHAT I'M SELLING: ${sellingPoint}` : ""}
 
