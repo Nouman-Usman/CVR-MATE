@@ -18,6 +18,7 @@ import { useCompanyEnrichment, useSavedEnrichment, type CompanyEnrichment } from
 import { useSubscription } from "@/lib/hooks/use-subscription";
 import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 import CrmTab from "@/components/company/CrmTab";
+import { formatMonthDay, formatDateShort } from "@/lib/format";
 
 interface AccountingSummary {
   revenue?: number | null;
@@ -321,6 +322,14 @@ export default function CompanyDetailPage() {
   const { data: companyData, isLoading: loading, error: fetchError } = useCompany(validVat);
   const company = (companyData?.company as CompanyData) ?? null;
   const error = !validVat ? cd.notFound : fetchError ? cd.error : "";
+
+  // Regnskabsår arrives as two XSD gMonthDay values ("--10-01" / "--09-30").
+  // Rendered raw they read as day-month to a Danish user and mean the opposite;
+  // formatMonthDay puts the fields in the reader's order.
+  const fiscalStart = formatMonthDay(company?.accounting?.period_start, locale);
+  const fiscalEnd = formatMonthDay(company?.accounting?.period_end, locale);
+  const fiscalYear =
+    fiscalStart && fiscalEnd ? `${fiscalStart} → ${fiscalEnd}` : null;
 
   const { data: sub } = useSubscription();
   const { triggerUpgrade } = useUpgradePrompt();
@@ -791,6 +800,16 @@ export default function CompanyDetailPage() {
                   }
                   mono
                 />
+                {/* Guarded, not blank: sole proprietorships have no registered
+                    fiscal year, and a permanent en-dash is noise. */}
+                {fiscalYear && (
+                  <InfoRow
+                    icon="event_repeat"
+                    label={cd.fiscalYear}
+                    value={fiscalYear}
+                    mono
+                  />
+                )}
               </div>
 
               {/* Address & Location */}
@@ -1090,13 +1109,23 @@ export default function CompanyDetailPage() {
                     <span className="material-symbols-outlined text-lg text-blue-600">event</span>
                     {cd.accountingPeriod}
                   </h2>
-                  {company.accounting.period_start && company.accounting.period_end && (
+                  {fiscalYear && (
                     <InfoRow
-                      icon="date_range"
-                      label={cd.accountingPeriod}
-                      value={`${company.accounting.period_start.replace("--", "")} → ${company.accounting.period_end.replace("--", "")}`}
+                      icon="event_repeat"
+                      label={cd.fiscalYear}
+                      value={fiscalYear}
+                      mono
                     />
                   )}
+                  {company.accounting.first_period_start &&
+                    company.accounting.first_period_end && (
+                      <InfoRow
+                        icon="date_range"
+                        label={cd.firstAccountingPeriod}
+                        value={`${formatDateShort(company.accounting.first_period_start, locale)} → ${formatDateShort(company.accounting.first_period_end, locale)}`}
+                        mono
+                      />
+                    )}
                   {company.accounting.revision != null && (
                     <InfoRow
                       icon="verified"

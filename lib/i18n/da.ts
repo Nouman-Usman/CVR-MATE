@@ -1661,6 +1661,8 @@ const da = {
     capitalPartial: "Delvis indbetalt",
     capitalClasses: "Aktieklasser",
     accountingPeriod: "Regnskabsperiode",
+    fiscalYear: "Regnskabsår",
+    firstAccountingPeriod: "Første regnskabsperiode",
     audited: "Revideret",
     annualReports: "Årsrapporter",
     annualReport: "Årsrapport",

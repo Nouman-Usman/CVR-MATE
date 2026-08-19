@@ -92,3 +92,54 @@ export function daysSince(value: string | Date | null | undefined): number | nul
   const ms = Date.now() - d.getTime();
   return Math.max(0, Math.floor(ms / 86_400_000));
 }
+
+/**
+ * Format an XSD gMonthDay ("--10-01") — the shape CVR uses for a recurring
+ * fiscal-year boundary. Returns null when the input is not a gMonthDay, so a
+ * full date is never silently mis-rendered as a month-day.
+ *
+ * Printing the raw value inverts its meaning for a Danish reader: "10-01" is
+ * ISO month-day but parses as 10 January. Intl puts the fields in the reader's
+ * order instead — da-DK "01.10", en-US "10/01".
+ */
+export function formatMonthDay(
+  value: string | null | undefined,
+  locale: string
+): string | null {
+  const m = value?.match(/^--(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // 2024 is a leap year, so "--02-29" survives the round-trip.
+  const d = new Date(Date.UTC(2024, month - 1, day));
+  return (
+    d
+      .toLocaleDateString(resolveLocale(locale), {
+        day: "2-digit",
+        month: "2-digit",
+        timeZone: "UTC",
+      })
+      // Some ICU builds append a separator when the year is omitted.
+      .replace(/[.\/-]$/, "")
+  );
+}
+
+/**
+ * Numeric date for period ranges — "08.04.2021" rather than `formatDate`'s
+ * "8. apr. 2021". Two of these sit side by side in a range, where the long
+ * form is unreadable. Returns null (not "–") so callers can hide the row.
+ */
+export function formatDateShort(
+  value: string | Date | null | undefined,
+  locale: string
+): string | null {
+  if (value == null) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(resolveLocale(locale), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}

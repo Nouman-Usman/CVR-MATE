@@ -1662,6 +1662,8 @@ const en = {
     capitalPartial: "Partial capital",
     capitalClasses: "Share classes",
     accountingPeriod: "Accounting period",
+    fiscalYear: "Fiscal year",
+    firstAccountingPeriod: "First accounting period",
     audited: "Audited",
     annualReports: "Annual reports",
     annualReport: "Annual report",

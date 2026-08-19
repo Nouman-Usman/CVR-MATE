@@ -76,6 +76,17 @@ export interface CvrCompany {
     adprotected: boolean;
   };
   accounting?: {
+    // The registry's fiscal-year fields. cvrFetch ends in a bare res.json()
+    // cast, so these have always arrived at runtime — declaring them just
+    // stops server code having to re-cast to reach them.
+    /** Recurring fiscal-year start as XSD gMonthDay, e.g. "--10-01". */
+    period_start?: string | null;
+    /** Recurring fiscal-year end as XSD gMonthDay, e.g. "--09-30". */
+    period_end?: string | null;
+    /** First accounting period — full dates, e.g. "2021-04-08". */
+    first_period_start?: string | null;
+    first_period_end?: string | null;
+    revision?: boolean;
     documents?: {
       summary?: {
         revenue: number | null;
