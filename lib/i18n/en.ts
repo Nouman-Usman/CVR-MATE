@@ -624,6 +624,7 @@ const en = {
     title: "Search companies",
     subtitle: "Find and filter Danish companies by your criteria",
     searchPlaceholder: "Search by company name or CVR number...",
+    cvrDetectedHint: "CVR number detected — searching by CVR only, all other filters are ignored",
     searchButton: "Search",
     saveSearch: "Save search",
     noFilter: "Please enter at least one search criterion.",
@@ -637,6 +638,10 @@ const en = {
     filterScopeBanner: "Filters query the full CVR registry, not only the visible results.",
     filters: {
       title: "Filters & Segmentation",
+      cvrNumber: "CVR number",
+      cvrNumberPlaceholder: "E.g. 12345678",
+      cvrNumberHelp: "8 digits, exact lookup. Ignores all other filters.",
+      cvrExclusiveNotice: "CVR lookup is active. All other filters are ignored — clear the CVR number to use them.",
       industry: "Industry (free text)",
       industryPlaceholder: "E.g. IT, restaurant, construction...",
       industryCode: "Industry code",
@@ -704,6 +709,7 @@ const en = {
       contactWwwPlaceholder: "company.dk",
       skipMarketingOptOut: "Skip companies opted out of marketing",
       skipMarketingOptOutHelp: "Respects Danish Marketing Act §10 (recommended).",
+      sectionDirectLookup: "Direct lookup",
       sectionIdentity: "Industry & Company",
       sectionLocation: "Location",
       sectionWorkforce: "Workforce & Age",
@@ -728,6 +734,11 @@ const en = {
         howLabel: "How to fill this out",
         closeLabel: "Got it",
         fields: {
+          cvrNumber: {
+            title: "CVR number",
+            why: "Looks up one specific company when you already know its CVR number, instead of guessing at the name.",
+            how: "Enter the 8 digits, with or without spaces. A CVR number identifies exactly one company, so the lookup ignores every other filter and also finds dissolved and ceased companies.",
+          },
           industry: {
             title: "Industry (free text)",
             why: "Use this to find companies by CVR's industry text when you do not know the exact industry code.",

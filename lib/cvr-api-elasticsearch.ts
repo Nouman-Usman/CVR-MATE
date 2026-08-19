@@ -197,6 +197,14 @@ function buildBranchePrefixClause(field: string, raw: string): unknown | null {
 function buildEsQuery(filters: Record<string, string>): unknown {
   const must: unknown[] = [];
 
+  // Exact CVR lookup — numeric top-level field, no analysis involved
+  const cvrNumber = filters.cvr_number;
+  if (cvrNumber) {
+    must.push({
+      term: { "Vrvirksomhed.cvrNummer": parseInt(cvrNumber) },
+    });
+  }
+
   const name = filters.life_name;
   if (name) {
     must.push({
@@ -314,9 +322,10 @@ function buildEsQuery(filters: Record<string, string>): unknown {
         "Vrvirksomhed.virksomhedMetadata.sammensatStatus": statusCode,
       },
     });
-  } else {
+  } else if (!cvrNumber) {
     // By default, only show active companies (status NORMAL or AKTIV)
     // User must explicitly set a status filter to see dissolved/closed companies
+    // Skipped for exact CVR lookup — a known CVR should resolve even if dissolved
     must.push({
       bool: {
         should: [

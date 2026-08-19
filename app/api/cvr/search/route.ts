@@ -36,22 +36,36 @@ export async function GET(req: NextRequest) {
     // Map filter params to Elasticsearch filter structure
     const filters: Record<string, string> = {};
 
-    if (params.has("name")) filters.life_name = params.get("name") || "";
-    if (params.has("zipcode")) filters.address_zipcode = params.get("zipcode") || "";
-    if (params.has("zipcode_list")) filters.zipcode_list = params.get("zipcode_list") || "";
-    if (params.has("city")) filters.city = params.get("city") || "";
-    if (params.has("municipality")) filters.municipality = params.get("municipality") || "";
-    if (params.has("street")) filters.street = params.get("street") || "";
-    if (params.has("number_from")) filters.number_from = params.get("number_from") || "";
-    if (params.has("industry_code")) filters.industry_primary_code = params.get("industry_code") || "";
-    if (params.has("industry_secondary_code")) filters.industry_secondary_code = params.get("industry_secondary_code") || "";
-    if (params.has("companyform_code")) filters.companyform_code = params.get("companyform_code") || "";
-    if (params.has("companystatus_code")) filters.company_status_code = params.get("companystatus_code") || "";
-    if (params.has("life_start")) filters.life_start = params.get("life_start") || "";
-    if (params.has("phone")) filters.contact_phone = params.get("phone") || "";
-    if (params.has("email")) filters.contact_email = params.get("email") || "";
-    if (params.has("website")) filters.contact_www = params.get("website") || "";
-    if (params.has("ad_protected")) filters.life_adprotected = params.get("ad_protected") || "";
+    // CVR is a unique key — an exact lookup ignores every other filter, since any of
+    // them could only exclude the single matching company.
+    const cvrRaw = params.get("cvr");
+    if (cvrRaw !== null) {
+      const cvr = cvrRaw.replace(/\D/g, "");
+      if (!/^\d{8}$/.test(cvr)) {
+        return NextResponse.json(
+          { error: "CVR number must be 8 digits" },
+          { status: 400 }
+        );
+      }
+      filters.cvr_number = cvr;
+    } else {
+      if (params.has("name")) filters.life_name = params.get("name") || "";
+      if (params.has("zipcode")) filters.address_zipcode = params.get("zipcode") || "";
+      if (params.has("zipcode_list")) filters.zipcode_list = params.get("zipcode_list") || "";
+      if (params.has("city")) filters.city = params.get("city") || "";
+      if (params.has("municipality")) filters.municipality = params.get("municipality") || "";
+      if (params.has("street")) filters.street = params.get("street") || "";
+      if (params.has("number_from")) filters.number_from = params.get("number_from") || "";
+      if (params.has("industry_code")) filters.industry_primary_code = params.get("industry_code") || "";
+      if (params.has("industry_secondary_code")) filters.industry_secondary_code = params.get("industry_secondary_code") || "";
+      if (params.has("companyform_code")) filters.companyform_code = params.get("companyform_code") || "";
+      if (params.has("companystatus_code")) filters.company_status_code = params.get("companystatus_code") || "";
+      if (params.has("life_start")) filters.life_start = params.get("life_start") || "";
+      if (params.has("phone")) filters.contact_phone = params.get("phone") || "";
+      if (params.has("email")) filters.contact_email = params.get("email") || "";
+      if (params.has("website")) filters.contact_www = params.get("website") || "";
+      if (params.has("ad_protected")) filters.life_adprotected = params.get("ad_protected") || "";
+    }
 
     // Check if at least one filter is provided
     const hasAnyFilter = Object.values(filters).some((v) => v);
