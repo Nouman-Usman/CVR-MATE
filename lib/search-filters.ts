@@ -158,8 +158,12 @@ export function buildSearchParamsFromState(filters: SearchFiltersState): URLSear
 
 export function serializeSearchFilters(filters: SearchFiltersState): Record<string, string> {
   const s: Record<string, string> = {};
+
+  // Match buildSearchParamsFromState: a saved CVR lookup must not carry filters it will ignore
+  const cvr = resolveCvr(filters);
+  if (cvr) return { cvr };
+
   if (filters.query) s.name = filters.query;
-  if (filters.cvrNumber) s.cvr = filters.cvrNumber;
   if (filters.industryCode !== "all") s.industry_code = filters.industryCode;
   if (filters.industrySecondaryCode) s.industry_secondary_code = filters.industrySecondaryCode;
   if (filters.street) s.street = filters.street;
