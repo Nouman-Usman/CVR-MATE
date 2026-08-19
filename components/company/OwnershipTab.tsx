@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Background,
@@ -10,9 +10,6 @@ import {
   MiniMap,
   Position,
   ReactFlow,
-  ReactFlowProvider,
-  useNodesInitialized,
-  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -156,17 +153,15 @@ export default function OwnershipTab({ vat }: { vat: string }) {
           // The canvas owns its own scroll — the page must never scroll
           // sideways because a graph is wide.
           <div className="h-140 w-full">
-            <ReactFlowProvider>
-              <OwnershipCanvas
-                nodes={flow.nodes}
-                edges={flow.edges}
-                layoutKey={layoutKey}
-                onOpen={(node) => {
-                  if (node.vat) router.push(`/company/${node.vat}`);
-                  else if (node.participantNumber) router.push(`/person/${node.participantNumber}`);
-                }}
-              />
-            </ReactFlowProvider>
+            <OwnershipCanvas
+              key={layoutKey}
+              nodes={flow.nodes}
+              edges={flow.edges}
+              onOpen={(node) => {
+                if (node.vat) router.push(`/company/${node.vat}`);
+                else if (node.participantNumber) router.push(`/person/${node.participantNumber}`);
+              }}
+            />
           </div>
         ) : (
           <div className="p-12 text-center">
@@ -227,43 +222,31 @@ export default function OwnershipTab({ vat }: { vat: string }) {
 }
 
 /**
- * The canvas, rendered CONTROLLED and never remounted.
+ * The canvas.
  *
- * Positions come from dagre on every change, so React Flow does not need to own
- * them — which is why dragging is off: in controlled mode without a change
- * handler a dragged node snaps back, and the panel, not the mouse, is the
- * modelling mechanism here.
- *
- * `fitView` only runs on init, so a changed layout is re-fitted explicitly.
+ * Uncontrolled (`defaultNodes`/`defaultEdges`): React Flow owns the store and
+ * applies its own node measurements, which is what makes edges render at all.
+ * The controlled form requires feeding those measurement changes back through
+ * `onNodesChange`, and every variant of that tried here produced nodes with no
+ * edges — so the library owns the store and a `key` remount applies a new
+ * layout.
  */
 function OwnershipCanvas({
   nodes,
   edges,
-  layoutKey,
   onOpen,
 }: {
   nodes: Node[];
   edges: Edge[];
-  layoutKey: string;
   onOpen: (node: OwnershipNode) => void;
 }) {
-  const { fitView } = useReactFlow();
-  // The library's own signal that every node has been measured. Fitting before
-  // this computes bounds from nodes that have no size yet, which is how the
-  // canvas ended up zoomed into empty space.
-  const measured = useNodesInitialized();
-
-  useEffect(() => {
-    if (!measured) return;
-    void fitView({ padding: 0.15, maxZoom: 1 });
-  }, [layoutKey, measured, fitView]);
-
   return (
     <ReactFlow
-      nodes={nodes}
-      edges={edges}
+      defaultNodes={nodes}
+      defaultEdges={edges}
       nodeTypes={NODE_TYPES}
-      nodesDraggable={false}
+      fitView
+      fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
       minZoom={0.05}
       maxZoom={1.6}
       onNodeClick={(_, n) => onOpen((n.data as { node: OwnershipNode }).node)}
