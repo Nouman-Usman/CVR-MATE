@@ -1683,6 +1683,10 @@ const en = {
     // has always been correct; "Subsidiaries" claimed ownership that this data
     // does not represent.
     subsidiaries: "Production units",
+      follow: "Follow",
+      following: "Following",
+      followHint: "Get notified when this company files a new annual report",
+      followingHint: "You'll be notified about new annual reports",
     ownership: {
       tab: "Ownership",
       title: "Ownership diagram",

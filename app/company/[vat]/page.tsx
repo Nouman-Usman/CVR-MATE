@@ -19,6 +19,11 @@ import { useSubscription } from "@/lib/hooks/use-subscription";
 import { useUpgradePrompt } from "@/lib/hooks/use-upgrade-prompt";
 import CrmTab from "@/components/company/CrmTab";
 import OwnershipTab from "@/components/company/OwnershipTab";
+import {
+  useFollowCompany,
+  useFollowedCvrSet,
+  useUnfollowCompany,
+} from "@/lib/hooks/use-followed-companies";
 import { formatMonthDay, formatDateShort } from "@/lib/format";
 
 interface AccountingSummary {
@@ -340,6 +345,31 @@ export default function CompanyDetailPage() {
   const saveMutation = useSaveCompany();
   const unsaveMutation = useUnsaveCompany();
   const isSaved = savedCvrs.has(vat);
+
+  // Following is a SUBSCRIPTION, not a bookmark: it produces notifications and
+  // has its own plan limit, so it is a separate action from saving.
+  const followedCvrs = useFollowedCvrSet();
+  const followMutation = useFollowCompany();
+  const unfollowMutation = useUnfollowCompany();
+  const isFollowing = followedCvrs.has(vat);
+  const followBusy = followMutation.isPending || unfollowMutation.isPending;
+
+  const handleFollowToggle = () => {
+    if (isFollowing) {
+      unfollowMutation.mutate(vat);
+      return;
+    }
+    followMutation.mutate(
+      { cvr: vat, companyName: company?.life?.name ?? vat },
+      {
+        onError: (err) => {
+          if ((err as Error & { upgrade?: boolean }).upgrade) {
+            triggerUpgrade("followed_people");
+          }
+        },
+      }
+    );
+  };
   const saving = saveMutation.isPending || unsaveMutation.isPending;
 
   const [activeTab, setActiveTab] = useState<
@@ -586,6 +616,27 @@ export default function CompanyDetailPage() {
                   bookmark
                 </span>
                 {saving ? "…" : isSaved ? cd.saved : cd.save}
+              </button>
+
+              {/* Alerts on new annual reports. Quiet until switched on, so it
+                  never competes with the primary save action. */}
+              <button
+                onClick={handleFollowToggle}
+                disabled={followBusy}
+                title={isFollowing ? cd.followingHint : cd.followHint}
+                className={`group inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border px-4 text-[13px] font-semibold transition-colors disabled:opacity-50 md:w-auto ${
+                  isFollowing
+                    ? "border-blue-200 bg-blue-50 text-blue-700 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span
+                  className={`material-symbols-outlined text-[18px] ${isFollowing ? "text-blue-600 group-hover:text-red-500" : "text-slate-400"}`}
+                  style={isFollowing ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                >
+                  notifications
+                </span>
+                {followBusy ? "…" : isFollowing ? cd.following : cd.follow}
               </button>
             </div>
           </div>

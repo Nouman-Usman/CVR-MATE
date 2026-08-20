@@ -1679,6 +1679,10 @@ const da = {
     equityReturn: "Egenkapitalforrentning",
     financialRatios: "Nøgletal",
     subsidiaries: "Produktionsenheder",
+      follow: "Følg",
+      following: "Følger",
+      followHint: "Få besked når virksomheden indleverer et nyt årsregnskab",
+      followingHint: "Du får besked ved nye årsregnskaber",
     ownership: {
       tab: "Ejerskab",
       title: "Ejerdiagram",
