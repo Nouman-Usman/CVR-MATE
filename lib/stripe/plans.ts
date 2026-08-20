@@ -23,6 +23,7 @@ export interface PlanLimits {
   savedCompanies: number;
   triggers: number;
   followedPeople: number;
+  followedCompanies: number;
   tasks: number;
   crmConnections: number; // 0 = no CRM, 1 = one provider, 3 = all providers
 
@@ -55,6 +56,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     savedCompanies: 5,
     triggers: 0,
     followedPeople: 0,
+    followedCompanies: 0,
     tasks: 5,
     crmConnections: 0,
     companySearchesPerMonth: 10,
@@ -79,6 +81,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     savedCompanies: 25,
     triggers: 1,
     followedPeople: 3,
+    followedCompanies: 3,
     tasks: 10,
     crmConnections: 0,
     companySearchesPerMonth: 50,
@@ -103,6 +106,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     savedCompanies: 100,
     triggers: 3,
     followedPeople: 10,
+    followedCompanies: 10,
     tasks: Infinity,
     crmConnections: 1,
     companySearchesPerMonth: 500,
@@ -127,6 +131,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     savedCompanies: Infinity,
     triggers: 7,
     followedPeople: 50,
+    followedCompanies: 50,
     tasks: Infinity,
     crmConnections: 3,
     companySearchesPerMonth: Infinity,

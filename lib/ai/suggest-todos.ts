@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import { roleLabel, type CvrCompany } from "@/lib/cvr-api";
+import { accountingSummary, roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface TodoSuggestion {
@@ -23,7 +23,7 @@ export async function generateTodoSuggestions(params: {
 }): Promise<SuggestTodosResult> {
   const { company, locale, brand } = params;
 
-  const accounting = company.accounting?.documents?.[0]?.summary;
+  const accounting = accountingSummary(company.accounting?.documents?.[0]);
   const participants = company.participants ?? [];
   const emp = company.employment?.years?.[0];
 

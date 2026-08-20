@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import { hasRoleMatching, roleLabel, type CvrCompany } from "@/lib/cvr-api";
+import { accountingSummary, hasRoleMatching, roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface OutreachResult {
@@ -27,7 +27,7 @@ export async function generateOutreach(params: {
 }): Promise<OutreachResult> {
   const { company, type, tone, sellingPoint, targetRole, locale, brand } = params;
 
-  const accounting = company.accounting?.documents?.[0]?.summary;
+  const accounting = accountingSummary(company.accounting?.documents?.[0]);
   const participants = company.participants ?? [];
 
   // Find target person if specified

@@ -351,6 +351,13 @@
       "when": 1786166563337,
       "tag": "0049_curvy_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787242250326,
+      "tag": "0050_low_garia",
+      "breakpoints": true
     }
   ]
 }

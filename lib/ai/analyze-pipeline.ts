@@ -2,7 +2,7 @@ import "server-only";
 
 import { inArray } from "drizzle-orm";
 import { generateAiJson } from "@/lib/ai";
-import { getCompanyByVat } from "@/lib/cvr-api";
+import { accountingSummary, getCompanyByVat } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 import { db } from "@/db";
 import { company as companyTable } from "@/db/schema";
@@ -80,7 +80,7 @@ export async function analyzePipeline(params: {
   const companySummaries: string[] = [];
 
   for (const c of cvrCompanies) {
-    const acc = c!.accounting?.documents?.[0]?.summary;
+    const acc = accountingSummary(c!.accounting?.documents?.[0]);
     const emp = c!.employment?.years?.[0];
     companySummaries.push(
       `- ${c!.life.name} (CVR: ${c!.vat}) | Industry: ${c!.industry?.primary?.text ?? "?"} | City: ${c!.address?.cityname ?? "?"} | Employees: ${emp?.amount ?? acc?.averagenumberofemployees ?? "?"} | Revenue: ${acc?.revenue != null ? `${acc.revenue} DKK` : "?"} | Profit: ${acc?.profitloss != null ? `${acc.profitloss} DKK` : "?"} | Founded: ${c!.life.start ?? "?"} | Status: ${c!.companystatus?.text ?? "?"} | Bankrupt: ${c!.status?.bankrupt ? "Yes" : "No"}`

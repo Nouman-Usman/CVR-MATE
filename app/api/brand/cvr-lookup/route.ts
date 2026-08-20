@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getCompanyByVat } from "@/lib/cvr-api";
+import { accountingSummary, getCompanyByVat } from "@/lib/cvr-api";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     const employees =
       company.employment?.years?.[0]?.amount ??
-      company.accounting?.documents?.[0]?.summary?.averagenumberofemployees ??
+      accountingSummary(company.accounting?.documents?.[0])?.averagenumberofemployees ??
       null;
 
     return NextResponse.json({

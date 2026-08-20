@@ -126,7 +126,13 @@ export async function checkEntitlement(
  */
 export async function checkUsageEntitlement(
   userId: string,
-  feature: "savedCompanies" | "triggers" | "followedPeople" | "tasks" | "crmConnections",
+  feature:
+    | "savedCompanies"
+    | "triggers"
+    | "followedPeople"
+    | "followedCompanies"
+    | "tasks"
+    | "crmConnections",
   currentCount: number,
   workspace: Workspace = personalWorkspace(userId)
 ): Promise<{ allowed: boolean; plan: PlanId; limit: number; current: number }> {

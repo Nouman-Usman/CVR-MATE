@@ -1,7 +1,7 @@
 import "server-only";
 
 import { generateAiJson } from "@/lib/ai";
-import { roleLabel, type CvrCompany } from "@/lib/cvr-api";
+import { accountingSummary, roleLabel, type CvrCompany } from "@/lib/cvr-api";
 import { formatBrandContext, type UserBrand } from "@/lib/get-user-brand";
 
 export interface BriefingResult {
@@ -22,7 +22,7 @@ export async function generateCompanyBriefing(params: {
 }): Promise<BriefingResult> {
   const { company, locale, brand } = params;
 
-  const accounting = company.accounting?.documents?.[0]?.summary;
+  const accounting = accountingSummary(company.accounting?.documents?.[0]);
   const employmentHistory = company.employment?.years?.slice(0, 5) ?? [];
   const participants = company.participants ?? [];
 

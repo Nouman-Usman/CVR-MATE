@@ -77,6 +77,17 @@ export const companyMetrics = pgTable(
     revenue: numeric("revenue"),
     profit: numeric("profit"),
     equity: numeric("equity"),
+    /**
+     * The fiscal period these figures describe — the END of the accounting
+     * period, matching `accounting.documents[].end` from the CVR payload.
+     *
+     * `recordedAt` says when WE looked; only `periodEnd` says which financial
+     * year the numbers belong to, which is what a chart or a year-over-year
+     * comparison needs. Nullable because manual/import rows may have no
+     * period, and Postgres treats NULLs as distinct so those never collide in
+     * the unique index below.
+     */
+    periodEnd: date("period_end"),
     recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
     source: text("source").default("cvr_api").notNull(), // 'cvr_api' | 'manual' | 'import'
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -84,6 +95,19 @@ export const companyMetrics = pgTable(
   (table) => [
     index("company_metrics_company_idx").on(table.companyId),
     index("company_metrics_recorded_idx").on(table.companyId, table.recordedAt),
+    /**
+     * State, not log: one row per company per fiscal period per source.
+     *
+     * Without this, every re-poll of an unchanged report inserts a duplicate
+     * year and the series silently doubles. It is also what lets a refiling
+     * UPDATE the figures — a corrected annual report must overwrite the period
+     * it corrects, unlike `annualReportEvent`, which must NOT re-fire.
+     */
+    uniqueIndex("company_metrics_period_uq").on(
+      table.companyId,
+      table.periodEnd,
+      table.source
+    ),
   ]
 ).enableRLS();
 
@@ -1339,6 +1363,125 @@ export const personRoleEvent = pgTable(
   ]
 ).enableRLS();
 
+// ─── FOLLOWED COMPANY (annual-report + status watch) ────────────────────────
+
+/**
+ * A company a user has subscribed to alerts for.
+ *
+ * Deliberately NOT `savedCompany`: saving is a bookmark, following is a
+ * subscription. Mirrors `followedPerson` field for field, because the daily
+ * cron that drives it follows the same shape.
+ */
+export const followedCompany = pgTable(
+  "followed_company",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    cvr: text("cvr").notNull(),
+    companyName: text("company_name").notNull(),
+    note: text("note"),
+    isActive: boolean("is_active").default(true).notNull(),
+    /**
+     * NULL means FIRST SIGHT: the next poll seeds every observed period and
+     * emits no notifications. Without it, switching the feature on announces
+     * annual reports filed months ago and the alerts read as untimely.
+     * Stamped on every poll, whether or not anything was filed.
+     */
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("followed_company_user_cvr_idx").on(table.userId, table.cvr),
+    index("followed_company_user_idx").on(table.userId),
+    index("followed_company_cvr_idx").on(table.cvr),
+    index("followed_company_org_idx").on(table.organizationId),
+    // The cron's own query: active follows, one lookup per distinct CVR.
+    index("followed_company_active_idx").on(table.isActive, table.cvr),
+  ]
+).enableRLS();
+
+// ─── ANNUAL REPORT EVENT ────────────────────────────────────────────────────
+
+/**
+ * One row per annual-report PERIOD we have observed for a company.
+ *
+ * Annual-report invariants
+ *
+ *  1. Only AARSRAPPORT documents participate in annual-report detection.
+ *  2. (cvr, period_end, source) is the canonical report identity.
+ *  3. period_end determines financial ordering; publicdate never does.
+ *  4. Detection is set membership, never a "latest period" watermark.
+ *  5. Every AARSRAPPORT period must be offered to the event insert.
+ *  6. Multiple documents with the same period_end represent ONE financial period.
+ *  7. For a period with multiple documents, the highest publicdate is the
+ *     current revision.
+ *  8. Refilings update the existing period but never create a new notification
+ *     event in v1.
+ *  9. [0] and [1] mean the latest two distinct period_end VALUES, never the
+ *     latest two documents.
+ * 10. First sight seeds all observed periods but emits no notifications.
+ * 11. Notification audience is org owners ∪ org admins ∪ follower, deduplicated.
+ * 12. publicdate remains available for late-filing intelligence but never
+ *     affects identity, ordering, or detection.
+ *
+ * Why period_end and not publicdate: Novo Nordisk's FY2000 annual report was
+ * filed 2004-07-19, AFTER FY2001, FY2002 and FY2003. Ordering by filing date
+ * would call a 2000 report "the latest"; a watermark on the newest period would
+ * never notice it arriving at all.
+ *
+ * This is an OBSERVATION table — it records that a period became known.
+ * `companyMetrics` is the STATE of that period. That is why this one is
+ * ON CONFLICT DO NOTHING (a refiling is not a new observation) while metrics
+ * are ON CONFLICT DO UPDATE (a refiling corrects the figures).
+ */
+export const annualReportEvent = pgTable(
+  "annual_report_event",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    cvr: text("cvr").notNull(),
+    companyName: text("company_name"),
+    /** Canonical identity and chronology. Never publicdate. */
+    periodEnd: date("period_end").notNull(),
+    periodStart: date("period_start"),
+    source: text("source").default("cvr_api").notNull(),
+    /** METADATA ONLY — enables "filed N years late", never ordering. */
+    publicdate: date("publicdate"),
+    documentUrl: text("document_url"),
+    /** The report's financial summary as returned by CVR. */
+    summaryJson: jsonb("summary_json"),
+    /** Bumped when a further document appears for an already-known period. */
+    revisionCount: integer("revision_count").default(0).notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    /**
+     * THE DETECTION MECHANISM, not merely a constraint.
+     *
+     *   INSERT ... ON CONFLICT (cvr, period_end, source) DO NOTHING RETURNING *
+     *
+     * The returned rows ARE the genuinely-new periods, which makes the pipeline
+     * idempotent across retries, restarts and concurrent cron runs by
+     * construction — no application-side "seen" set to drift.
+     */
+    uniqueIndex("annual_report_event_identity_uq").on(
+      table.cvr,
+      table.periodEnd,
+      table.source
+    ),
+    index("annual_report_event_cvr_idx").on(table.cvr, table.periodEnd),
+    index("annual_report_event_seen_idx").on(table.firstSeenAt),
+  ]
+).enableRLS();
+
 // ─── CHANGE FEED CURSOR (global cursor for CVR company change feed) ─────────
 // isProcessing + processingStartedAt provide a simple distributed lock.
 // Stale lock detection: if isProcessing=true but processingStartedAt > 30min ago, treat as stale.
@@ -2027,6 +2170,10 @@ export const followedPersonRelations = relations(followedPerson, ({ one }) => ({
   user: one(user, { fields: [followedPerson.userId], references: [user.id] }),
 }));
 
+export const followedCompanyRelations = relations(followedCompany, ({ one }) => ({
+  user: one(user, { fields: [followedCompany.userId], references: [user.id] }),
+}));
+
 export const featuresRelations = relations(features, ({ many }) => ({
   videos: many(featureVideo),
   userViews: many(userVideoView),
@@ -2057,6 +2204,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   activities: many(activity),
   usageRecords: many(usageRecord),
   followedPeople: many(followedPerson),
+  followedCompanies: many(followedCompany),
   emailLogs: many(emailLog),
   agentSessions: many(agentSession),
 }));

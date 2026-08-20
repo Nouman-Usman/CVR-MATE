@@ -87,16 +87,7 @@ export interface CvrCompany {
     first_period_start?: string | null;
     first_period_end?: string | null;
     revision?: boolean;
-    documents?: {
-      summary?: {
-        revenue: number | null;
-        grossprofitloss: number | null;
-        profitloss: number | null;
-        equity: number | null;
-        assets: number | null;
-        averagenumberofemployees: number | null;
-      };
-    }[];
+    documents?: CvrAccountingDocument[];
   };
   employment?: {
     months?: { amount: number | null; interval_low: number | null; interval_high: number | null; year: number; month: number }[];
@@ -128,6 +119,61 @@ export interface CvrCompany {
     life?: { name?: string | null; start?: string | null; end?: string | null };
     address?: { street?: string | null; zipcode?: number | null; cityname?: string | null; municipalityname?: string | null };
   }[];
+}
+
+/**
+ * One filed accounting document.
+ *
+ * NOT all annual reports: the array mixes AARSRAPPORT, DELAARSRAPPORT
+ * (interim), HALVAARSRAPPORT (half-year) and KONCERNREGNSKAB (consolidated
+ * group accounts). Filter by `type` before treating any of these as a
+ * company's annual accounts.
+ */
+export interface CvrAccountingDocument {
+  /** AARSRAPPORT | DELAARSRAPPORT | HALVAARSRAPPORT | KONCERNREGNSKAB */
+  type?: string | null;
+  /** Fiscal period start, full date e.g. "2024-10-01". */
+  start?: string | null;
+  /**
+   * Fiscal period END, full date e.g. "2025-09-30".
+   *
+   * This is the canonical identity and chronology of the report. Novo's FY2000
+   * report was filed in 2004; only `end` orders it correctly.
+   */
+  end?: string | null;
+  /** Filing/publication date. METADATA — never orders or identifies a report. */
+  publicdate?: string | null;
+  /** Null across all observed data; do not rely on it to detect refilings. */
+  updated?: string | null;
+  currency?: string | null;
+  url?: string | null;
+  /** `[]` when the filing carries no figures — normalise to null before use. */
+  summary?: CvrAccountingSummary | [];
+}
+
+export interface CvrAccountingSummary {
+  revenue: number | null;
+  grossprofitloss: number | null;
+  profitloss: number | null;
+  equity: number | null;
+  assets: number | null;
+  averagenumberofemployees: number | null;
+}
+
+/**
+ * The figures on a filing, or null when it carries none.
+ *
+ * CVR returns `summary: []` — an empty ARRAY, not an object — for filings with
+ * no figures; 139 of 306 observed annual reports do. Reading `.profitloss`
+ * straight off that yields `undefined`, which every caller then rendered as
+ * "N/A" without anyone noticing the shape was wrong.
+ */
+export function accountingSummary(
+  doc: CvrAccountingDocument | null | undefined
+): CvrAccountingSummary | null {
+  const summary = doc?.summary;
+  if (!summary || Array.isArray(summary)) return null;
+  return summary;
 }
 
 /**

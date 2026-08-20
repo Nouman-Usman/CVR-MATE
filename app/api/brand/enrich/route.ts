@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { generateAiJson } from "@/lib/ai";
 import { getUserBrand, type BrandAiEnrichment } from "@/lib/get-user-brand";
-import { getCompanyByVat } from "@/lib/cvr-api";
+import { accountingSummary, getCompanyByVat } from "@/lib/cvr-api";
 import { checkMonthlyQuota, recordUsage } from "@/lib/stripe/entitlements";
 import { resolveWorkspaceForUser } from "@/lib/workspace/resolve";
 import { db } from "@/db";
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     if (brand.cvr && /^\d{8}$/.test(brand.cvr)) {
       try {
         const company = await getCompanyByVat(Number(brand.cvr));
-        const accounting = company.accounting?.documents?.[0]?.summary;
+        const accounting = accountingSummary(company.accounting?.documents?.[0]);
         cvrContext = `
 CVR DATA:
 - Founded: ${company.life?.start ?? "Unknown"}
