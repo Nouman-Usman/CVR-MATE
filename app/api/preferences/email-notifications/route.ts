@@ -9,6 +9,8 @@ interface EmailNotificationPrefs {
   emailNotificationsEnabled: boolean;
   dailyLeadEmails: boolean;
   weeklySummaryEmails: boolean;
+  /** Annual-report digest. In-app alerts are unaffected by this. */
+  annualReportEmails: boolean;
   emailNotificationHour: number;
 }
 
@@ -26,6 +28,7 @@ export async function GET() {
         emailNotificationsEnabled: true,
         dailyLeadEmails: true,
         weeklySummaryEmails: true,
+        annualReportEmails: true,
         emailNotificationHour: true,
       },
     });
@@ -34,6 +37,7 @@ export async function GET() {
       emailNotificationsEnabled: brand?.emailNotificationsEnabled ?? true,
       dailyLeadEmails: brand?.dailyLeadEmails ?? true,
       weeklySummaryEmails: brand?.weeklySummaryEmails ?? true,
+      annualReportEmails: brand?.annualReportEmails ?? true,
       emailNotificationHour: brand?.emailNotificationHour ?? 8,
     };
 
@@ -59,6 +63,7 @@ export async function PATCH(req: NextRequest) {
       "emailNotificationsEnabled",
       "dailyLeadEmails",
       "weeklySummaryEmails",
+      "annualReportEmails",
       "emailNotificationHour",
     ]);
 

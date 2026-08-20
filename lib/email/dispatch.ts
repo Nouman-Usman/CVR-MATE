@@ -6,11 +6,13 @@ import { user, userBrand } from "@/db/schema";
 import { sendDailyLeadUpdateEmail } from "./senders/daily-lead-update";
 import { sendWeeklySummaryEmail } from "./senders/weekly-summary";
 import { sendMatchFeedReadyEmail } from "./senders/match-feed-ready";
+import { sendAnnualReportDigestEmail } from "./senders/annual-report-digest";
 import type {
   EmailQueuePayload,
   DailyLeadUpdateData,
   WeeklySummaryData,
   MatchFeedReadyData,
+  AnnualReportDigestData,
 } from "./types";
 
 type SendResult =
@@ -43,6 +45,7 @@ export async function sendNotificationEmail(
       emailNotificationsEnabled: true,
       dailyLeadEmails: true,
       weeklySummaryEmails: true,
+      annualReportEmails: true,
     },
   });
 
@@ -50,12 +53,18 @@ export async function sendNotificationEmail(
     emailNotificationsEnabled: true,
     dailyLeadEmails: true,
     weeklySummaryEmails: true,
+    annualReportEmails: true,
   };
 
   if (!prefs.emailNotificationsEnabled)
     return { skipped: true, reason: "notifications_disabled" };
   if (templateId === "daily_lead_update" && !prefs.dailyLeadEmails)
     return { skipped: true, reason: "daily_leads_disabled" };
+  // Its own opt-out: annual-report alerts are a different category of mail
+  // from lead discovery, so they must not ride someone else's consent toggle.
+  // In-app notifications are unaffected by this preference.
+  if (templateId === "annual_report_digest" && !prefs.annualReportEmails)
+    return { skipped: true, reason: "annual_reports_disabled" };
   // Match-feed emails ride the same "daily leads" opt-out.
   if (templateId === "match_feed" && !prefs.dailyLeadEmails)
     return { skipped: true, reason: "daily_leads_disabled" };
@@ -78,6 +87,14 @@ export async function sendNotificationEmail(
       userName: userRow.name,
       userId,
       data: data as MatchFeedReadyData,
+      language: (userRow.language as "en" | "da") || "da",
+    });
+  } else if (templateId === "annual_report_digest") {
+    result = await sendAnnualReportDigestEmail({
+      to: userRow.email,
+      userName: userRow.name,
+      userId,
+      data: data as AnnualReportDigestData,
       language: (userRow.language as "en" | "da") || "da",
     });
   } else if (templateId === "weekly_summary") {

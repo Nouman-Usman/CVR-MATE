@@ -451,6 +451,8 @@ export const userBrand = pgTable(
     emailNotificationsEnabled: boolean("email_notifications_enabled").default(true).notNull(),
     dailyLeadEmails: boolean("daily_lead_emails").default(true).notNull(),
     weeklySummaryEmails: boolean("weekly_summary_emails").default(true).notNull(),
+    /** Opt-out for the annual-report digest. In-app alerts are unaffected. */
+    annualReportEmails: boolean("annual_report_emails").default(true).notNull(),
     emailNotificationHour: integer("email_notification_hour").default(8).notNull(), // 0–23
     aiEnrichment: jsonb("ai_enrichment"), // BrandAiEnrichment | null
     writingInstructions: text("writing_instructions"),
@@ -1403,6 +1405,31 @@ export const followedCompany = pgTable(
     // The cron's own query: active follows, one lookup per distinct CVR.
     index("followed_company_active_idx").on(table.isActive, table.cvr),
   ]
+).enableRLS();
+
+/**
+ * Per-user claim slot for the annual-report digest.
+ *
+ * Exists so "did this user already get today's digest?" is answered by a
+ * conditional UPDATE rather than by counting emails: the claim and the send
+ * cannot then interleave across two workers. Same claim-before-send idiom the
+ * contract-renewal cron uses.
+ */
+export const annualReportDigest = pgTable(
+  "annual_report_digest",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** UTC date of the last digest actually claimed. */
+    lastDigestOn: date("last_digest_on"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [uniqueIndex("annual_report_digest_user_uq").on(table.userId)]
 ).enableRLS();
 
 // ─── ANNUAL REPORT EVENT ────────────────────────────────────────────────────

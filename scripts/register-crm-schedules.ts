@@ -82,6 +82,22 @@ const SCHEDULES: ScheduleSpec[] = [
     why: "Marks sent quotes past validUntil as expired and active contracts past expiryDate as expired.",
   },
   {
+    path: "/api/cron/annual-reports",
+    // 05:30 UTC — after expire-documents (02:00) so statuses are truthful, and
+    // deliberately NOT 05:00: person-changes already runs then and also calls
+    // rest.cvrapi.dk, so sharing the minute would have the two crons contend
+    // for the same upstream rate limit. Still well before the Danish working
+    // day, so the digest is waiting when people start.
+    //
+    // This schedule IS the feature's heartbeat: annual reports are filed to the
+    // Regnskaber register and it is unverified whether a filing bumps the CVR
+    // change feed's change_id, so the pipeline polls rather than subscribes.
+    // If this schedule stops, nothing else notices a new annual report.
+    cron: "30 5 * * *",
+    label: "crm-annual-reports-daily",
+    why: "Polls followed companies for newly filed annual reports, records the period, upserts company_metrics, and sends the daily digest.",
+  },
+  {
     path: "/api/cron/person-changes",
     host: LEGACY_HOST,
     // 05:00 UTC — the CVR change feed is consumed incrementally via a stored

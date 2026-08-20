@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { annualReportEvent, changeFeedCursor, company, companyMetrics, followedCompany } from "@/db/schema";
 import { getCompanyByVatFresh, type CvrCompany } from "@/lib/cvr-api";
 
+import { deliverAnnualReports, type DeliveryResult } from "./deliver";
 import {
   extractAnnualReportPeriods,
   financiallyCurrent,
@@ -62,6 +63,8 @@ export interface AnnualReportRunResult {
    * Empty on a first run by construction.
    */
   notifiable: { cvr: string; period: AnnualReportPeriod; followIds: string[] }[];
+  /** Delivery outcome. Absent when the run was skipped or found nothing. */
+  delivery?: DeliveryResult;
 }
 
 export async function runAnnualReportPoll(
@@ -154,6 +157,18 @@ export async function runAnnualReportPoll(
     }
   }
 
+  // Delivery is a separate concern and a separate failure domain: it receives
+  // an already-correct set and cannot change what was detected. A mail problem
+  // must never unwind the event history that was just recorded.
+  let delivery: DeliveryResult | undefined;
+  if (notifiable.length > 0) {
+    try {
+      delivery = await deliverAnnualReports(notifiable);
+    } catch (error) {
+      console.error("Annual-report delivery failed:", error);
+    }
+  }
+
   return {
     companiesPolled: outcomes.length,
     newEvents: outcomes.reduce((n, o) => n + o.newPeriods.length, 0),
@@ -161,6 +176,7 @@ export async function runAnnualReportPoll(
     metricsWritten: outcomes.filter((o) => o.metricsWritten).length,
     errors: outcomes.filter((o) => o.error).map((o) => ({ cvr: o.cvr, error: o.error! })),
     notifiable,
+    delivery,
   };
 }
 

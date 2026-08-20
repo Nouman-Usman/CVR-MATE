@@ -82,7 +82,7 @@ export async function createNotification(data: {
    * enough context for the UI to take them there.
    */
   organizationId?: string | null;
-  type: "trigger" | "system" | "export" | "person_follow" | "matches";
+  type: "trigger" | "system" | "export" | "person_follow" | "matches" | "annual_report";
   title: string;
   message?: string;
   link?: string;

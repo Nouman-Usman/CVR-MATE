@@ -8,6 +8,7 @@ export type EmailTemplateId =
   | "daily_lead_update"
   | "match_feed"
   | "weekly_summary"
+  | "annual_report_digest"
   | "payment_succeeded"
   | "payment_failed"
   | "subscription_updated"
@@ -42,9 +43,42 @@ export interface EmailProviderClient {
 // ─── QStash payload for /api/email/notify ─────────────────────────────────
 
 export interface EmailQueuePayload {
-  templateId: "daily_lead_update" | "weekly_summary" | "match_feed";
+  templateId:
+    | "daily_lead_update"
+    | "weekly_summary"
+    | "match_feed"
+    | "annual_report_digest";
   userId: string;
-  data: DailyLeadUpdateData | WeeklySummaryData | MatchFeedReadyData;
+  data:
+    | DailyLeadUpdateData
+    | WeeklySummaryData
+    | MatchFeedReadyData
+    | AnnualReportDigestData;
+}
+
+/** One followed company's newly-filed annual report, for the daily digest. */
+export interface AnnualReportDigestReport {
+  cvr: string;
+  companyName: string;
+  /** Canonical identity — never publicdate. */
+  periodEnd: string;
+  /** Metadata: enables "filed N days late". */
+  publicdate: string | null;
+  documentUrl: string | null;
+  /** Null on 45% of filings, including Novo's — the email must still render. */
+  summary: {
+    revenue: number | null;
+    grossprofitloss: number | null;
+    profitloss: number | null;
+    equity: number | null;
+    assets: number | null;
+    averagenumberofemployees: number | null;
+  } | null;
+}
+
+export interface AnnualReportDigestData {
+  reportCount: number;
+  reports: AnnualReportDigestReport[];
 }
 
 export interface DailyLeadUpdateData {
