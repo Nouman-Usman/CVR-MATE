@@ -4,7 +4,7 @@ const en = {
     howItWorks: "How it works",
     integrations: "Integrations",
     pricing: "Pricing",
-    aboutAiMate: "About AI-MATE",
+    aboutAiMate: "About CVR-MATE",
     login: "Log in",
     getStarted: "Get started",
   },
