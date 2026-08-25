@@ -21,7 +21,8 @@ import {
   useDeleteOrg,
   type OrgMember,
 } from "@/lib/hooks/use-team";
-import { Loader2, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, X, ChevronDown, ChevronUp, Building2, User, Check } from "lucide-react";
+import { useWorkspaces, useSwitchWorkspace } from "@/lib/hooks/use-workspace";
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
@@ -103,6 +104,90 @@ function InlineConfirm({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+/**
+ * Which workspace these team settings apply to, and how to change it.
+ *
+ * The whole tab is scoped to the session's ACTIVE organization, so without this
+ * the page was ambiguous in one direction and wrong in the other: a user in an
+ * org had no indication of which one they were configuring, and a user in the
+ * personal workspace who already belonged to an org was shown "create an
+ * organization" — an invitation to make a second one they did not need.
+ */
+function WorkspacePicker({
+  st,
+}: {
+  st: {
+    workspace: string;
+    workspaceHint: string;
+    personalWorkspace: string;
+    personalWorkspaceHint: string;
+    switchTo: string;
+    current: string;
+    switching: string;
+  };
+}) {
+  const { organizations, activeOrgId, isPersonal, hasOrganizations, isLoading } = useWorkspaces();
+  const switchWorkspace = useSwitchWorkspace();
+
+  // Nothing to choose between: one workspace is not a picker.
+  if (isLoading || !hasOrganizations) return null;
+
+  const rows: { id: string | null; name: string; hint?: string }[] = [
+    { id: null, name: st.personalWorkspace, hint: st.personalWorkspaceHint },
+    ...organizations.map((o) => ({ id: o.id, name: o.name })),
+  ];
+
+  return (
+    <div className="mb-6 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{st.workspace}</p>
+      <p className="mt-0.5 text-xs text-slate-400">{st.workspaceHint}</p>
+
+      <div className="mt-3 space-y-1.5">
+        {rows.map((row) => {
+          const active = row.id === null ? isPersonal : row.id === activeOrgId;
+          return (
+            <div
+              key={row.id ?? "personal"}
+              className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
+                active ? "border-blue-200 bg-white" : "border-transparent bg-white/60"
+              }`}
+            >
+              <span
+                className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
+                  active ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"
+                }`}
+              >
+                {row.id === null ? <User className="size-3.5" /> : <Building2 className="size-3.5" />}
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-800">{row.name}</p>
+                {row.hint && <p className="truncate text-[11px] text-slate-400">{row.hint}</p>}
+              </div>
+
+              {active ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                  <Check className="size-3" />
+                  {st.current}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => switchWorkspace.mutate(row.id)}
+                  disabled={switchWorkspace.isPending}
+                  className="shrink-0 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {switchWorkspace.isPending ? st.switching : st.switchTo}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function TeamSection() {
   const { t, locale } = useLanguage();
   const { data: session } = useSession();
@@ -111,6 +196,9 @@ export default function TeamSection() {
   const isEnterprise = subData?.plan === "enterprise";
 
   const userId = session?.user?.id;
+  // Belonging to an org is what decides whether "create one" is even offered —
+  // the plan allows a single organization, so a second create can only fail.
+  const { hasOrganizations } = useWorkspaces();
   // Managing the org the session is actually in, not whichever came back first.
   const { data: teamData, isLoading: orgLoading } = useOrganization(
     userId,
@@ -178,6 +266,11 @@ export default function TeamSection() {
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">{st.title}</h2>
         </div>
         <p className="text-xs text-slate-400 mb-6">{st.subtitle}</p>
+
+        {/* Shown BEFORE the upgrade notice: someone sitting in the personal
+            workspace who already belongs to an organization needs to switch to
+            it, not to be sold a plan they may already have through that org. */}
+        <WorkspacePicker st={st} />
         <div className="bg-slate-50 rounded-xl p-6 text-center">
           <span className="material-symbols-outlined text-4xl text-slate-300 mb-3 block">lock</span>
           <p className="text-sm font-semibold text-slate-900 mb-1">
@@ -231,13 +324,29 @@ export default function TeamSection() {
         </div>
         <p className="text-xs text-slate-400 mb-6">{st.subtitle}</p>
 
+        {/* Which workspace these settings apply to. Renders only when there is
+            a choice to make. */}
+        <WorkspacePicker st={st} />
+
         {/* ── Loading ─────────────────────────────────────────────────────── */}
         {orgLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="size-6 text-slate-300 animate-spin" />
           </div>
+        ) : !org && hasOrganizations ? (
+          /* ── In Personal, but an org already exists ──────────────────────
+             Offering "create organization" here invited a second one the plan
+             does not allow, and the server refuses it. The way forward is to
+             switch, which the picker above provides. */
+          <div className="rounded-xl bg-slate-50 p-6 text-center">
+            <span className="material-symbols-outlined mb-2 block text-3xl text-slate-300">
+              apartment
+            </span>
+            <p className="text-sm font-semibold text-slate-900">{st.alreadyHasOrg}</p>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-slate-400">{st.alreadyHasOrgHint}</p>
+          </div>
         ) : !org ? (
-          /* ── No org — create one, profile included ───────────────────── */
+          /* ── No org anywhere — create the one the plan allows ─────────── */
           <CreateOrgForm
             locale={locale}
             inputClass={inputClass}

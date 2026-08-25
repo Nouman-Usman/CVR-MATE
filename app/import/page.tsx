@@ -5,6 +5,8 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
 import { fetchJson } from "@/lib/api/fetch-json";
 import { Field } from "@/components/crm/Field";
@@ -44,6 +46,7 @@ interface ImportResponse {
 
 export default function ImportPage() {
   const { tr } = useTr();
+  const { isPersonal } = useWorkspaces();
   const apiError = useApiErrorMessage();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +122,20 @@ export default function ImportPage() {
   const mappedFields = new Set(Object.values(mapping).filter(Boolean));
   const canPreview = mappedFields.has("cvr") && mappedFields.has("name");
   const committed = result?.committed === true;
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={tr("Import", "Import")} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

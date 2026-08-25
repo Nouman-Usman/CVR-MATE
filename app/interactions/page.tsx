@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
 import { formatDate } from "@/lib/format";
@@ -21,10 +23,25 @@ import { useInteractionsFeed } from "@/lib/hooks/use-interactions-feed";
 
 export default function InteractionsFeedPage() {
   const { locale } = useLanguage();
+  const { isPersonal } = useWorkspaces();
   const tr = (da: string, en: string) => (locale === "da" ? da : en);
   const { data, isLoading, isError, error, refetch } = useInteractionsFeed();
 
   const items = data?.interactions ?? [];
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={locale === "da" ? "Aktiviteter" : "Interactions"} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

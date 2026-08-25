@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { FileText, Plus, ArrowRight, Inbox } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTr } from "@/lib/i18n/tr";
 import { formatOre, formatDate } from "@/lib/format";
@@ -14,11 +16,26 @@ import { statusLabel, statusValues } from "@/lib/crm/status";
 
 export default function QuotesPage() {
   const { locale } = useLanguage();
+  const { isPersonal } = useWorkspaces();
   const { tr } = useTr();
   const [status, setStatus] = useState<string | undefined>(undefined);
   // useQuotes has always accepted a status filter; nothing ever passed one.
   const { data, isLoading, isError, error, refetch } = useQuotes(status);
   const quotes = data?.quotes ?? [];
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={tr("Tilbud", "Quotes")} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

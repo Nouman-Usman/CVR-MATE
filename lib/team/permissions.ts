@@ -285,6 +285,26 @@ export async function assertCanCreateOrg(userId: string): Promise<void> {
       "Team features require the Enterprise plan. Please upgrade."
     );
   }
+
+  /**
+   * One organization per account, for now.
+   *
+   * Counts organizations this user OWNS, not ones they belong to: being invited
+   * into a colleague's org must not consume your own allowance. Ownership is
+   * also where billing sits (`getOrgOwnerPlanLimit`), so "how many may I own"
+   * and "how many am I paying for" stay the same question.
+   */
+  const owned = await db
+    .select({ value: count() })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.role, "owner")));
+
+  if ((owned[0]?.value ?? 0) >= 1) {
+    throw new TeamPermissionError(
+      "PLAN_NOT_ALLOWED",
+      "Your plan includes one organization. Switch to it, or contact us to add another."
+    );
+  }
 }
 
 /**

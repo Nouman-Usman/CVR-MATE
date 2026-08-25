@@ -12,6 +12,8 @@ import {
   UserPlus,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { Input } from "@/components/ui/input";
 import { useTr } from "@/lib/i18n/tr";
 import { StatusBadge } from "@/components/crm/StatusBadge";
@@ -23,6 +25,7 @@ import {
 
 export default function RecordsPage() {
   const { tr } = useTr();
+  const { isPersonal } = useWorkspaces();
 
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -36,6 +39,20 @@ export default function RecordsPage() {
 
   const hasResults = !!(data && (data.companies.length || data.contacts.length));
   const active = debounced.length >= 2;
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={tr("Kartoteket", "Records")} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

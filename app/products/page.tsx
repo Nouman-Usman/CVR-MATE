@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Package, X, Search } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useTr, useApiErrorMessage } from "@/lib/i18n/tr";
 import { useConfirm } from "@/components/crm/ConfirmDialog";
@@ -24,6 +26,7 @@ const EMPTY = { name: "", sku: "", unit: "", price: "", vatRate: "25", active: t
 
 export default function ProductsPage() {
   const { locale } = useLanguage();
+  const { isPersonal } = useWorkspaces();
   const { tr } = useTr();
   const errorMessage = useApiErrorMessage();
   const confirm = useConfirm();
@@ -107,6 +110,20 @@ export default function ProductsPage() {
 
   const inputCls =
     "w-full px-3 py-2 rounded-lg border border-border text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={tr("Produkter", "Products")} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

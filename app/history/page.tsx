@@ -11,6 +11,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { useTr } from "@/lib/i18n/tr";
 import { ListSkeleton, QueryError, EmptyState } from "@/components/crm/QueryState";
 import { Field } from "@/components/crm/Field";
@@ -96,6 +98,7 @@ function subjectOf(event: ActivityEvent): string | null {
 
 export default function HistoryPage() {
   const { tr, locale } = useTr();
+  const { isPersonal } = useWorkspaces();
 
   const [entityType, setEntityType] = useState<ActivityEntityType | "">("");
   const [action, setAction] = useState<ActivityAction | "">("");
@@ -138,6 +141,20 @@ export default function HistoryPage() {
     setFrom("");
     setTo("");
     setOffset(0);
+  }
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={tr("Historik", "History")} />
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (

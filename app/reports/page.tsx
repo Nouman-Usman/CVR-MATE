@@ -11,6 +11,8 @@ import {
 } from "recharts";
 import { FileText, ShieldCheck, AlarmClock, Coins, Layers } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import RequiresOrganization from "@/components/workspace/requires-organization";
+import { useWorkspaces } from "@/lib/hooks/use-workspace";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { QueryError } from "@/components/crm/QueryState";
@@ -95,6 +97,7 @@ function bucketLabel(key: string, tr: (da: string, en: string) => string): strin
 
 export default function ReportsPage() {
   const { locale } = useLanguage();
+  const { isPersonal } = useWorkspaces();
   const tr = (da: string, en: string) => (locale === "da" ? da : en);
 
   const {
@@ -120,6 +123,20 @@ export default function ReportsPage() {
   }));
   const segments = segData?.segments ?? [];
   const maxSegValue = Math.max(1, ...segments.map((s) => s.contractValue));
+
+  // This page's data is NOT NULL organization-scoped, so in the personal
+  // workspace the API refuses it. Returning here — before any data-dependent
+  // branch — is what stops a refusal being rendered as "nothing here yet",
+  // which reads as a fact about the business rather than about the workspace.
+  if (isPersonal) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <RequiresOrganization feature={locale === "da" ? "Rapporter" : "Reports"} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
