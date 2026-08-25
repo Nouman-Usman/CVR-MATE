@@ -86,7 +86,7 @@ const da = {
     howItWorks: "Sådan virker det",
     integrations: "Integrationer",
     pricing: "Priser",
-    aboutAiMate: "Om AI-MATE",
+    aboutAiMate: "Om CVR-MATE",
     login: "Log ind",
     getStarted: "Kom i gang",
   },
