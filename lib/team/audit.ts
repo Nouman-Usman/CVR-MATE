@@ -19,6 +19,10 @@ export type AuditAction =
   | "member_left"
   | "role_changed"
   | "ownership_transferred"
+  // Ownership assigned by the system, not a person: an org whose owner's
+  // account was deleted has nobody able to transfer it, so the cleanup sweep
+  // promotes a successor. `actorId` is null on these.
+  | "ownership_recovered"
   | "seat_limit_reached"
   | "permission_denied"
   // Native CRM security-relevant events

@@ -3,8 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { organization } from "@/db/auth-schema";
-import { leadTrigger, savedCompany, todo } from "@/db/app-schema";
-import { eq, and, isNotNull, count } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   assertPermission,
   TeamPermissionError,
@@ -12,6 +11,7 @@ import {
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest, conflict } from "@/lib/team/session";
+import { blockingTotal, describeCensus, orgDataCensus } from "@/lib/team/org-data-census";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validation/crm";
 import { renameOrgSchema } from "@/lib/validation/team";
@@ -73,8 +73,14 @@ export async function PATCH(
 /**
  * DELETE /api/team/[orgId] — Delete an organization.
  *
- * Owner-only. Blocks deletion if org-scoped data exists (triggers, saved
- * companies, or todos) to prevent silent data loss.
+ * Owner-only, and refuses while the organization still owns anything.
+ *
+ * The refusal is the whole safety mechanism. Deleting the org row triggers two
+ * different fates at the database level — CRM data is destroyed by CASCADE,
+ * while saved companies, todos, follows and CRM connections are SET NULL, which
+ * quietly makes them the personal property of whoever created them. Neither is
+ * something a user should discover after the fact, so the org must be emptied
+ * deliberately first. See `lib/team/org-data-census.ts` for the full inventory.
  */
 export async function DELETE(
   req: NextRequest,
@@ -98,31 +104,13 @@ export async function DELETE(
     throw err;
   }
 
-  // Check for org-scoped data — block deletion to prevent data loss
-  const [triggerRows, savedRows, todoRows] = await Promise.all([
-    db
-      .select({ value: count() })
-      .from(leadTrigger)
-      .where(and(eq(leadTrigger.organizationId, orgId), isNotNull(leadTrigger.organizationId))),
-    db
-      .select({ value: count() })
-      .from(savedCompany)
-      .where(and(eq(savedCompany.organizationId, orgId), isNotNull(savedCompany.organizationId))),
-    db
-      .select({ value: count() })
-      .from(todo)
-      .where(and(eq(todo.organizationId, orgId), isNotNull(todo.organizationId))),
-  ]);
-
-  const totalOrgData =
-    (triggerRows[0]?.value ?? 0) +
-    (savedRows[0]?.value ?? 0) +
-    (todoRows[0]?.value ?? 0);
-
-  if (totalOrgData > 0) {
+  // Every org-scoped table, not just the three that used to be checked here.
+  const census = await orgDataCensus(orgId);
+  if (blockingTotal(census) > 0) {
     return conflict(
       "Transfer or delete all shared team resources before deleting the organization. " +
-        `Found: ${triggerRows[0]?.value ?? 0} triggers, ${savedRows[0]?.value ?? 0} saved companies, ${todoRows[0]?.value ?? 0} tasks.`
+        `Found: ${describeCensus(census)}.`,
+      { census }
     );
   }
 
@@ -134,7 +122,8 @@ export async function DELETE(
     metadata: {},
   });
 
-  // Delete org — cascades to members, invitations, audit log
+  // Safe by construction: the census above proved the org owns nothing, so the
+  // cascade has only membership and bookkeeping rows left to remove.
   await db.delete(organization).where(eq(organization.id, orgId));
 
   return NextResponse.json({ ok: true });

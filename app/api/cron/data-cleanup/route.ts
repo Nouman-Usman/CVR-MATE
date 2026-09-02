@@ -11,6 +11,7 @@ import {
   deal,
 } from "@/db/schema";
 import { invitation, member, organization } from "@/db/auth-schema";
+import { recoverOwnerlessOrgs } from "@/lib/team/recover-ownerless-orgs";
 import { verifyCronRequest } from "@/lib/cron/verify";
 
 export const runtime = "nodejs";
@@ -151,6 +152,15 @@ export async function POST(req: NextRequest) {
       .where(and(eq(invitation.status, "pending"), lt(invitation.expiresAt, new Date())))
       .returning({ id: invitation.id });
     results.expiredInvitations = expiredInvites.length;
+
+    /**
+     * Ownerless organizations — promote a successor before anything else.
+     *
+     * Runs BEFORE the memberless sweep so a recovered org is never a candidate
+     * for deletion in the same pass. The logic lives in `lib/team` so it can be
+     * exercised without triggering the retention purges around it.
+     */
+    results.ownershipRecovered = await recoverOwnerlessOrgs();
 
     /**
      * Organizations nobody can reach any more.

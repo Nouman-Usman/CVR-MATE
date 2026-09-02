@@ -13,6 +13,9 @@
 
 export const ACTIVITY_ENTITY_TYPES = [
   "company",
+  // A followed CVR participant. Distinct from "contact": a person here is a
+  // register identity the user subscribes to, not a CRM record they own.
+  "person",
   "todo",
   "note",
   "contact",
@@ -39,6 +42,10 @@ export const ACTIVITY_ACTIONS = [
   "exported",
   "saved",
   "unsaved",
+  // Following is a subscription, not a bookmark: it schedules future alerts.
+  // Reusing "saved" would make the two indistinguishable in the history.
+  "followed",
+  "unfollowed",
   "stage_changed",
   "won",
   "lost",

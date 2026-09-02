@@ -12,12 +12,17 @@ import {
   type OrgRole,
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
+import { removeMemberFromOrg } from "@/lib/team/detach-member";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * DELETE /api/team/members/[memberId] — Remove a member from the org.
  * Requires owner/admin + role hierarchy (cannot remove equal or higher role).
+ *
+ * Removal used to delete the membership row and nothing else, which left the
+ * removed person's lead triggers running and still delivering the org's results
+ * to them. It now runs the same departure routine as `/leave`.
  */
 export async function DELETE(
   req: NextRequest,
@@ -67,15 +72,14 @@ export async function DELETE(
     throw err;
   }
 
-  // Remove
-  await db.delete(member).where(eq(member.id, memberId));
+  const detached = await removeMemberFromOrg(targetMember.userId, orgId, memberId);
 
   await logOrgEvent({
     organizationId: orgId,
     actorId: session.user.id,
     action: "member_removed",
     targetUserId: targetMember.userId,
-    metadata: { role: targetMember.role },
+    metadata: { role: targetMember.role, ...detached },
   });
 
   return NextResponse.json({ ok: true });

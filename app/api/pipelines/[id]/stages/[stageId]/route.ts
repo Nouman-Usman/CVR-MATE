@@ -5,6 +5,7 @@ import { pipelineStage, deal } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { loadOwnedStage } from "@/lib/crm/pipeline";
 import { parseBody, stageUpdateSchema } from "@/lib/validation/crm";
+import { logActivity } from "@/lib/activity/log";
 
 /** PATCH /api/pipelines/[id]/stages/[stageId] — rename / recolor / flag won-lost. */
 export async function PATCH(
@@ -13,7 +14,7 @@ export async function PATCH(
 ) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
-  const { organizationId } = guard.ctx;
+  const { userId, organizationId } = guard.ctx;
 
   try {
     const { id, stageId } = await params;
@@ -44,6 +45,23 @@ export async function PATCH(
       .set(patch)
       .where(eq(pipelineStage.id, stageId))
       .returning();
+    // won/lost decide whether deals in this stage count as closed revenue, so
+    // flipping them retroactively changes every report.
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "stage",
+      entityId: row.id,
+      action: "updated",
+      metadata: {
+        name: row.name,
+        previousName: stage.name,
+        pipelineId: id,
+        isWon: row.isWon,
+        isLost: row.isLost,
+      },
+    });
+
     return NextResponse.json({ stage: row });
   } catch (err) {
     return crmErrorResponse(err);
@@ -57,7 +75,7 @@ export async function DELETE(
 ) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
-  const { organizationId } = guard.ctx;
+  const { userId, organizationId } = guard.ctx;
 
   try {
     const { id, stageId } = await params;
@@ -80,6 +98,16 @@ export async function DELETE(
     }
 
     await db.delete(pipelineStage).where(eq(pipelineStage.id, stageId));
+
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "stage",
+      entityId: stageId,
+      action: "deleted",
+      metadata: { name: stage.name, pipelineId: id },
+    });
+
     return NextResponse.json({ message: "Stage deleted" });
   } catch (err) {
     return crmErrorResponse(err);

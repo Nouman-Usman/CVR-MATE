@@ -6,6 +6,7 @@ import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { loadOwnedPipeline } from "@/lib/crm/pipeline";
 import { parseBody, stageCreateSchema, stageReorderSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity/log";
 
 /** GET /api/pipelines/[id]/stages — ordered stages of a pipeline. */
 export async function GET(
@@ -70,6 +71,15 @@ export async function POST(
       })
       .returning();
 
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "stage",
+      entityId: row.id,
+      action: "created",
+      metadata: { name: row.name, pipelineId: id, position: row.position },
+    });
+
     return NextResponse.json({ stage: row }, { status: 201 });
   } catch (err) {
     return crmErrorResponse(err);
@@ -83,7 +93,7 @@ export async function PATCH(
 ) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
-  const { organizationId } = guard.ctx;
+  const { userId, organizationId } = guard.ctx;
 
   try {
     const { id } = await params;
@@ -130,6 +140,17 @@ export async function PATCH(
       where: eq(pipelineStage.pipelineId, id),
       orderBy: [asc(pipelineStage.position)],
     });
+    // Logged against the pipeline, not a stage: reordering is one change to the
+    // board's shape, not N independent stage edits.
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "pipeline",
+      entityId: id,
+      action: "updated",
+      metadata: { reordered: stages.map((s) => s.name) },
+    });
+
     return NextResponse.json({ stages });
   } catch (err) {
     return crmErrorResponse(err);

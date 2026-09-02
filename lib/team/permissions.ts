@@ -1,9 +1,9 @@
 import "server-only";
 
 import { db } from "@/db";
-import { member, invitation, organization } from "@/db/auth-schema";
+import { member, invitation } from "@/db/auth-schema";
 import { subscription } from "@/db/app-schema";
-import { eq, and, count, or, gt, asc } from "drizzle-orm";
+import { eq, and, count, gt, sql } from "drizzle-orm";
 import { PLAN_LIMITS, priceToPlan, type PlanId } from "@/lib/stripe/plans";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -155,18 +155,22 @@ export function assertCanActOnMember(
  * inviter (who may be an admin). Seat entitlements are always tied to the
  * billing account.
  */
-async function getOrgOwnerPlanLimit(orgId: string): Promise<number> {
-  // Find the owner of the organization
-  const ownerMember = await db.query.member.findFirst({
-    where: and(eq(member.organizationId, orgId), eq(member.role, "owner")),
-  });
+async function getOrgOwnerPlanLimit(orgId: string, dbCtx: SeatDb = db): Promise<number> {
+  // Reads go through the caller's transaction, or the seat count and the plan
+  // it is compared against could come from two different points in time.
+  const [ownerMember] = await dbCtx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, orgId), eq(member.role, "owner")))
+    .limit(1);
 
   if (!ownerMember) return 0;
 
-  // Get the owner's subscription
-  const sub = await db.query.subscription.findFirst({
-    where: eq(subscription.userId, ownerMember.userId),
-  });
+  const [sub] = await dbCtx
+    .select({ status: subscription.status, stripePriceId: subscription.stripePriceId })
+    .from(subscription)
+    .where(eq(subscription.userId, ownerMember.userId))
+    .limit(1);
 
   if (!sub || sub.status === "canceled" || sub.status === "unpaid" || sub.status === "incomplete") {
     return PLAN_LIMITS.free.teamMemberLimit;
@@ -176,23 +180,39 @@ async function getOrgOwnerPlanLimit(orgId: string): Promise<number> {
   return PLAN_LIMITS[plan].teamMemberLimit;
 }
 
+/** A transaction handle, or the pool itself. */
+export type SeatDb = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * Assert there are available seats in the organization.
  *
- * This function is designed to be called inside a serializable transaction
- * to prevent race conditions. The caller must provide the tx handle.
+ * Counts active members plus pending, non-expired invitations — a sent
+ * invitation reserves its seat, or an org could invite past its limit and only
+ * discover it when everyone accepted.
  *
- * Counts: active members + pending (non-expired) invitations.
+ * MUST be called inside the same transaction as the write it guards. Counting
+ * and then inserting is the same shape as the duplicate-invite check further
+ * down the invite route: a SELECT cannot be enforcement, because two concurrent
+ * requests both read the pre-insert count and both proceed. The advisory lock
+ * below is what makes it one: it is held for the rest of the transaction, so
+ * invites to a given organization queue instead of racing. It is keyed on the
+ * org, so unrelated organizations never block each other, and it costs nothing
+ * when the limit is unlimited because we take it only if a limit applies.
+ *
+ * Inert today — the only plan with team features is Enterprise at -1. That is
+ * exactly why the locking has to be right now rather than later: the comment at
+ * the call site promises a seat-priced tier needs only a config change.
  */
-export async function assertSeatAvailable(
-  orgId: string,
-  tx?: typeof db
-): Promise<void> {
-  const dbCtx = tx ?? db;
-  const limit = await getOrgOwnerPlanLimit(orgId);
+export async function assertSeatAvailable(orgId: string, tx: SeatDb): Promise<void> {
+  const dbCtx = tx;
+  const limit = await getOrgOwnerPlanLimit(orgId, dbCtx);
 
   // -1 = unlimited
   if (limit === -1) return;
+
+  // Serialise concurrent invites for THIS organization. Released on commit or
+  // rollback, so a failed invite never leaves the lock held.
+  await dbCtx.execute(sql`select pg_advisory_xact_lock(hashtext(${orgId}))`);
 
   // Count active members
   const memberRows = await dbCtx
@@ -335,14 +355,22 @@ export async function userPlanHasTeamFeatures(userId: string): Promise<boolean> 
  * Rules:
  * - Personal resource (organizationId=null): only creator can mutate
  * - Team resource: owner/admin can always mutate; member only if they created it
+ *
+ * `resource.userId` may be NULL on content tables whose author has deleted
+ * their account — see the `user_id` docblock in `db/app-schema.ts`. An
+ * authorless *team* row stays mutable by owners and admins, which is what makes
+ * it possible to clean up; a plain member simply is not its creator. An
+ * authorless *personal* row belongs to nobody and is refused outright: account
+ * deletion removes personal rows, so reaching that branch means something is
+ * wrong, and failing closed is the safe way to be wrong.
  */
 export async function assertCanMutateResource(
   userId: string,
-  resource: { userId: string; organizationId: string | null }
+  resource: { userId: string | null; organizationId: string | null }
 ): Promise<void> {
   if (!resource.organizationId) {
     // Personal resource — only creator
-    if (resource.userId !== userId) {
+    if (resource.userId === null || resource.userId !== userId) {
       throw new TeamPermissionError("FORBIDDEN", "You can only modify your own resources");
     }
     return;

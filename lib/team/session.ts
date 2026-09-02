@@ -25,6 +25,13 @@ export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
-export function conflict(message: string) {
-  return NextResponse.json({ error: message }, { status: 409 });
+/**
+ * 409 with an optional machine-readable body.
+ *
+ * The message is for a human; `details` lets a caller return the structured
+ * facts behind the refusal (e.g. what an organization still owns) so the UI can
+ * render them instead of parsing the sentence.
+ */
+export function conflict(message: string, details?: Record<string, unknown>) {
+  return NextResponse.json({ error: message, ...details }, { status: 409 });
 }

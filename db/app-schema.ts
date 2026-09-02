@@ -117,9 +117,21 @@ export const savedCompany = pgTable(
   "saved_company",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Who authored the row. NULLABLE, and SET NULL when the account is deleted.
+     *
+     * It used to CASCADE, which meant deleting one account erased that person's
+     * contribution from a shared workspace: a team lost notes, tasks and saved
+     * leads because a colleague closed their account. Every other authored
+     * column in the CRM (`created_by` on contact, deal, quote, …) already
+     * survived deletion with authorship set to NULL, and this now matches.
+     *
+     * Safe for org rows because `workspaceScope` selects them by organization
+     * alone — a teammate's row is still the team's row. Personal rows key on
+     * `user_id`, so they would become invisible instead; the account-deletion
+     * route deletes those explicitly before the user row goes.
+     */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
@@ -146,9 +158,21 @@ export const savedSearch = pgTable(
   "saved_search",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Who authored the row. NULLABLE, and SET NULL when the account is deleted.
+     *
+     * It used to CASCADE, which meant deleting one account erased that person's
+     * contribution from a shared workspace: a team lost notes, tasks and saved
+     * leads because a colleague closed their account. Every other authored
+     * column in the CRM (`created_by` on contact, deal, quote, …) already
+     * survived deletion with authorship set to NULL, and this now matches.
+     *
+     * Safe for org rows because `workspaceScope` selects them by organization
+     * alone — a teammate's row is still the team's row. Personal rows key on
+     * `user_id`, so they would become invisible instead; the account-deletion
+     * route deletes those explicitly before the user row goes.
+     */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
@@ -280,9 +304,21 @@ export const todo = pgTable(
   "todo",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Who authored the row. NULLABLE, and SET NULL when the account is deleted.
+     *
+     * It used to CASCADE, which meant deleting one account erased that person's
+     * contribution from a shared workspace: a team lost notes, tasks and saved
+     * leads because a colleague closed their account. Every other authored
+     * column in the CRM (`created_by` on contact, deal, quote, …) already
+     * survived deletion with authorship set to NULL, and this now matches.
+     *
+     * Safe for org rows because `workspaceScope` selects them by organization
+     * alone — a teammate's row is still the team's row. Personal rows key on
+     * `user_id`, so they would become invisible instead; the account-deletion
+     * route deletes those explicitly before the user row goes.
+     */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
@@ -334,9 +370,21 @@ export const companyNote = pgTable(
     companyId: uuid("company_id")
       .notNull()
       .references(() => company.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Who authored the row. NULLABLE, and SET NULL when the account is deleted.
+     *
+     * It used to CASCADE, which meant deleting one account erased that person's
+     * contribution from a shared workspace: a team lost notes, tasks and saved
+     * leads because a colleague closed their account. Every other authored
+     * column in the CRM (`created_by` on contact, deal, quote, …) already
+     * survived deletion with authorship set to NULL, and this now matches.
+     *
+     * Safe for org rows because `workspaceScope` selects them by organization
+     * alone — a teammate's row is still the team's row. Personal rows key on
+     * `user_id`, so they would become invisible instead; the account-deletion
+     * route deletes those explicitly before the user row goes.
+     */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
@@ -369,7 +417,7 @@ export const orgAuditLog = pgTable(
     // Actions: org_created | org_renamed | org_deleted
     //          member_invited | invitation_accepted | invitation_declined | invite_revoked
     //          member_removed | member_left
-    //          role_changed | ownership_transferred
+    //          role_changed | ownership_transferred | ownership_recovered
     //          seat_limit_reached | permission_denied
     targetUserId: text("target_user_id").references(() => user.id, {
       onDelete: "set null",
@@ -1966,6 +2014,16 @@ export const organizationProfile = pgTable(
     website: text("website"),
     // Hex, feeds SnapshotSeller.color for document accents.
     brandColor: text("brand_color"),
+    /**
+     * Default payment terms in days (netto 8 / 14 / 30 are the Danish norms).
+     *
+     * Lives here rather than on the invoice because the invoice is issued by the
+     * accounting system — this is only the default CVR-MATE hands over with a
+     * draft. Bank details are deliberately absent for the same reason: they are
+     * the provider's to print, and duplicating them here would create a second
+     * source of truth for where money should be sent.
+     */
+    defaultPaymentTermsDays: integer("default_payment_terms_days").default(14).notNull(),
     // Provenance. A registry-verified address and a hand-typed one are worth
     // different amounts in a dispute, and without this the two are
     // indistinguishable — which makes any later re-verification unsafe, because
@@ -2065,6 +2123,183 @@ export const companyNoteRelations = relations(companyNote, ({ one }) => ({
 export const userBrandRelations = relations(userBrand, ({ one }) => ({
   user: one(user, { fields: [userBrand.userId], references: [user.id] }),
 }));
+
+// ─── ACCOUNTING (P6) ─────────────────────────────────────────────────────────
+//
+// CVR-MATE does not issue invoices. An invoice is a booked ledger entry that VAT
+// returns are filed from, and Danish bookkeeping rules expect those records to
+// live in a registered digital bookkeeping system. So the order stays commercial
+// and the accounting system owns the financial document; these three tables are
+// the seam between them.
+
+/**
+ * An organization's link to its bookkeeping system.
+ *
+ * Deliberately a sibling of `crm_connection` rather than a reuse of it. The
+ * schemas look alike, but the consequences do not: revoking a CRM push and
+ * revoking access to the books are different decisions, and a user must be able
+ * to make one without the other.
+ *
+ * `organization_id` is NOT NULL — unlike `crm_connection`, which allows personal
+ * connections. Bookkeeping is never personal: the invoice belongs to the company
+ * that issued it, not to whoever clicked connect.
+ */
+export const accountingConnection = pgTable(
+  "accounting_connection",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Who connected it. SET NULL so the record survives their account. */
+    connectedBy: text("connected_by").references(() => user.id, { onDelete: "set null" }),
+    provider: text("provider").notNull(), // 'economic' | 'dinero' | 'billy'
+    /**
+     * Provider credential, encrypted with CRM_TOKEN_ENCRYPTION_KEY via
+     * `lib/crm/encryption.ts`. For e-conomic this is the agreement grant token;
+     * the app secret token is an app-wide env var, never per-org, so it is NOT
+     * stored here.
+     */
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    /** Human label from the provider (e-conomic agreement / company name). */
+    agreementName: text("agreement_name"),
+    isActive: boolean("is_active").default(true).notNull(),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    /** Last sync failure, so a silently-broken connection is visible. */
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("accounting_connection_org_idx").on(table.organizationId),
+    // One live connection per org per provider. Partial, so a disconnected row
+    // stays as history without blocking a reconnect.
+    uniqueIndex("accounting_connection_active_uq")
+      .on(table.organizationId, table.provider)
+      .where(sql`${table.isActive}`),
+    check(
+      "accounting_connection_provider_check",
+      sql`${table.provider} in ('economic','dinero','billy')`
+    ),
+  ]
+).enableRLS();
+
+/**
+ * Which provider customer a CVR-MATE company corresponds to.
+ *
+ * Resolution is by CVR first — every Danish bookkeeping system carries a
+ * corporate identification number — falling back to name only when there is no
+ * CVR. This is where CVR-MATE beats a generic connector: the customer is created
+ * from verified registry data rather than whatever someone typed.
+ *
+ * Keyed on the connection, not the organization, so reconnecting or adding a
+ * second provider cannot silently inherit stale ids.
+ */
+export const accountingCustomerMap = pgTable(
+  "accounting_customer_map",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => accountingConnection.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => company.id, { onDelete: "cascade" }),
+    externalCustomerId: text("external_customer_id").notNull(),
+    /** How the match was made, so a bad name-match can be found later. */
+    matchedBy: text("matched_by").default("cvr").notNull(), // 'cvr' | 'name' | 'created'
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("accounting_customer_map_uq").on(table.connectionId, table.companyId),
+    index("accounting_customer_map_external_idx").on(
+      table.connectionId,
+      table.externalCustomerId
+    ),
+    check(
+      "accounting_customer_map_matched_check",
+      sql`${table.matchedBy} in ('cvr','name','created')`
+    ),
+  ]
+).enableRLS();
+
+/**
+ * A mirror of an invoice that lives in the accounting system.
+ *
+ * WRITE-ONLY FROM SYNC. Nothing in the product may edit `invoiceNumber`,
+ * `status` or the amounts by hand — the moment it can, there are two sources of
+ * truth for a legal document and no way to tell which one is right.
+ *
+ * Survives its connection (`connectionId` SET NULL): the invoice history is a
+ * record of what happened, and disconnecting an integration afterwards should
+ * not erase it.
+ */
+export const orderInvoice = pgTable(
+  "order_invoice",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => salesOrder.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id").references(() => accountingConnection.id, {
+      onDelete: "set null",
+    }),
+    provider: text("provider").notNull(),
+    /** Provider's id for the draft, then for the booked invoice. */
+    externalId: text("external_id").notNull(),
+    /** NULL while a draft — the number is allocated by booking. */
+    invoiceNumber: text("invoice_number"),
+    status: text("status").default("draft").notNull(),
+    issueDate: date("issue_date"),
+    dueDate: date("due_date"),
+    currency: text("currency").default("DKK").notNull(),
+    /** Totals as the PROVIDER reports them, in øre — not our computed figures. */
+    total: bigint("total", { mode: "number" }).default(0).notNull(),
+    vatTotal: bigint("vat_total", { mode: "number" }).default(0).notNull(),
+    /**
+     * Set when the provider's total disagrees with the order's.
+     *
+     * e-conomic derives VAT from the customer's VAT zone and the product's
+     * configuration rather than from a per-line rate we send, so the two can
+     * legitimately diverge. Silently trusting either side would be wrong, so the
+     * discrepancy is recorded and surfaced instead.
+     */
+    totalsMismatch: boolean("totals_mismatch").default(false).notNull(),
+    pdfUrl: text("pdf_url"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("order_invoice_org_idx").on(table.organizationId),
+    index("order_invoice_order_idx").on(table.orderId),
+    index("order_invoice_status_idx").on(table.organizationId, table.status),
+    // One live invoice per order; partial so a cancelled attempt can be redone
+    // without deleting the record of it.
+    uniqueIndex("order_invoice_live_uq")
+      .on(table.orderId)
+      .where(sql`${table.status} <> 'cancelled'`),
+    uniqueIndex("order_invoice_external_uq").on(table.provider, table.externalId),
+    check(
+      "order_invoice_status_check",
+      sql`${table.status} in ('draft','booked','sent','paid','overdue','credited','cancelled')`
+    ),
+  ]
+).enableRLS();
 
 export const organizationProfileRelations = relations(organizationProfile, ({ one }) => ({
   organization: one(organization, {

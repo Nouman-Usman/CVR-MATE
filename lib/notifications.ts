@@ -2,8 +2,39 @@ import "server-only";
 
 import { db } from "@/db";
 import { notification } from "@/db/schema";
-import { organization } from "@/db/auth-schema";
-import { eq, and, desc, count, inArray } from "drizzle-orm";
+import { member, organization } from "@/db/auth-schema";
+import { eq, and, desc, count, inArray, isNull, or, type SQL } from "drizzle-orm";
+
+/**
+ * Restrict a notification query to workspaces the user is still part of.
+ *
+ * Cross-workspace visibility is deliberate — see `getUserNotifications` — but
+ * it is scoped to workspaces the user *belongs to*. A notification tagged with
+ * an organization they have since left is different in kind: opening it asks
+ * the UI to switch into a workspace every query will now reject, so it renders
+ * as an item that can be seen but never acted on.
+ *
+ * Personal notifications (organization_id IS NULL) always pass.
+ *
+ * Filtered rather than deleted at removal time, so the notification comes back
+ * intact if the person is invited again — and so removing a member never
+ * destroys anything.
+ */
+function visibleToUser(userId: string): SQL | undefined {
+  return and(
+    eq(notification.userId, userId),
+    or(
+      isNull(notification.organizationId),
+      inArray(
+        notification.organizationId,
+        db
+          .select({ organizationId: member.organizationId })
+          .from(member)
+          .where(eq(member.userId, userId))
+      )
+    )
+  );
+}
 
 // ─── In-process pub/sub for SSE fan-out ──────────────────────────────────────
 // Each user can have multiple SSE connections (tabs). When a notification is
@@ -135,17 +166,20 @@ export async function getUserNotifications(
   limit = 30
 ): Promise<NotificationRecord[]> {
   const rows = await db.query.notification.findMany({
-    where: eq(notification.userId, userId),
+    where: visibleToUser(userId),
     orderBy: [desc(notification.createdAt)],
     limit,
   });
 
   /**
-   * Every notification the user is entitled to, whichever workspace it belongs
-   * to — deliberately not filtered. A contract expiring tomorrow is worth
-   * knowing about while you happen to be working personally; the list labels
-   * each one and the UI switches workspace when an org notification is opened,
-   * so nothing is hidden and nothing dead-ends.
+   * Every notification the user is entitled to, whichever of THEIR workspaces
+   * it belongs to — deliberately not filtered to the active one. A contract
+   * expiring tomorrow is worth knowing about while you happen to be working
+   * personally; the list labels each one and the UI switches workspace when an
+   * org notification is opened, so nothing is hidden and nothing dead-ends.
+   *
+   * `visibleToUser` supplies the one exclusion that keeps that promise true:
+   * organizations the user is no longer a member of.
    */
   const orgIds = [...new Set(rows.map((r) => r.organizationId).filter(Boolean))] as string[];
   const orgs = orgIds.length
@@ -171,12 +205,12 @@ export async function getUserNotifications(
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
+  // Must use the same visibility rule as the list, or the badge counts items
+  // the user cannot see and never drops to zero.
   const [result] = await db
     .select({ value: count() })
     .from(notification)
-    .where(
-      and(eq(notification.userId, userId), eq(notification.isRead, false))
-    );
+    .where(and(visibleToUser(userId), eq(notification.isRead, false)));
   return result?.value ?? 0;
 }
 
@@ -203,6 +237,9 @@ export async function markAsRead(
 }
 
 export async function markAllAsRead(userId: string): Promise<number> {
+  // Deliberately NOT scoped by visibleToUser: clearing should also settle the
+  // backlog from workspaces the user has left, so those never resurface unread
+  // if they are invited back.
   const result = await db
     .update(notification)
     .set({ isRead: true })

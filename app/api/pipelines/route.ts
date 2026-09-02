@@ -6,6 +6,7 @@ import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { getOrCreateDefaultPipeline, DEFAULT_STAGES } from "@/lib/crm/pipeline";
 import { parseBody, pipelineCreateSchema } from "@/lib/validation/crm";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity/log";
 
 /** GET /api/pipelines — list org pipelines with ordered stages (seeds default). */
 export async function GET(req: NextRequest) {
@@ -68,6 +69,15 @@ export async function POST(req: NextRequest) {
         orderBy: [asc(pipelineStage.position)],
       });
       return { ...p, stages };
+    });
+
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "pipeline",
+      entityId: created.id,
+      action: "created",
+      metadata: { name: created.name, stageCount: created.stages.length },
     });
 
     return NextResponse.json({ pipeline: created }, { status: 201 });

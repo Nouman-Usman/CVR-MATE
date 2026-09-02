@@ -12,6 +12,7 @@ import {
 import { resolveWorkspace } from "@/lib/workspace/resolve";
 import { orgIdForWrite } from "@/lib/workspace/types";
 import { workspaceScope } from "@/lib/workspace/scope";
+import { logActivity } from "@/lib/activity/log";
 
 /**
  * Subscription management for company alerts.
@@ -132,6 +133,16 @@ export async function POST(req: NextRequest) {
         .update(followedCompany)
         .set({ isActive: true, companyName })
         .where(eq(followedCompany.id, existing.id));
+
+      await logActivity({
+        userId,
+        organizationId: existing.organizationId,
+        entityType: "company",
+        entityId: existing.id,
+        action: "followed",
+        metadata: { cvr, companyName, reactivated: true },
+      });
+
       return NextResponse.json({ followed: true, reactivated: true });
     }
 
@@ -146,7 +157,16 @@ export async function POST(req: NextRequest) {
         companyName,
         note: body.note ? String(body.note) : null,
       })
-      .returning({ id: followedCompany.id });
+      .returning({ id: followedCompany.id, organizationId: followedCompany.organizationId });
+
+    await logActivity({
+      userId,
+      organizationId: created.organizationId,
+      entityType: "company",
+      entityId: created.id,
+      action: "followed",
+      metadata: { cvr, companyName },
+    });
 
     return NextResponse.json({ followed: true, id: created.id }, { status: 201 });
   } catch (error) {
@@ -201,6 +221,22 @@ export async function DELETE(req: NextRequest) {
       .update(followedCompany)
       .set({ isActive: false })
       .where(eq(followedCompany.id, target.id));
+
+    // `onBehalfOf` distinguishes an admin silencing someone else's alerts from
+    // a user unfollowing their own — the follow row names the subscriber, not
+    // whoever pressed the button.
+    await logActivity({
+      userId,
+      organizationId: target.organizationId,
+      entityType: "company",
+      entityId: target.id,
+      action: "unfollowed",
+      metadata: {
+        cvr: target.cvr,
+        companyName: target.companyName,
+        onBehalfOf: target.userId === userId ? undefined : target.userId,
+      },
+    });
 
     return NextResponse.json({ unfollowed: true });
   } catch (error) {

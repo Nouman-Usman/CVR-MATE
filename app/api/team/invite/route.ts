@@ -11,6 +11,7 @@ import {
   assertOrgPlanActive,
   TeamPermissionError,
   teamErrorToStatus,
+  type TeamErrorCode,
 } from "@/lib/team/permissions";
 import { logOrgEvent } from "@/lib/team/audit";
 import { getTeamSession, unauthorized, badRequest } from "@/lib/team/session";
@@ -20,6 +21,20 @@ import { parseBody } from "@/lib/validation/crm";
 import { inviteMemberSchema } from "@/lib/validation/team";
 
 const INVITE_TTL_DAYS = 7;
+
+const DUPLICATE_INVITE = "An invitation is already pending for this email";
+
+/**
+ * How the invite transaction ended.
+ *
+ * Tagged rather than thrown, because neither failure is exceptional: both are
+ * ordinary outcomes with their own HTTP response, and throwing would roll back
+ * a transaction that has nothing to undo while flattening the reason.
+ */
+type InviteOutcome =
+  | { status: "created" }
+  | { status: "duplicate" }
+  | { status: "no_seats"; message: string; code: TeamErrorCode };
 
 /**
  * POST /api/team/invite — invite someone to an organization.
@@ -118,24 +133,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Seats. Inert while every Enterprise plan is unlimited (teamMemberLimit -1)
-  // and every other plan is rejected by assertOrgPlanActive above — kept so a
-  // seat-priced tier only needs a config change, not new enforcement code.
-  try {
-    await assertSeatAvailable(organizationId);
-  } catch (err) {
-    if (err instanceof TeamPermissionError) {
-      await logOrgEvent({
-        organizationId,
-        actorId: session.user.id,
-        action: "seat_limit_reached",
-        metadata: { targetEmail: email },
-      });
-      return NextResponse.json({ error: err.message, code: err.code }, { status: teamErrorToStatus(err) });
-    }
-    throw err;
-  }
-
   const org = await db.query.organization.findFirst({
     where: eq(organization.id, organizationId),
   });
@@ -147,36 +144,68 @@ export async function POST(req: NextRequest) {
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
   /**
-   * The duplicate check above is a SELECT, so it cannot be the enforcement —
-   * two concurrent requests both pass it. `invitation_pending_uq` is the
-   * authority; zero rows back means another request won the race.
-   * `targetWhere` must match the partial index predicate exactly or Postgres
-   * cannot use it to arbitrate.
+   * Seat check and insert share one transaction.
+   *
+   * Seats. Inert while every Enterprise plan is unlimited (teamMemberLimit -1)
+   * and every other plan is rejected by assertOrgPlanActive above — kept so a
+   * seat-priced tier only needs a config change, not new enforcement code. That
+   * promise only holds if the check cannot be raced, which is why it runs in the
+   * same transaction as the row it is guarding rather than before it.
+   *
+   * The duplicate check further up is a SELECT, so it cannot be the enforcement
+   * either — two concurrent requests both pass it. `invitation_pending_uq` is
+   * the authority; zero rows back means another request won the race.
    */
-  const inserted = await db
-    .insert(invitation)
-    .values({
-      id: invitationId,
-      organizationId,
-      email,
-      role: memberRole,
-      status: "pending",
-      expiresAt,
-      inviterId: session.user.id,
-    })
-    .onConflictDoNothing({
-      target: [invitation.organizationId, invitation.email],
-      // `where` is the index predicate for onConflictDoNothing (targetWhere is
-      // the onConflictDoUpdate spelling). It must match invitation_pending_uq
-      // exactly or Postgres will not use that index to arbitrate.
-      where: sql`status = 'pending'`,
-    })
-    .returning({ id: invitation.id });
+  const outcome: InviteOutcome = await db.transaction(async (tx) => {
+    try {
+      await assertSeatAvailable(organizationId, tx);
+    } catch (err) {
+      if (err instanceof TeamPermissionError) {
+        return { status: "no_seats", message: err.message, code: err.code };
+      }
+      throw err;
+    }
 
-  if (inserted.length === 0) {
+    const inserted = await tx
+      .insert(invitation)
+      .values({
+        id: invitationId,
+        organizationId,
+        email,
+        role: memberRole,
+        status: "pending",
+        expiresAt,
+        inviterId: session.user.id,
+      })
+      .onConflictDoNothing({
+        target: [invitation.organizationId, invitation.email],
+        // `where` is the index predicate for onConflictDoNothing (targetWhere
+        // is the onConflictDoUpdate spelling). It must match
+        // invitation_pending_uq exactly or Postgres will not arbitrate on it.
+        where: sql`status = 'pending'`,
+      })
+      .returning({ id: invitation.id });
+
+    return inserted.length === 0 ? { status: "duplicate" } : { status: "created" };
+  });
+
+  if (outcome.status === "duplicate") {
     return NextResponse.json(
-      { error: "An invitation is already pending for this email", code: "INVITE_ALREADY_PENDING" },
+      { error: DUPLICATE_INVITE, code: "INVITE_ALREADY_PENDING" },
       { status: 409 }
+    );
+  }
+
+  if (outcome.status === "no_seats") {
+    await logOrgEvent({
+      organizationId,
+      actorId: session.user.id,
+      action: "seat_limit_reached",
+      metadata: { targetEmail: email },
+    });
+    return NextResponse.json(
+      { error: outcome.message, code: outcome.code },
+      { status: teamErrorToStatus(new TeamPermissionError(outcome.code, outcome.message)) }
     );
   }
 

@@ -4,8 +4,14 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { user } from "@/db/auth-schema";
 import { member, organization, verification } from "@/db/auth-schema";
-import { subscription } from "@/db/app-schema";
-import { eq, and, ne, inArray } from "drizzle-orm";
+import {
+  companyNote,
+  savedCompany,
+  savedSearch,
+  subscription,
+  todo,
+} from "@/db/app-schema";
+import { eq, and, ne, inArray, isNull } from "drizzle-orm";
 import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -18,6 +24,12 @@ export const runtime = "nodejs";
  * Deletes the authenticated user's account and all associated data.
  * Because most app tables reference user.id with ON DELETE CASCADE,
  * a single DELETE on the user row removes everything atomically.
+ *
+ * The exception is shared team content — saved companies, saved searches,
+ * tasks and company notes that live in an organization. Those survive with
+ * their author set to NULL, so erasing one account does not delete a
+ * colleague's workspace. The user's own personal copies are purged explicitly
+ * inside the transaction below.
  *
  * Blocked if the user is the sole owner of an organisation with other
  * members — they must transfer ownership or dissolve the team first.
@@ -72,10 +84,32 @@ export async function DELETE() {
         await tx.delete(organization).where(inArray(organization.id, ownedOrgIds));
       }
 
+      /**
+       * Purge this user's PERSONAL content before the cascade.
+       *
+       * `user_id` on these four tables is SET NULL rather than CASCADE, so that
+       * deleting an account no longer erases a colleague's view of shared team
+       * work. That is right for organization rows, which `workspaceScope`
+       * selects by organization. It is wrong for personal rows, which are keyed
+       * by `user_id` — one with a NULL author would be visible to nobody and
+       * deletable by nobody, so they are removed outright here.
+       *
+       * Runs AFTER the sole-owned organizations are deleted, because that
+       * deletion sets `organization_id` to NULL on the rows it touches. Those
+       * rows are this user's own and become personal at that moment; purging
+       * afterwards catches them, purging first would miss them.
+       */
+      for (const table of [savedCompany, savedSearch, todo, companyNote]) {
+        await tx
+          .delete(table)
+          .where(and(eq(table.userId, userId), isNull(table.organizationId)));
+      }
+
       // Clean up verification table (no FK cascade)
       await tx.delete(verification).where(eq(verification.identifier, session.user.email));
 
-      // Delete the user row — cascades all user-scoped data via ON DELETE CASCADE
+      // Delete the user row — cascades all user-scoped data via ON DELETE
+      // CASCADE, and anonymises authorship on the four content tables above.
       await tx.delete(user).where(eq(user.id, userId));
     });
 

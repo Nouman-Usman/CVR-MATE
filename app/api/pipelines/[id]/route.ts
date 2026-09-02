@@ -5,6 +5,7 @@ import { pipeline, deal } from "@/db/schema";
 import { requireCrmOrg, crmErrorResponse } from "@/lib/crm/guard";
 import { loadOwnedPipeline } from "@/lib/crm/pipeline";
 import { parseBody, pipelineUpdateSchema } from "@/lib/validation/crm";
+import { logActivity } from "@/lib/activity/log";
 
 /** PATCH /api/pipelines/[id] — rename or set as default. */
 export async function PATCH(
@@ -13,7 +14,7 @@ export async function PATCH(
 ) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
-  const { organizationId } = guard.ctx;
+  const { userId, organizationId } = guard.ctx;
 
   try {
     const { id } = await params;
@@ -45,6 +46,22 @@ export async function PATCH(
       return row;
     });
 
+    // Which default moved matters more than the new name: it silently changes
+    // where every subsequently created deal lands.
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "pipeline",
+      entityId: updated.id,
+      action: "updated",
+      metadata: {
+        name: updated.name,
+        previousName: existing.name,
+        isDefault: updated.isDefault,
+        becameDefault: isDefault === true && !existing.isDefault,
+      },
+    });
+
     return NextResponse.json({ pipeline: updated });
   } catch (err) {
     return crmErrorResponse(err);
@@ -58,7 +75,7 @@ export async function DELETE(
 ) {
   const guard = await requireCrmOrg(req);
   if (!guard.ok) return guard.response;
-  const { organizationId } = guard.ctx;
+  const { userId, organizationId } = guard.ctx;
 
   try {
     const { id } = await params;
@@ -86,9 +103,24 @@ export async function DELETE(
 
     // Clear stale soft-deleted deals (they hold a restrict FK to stages), then
     // delete the pipeline — stages cascade.
-    await db.transaction(async (tx) => {
-      await tx.delete(deal).where(eq(deal.pipelineId, id));
+    const purged = await db.transaction(async (tx) => {
+      const removed = await tx
+        .delete(deal)
+        .where(eq(deal.pipelineId, id))
+        .returning({ id: deal.id });
       await tx.delete(pipeline).where(eq(pipeline.id, id));
+      return removed.length;
+    });
+
+    // `purgedDeals` is the part worth recording: those rows were soft-deleted
+    // and recoverable until this call destroyed them outright.
+    await logActivity({
+      userId,
+      organizationId,
+      entityType: "pipeline",
+      entityId: id,
+      action: "deleted",
+      metadata: { name: existing.name, purgedDeals: purged },
     });
 
     return NextResponse.json({ message: "Pipeline deleted" });

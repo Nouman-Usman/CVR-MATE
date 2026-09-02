@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkUsageEntitlement } from "@/lib/stripe/entitlements";
+import { logActivity } from "@/lib/activity/log";
 import {
   getCompanyByVat,
   getParticipantByNumber,
@@ -113,17 +114,42 @@ export async function POST(req: NextRequest) {
           .update(followedPerson)
           .set({ isActive: true })
           .where(eq(followedPerson.id, alreadyFollowed.id));
+        await logActivity({
+          userId: session.user.id,
+          organizationId: alreadyFollowed.organizationId,
+          entityType: "person",
+          entityId: alreadyFollowed.id,
+          action: "followed",
+          metadata: {
+            participantNumber: pn,
+            personName: alreadyFollowed.personName,
+            reactivated: true,
+          },
+        });
+
         return NextResponse.json({ followed: true, reactivated: true }, { status: 200 });
       }
       return NextResponse.json({ followed: true, alreadyFollowed: true });
     }
 
     // Insert follow record
-    await db.insert(followedPerson).values({
+    const [created] = await db
+      .insert(followedPerson)
+      .values({
+        userId: session.user.id,
+        participantNumber: pn,
+        personName: String(personName),
+        fromVat: fromVat ? String(fromVat) : null,
+      })
+      .returning({ id: followedPerson.id, organizationId: followedPerson.organizationId });
+
+    await logActivity({
       userId: session.user.id,
-      participantNumber: pn,
-      personName: String(personName),
-      fromVat: fromVat ? String(fromVat) : null,
+      organizationId: created.organizationId,
+      entityType: "person",
+      entityId: created.id,
+      action: "followed",
+      metadata: { participantNumber: pn, personName: String(personName) },
     });
 
     // ─── Backfill: build reverse index + initial snapshots ───
@@ -158,15 +184,32 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Delete the follow record
-    await db
+    // Deleted with RETURNING so the log can name what went — this route hard
+    // deletes, unlike /api/followed-companies, so the row is gone afterwards.
+    const removed = await db
       .delete(followedPerson)
       .where(
         and(
           eq(followedPerson.userId, session.user.id),
           eq(followedPerson.participantNumber, pn)
         )
-      );
+      )
+      .returning({
+        id: followedPerson.id,
+        personName: followedPerson.personName,
+        organizationId: followedPerson.organizationId,
+      });
+
+    for (const row of removed) {
+      await logActivity({
+        userId: session.user.id,
+        organizationId: row.organizationId,
+        entityType: "person",
+        entityId: row.id,
+        action: "unfollowed",
+        metadata: { participantNumber: pn, personName: row.personName },
+      });
+    }
 
     // Clean up shared data if no other users follow this participant
     const [{ value: othersFollowing }] = await db

@@ -36,6 +36,7 @@ const PAGE_SIZE = 50;
 function entityLabel(type: string, tr: Tr): string {
   switch (type) {
     case "company": return tr("Virksomhed", "Company");
+    case "person": return tr("Person", "Person");
     case "todo": return tr("Opgave", "Task");
     case "note": return tr("Note", "Note");
     case "contact": return tr("Kontakt", "Contact");
@@ -63,6 +64,8 @@ function actionLabel(action: string, tr: Tr): string {
     case "exported": return tr("eksporteret", "exported");
     case "saved": return tr("gemt", "saved");
     case "unsaved": return tr("fjernet fra gemte", "unsaved");
+    case "followed": return tr("fulgt", "followed");
+    case "unfollowed": return tr("stoppet med at følge", "unfollowed");
     case "stage_changed": return tr("flyttet fase", "moved stage");
     case "won": return tr("vundet", "won");
     case "lost": return tr("tabt", "lost");
