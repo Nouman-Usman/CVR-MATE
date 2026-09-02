@@ -155,6 +155,18 @@ accounting-section.tsx`, under the Integrations tab) shows the alternatives with
 so a person can correct it. `PATCH /api/accounting/connection` saves overrides;
 `?rediscover=1` re-reads the agreement.
 
+**Connect flow: no token pasting.** e-conomic does not offer OAuth 2.0 — it has its own grant
+flow — so "Connect with e-conomic" sends the user to `requestaccess.aspx` with the app's PUBLIC
+token, they approve the app against their agreement, and e-conomic redirects to
+`/api/accounting/economic/callback` with the grant token. Because that flow echoes no `state`
+parameter, the anti-forgery value rides in a **signed** HttpOnly cookie carrying org + user + a
+10-minute expiry (`lib/accounting/grant-state.ts`, pure and tested): a random opaque value would
+only prove a browser started a flow, whereas signing proves *which org and user* did, and the
+callback still re-asserts `manage_integrations` against the live session. The grant token arrives
+as a query parameter, so it is consumed immediately and never echoed, logged, or returned —
+verified: it appears zero times in the callback response. Manual token entry is retained behind a
+disclosure as a support fallback. Needs `ECONOMIC_APP_PUBLIC_TOKEN`.
+
 **Still outstanding**
 - e-conomic app registration (app token + agreement grant) — the only external lead time.
   Recommended roles: **Accounting** only. Not Superuser (full books access for a draft-creating
