@@ -11,6 +11,7 @@ import { formatOre, formatDate } from "@/lib/format";
 import { useOrder, useUpdateOrder } from "@/lib/hooks/use-orders";
 import { StatusBadge } from "@/components/crm/StatusBadge";
 import { ListSkeleton, QueryError, NotFoundState } from "@/components/crm/QueryState";
+import { OrderInvoicePanel } from "@/components/crm/OrderInvoicePanel";
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -89,6 +90,10 @@ export default function OrderDetailPage() {
                 <StatusBtn onClick={() => setStatus("cancelled")} busy={update.isPending} icon={X} label={tr("Annullér", "Cancel")} />
               )}
             </div>
+
+            {/* Invoicing — CVR-MATE creates a draft; the accounting system owns
+                the booked invoice. */}
+            <OrderInvoicePanel orderId={id} orderStatus={order.status} />
 
             {/* Lines */}
             <div className="rounded-xl border border-border overflow-hidden">

@@ -9,6 +9,7 @@ import { VideoTrigger } from "@/components/videos/VideoTrigger";
 import DashboardLayout from "@/components/dashboard-layout";
 import Link from "next/link";
 import CrmIntegrationsSectionComponent from "@/components/settings/crm-integrations-section";
+import { AccountingSection } from "@/components/settings/accounting-section";
 import TeamSection from "@/components/settings/team-section";
 import AiVoiceSection from "@/components/settings/AiVoiceSection";
 import {
@@ -1901,7 +1902,15 @@ export default function SettingsPage() {
         </div>}
 
         {/* ── CRM Integrations ─────────────────────────────────────────── */}
-        {activeSection === "integrations" && <CrmIntegrationsSectionComponent />}
+        {activeSection === "integrations" && (
+          <div className="space-y-6">
+            <CrmIntegrationsSectionComponent />
+            {/* Bookkeeping sits with the other integrations but is its own card:
+                a CRM push and access to the company's books are different
+                decisions, and they are revocable separately. */}
+            <AccountingSection />
+          </div>
+        )}
 
         {/* ── Subscription ─────────────────────────────────────────────── */}
         {activeSection === "subscription" && isOrgMember && (

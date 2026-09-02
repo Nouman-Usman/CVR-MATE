@@ -99,7 +99,7 @@ Native quote→order lifecycle tied to the pipeline. No external product.
 
 ---
 
-### P6 — Accounting port + e-conomic adapter — next · **L**
+### P6 — Accounting port + e-conomic adapter — **BUILT** · **L**
 Turn a fulfilled order into an invoice the client can pay, **without CVR-MATE becoming the ledger**.
 
 **Principle.** The order is commercial; the accounting system is financial. CVR-MATE never allocates an invoice number, never books, never files VAT. It hands over a draft and mirrors the outcome.
@@ -135,12 +135,35 @@ a human books and sends it there → status flows back to the order and to P4/P5
 - Pushing the *ledger* anywhere: no accounts, no postings, no VAT returns.
 - EAN/NemHandel/Peppol public-sector invoicing — the provider does this; CVR-MATE must not.
 
-**Prerequisites**
-- Seller identity: `organization_profile` has `legal_name`/`cvr`/address but **no payment terms and
-  no bank details**. Those live provider-side, so P6 needs only a default payment-terms value
-  (netto 8/14/30) per org, with a per-customer override.
-- e-conomic app registration (app token + agreement grant). **The only external lead time in this
-  plan** — start it before P5 finishes.
+**Status: built, and unverified against a live agreement.**
+Schema, port, e-conomic adapter, customer resolver, draft creation, reconciliation, sync, API
+routes, cron and order UI are all in place (migrations 0053, 0054). `organization_profile
+.default_payment_terms_days` added. The adapter's request shapes follow e-conomic's documented
+REST API but **no agreement grant exists yet**, so nothing has touched the real service. Its
+transport is injectable and `ECONOMIC_API_BASE_URL` overrides the endpoint, which is how the
+end-to-end probe drives the whole flow against a local stand-in.
+
+**Auto-discovery + connect UI: done.** Connecting now takes only the agreement grant token —
+`discoverSettings` reads `/customer-groups`, `/vat-zones`, `/payment-terms`, `/layouts` and
+`/products` in parallel and pre-selects each. The picking is pure and tested
+(`providers/economic-discovery.ts`): the domestic VAT zone is matched by name in both languages
+rather than by number, payment terms match the org's netto days and prefer net over prepaid, and a
+fallback product is only accepted when it looks deliberately generic — otherwise it stays null,
+because invoicing consultancy hours against "Skruer 4mm" would corrupt the customer's reporting.
+Every pick carries a `confident` flag, and the Settings form (`components/settings/
+accounting-section.tsx`, under the Integrations tab) shows the alternatives with a "guessed" badge
+so a person can correct it. `PATCH /api/accounting/connection` saves overrides;
+`?rediscover=1` re-reads the agreement.
+
+**Still outstanding**
+- e-conomic app registration (app token + agreement grant) — the only external lead time.
+  Recommended roles: **Accounting** only. Not Superuser (full books access for a draft-creating
+  integration), not Sales (that is e-conomic's quote/order module — CVR-MATE *is* that module, and
+  requiring it would exclude customers who lack it). No required modules. Roles cannot be changed
+  after creation, so confirm with e-conomic support that `Accounting` covers `POST /customers` and
+  `POST /invoices/drafts` before submitting.
+- Dinero and Billy adapters — the schema and port already accept them.
+- Registering the QStash schedule for `/api/cron/accounting-sync`.
 
 **Verification**
 - Order with **mixed-VAT lines and per-line discounts** → draft invoice in e-conomic whose totals

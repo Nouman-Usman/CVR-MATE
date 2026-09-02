@@ -67,6 +67,7 @@ function actionLabel(action: string, tr: Tr): string {
     case "followed": return tr("fulgt", "followed");
     case "unfollowed": return tr("stoppet med at følge", "unfollowed");
     case "stage_changed": return tr("flyttet fase", "moved stage");
+    case "invoiced": return tr("faktureret", "invoiced");
     case "won": return tr("vundet", "won");
     case "lost": return tr("tabt", "lost");
     default: return action;

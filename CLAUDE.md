@@ -60,6 +60,7 @@ All protected routes are guarded in `middleware.ts`, which also applies a 10 req
 | `/api/email/*` | Email preference management |
 | `/api/dashboard` | Metrics + recent activity |
 | `/api/exports/*` | Data export status |
+| `/api/accounting/*` | Bookkeeping connection (e-conomic); orders push a **draft** invoice, never a booked one |
 
 ### Database (`/db`)
 

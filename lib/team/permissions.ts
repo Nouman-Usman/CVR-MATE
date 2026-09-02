@@ -15,7 +15,11 @@ export type TeamAction =
   | "cancel_invitation"
   | "delete_org"
   | "rename_org"
-  | "transfer_ownership";
+  | "transfer_ownership"
+  // Connecting the organization's bookkeeping system. Separate from CRM
+  // connections: this one reaches the financial records that invoices are
+  // issued from.
+  | "manage_integrations";
 
 export type OrgRole = "owner" | "admin" | "member";
 
@@ -39,6 +43,9 @@ const ACTION_MIN_ROLE: Record<TeamAction, OrgRole[]> = {
   delete_org: ["owner"],
   rename_org: ["owner", "admin"],
   transfer_ownership: ["owner"],
+  // Owner/admin, matching invite_member — a plain member should not be able to
+  // point the company's invoicing at an account of their choosing.
+  manage_integrations: ["owner", "admin"],
 };
 
 // ─── Core Permission Functions ──────────────────────────────────────────────

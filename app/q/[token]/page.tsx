@@ -45,8 +45,6 @@ export default function PublicQuotePage() {
     queryKey,
     queryFn: () => fetchJson<PublicQuoteView>(`/api/public/quotes/${token}`),
     enabled: token.length > 0,
-    // A 404 is the server's answer, not a blip — retrying only leaks requests
-    // into a rate limit that fails closed on this route.
     retry: (count, err) => !(err instanceof ApiError) && count < 1,
   });
 

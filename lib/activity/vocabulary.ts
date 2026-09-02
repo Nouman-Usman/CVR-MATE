@@ -47,6 +47,9 @@ export const ACTIVITY_ACTIONS = [
   "followed",
   "unfollowed",
   "stage_changed",
+  // An order handed to the bookkeeping system as a draft invoice. Distinct from
+  // "sent": CVR-MATE never sends the invoice, the accounting system does.
+  "invoiced",
   "won",
   "lost",
 ] as const;

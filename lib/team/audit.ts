@@ -23,6 +23,11 @@ export type AuditAction =
   // account was deleted has nobody able to transfer it, so the cleanup sweep
   // promotes a successor. `actorId` is null on these.
   | "ownership_recovered"
+  // Which bookkeeping agreement the org's invoices are issued through. Worth
+  // auditing for the same reason as org_profile_updated: it changes where
+  // commercially binding documents come from.
+  | "accounting_connected"
+  | "accounting_disconnected"
   | "seat_limit_reached"
   | "permission_denied"
   // Native CRM security-relevant events

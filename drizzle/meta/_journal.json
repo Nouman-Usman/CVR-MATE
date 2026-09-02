@@ -372,6 +372,20 @@
       "when": 1787655559690,
       "tag": "0052_sturdy_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788338560213,
+      "tag": "0053_fair_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788338749559,
+      "tag": "0054_fluffy_big_bertha",
+      "breakpoints": true
     }
   ]
 }

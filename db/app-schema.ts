@@ -418,6 +418,7 @@ export const orgAuditLog = pgTable(
     //          member_invited | invitation_accepted | invitation_declined | invite_revoked
     //          member_removed | member_left
     //          role_changed | ownership_transferred | ownership_recovered
+    //          accounting_connected | accounting_disconnected
     //          seat_limit_reached | permission_denied
     targetUserId: text("target_user_id").references(() => user.id, {
       onDelete: "set null",
@@ -2165,6 +2166,16 @@ export const accountingConnection = pgTable(
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
     /** Human label from the provider (e-conomic agreement / company name). */
     agreementName: text("agreement_name"),
+    /**
+     * Provider-specific configuration discovered at connect time.
+     *
+     * e-conomic cannot create a customer or an invoice without agreement-local
+     * numbers — customer group, VAT zone, payment terms, layout — and those
+     * differ per agreement, so they cannot be constants. They live here as
+     * opaque JSON rather than as columns because they mean nothing to Dinero or
+     * Billy, and a provider-agnostic table should not grow one vendor's schema.
+     */
+    settings: jsonb("settings").default({}).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     /** Last sync failure, so a silently-broken connection is visible. */
@@ -2293,7 +2304,15 @@ export const orderInvoice = pgTable(
     uniqueIndex("order_invoice_live_uq")
       .on(table.orderId)
       .where(sql`${table.status} <> 'cancelled'`),
-    uniqueIndex("order_invoice_external_uq").on(table.provider, table.externalId),
+    /**
+     * A provider's invoice id is unique WITHIN an agreement, not globally.
+     *
+     * Keyed on the connection for that reason: two organizations each running
+     * their own e-conomic agreement will both have a draft #101, and a
+     * (provider, external_id) key would let the first one block the second from
+     * ever invoicing. Cross-tenant collision, found by the P6 probe.
+     */
+    uniqueIndex("order_invoice_external_uq").on(table.connectionId, table.externalId),
     check(
       "order_invoice_status_check",
       sql`${table.status} in ('draft','booked','sent','paid','overdue','credited','cancelled')`
